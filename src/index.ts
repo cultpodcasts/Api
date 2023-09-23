@@ -80,36 +80,7 @@ export default {
 								headers: {
 										...corsHeaders
 								}
-						});//check
+						});
 		},
-
-		//async scheduled(
-		//		event: ScheduledEvent,
-		//		env: Env,
-		//		ctx: EventContext<Env, any, any>
-		//) {
-		//		ctx.waitUntil(handleSchedule(event, env));
-		//},
 };
 
-//function handleSchedule(
-//		event: ScheduledEvent,
-//		env: Env
-//): Promise < Response > {
-
-//		return cacheHomepage();
-//}
-
-// async function cacheHomepage(): Promise<Response> {
-//		let response = await fetch(homepageRequest, {
-//				cf: {
-//						cacheTtl: 600,
-//						cacheEverything: true
-//				}
-//		});
-//		response = new Response(response.body, response);
-//		response.headers.set("Cache-Control", "max-age=600");
-//		response.headers.append("Access-Control-Allow-Origin", "*");
-//		response.headers.append("Access-Control-Allow-Methods", "GET,OPTIONS");
-//		return response
-//}
