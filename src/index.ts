@@ -2,10 +2,6 @@ export interface Env {
 		DB: D1Database;
 }
 
-//const cache = caches.default;
-const homepageApiUrl = "https://api-cultpodcasts.azurewebsites.net/api/homepage";
-const homepageRequest = new Request(homepageApiUrl);
-
 export default {
 		async fetch(request: Request, env: Env) {
 				const { pathname } = new URL(request.url);
@@ -36,7 +32,7 @@ export default {
 								       p.Publisher,
 											 e.Title,
 											 e.Description,
-											 date(e.Release) AS Released,
+											 e.Release AS Released,
 											 time(e.Length) AS Length,
 											 e.Explicit,
 											 e.Spotify,
@@ -60,18 +56,25 @@ export default {
 				}
 
 				if (pathname.startsWith("/api/homepage")) {
-						//return cacheHomepage();
-						let response = await fetch(homepageRequest, {
-								cf: {
-										cacheTtl: 600,
-										cacheEverything: true
-								}
+
+						const object = await env.Content.get("homepage");
+
+						if (object === null) {
+								return new Response('Object Not Found', { status: 404 });
+						}
+
+						const headers = new Headers();
+						object.writeHttpMetadata(headers);
+						headers.set('etag', object.httpEtag);
+						headers.set("Cache-Control", "max-age=600");
+						headers.append("Access-Control-Allow-Origin", "*");
+						headers.append("Access-Control-Allow-Methods", "GET,OPTIONS");
+
+
+						return new Response(object.body, {
+								headers,
 						});
-						response = new Response(response.body, response);
-						response.headers.set("Cache-Control", "max-age=600");
-						response.headers.append("Access-Control-Allow-Origin", "*");
-						response.headers.append("Access-Control-Allow-Methods", "GET,OPTIONS");
-						return response;
+
 				}
 
 				return new Response(
