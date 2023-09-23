@@ -28,16 +28,16 @@ export default {
 						// If you did not use `DB` as your binding name, change it here
 						const { results } = await env.DB.prepare(
 								`
-								SELECT p.Name AS Podcast,
-								       p.Publisher,
-											 e.Title,
-											 e.Description,
-											 e.Release AS Released,
-											 time(e.Length) AS Length,
-											 e.Explicit,
-											 e.Spotify,
-											 e.Apple,
-											 e.YouTube
+								SELECT p.Name AS podcastName,
+								       p.Publisher AS publisher,
+											 e.Title AS episodeTitle,
+											 e.Description AS episodeDescription,
+											 e.Release AS release,
+											 time(e.Length) AS length,
+											 e.Explicit AS explicit,
+											 e.Spotify AS spotify,
+											 e.Apple AS apple,
+											 e.YouTube AS youtube
 								FROM EpisodesText t
 								JOIN Episodes e ON t.Guid = e.Guid
 								JOIN Podcasts p ON e.PodcastId = p.Id
