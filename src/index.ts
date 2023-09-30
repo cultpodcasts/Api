@@ -1,11 +1,14 @@
 export interface Env {
 		DB: D1Database;
+		Content: R2Bucket;
 }
 
 export default {
 		async fetch(request: Request, env: Env) {
-				const { pathname } = new URL(request.url);
+				const { pathname, searchParams } = new URL(request.url);
 				const searchRoute = "/api/episode_search";
+				const homeRoute = "/api/homepage";
+				const sqlLimit = 100;
 				const corsHeaders = {
 						"Access-Control-Allow-Origin": "*",//"https://cultpodcasts.com",
 						"Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
@@ -23,9 +26,16 @@ export default {
 
 				if (pathname.startsWith(searchRoute)) {
 						var searchTerms = decodeURIComponent(pathname.substring(searchRoute.length + 1));
+						let pageSql = "";
+						if (searchParams.has("page")) {
+								var pageSearchComponent = searchParams.get("page");
+								if (pageSearchComponent) {
+										var page: number = parseInt(pageSearchComponent);
+										pageSql = ` OFFSET ${(page - 1) * sqlLimit}`
+								}
+						}
+						
 
-
-						// If you did not use `DB` as your binding name, change it here
 						const { results } = await env.DB.prepare(
 								`
 								SELECT p.Name AS podcastName,
@@ -43,6 +53,7 @@ export default {
 								JOIN Podcasts p ON e.PodcastId = p.Id
 								WHERE EpisodesText MATCH ?
 								ORDER BY rank
+								LIMIT ${sqlLimit}${pageSql}
 						`
 						)
 								.bind(searchTerms)
@@ -55,7 +66,7 @@ export default {
 								});
 				}
 
-				if (pathname.startsWith("/api/homepage")) {
+				if (pathname.startsWith(homeRoute)) {
 
 						const object = await env.Content.get("homepage");
 
@@ -78,7 +89,9 @@ export default {
 				}
 
 				return new Response(
-						"Call /api/episode_search to search episode descriptions",
+						`Call ${searchRoute} to search episode descriptions
+						Call ${homeRoute} to get the last 7-days of new releases
+						`,
 						{
 								headers: {
 										...corsHeaders
