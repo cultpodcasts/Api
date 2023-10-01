@@ -8,7 +8,7 @@ export default {
 				const { pathname, searchParams } = new URL(request.url);
 				const searchRoute = "/api/episode_search";
 				const homeRoute = "/api/homepage";
-				const sqlLimit = 100;
+				const sqlLimit = 20;
 				const corsHeaders = {
 						"Access-Control-Allow-Origin": "*", //"https://cultpodcasts.com",
 						"Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
