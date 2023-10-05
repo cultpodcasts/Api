@@ -8,6 +8,7 @@ export default {
 				const { pathname, searchParams } = new URL(request.url);
 				const searchRoute = "/api/episode_search";
 				const homeRoute = "/api/homepage";
+				const azureSearchRoute = "/api";
 				const sqlLimit = 20;
 				const corsHeaders = {
 						"Access-Control-Allow-Origin": "*", //"https://cultpodcasts.com",
@@ -106,9 +107,37 @@ export default {
 						});
 				}
 
+				if (pathname.startsWith(azureSearchRoute)) {
+						const searchPath = pathname.substring(azureSearchRoute.length + 1);
+						const API_HOST = "https://XXXXXXXXXXXXXXXXXXXXXXXXX?api-version=2016-09-01&";
+						const url = `${API_HOST}${searchPath}${searchParams}`;
+						//return new Response(url);
+
+						let response = await fetch(url, {
+								cf: {
+										cacheEverything: true,
+										cacheTtl: 600
+								},
+								headers: {
+										"api-key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+								}
+						});
+						let body = await response.json();
+						body["@odata.context"] = null;
+
+						const headers = new Headers();
+						headers.set("Cache-Control", "max-age=600");
+						headers.append("Content-Type", "application/json");
+						headers.append("Access-Control-Allow-Origin", "*");
+						headers.append("Access-Control-Allow-Methods", "GET,OPTIONS");
+
+						return new Response(JSON.stringify(body), {headers})
+				}
+
 				return new Response(
 						`Call ${searchRoute} to search episode descriptions
-Call ${homeRoute} to get the last 7-days of new releases`,
+Call ${homeRoute} to get the last 7-days of new releases
+${pathname}`,
 						{
 								headers: {
 										...corsHeaders,
