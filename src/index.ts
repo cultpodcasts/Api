@@ -96,13 +96,13 @@ export default {
 
 						const headers = new Headers();
 						object.writeHttpMetadata(headers);
+						headers.set("etag", object.httpEtag);
+						headers.set("Cache-Control", "max-age=600");
+						headers.append("Access-Control-Allow-Origin", "*");
+						headers.append("Access-Control-Allow-Methods", "GET,OPTIONS");
 
-						return Response.json(object.body, {
-								headers: {
-										...corsHeaders,
-										"Cache-Control": "max-age=600",
-										"etag": object.httpEtag
-								}
+						return new Response(object.body, {
+								headers
 						});
 				}
 
