@@ -7,7 +7,7 @@ export default {
 		async fetch(request: Request, env: Env) {
 				const { pathname, searchParams } = new URL(request.url);
 				const searchRoute = "/api/episode_search";
-				const homeRoute = "/api/homepage";
+				const homeRoute = "/homepage";
 				const azureSearchRoute = "/api";
 				const sqlLimit = 20;
 				const corsHeaders = {
@@ -109,7 +109,7 @@ export default {
 
 				if (pathname.startsWith(azureSearchRoute)) {
 						const searchPath = pathname.substring(azureSearchRoute.length + 1);
-						const API_HOST = "https://XXXXXXXXXXXXXXXXXXXXXXXXX?api-version=2016-09-01&";
+						const API_HOST = "https://cultpodcasts.search.windows.net/indexes/cultpodcasts-two/docs?api-version=2023-07-01-Preview&";
 						const url = `${API_HOST}${searchPath}${searchParams}`;
 						//return new Response(url);
 
@@ -119,10 +119,10 @@ export default {
 										cacheTtl: 600
 								},
 								headers: {
-										"api-key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+										"api-key": "TBapMt2RTuulXdyMMICzPK5Jk2HyHNUXKhWX9Sex9IAzSeBS5J1Z",
 								}
 						});
-						let body = await response.json();
+						let body:any = await response.json();
 						body["@odata.context"] = null;
 
 						const headers = new Headers();
