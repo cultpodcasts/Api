@@ -1,12 +1,13 @@
 export interface Env {
 		Content: R2Bucket;
+		Analytics: AnalyticsEngineDataset;
 }
 
 export default {
 		async fetch(request: Request, env: Env) {
 				const { pathname, searchParams } = new URL(request.url);
 				const homeRoute = "/homepage";
-				const azureSearchRoute = "/api";
+				const searchRoute = "/api";
 				const corsHeaders = {
 						"Access-Control-Allow-Origin": "*", //"https://cultpodcasts.com",
 						"Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
@@ -36,71 +37,85 @@ export default {
 						headers.append("Access-Control-Allow-Origin", "*");
 						headers.append("Access-Control-Allow-Methods", "GET,OPTIONS");
 
-						return new Response(object.body, {
-								headers
-						});
+						return new Response(object.body, { headers });
 				}
 
-				if (pathname.startsWith(azureSearchRoute)) {
-						if (request.method == "GET") {
-								const searchPath = pathname.substring(azureSearchRoute.length + 1);
-								const API_HOST = "https://cultpodcasts.search.windows.net/indexes/cultpodcasts-two/docs?api-version=2023-07-01-Preview&";
-								const url = `${API_HOST}${searchPath}${searchParams}`;
+				if (pathname.startsWith(searchRoute)) {
+						const API_HOST = "https://cultpodcasts.search.windows.net/indexes/cultpodcasts-two/docs/search?api-version=2023-07-01-Preview";
+						const url = `${API_HOST}`;
 
-								let response = await fetch(url, {
-										cf: {
-												cacheEverything: true,
-												cacheTtl: 600
-										},
-										headers: {
-												"api-key": "TBapMt2RTuulXdyMMICzPK5Jk2HyHNUXKhWX9Sex9IAzSeBS5J1Z",
+						var dataPoint: AnalyticsEngineDataPoint | undefined;
+						return request
+								.json()
+								.then(async (data: any) => {
+										var requestBody = JSON.stringify(data);
+										if (data.search) {
+												//console.log("Search: " + data.search);
+												dataPoint = { indexes: [data.search], blobs: [data.search, "search"] };
+										} else if (data.filter) {
+												var filter: string = data.filter;
+												//console.log("Filter: " + filter);
+												if (filter.indexOf("(podcastName eq '") == 0) {
+														var query = filter.slice(17, -2);
+														//console.log("Podcast name: " + query);
+														dataPoint = { indexes: [query], blobs: [query, "podcast"] };
+												} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
+														var query = filter.slice(22, - 2);
+														//console.log("Subject: " + query);
+														dataPoint = { indexes: [query], blobs: [query, "subject"] }
+												} else {
+														console.log("Unrecognised search filter");
+												}
+										} else {
+												console.log("Unrecognised search request");
 										}
+
+										let response = await fetch(url, {
+												cf: {
+														cacheEverything: true,
+														cacheTtl: 600
+												},
+												headers: {
+														"api-key": "TBapMt2RTuulXdyMMICzPK5Jk2HyHNUXKhWX9Sex9IAzSeBS5J1Z",
+														"content-type": "application/json;charset=UTF-8",
+												},
+												body: requestBody,
+												method: "POST"
+										});
+
+										const headers = new Headers();
+										headers.set("Cache-Control", "max-age=600");
+										headers.append("Content-Type", "application/json");
+										headers.append("Access-Control-Allow-Origin", "*");
+										headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+										headers.append("x-flow", "2");
+
+										if (response.status != 200) {
+												return new Response(response.body, { headers, status: response.status })
+										}
+
+										let body: any = await response.json();
+										body["@odata.context"] = null;
+										var bodyJson = JSON.stringify(body);
+
+										if (dataPoint) {
+												if (request.cf) {
+														if (request.cf.city) {
+																var city: string = request.cf.city;
+																dataPoint.blobs?.push(city);
+														}
+														if (request.cf.country) {
+																var country: string = request.cf.country;
+																dataPoint.blobs?.push(country);
+														}
+												}
+												//console.log(JSON.stringify(dataPoint));
+										}
+
+										env.Analytics.writeDataPoint(dataPoint);
+
+										return new Response(bodyJson, { headers })
 								});
-								let body: any = await response.json();
-								body["@odata.context"] = null;
-
-								const headers = new Headers();
-								headers.set("Cache-Control", "max-age=600");
-								headers.append("Content-Type", "application/json");
-								headers.append("Access-Control-Allow-Origin", "*");
-								headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-								headers.append("x-flow", "1");
-
-								return new Response(JSON.stringify(body), { headers })
-						} else if (request.method == "POST") {
-								const API_HOST = "https://cultpodcasts.search.windows.net/indexes/cultpodcasts-two/docs/search?api-version=2023-07-01-Preview";
-								const url = `${API_HOST}`;
-
-								var requestBody:any =  request.body;
-								let response = await fetch(url, {
-										cf: {
-												cacheEverything: true,
-												cacheTtl: 600
-										},
-										headers: {
-												"api-key": "TBapMt2RTuulXdyMMICzPK5Jk2HyHNUXKhWX9Sex9IAzSeBS5J1Z",
-												"content-type": "application/json;charset=UTF-8",
-										},
-										body: requestBody,
-										method: "POST"
-								});
-
-								const headers = new Headers();
-								headers.set("Cache-Control", "max-age=600");
-								headers.append("Content-Type", "application/json");
-								headers.append("Access-Control-Allow-Origin", "*");
-								headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-								headers.append("x-flow", "2");
-
-								if (response.status !=200) {
-										return new Response(response.body, { headers, status: response.status })
-								}
-
-								let body: any = await response.json();
-								body["@odata.context"] = null;
-								var bodyJson = JSON.stringify(body);
-								return new Response(bodyJson, { headers })
-						}
 				}
 
 				return new Response(
