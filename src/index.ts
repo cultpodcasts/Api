@@ -44,30 +44,29 @@ export default {
 						const API_HOST = "https://cultpodcasts.search.windows.net/indexes/cultpodcasts-two/docs/search?api-version=2023-07-01-Preview";
 						const url = `${API_HOST}`;
 
-						var dataPoint: AnalyticsEngineDataPoint | undefined;
 						return request
 								.json()
 								.then(async (data: any) => {
-										var requestBody = JSON.stringify(data);
+										let dataPoint: AnalyticsEngineDataPoint | undefined;
+										let requestBody = JSON.stringify(data);
 										if (data.search) {
-												//console.log("Search: " + data.search);
 												dataPoint = { indexes: [data.search], blobs: [data.search, "search"] };
 										} else if (data.filter) {
-												var filter: string = data.filter;
-												//console.log("Filter: " + filter);
+												let filter: string = data.filter;
 												if (filter.indexOf("(podcastName eq '") == 0) {
-														var query = filter.slice(17, -2);
-														//console.log("Podcast name: " + query);
+														let query = filter.slice(17, -2);
 														dataPoint = { indexes: [query], blobs: [query, "podcast"] };
 												} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
-														var query = filter.slice(22, - 2);
-														//console.log("Subject: " + query);
+														let query = filter.slice(22, - 2);
 														dataPoint = { indexes: [query], blobs: [query, "subject"] }
 												} else {
 														console.log("Unrecognised search filter");
 												}
 										} else {
 												console.log("Unrecognised search request");
+										}
+										if (dataPoint) {
+												dataPoint.blobs?.push(data.skip);
 										}
 
 										let response = await fetch(url, {
@@ -96,17 +95,15 @@ export default {
 
 										let body: any = await response.json();
 										body["@odata.context"] = null;
-										var bodyJson = JSON.stringify(body);
+										let bodyJson = JSON.stringify(body);
 
 										if (dataPoint) {
 												if (request.cf) {
 														if (request.cf.city) {
-																var city: string = request.cf.city;
-																dataPoint.blobs?.push(city);
+																dataPoint.blobs?.push(request.cf.city as string);
 														}
 														if (request.cf.country) {
-																var country: string = request.cf.country;
-																dataPoint.blobs?.push(country);
+																dataPoint.blobs?.push(request.cf.country as string);
 														}
 												}
 												//console.log(JSON.stringify(dataPoint));
