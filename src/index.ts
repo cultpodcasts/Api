@@ -1,6 +1,8 @@
 export interface Env {
 		Content: R2Bucket;
 		Analytics: AnalyticsEngineDataset;
+		apikey: string;
+		apihost: string;
 }
 
 export default {
@@ -41,8 +43,7 @@ export default {
 				}
 
 				if (pathname.startsWith(searchRoute)) {
-						const API_HOST = "https://cultpodcasts.search.windows.net/indexes/cultpodcasts-two/docs/search?api-version=2023-07-01-Preview";
-						const url = `${API_HOST}`;
+						const url = `${env.apihost}`;
 
 						return request
 								.json()
@@ -67,6 +68,7 @@ export default {
 										}
 										if (dataPoint) {
 												dataPoint.blobs?.push(data.skip);
+												dataPoint.blobs?.push(data.orderby);
 										}
 
 										let response = await fetch(url, {
@@ -75,7 +77,7 @@ export default {
 														cacheTtl: 600
 												},
 												headers: {
-														"api-key": "TBapMt2RTuulXdyMMICzPK5Jk2HyHNUXKhWX9Sex9IAzSeBS5J1Z",
+														"api-key": env.apikey,
 														"content-type": "application/json;charset=UTF-8",
 												},
 												body: requestBody,
