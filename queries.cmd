@@ -1,0 +1,1 @@
+curl -X POST "https://api.cloudflare.com/client/v4/accounts/bae3f835f19899c6eee1ec48f2d658cf/analytics_engine/sql" -H "Authorization: Bearer _q5Jm4rHa02d_cnmLSHnEfmXCUVQg6hgu7jGgbMw" -d "SELECT index1, blob1, blob2, blob3, blob4, blob5, blob6, timestamp FROM Analytics WHERE timestamp > NOW() - INTERVAL '1' DAY ORDER BY timestamp ASC"
