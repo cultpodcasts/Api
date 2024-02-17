@@ -120,26 +120,30 @@ export default {
 				}
 
 				if (pathname.startsWith(submitRoute) && request.method === "POST") {
-						let url: URL | undefined;
-						let urlParam = searchParams.get("url");
-						if (urlParam == null) {
-								return new Error("Missing url param.");
-						}
-						try {
-								url = new URL(urlParam);
-						} catch {
-								return new Error(`Invalid url '${url}'.`);
-						}
-						let insert = env.DB
-								.prepare("INSERT INTO submissions (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?)")
-								.bind(url.toString(), Date.now(), new Date().toLocaleString(), request.headers.get("CF-Connecting-IP"), request.headers.get("CF-Connecting-IP"), request.headers.get("User-Agent"));
-						let result = await insert.run();
+						return request
+								.json()
+								.then(async (data: any) => {
+										let url: URL | undefined;
+										let urlParam = data.url;
+										if (urlParam == null) {
+												return new Error("Missing url param.");
+										}
+										try {
+												url = new URL(urlParam);
+										} catch {
+												return new Error(`Invalid url '${url}'.`);
+										}
+										let insert = env.DB
+												.prepare("INSERT INTO submissions (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?)")
+												.bind(url.toString(), Date.now(), new Date().toLocaleString(), request.headers.get("CF-Connecting-IP"), request.headers.get("CF-Connecting-IP"), request.headers.get("User-Agent"));
+										let result = await insert.run();
 
-						if (result.success) {
-								return new Response();
-						} else {
-								return new Error();
-						}
+										if (result.success) {
+												return new Response();
+										} else {
+												return new Error();
+										}
+								});
 				}
 
 				return new Response(
