@@ -1,6 +1,7 @@
 export interface Env {
 		Content: R2Bucket;
 		Analytics: AnalyticsEngineDataset;
+		DB: D1Database;
 		apikey: string;
 		apihost: string;
 }
@@ -10,6 +11,7 @@ export default {
 				const { pathname, searchParams } = new URL(request.url);
 				const homeRoute = "/homepage";
 				const searchRoute = "/api";
+				const submitRoute = "/submit";
 				const corsHeaders = {
 						"Access-Control-Allow-Origin": "*", //"https://cultpodcasts.com",
 						"Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
@@ -115,6 +117,9 @@ export default {
 
 										return new Response(bodyJson, { headers })
 								});
+				}
+
+				if (pathname.startsWith(submitRoute)) {
 				}
 
 				return new Response(
