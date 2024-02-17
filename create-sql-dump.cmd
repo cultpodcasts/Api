@@ -1,1 +1,0 @@
-sqlite3 podcasts.sqlite .dump  > podcasts.sql

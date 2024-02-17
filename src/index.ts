@@ -1,6 +1,7 @@
 export interface Env {
 		Content: R2Bucket;
 		Analytics: AnalyticsEngineDataset;
+		DB: D1Database;
 		apikey: string;
 		apihost: string;
 }
@@ -10,6 +11,7 @@ export default {
 				const { pathname, searchParams } = new URL(request.url);
 				const homeRoute = "/homepage";
 				const searchRoute = "/api";
+				const submitRoute = "/submit";
 				const corsHeaders = {
 						"Access-Control-Allow-Origin": "*", //"https://cultpodcasts.com",
 						"Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
@@ -25,7 +27,7 @@ export default {
 						});
 				}
 
-				if (pathname.startsWith(homeRoute)) {
+				if (pathname.startsWith(homeRoute) && request.method==="GET") {
 						const object = await env.Content.get("homepage");
 
 						if (object === null) {
@@ -42,7 +44,7 @@ export default {
 						return new Response(object.body, { headers });
 				}
 
-				if (pathname.startsWith(searchRoute)) {
+				if (pathname.startsWith(searchRoute) && request.method==="POST") {
 						const url = `${env.apihost}`;
 
 						return request
@@ -114,6 +116,33 @@ export default {
 										env.Analytics.writeDataPoint(dataPoint);
 
 										return new Response(bodyJson, { headers })
+								});
+				}
+
+				if (pathname.startsWith(submitRoute) && request.method === "POST") {
+						return request
+								.json()
+								.then(async (data: any) => {
+										let url: URL | undefined;
+										let urlParam = data.url;
+										if (urlParam == null) {
+												return new Response("Missing url param.", { status: 400 });
+										}
+										try {
+												url = new URL(urlParam);
+										} catch {
+												return new Response(`Invalid url '${data.url}'.`, { status: 400 });
+										}
+										let insert = env.DB
+												.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
+												.bind(url.toString(), Date.now(), new Date().toLocaleString(), request.headers.get("CF-Connecting-IP"), request.headers.get("CF-IPCountry"), request.headers.get("User-Agent"));
+										let result = await insert.run();
+
+										if (result.success) {
+												return new Response();
+										} else {
+												return new Response("Unable to accept", { status: 400 });
+										}
 								});
 				}
 
