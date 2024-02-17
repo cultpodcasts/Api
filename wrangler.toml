@@ -1,0 +1,15 @@
+name = "api"
+main = "src/index.ts"
+compatibility_date = "2023-09-04"
+
+[[r2_buckets]]
+binding = "Content"
+bucket_name = "content"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cultpodcasts"
+database_id = "d60db6d1-994d-448d-9be1-5067d1be72d8"
+
+[[analytics_engine_datasets]]
+binding = "Analytics"
