@@ -126,12 +126,12 @@ export default {
 										let url: URL | undefined;
 										let urlParam = data.url;
 										if (urlParam == null) {
-												return new Error("Missing url param.");
+												return new Response("Missing url param.", { status: 400 });
 										}
 										try {
 												url = new URL(urlParam);
 										} catch {
-												return new Error(`Invalid url '${url}'.`);
+												return new Response(`Invalid url '${url}'.`, { status: 400 });
 										}
 										let insert = env.DB
 												.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
@@ -141,7 +141,7 @@ export default {
 										if (result.success) {
 												return new Response();
 										} else {
-												return new Error();
+												return new Response("Unable to accept", { status: 400 });
 										}
 								});
 				}
