@@ -131,7 +131,7 @@ export default {
 										try {
 												url = new URL(urlParam);
 										} catch {
-												return new Response(`Invalid url '${url}'.`, { status: 400 });
+												return new Response(`Invalid url '${data.url}'.`, { status: 400 });
 										}
 										let insert = env.DB
 												.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
