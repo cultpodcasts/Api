@@ -1,4 +1,4 @@
-name = "d1-tutorial"
+name = "Api"
 main = "src/index.ts"
 compatibility_date = "2023-09-04"
 
