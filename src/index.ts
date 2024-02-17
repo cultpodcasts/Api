@@ -134,8 +134,8 @@ export default {
 												return new Error(`Invalid url '${url}'.`);
 										}
 										let insert = env.DB
-												.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?)")
-												.bind(url.toString(), Date.now(), new Date().toLocaleString(), request.headers.get("CF-Connecting-IP"), request.headers.get("CF-Connecting-IP"), request.headers.get("User-Agent"));
+												.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
+												.bind(url.toString(), Date.now(), new Date().toLocaleString(), request.headers.get("CF-Connecting-IP"), request.headers.get("CF-IPCountry"), request.headers.get("User-Agent"));
 										let result = await insert.run();
 
 										if (result.success) {
