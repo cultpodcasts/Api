@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - feature/add-podcast-capture
 jobs:
   deploy:
     runs-on: ubuntu-latest
