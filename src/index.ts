@@ -44,7 +44,7 @@ export default {
 						return new Response(object.body, { headers });
 				}
 
-				if (pathname.startsWith(searchRoute) && request.method==="GET") {
+				if (pathname.startsWith(searchRoute) && request.method==="POST") {
 						const url = `${env.apihost}`;
 
 						return request
