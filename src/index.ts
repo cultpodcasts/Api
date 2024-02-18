@@ -150,9 +150,17 @@ export default {
 										.prepare("SELECT id FROM urls WHERE state=0");
 								let result = await submissionIds.all();
 								if (result.success) {
+										const inClause = result.results
+												.map((urlId) => {
+														if (!Number.isInteger(urlId.id)) { throw Error("invalid id, expected an integer"); }
+														return urlId.id;
+												})
+												.join(',');
+										let query = "UPDATE urls SET state=1 WHERE id IN ($urlIds)"
+										query = query.replace('$urlIds', inClause);
+										console.log(query);
 										let raiseState = await env.DB
-												.prepare("UPDATE urls SET state=1 WHERE id IN (?)")
-												.bind(result.results)
+												.prepare(query)
 												.run();
 										if (raiseState.success) {
 												return new Response(JSON.stringify(result.results))
