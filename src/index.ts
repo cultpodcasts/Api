@@ -150,7 +150,15 @@ export default {
 										.prepare("SELECT id FROM urls WHERE state=0");
 								let result = await submissionIds.all();
 								if (result.success) {
-										return new Response(JSON.stringify(result.results))
+										let raiseState = await env.DB
+												.prepare("UPDATE urls SET state=1 WHERE id IN (?)")
+												.bind(result.results)
+												.run();
+										if (raiseState.success) {
+												return new Response(JSON.stringify(result.results))
+										} else {
+												return new Response("Failure to raise state of new submissons in ids " + result.results.join(", "), { status: 400 })
+										}
 								} else {
 										return new Response(result.error, { status: 500 });
 								}
