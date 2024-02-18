@@ -119,32 +119,45 @@ export default {
 								});
 				}
 
-				if (pathname.startsWith(submitRoute) && request.method === "POST") {
-						return request
-								.json()
-								.then(async (data: any) => {
-										let url: URL | undefined;
-										let urlParam = data.url;
-										if (urlParam == null) {
-												return new Response("Missing url param.", { status: 400 });
-										}
-										try {
-												url = new URL(urlParam);
-										} catch {
-												return new Response(`Invalid url '${data.url}'.`, { status: 400 });
-										}
-										let insert = env.DB
-												.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
-												.bind(url.toString(), Date.now(), new Date().toLocaleString(), request.headers.get("CF-Connecting-IP"), request.headers.get("CF-IPCountry"), request.headers.get("User-Agent"));
-										let result = await insert.run();
+				if (pathname.startsWith(submitRoute)) {
+						if (request.method === "POST") {
+								return request
+										.json()
+										.then(async (data: any) => {
+												let url: URL | undefined;
+												let urlParam = data.url;
+												if (urlParam == null) {
+														return new Response("Missing url param.", { status: 400 });
+												}
+												try {
+														url = new URL(urlParam);
+												} catch {
+														return new Response(`Invalid url '${data.url}'.`, { status: 400 });
+												}
+												let insert = env.DB
+														.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
+														.bind(url.toString(), Date.now(), new Date().toLocaleString(), request.headers.get("CF-Connecting-IP"), request.headers.get("CF-IPCountry"), request.headers.get("User-Agent"));
+												let result = await insert.run();
 
-										if (result.success) {
-												return new Response();
-										} else {
-												return new Response("Unable to accept", { status: 400 });
-										}
-								});
+												if (result.success) {
+														return new Response();
+												} else {
+														return new Response("Unable to accept", { status: 400 });
+												}
+										});
+						} else if (request.method === "GET") {
+								let submissionIds =  env.DB
+										.prepare("SELECT id FROM urls WHERE state=0");
+								let result = await submissionIds.all();
+								if (result.success) {
+										return new Response(JSON.stringify(result.results))
+								} else {
+										return new Response(result.error, { status: 500 });
+								}
+						}
 				}
+
+				
 
 				return new Response(
 						`Call ${homeRoute} to get the last 7-days of new releases
