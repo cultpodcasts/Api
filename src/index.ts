@@ -156,16 +156,24 @@ export default {
 														return urlId.id;
 												})
 												.join(',');
-										let query = "UPDATE urls SET state=1 WHERE id IN ($urlIds)"
-										query = query.replace('$urlIds', inClause);
-										console.log(query);
-										let raiseState = await env.DB
-												.prepare(query)
+										let urls = "SELECT url, timestamp_date, ip_address, country, user_agent FROM urls WHERE id IN ($urlIds)";
+										urls = urls.replace('$urlIds', inClause);
+										let urlResults = await env.DB
+												.prepare(urls)
 												.run();
-										if (raiseState.success) {
-												return new Response(JSON.stringify(result.results))
+										if (urlResults.success) {
+												let update = "UPDATE urls SET state=1 WHERE id IN ($urlIds)";
+												update = update.replace('$urlIds', inClause);
+												let raiseState = await env.DB
+														.prepare(update)
+														.run();
+												if (raiseState.success) {
+														return new Response(JSON.stringify(urlResults.results));
+												} else {
+														return new Response("Failure to raise state of new submissons in ids " + result.results.join(", "), { status: 400 })
+												}
 										} else {
-												return new Response("Failure to raise state of new submissons in ids " + result.results.join(", "), { status: 400 })
+												return new Response("Unable to retrieve new submissions", { status: 500 });
 										}
 								} else {
 										return new Response(result.error, { status: 500 });
