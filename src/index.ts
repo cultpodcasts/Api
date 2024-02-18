@@ -156,7 +156,7 @@ export default {
 														return urlId.id;
 												})
 												.join(',');
-										let urls = "SELECT url, timestamp_date, ip_address, country, user_agent FROM urls WHERE id IN ($urlIds)";
+										let urls = "SELECT id, url, timestamp_date, ip_address, country, user_agent FROM urls WHERE id IN ($urlIds)";
 										urls = urls.replace('$urlIds', inClause);
 										let urlResults = await env.DB
 												.prepare(urls)
