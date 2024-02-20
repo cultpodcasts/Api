@@ -146,7 +146,7 @@ export default {
 												let result = await insert.run();
 
 												if (result.success) {
-														return new Response();
+														return new Response("Submitted", { headers });
 												} else {
 														return new Response("Unable to accept", { headers, status: 400 });
 												}
