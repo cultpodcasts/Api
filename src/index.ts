@@ -133,12 +133,12 @@ export default {
 												let url: URL | undefined;
 												let urlParam = data.url;
 												if (urlParam == null) {
-														return new Response("Missing url param.", { headers, status: 400 });
+														return new Response(JSON.stringify({ error: "Missing url param."}), { headers, status: 400 });
 												}
 												try {
 														url = new URL(urlParam);
 												} catch {
-														return new Response(`Invalid url '${data.url}'.`, { headers, status: 400 });
+														return new Response(JSON.stringify({error: `Invalid url '${data.url}'.`}), { headers, status: 400 });
 												}
 												let insert = env.DB
 														.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
@@ -146,9 +146,9 @@ export default {
 												let result = await insert.run();
 
 												if (result.success) {
-														return new Response("Submitted", { headers });
+														return new Response(JSON.stringify({ success: "Submitted" }), { headers });
 												} else {
-														return new Response("Unable to accept", { headers, status: 400 });
+														return new Response(JSON.stringify({ error: "Unable to accept" }), { headers, status: 400 });
 												}
 										});
 						} else if (request.method === "GET") {
