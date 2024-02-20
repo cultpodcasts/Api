@@ -27,7 +27,7 @@ export default {
 						});
 				}
 
-				if (pathname.startsWith(homeRoute) && request.method==="GET") {
+				if (pathname.startsWith(homeRoute) && request.method === "GET") {
 						const object = await env.Content.get("homepage");
 
 						if (object === null) {
@@ -44,7 +44,7 @@ export default {
 						return new Response(object.body, { headers });
 				}
 
-				if (pathname.startsWith(searchRoute) && request.method==="POST") {
+				if (pathname.startsWith(searchRoute) && request.method === "POST") {
 						const url = `${env.apihost}`;
 
 						return request
@@ -91,7 +91,6 @@ export default {
 										headers.append("Content-Type", "application/json");
 										headers.append("Access-Control-Allow-Origin", "*");
 										headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-										headers.append("x-flow", "2");
 
 										if (response.status != 200) {
 												return new Response(response.body, { headers, status: response.status })
@@ -121,18 +120,25 @@ export default {
 
 				if (pathname.startsWith(submitRoute)) {
 						if (request.method === "POST") {
+
+								const headers = new Headers();
+								headers.set("Cache-Control", "max-age=600");
+								headers.append("Content-Type", "application/json");
+								headers.append("Access-Control-Allow-Origin", "*");
+								headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+
 								return request
 										.json()
 										.then(async (data: any) => {
 												let url: URL | undefined;
 												let urlParam = data.url;
 												if (urlParam == null) {
-														return new Response("Missing url param.", { status: 400 });
+														return new Response("Missing url param.", { headers, status: 400 });
 												}
 												try {
 														url = new URL(urlParam);
 												} catch {
-														return new Response(`Invalid url '${data.url}'.`, { status: 400 });
+														return new Response(`Invalid url '${data.url}'.`, { headers, status: 400 });
 												}
 												let insert = env.DB
 														.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
@@ -142,11 +148,11 @@ export default {
 												if (result.success) {
 														return new Response();
 												} else {
-														return new Response("Unable to accept", { status: 400 });
+														return new Response("Unable to accept", { headers, status: 400 });
 												}
 										});
 						} else if (request.method === "GET") {
-								let submissionIds =  env.DB
+								let submissionIds = env.DB
 										.prepare("SELECT id FROM urls WHERE state=0");
 								let result = await submissionIds.all();
 								if (result.success) {
@@ -180,8 +186,6 @@ export default {
 								}
 						}
 				}
-
-				
 
 				return new Response(
 						`Call ${homeRoute} to get the last 7-days of new releases
