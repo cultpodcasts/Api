@@ -47,7 +47,6 @@ export default {
 
 				if (pathname.startsWith(searchRoute) && request.method === "POST") {
 						const url = `${env.apihost}`;
-						console.log(`apihost: ${env.apihost}`);
 						return request
 								.json()
 								.then(async (data: any) => {
