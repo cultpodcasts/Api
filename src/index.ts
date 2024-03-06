@@ -4,6 +4,7 @@ export interface Env {
 		DB: D1Database;
 		apikey: string;
 		apihost: string;
+		gatewayKey: string;
 }
 
 export default {
@@ -151,7 +152,7 @@ export default {
 														return new Response(JSON.stringify({ error: "Unable to accept" }), { headers, status: 400 });
 												}
 										});
-						} else if (request.method === "GET") {
+						} else if (request.method === "GET" && request.headers.get("key") === env.gatewayKey) {
 								let submissionIds = env.DB
 										.prepare("SELECT id FROM urls WHERE state=0");
 								let result = await submissionIds.all();
