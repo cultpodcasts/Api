@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - feature/submit-url-management
 jobs:
   deploy:
     runs-on: ubuntu-latest
