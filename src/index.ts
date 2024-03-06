@@ -72,7 +72,16 @@ export default {
 												dataPoint.blobs?.push(data.skip);
 												dataPoint.blobs?.push(data.orderby);
 										}
-
+										if (dataPoint) {
+												if (request.cf) {
+														if (request.cf.city) {
+																dataPoint.blobs?.push(request.cf.city as string);
+														}
+														if (request.cf.country) {
+																dataPoint.blobs?.push(request.cf.country as string);
+														}
+												}
+										}
 										let response = await fetch(url, {
 												cf: {
 														cacheEverything: true,
@@ -85,6 +94,10 @@ export default {
 												body: requestBody,
 												method: "POST"
 										});
+										if (dataPoint) {
+												dataPoint.blobs?.push(response.status.toString());
+												env.Analytics.writeDataPoint(dataPoint);
+										}
 
 										const headers = new Headers();
 										headers.set("Cache-Control", "max-age=600");
@@ -99,20 +112,6 @@ export default {
 										let body: any = await response.json();
 										body["@odata.context"] = null;
 										let bodyJson = JSON.stringify(body);
-
-										if (dataPoint) {
-												if (request.cf) {
-														if (request.cf.city) {
-																dataPoint.blobs?.push(request.cf.city as string);
-														}
-														if (request.cf.country) {
-																dataPoint.blobs?.push(request.cf.country as string);
-														}
-												}
-												//console.log(JSON.stringify(dataPoint));
-										}
-
-										env.Analytics.writeDataPoint(dataPoint);
 
 										return new Response(bodyJson, { headers })
 								});
@@ -133,12 +132,12 @@ export default {
 												let url: URL | undefined;
 												let urlParam = data.url;
 												if (urlParam == null) {
-														return new Response(JSON.stringify({ error: "Missing url param."}), { headers, status: 400 });
+														return new Response(JSON.stringify({ error: "Missing url param." }), { headers, status: 400 });
 												}
 												try {
 														url = new URL(urlParam);
 												} catch {
-														return new Response(JSON.stringify({error: `Invalid url '${data.url}'.`}), { headers, status: 400 });
+														return new Response(JSON.stringify({ error: `Invalid url '${data.url}'.` }), { headers, status: 400 });
 												}
 												let insert = env.DB
 														.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
