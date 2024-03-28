@@ -52,8 +52,9 @@ export default {
 								.then(async (data: any) => {
 										let dataPoint: AnalyticsEngineDataPoint = { indexes: [], blobs: [] };
 										let requestBody = JSON.stringify(data);
+										let index: string = "";
 										if (data.search) {
-												dataPoint.indexes!.push(data.search);
+												index = data.search;
 												dataPoint.blobs!.push(data.search);
 												dataPoint.blobs!.push("search");
 										}
@@ -61,18 +62,28 @@ export default {
 												let filter: string = data.filter;
 												if (filter.indexOf("(podcastName eq '") == 0) {
 														let query = filter.slice(17, -2);
-														dataPoint.indexes!.push(query);
+														if (index) {
+																index += " podcast=" + query;
+														} else {
+																index = "podcast=" + query;
+														}
 														dataPoint.blobs!.push(query);
 														dataPoint.blobs!.push("podcast");
 												} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
 														let query = filter.slice(22, - 2);
-														dataPoint.indexes!.push(query);
+														if (index) {
+																index += " subject=" + query;
+														} else {
+																index = "subject=" + query;
+														}
 														dataPoint.blobs!.push(query);
 														dataPoint.blobs!.push("subject");
 												} else {
 														console.log("Unrecognised search filter");
 												}
 										}
+										dataPoint.indexes!.push(index);
+
 										if (!data.search && !data.filter)
 										{ 
 												console.log("Unrecognised search request");
