@@ -3,8 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2023-09-04"
 
 [[r2_buckets]]
-binding = "Content"
-bucket_name = "content"
+r2_buckets = [
+  { binding = "Content", bucket_name = "content", preview_bucket_name = "" },
+  { binding = "Data", bucket_name = "data", preview_bucket_name = "" }
+]
 
 [[d1_databases]]
 binding = "DB"
