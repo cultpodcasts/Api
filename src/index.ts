@@ -10,6 +10,7 @@ export interface Env {
 
 export default {
 		async fetch(request: Request, env: Env) {
+				const leechHandlingActive = false;
 				const { pathname, searchParams } = new URL(request.url);
 				const homeRoute = "/homepage";
 				const searchRoute = "/api";
@@ -69,15 +70,17 @@ export default {
 						}
 						let isLeech: boolean = false;
 
-						//const object = await env.Data.get("leeches");
+						if (leechHandlingActive) {
+								const object = await env.Data.get("leeches");
 
-						//if (object != null) {
-						//		var leeches: string[] = await object.json();
-						//		console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
-						//		if (leeches.indexOf(ipAddress) >= 0) {
-						//				isLeech = true;
-						//		}
-						//}
+								if (object != null) {
+										var leeches: string[] = await object.json();
+										console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
+										if (leeches.indexOf(ipAddress) >= 0) {
+												isLeech = true;
+										}
+								}
+						}
 
 						if (!isLeech) {
 								return request
