@@ -176,7 +176,7 @@ export default {
 ;
 												dataPoint.blobs!.push("Leech");
 												env.Analytics.writeDataPoint(dataPoint);
-												return new Response(JSON.stringify(leechResponse);
+												return new Response(JSON.stringify(leechResponse));
 										}
 
 								});
