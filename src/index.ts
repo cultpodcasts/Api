@@ -47,76 +47,76 @@ export default {
 
 				if (pathname.startsWith(searchRoute) && request.method === "POST") {
 						const url = `${env.apihost}`;
-						return request
-								.json()
-								.then(async (data: any) => {
-										let dataPoint: AnalyticsEngineDataPoint = { indexes: [], blobs: [] };
-										let ipAddress: string ="";
-										let asn: string ="";
-										let city: string ="";
-										if (request.cf) {
-												dataPoint.blobs!.push(request.cf.clientTrustScoretr as string);
-												asn = request.cf.asn as string;
-												dataPoint.blobs!.push(asn);
-												ipAddress = request.headers.get('cf-connecting-ip') as string
-												dataPoint.blobs!.push(ipAddress);
-												dataPoint.blobs!.push(request.headers.get('User-Agent') as string);
-												if (request.cf.city) {
-														city = request.cf.city as string;
-														dataPoint.blobs!.push(city);
+						let dataPoint: AnalyticsEngineDataPoint = { indexes: [], blobs: [] };
+						let ipAddress: string = "";
+						let asn: string = "";
+						let city: string = "";
+						if (request.cf) {
+								dataPoint.blobs!.push(request.cf.clientTrustScoretr as string);
+								asn = request.cf.asn as string;
+								dataPoint.blobs!.push(asn);
+								ipAddress = request.headers.get('cf-connecting-ip') as string
+								dataPoint.blobs!.push(ipAddress);
+								dataPoint.blobs!.push(request.headers.get('User-Agent') as string);
+								if (request.cf.city) {
+										city = request.cf.city as string;
+										dataPoint.blobs!.push(city);
+								}
+								if (request.cf.country) {
+										dataPoint.blobs!.push(request.cf.country as string);
+								}
+						}
+						let isLeech: boolean = false;
+						if (city == "Wimbledon") {
+								isLeech = true;
+						}
+
+						if (!isLeech) {
+								return request
+										.json()
+										.then(async (data: any) => {
+												let requestBody = JSON.stringify(data);
+												let index: string = "";
+												if (data.search) {
+														index = data.search;
+														dataPoint.blobs!.push(data.search);
+														dataPoint.blobs!.push("search");
 												}
-												if (request.cf.country) {
-														dataPoint.blobs!.push(request.cf.country as string);
-												}
-										}
-										let requestBody = JSON.stringify(data);
-										let index: string = "";
-										if (data.search) {
-												index = data.search;
-												dataPoint.blobs!.push(data.search);
-												dataPoint.blobs!.push("search");
-										}
-										if (data.filter) {
-												let filter: string = data.filter;
-												if (filter.indexOf("(podcastName eq '") == 0) {
-														let query = filter.slice(17, -2);
-														if (index) {
-																index += " podcast=" + query;
+												if (data.filter) {
+														let filter: string = data.filter;
+														if (filter.indexOf("(podcastName eq '") == 0) {
+																let query = filter.slice(17, -2);
+																if (index) {
+																		index += " podcast=" + query;
+																} else {
+																		index = "podcast=" + query;
+																}
+																dataPoint.blobs!.push(query);
+																dataPoint.blobs!.push("podcast");
+														} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
+																let query = filter.slice(22, - 2);
+																if (index) {
+																		index += " subject=" + query;
+																} else {
+																		index = "subject=" + query;
+																}
+																dataPoint.blobs!.push(query);
+																dataPoint.blobs!.push("subject");
 														} else {
-																index = "podcast=" + query;
+																console.log("Unrecognised search filter");
 														}
-														dataPoint.blobs!.push(query);
-														dataPoint.blobs!.push("podcast");
-												} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
-														let query = filter.slice(22, - 2);
-														if (index) {
-																index += " subject=" + query;
-														} else {
-																index = "subject=" + query;
-														}
-														dataPoint.blobs!.push(query);
-														dataPoint.blobs!.push("subject");
-												} else {
-														console.log("Unrecognised search filter");
 												}
-										}
-										dataPoint.indexes!.push(index);
+												dataPoint.indexes!.push(index);
 
-										if (!data.search && !data.filter)
-										{ 
-												console.log("Unrecognised search request");
-										}
-										if (dataPoint) {
-												dataPoint.blobs?.push(data.skip);
-												dataPoint.blobs?.push(data.orderby);
-										}
+												if (!data.search && !data.filter) {
+														console.log("Unrecognised search request");
+												}
+												if (dataPoint) {
+														dataPoint.blobs?.push(data.skip);
+														dataPoint.blobs?.push(data.orderby);
+												}
 
-										let isLeech: boolean = false;
-										if (city == "Wimbledon") {
-												isLeech = true;
-										}
 
-										if (!isLeech) {
 												let response = await fetch(url, {
 														cf: {
 																cacheEverything: true,
@@ -149,37 +149,35 @@ export default {
 												let bodyJson = JSON.stringify(body);
 
 												return new Response(bodyJson, { headers })
-										} else {
-												const leechResponse = {
-														"@odata.context": null,
-														"@odata.count": 1,
-														"@search.facets": {
-																"subjects": [],
-																"podcastName": []
-														},
-														"value": [{
-																"@search.score": 1.0,
-																"id": "00000000-0000-0000-0000-000000000000",
-																"episodeTitle": "Leech Detected",
-																"podcastName": "Leech Detected",
-																"episodeDescription": "Contact leeching@cultpodcasts.com.",
-																"release": "1970-01-01T00:00:00Z",
-																"duration": "01:00:00.0000000",
-																"explicit": false,
-																"spotify": null,
-																"apple": null,
-																"youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-																"subjects": []
-														}
-														]
-												}
-;
-												dataPoint.blobs!.push("Leech");
-												env.Analytics.writeDataPoint(dataPoint);
-												return new Response(JSON.stringify(leechResponse));
-										}
-
-								});
+										});
+						} else {
+								const leechResponse = {
+										"@odata.context": null,
+										"@odata.count": 1,
+										"@search.facets": {
+												"subjects": [],
+												"podcastName": []
+										},
+										"value": [{
+												"@search.score": 1.0,
+												"id": "00000000-0000-0000-0000-000000000000",
+												"episodeTitle": "Leech Detected",
+												"podcastName": "Leech Detected",
+												"episodeDescription": "Contact leeching@cultpodcasts.com.",
+												"release": "1970-01-01T00:00:00Z",
+												"duration": "01:00:00.0000000",
+												"explicit": false,
+												"spotify": null,
+												"apple": null,
+												"youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+												"subjects": []
+										}]
+								};
+								dataPoint.blobs!.push("Leech");
+								env.Analytics.writeDataPoint(dataPoint);
+								var response = new Response(JSON.stringify(leechResponse));
+								return response;
+						}
 				}
 
 				if (pathname.startsWith(submitRoute)) {
