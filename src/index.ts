@@ -51,9 +51,9 @@ export default {
 								.json()
 								.then(async (data: any) => {
 										let dataPoint: AnalyticsEngineDataPoint = { indexes: [], blobs: [] };
-										let ipAddress: string ="";
-										let asn: string ="";
-										let city: string ="";
+										let ipAddress: string = "";
+										let asn: string = "";
+										let city: string = "";
 										if (request.cf) {
 												dataPoint.blobs!.push(request.cf.clientTrustScoretr as string);
 												asn = request.cf.asn as string;
@@ -102,8 +102,7 @@ export default {
 										}
 										dataPoint.indexes!.push(index);
 
-										if (!data.search && !data.filter)
-										{ 
+										if (!data.search && !data.filter) {
 												console.log("Unrecognised search request");
 										}
 										if (dataPoint) {
@@ -170,13 +169,12 @@ export default {
 																"apple": null,
 																"youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
 																"subjects": []
-														}
-														]
-												}
-;
+														}]
+												};
 												dataPoint.blobs!.push("Leech");
 												env.Analytics.writeDataPoint(dataPoint);
-												return new Response(JSON.stringify(leechResponse));
+												var response = new Response(JSON.stringify(leechResponse));
+												return new Promise<Response>((resolve) => { resolve(response) });
 										}
 
 								});
