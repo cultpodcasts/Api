@@ -167,7 +167,7 @@ export default {
 																"duration": "01:00:00.0000000",
 																"explicit": false,
 																"spotify": null,
-																"apple": ,
+																"apple": null,
 																"youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
 																"subjects": []
 														}
