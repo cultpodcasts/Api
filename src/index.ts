@@ -51,12 +51,19 @@ export default {
 								.json()
 								.then(async (data: any) => {
 										let dataPoint: AnalyticsEngineDataPoint = { indexes: [], blobs: [] };
+										let ipAddress: string ="";
+										let asn: string ="";
+										let city: string ="";
 										if (request.cf) {
 												dataPoint.blobs!.push(request.cf.clientTrustScoretr as string);
-												dataPoint.blobs!.push(request.cf.asn as string);
-												dataPoint.blobs!.push(request.headers.get('cf-connecting-ip') as string);
+												asn = request.cf.asn as string;
+												dataPoint.blobs!.push(asn);
+												ipAddress = request.headers.get('cf-connecting-ip') as string
+												dataPoint.blobs!.push(ipAddress);
+												dataPoint.blobs!.push(request.headers.get('User-Agent') as string);
 												if (request.cf.city) {
-														dataPoint.blobs!.push(request.cf.city as string);
+														city = request.cf.city as string;
+														dataPoint.blobs!.push(city);
 												}
 												if (request.cf.country) {
 														dataPoint.blobs!.push(request.cf.country as string);
@@ -103,38 +110,75 @@ export default {
 												dataPoint.blobs?.push(data.skip);
 												dataPoint.blobs?.push(data.orderby);
 										}
-										let response = await fetch(url, {
-												cf: {
-														cacheEverything: true,
-														cacheTtl: 600
-												},
-												headers: {
-														"api-key": env.apikey,
-														"content-type": "application/json;charset=UTF-8",
-												},
-												body: requestBody,
-												method: "POST"
-										});
-										if (dataPoint) {
-												dataPoint.blobs?.push(response.status.toString());
+
+										let isLeech: boolean = false;
+										if (city == "Wimbledon") {
+												isLeech = true;
+										}
+
+										if (!isLeech) {
+												let response = await fetch(url, {
+														cf: {
+																cacheEverything: true,
+																cacheTtl: 600
+														},
+														headers: {
+																"api-key": env.apikey,
+																"content-type": "application/json;charset=UTF-8",
+														},
+														body: requestBody,
+														method: "POST"
+												});
+												if (dataPoint) {
+														dataPoint.blobs?.push(response.status.toString());
+														env.Analytics.writeDataPoint(dataPoint);
+												}
+
+												const headers = new Headers();
+												headers.set("Cache-Control", "max-age=600");
+												headers.append("Content-Type", "application/json");
+												headers.append("Access-Control-Allow-Origin", "*");
+												headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+
+												if (response.status != 200) {
+														return new Response(response.body, { headers, status: response.status })
+												}
+
+												let body: any = await response.json();
+												body["@odata.context"] = null;
+												let bodyJson = JSON.stringify(body);
+
+												return new Response(bodyJson, { headers })
+										} else {
+												const leechResponse = {
+														"@odata.context": null,
+														"@odata.count": 1,
+														"@search.facets": {
+																"subjects": [],
+																"podcastName": []
+														},
+														"value": [{
+																"@search.score": 1.0,
+																"id": "00000000-0000-0000-0000-000000000000",
+																"episodeTitle": "Leech Detected",
+																"podcastName": "Leech Detected",
+																"episodeDescription": "Contact leeching@cultpodcasts.com.",
+																"release": "1970-01-01T00:00:00Z",
+																"duration": "01:00:00.0000000",
+																"explicit": false,
+																"spotify": null,
+																"apple": ,
+																"youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+																"subjects": []
+														}
+														]
+												}
+;
+												dataPoint.blobs!.push("Leech");
 												env.Analytics.writeDataPoint(dataPoint);
+												return new Response(JSON.stringify(leechResponse);
 										}
 
-										const headers = new Headers();
-										headers.set("Cache-Control", "max-age=600");
-										headers.append("Content-Type", "application/json");
-										headers.append("Access-Control-Allow-Origin", "*");
-										headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-
-										if (response.status != 200) {
-												return new Response(response.body, { headers, status: response.status })
-										}
-
-										let body: any = await response.json();
-										body["@odata.context"] = null;
-										let bodyJson = JSON.stringify(body);
-
-										return new Response(bodyJson, { headers })
 								});
 				}
 
