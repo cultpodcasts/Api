@@ -69,15 +69,15 @@ export default {
 						}
 						let isLeech: boolean = false;
 
-						const object = await env.Data.get("leeches");
+						//const object = await env.Data.get("leeches");
 
-						if (object != null) {
-								var leeches: string[] = await object.json();
-								console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
-								if (leeches.indexOf(ipAddress) >= 0) {
-										isLeech = true;
-								}
-						}
+						//if (object != null) {
+						//		var leeches: string[] = await object.json();
+						//		console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
+						//		if (leeches.indexOf(ipAddress) >= 0) {
+						//				isLeech = true;
+						//		}
+						//}
 
 						if (!isLeech) {
 								return request
