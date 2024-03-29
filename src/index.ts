@@ -146,9 +146,7 @@ export default {
 
 												let body: any = await response.json();
 												body["@odata.context"] = null;
-												let bodyJson = JSON.stringify(body);
-
-												return new Response(bodyJson, { headers })
+												return new Response(JSON.stringify(body), { headers })
 										});
 						} else {
 								const leechResponse = {
@@ -173,9 +171,15 @@ export default {
 												"subjects": []
 										}]
 								};
+								const headers = new Headers();
+								headers.set("Cache-Control", "max-age=600");
+								headers.append("Content-Type", "application/json");
+								headers.append("Access-Control-Allow-Origin", "*");
+								headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+
 								dataPoint.blobs!.push("Leech");
 								env.Analytics.writeDataPoint(dataPoint);
-								var response = new Response(JSON.stringify(leechResponse));
+								var response = new Response(JSON.stringify(leechResponse), { headers });
 								return response;
 						}
 				}
