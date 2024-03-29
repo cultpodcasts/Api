@@ -72,9 +72,9 @@ export default {
 						const object = await env.Content.get("leeches");
 
 						if (object != null) {
-								var leaches: string[] = await object.json();
+								var leeches: string[] = await object.json();
 
-								if (leaches.indexOf(ipAddress) > 0) {
+								if (leeches.indexOf(ipAddress) >= 0) {
 										isLeech = true;
 								}
 						}
