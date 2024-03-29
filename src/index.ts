@@ -51,6 +51,17 @@ export default {
 								.json()
 								.then(async (data: any) => {
 										let dataPoint: AnalyticsEngineDataPoint = { indexes: [], blobs: [] };
+										if (request.cf) {
+												dataPoint.blobs!.push(request.cf.clientTrustScoretr as string);
+												dataPoint.blobs!.push(request.cf.asn as string);
+												dataPoint.blobs!.push(request.headers.get('cf-connecting-ip') as string);
+												if (request.cf.city) {
+														dataPoint.blobs!.push(request.cf.city as string);
+												}
+												if (request.cf.country) {
+														dataPoint.blobs!.push(request.cf.country as string);
+												}
+										}
 										let requestBody = JSON.stringify(data);
 										let index: string = "";
 										if (data.search) {
@@ -91,16 +102,6 @@ export default {
 										if (dataPoint) {
 												dataPoint.blobs?.push(data.skip);
 												dataPoint.blobs?.push(data.orderby);
-										}
-										if (dataPoint) {
-												if (request.cf) {
-														if (request.cf.city) {
-																dataPoint.blobs?.push(request.cf.city as string);
-														}
-														if (request.cf.country) {
-																dataPoint.blobs?.push(request.cf.country as string);
-														}
-												}
 										}
 										let response = await fetch(url, {
 												cf: {
