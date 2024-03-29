@@ -1,5 +1,6 @@
 export interface Env {
 		Content: R2Bucket;
+		Data: R2Bucket;
 		Analytics: AnalyticsEngineDataset;
 		DB: D1Database;
 		apikey: string;
@@ -67,8 +68,15 @@ export default {
 								}
 						}
 						let isLeech: boolean = false;
-						if (city == "Wimbledon") {
-								isLeech = true;
+
+						const object = await env.Content.get("leeches");
+
+						if (object != null) {
+								var leaches: string[] = await object.json();
+
+								if (leaches.indexOf(ipAddress) > 0) {
+										isLeech = true;
+								}
 						}
 
 						if (!isLeech) {
