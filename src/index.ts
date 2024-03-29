@@ -73,7 +73,7 @@ export default {
 
 						if (object != null) {
 								var leeches: string[] = await object.json();
-
+								console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
 								if (leeches.indexOf(ipAddress) >= 0) {
 										isLeech = true;
 								}
