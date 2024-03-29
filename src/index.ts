@@ -69,7 +69,7 @@ export default {
 						}
 						let isLeech: boolean = false;
 
-						const object = await env.Content.get("leeches");
+						const object = await env.Data.get("leeches");
 
 						if (object != null) {
 								var leeches: string[] = await object.json();
