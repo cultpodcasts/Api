@@ -47,8 +47,8 @@ export default {
 						object.writeHttpMetadata(headers);
 						headers.set("etag", object.httpEtag);
 						headers.set("Cache-Control", "max-age=600");
-						headers.append("Access-Control-Allow-Origin", "*");
-						headers.append("Access-Control-Allow-Methods", "GET,OPTIONS");
+						headers.set("Access-Control-Allow-Origin", origin);
+						headers.set("Access-Control-Allow-Methods", "GET,OPTIONS");
 
 						return new Response(object.body, { headers });
 				}
@@ -153,9 +153,9 @@ export default {
 
 												const headers = new Headers();
 												headers.set("Cache-Control", "max-age=600");
-												headers.append("Content-Type", "application/json");
-												headers.append("Access-Control-Allow-Origin", "*");
-												headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+												headers.set("Content-Type", "application/json");
+												headers.set("Access-Control-Allow-Origin", origin!);
+												headers.set("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
 												if (response.status != 200) {
 														return new Response(response.body, { headers, status: response.status })
@@ -190,9 +190,9 @@ export default {
 								};
 								const headers = new Headers();
 								headers.set("Cache-Control", "max-age=600");
-								headers.append("Content-Type", "application/json");
-								headers.append("Access-Control-Allow-Origin", "*");
-								headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+								headers.set("Content-Type", "application/json");
+								headers.set("Access-Control-Allow-Origin", origin);
+								headers.set("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
 								dataPoint.blobs!.push("Leech");
 								env.Analytics.writeDataPoint(dataPoint);
@@ -206,9 +206,9 @@ export default {
 
 								const headers = new Headers();
 								headers.set("Cache-Control", "max-age=600");
-								headers.append("Content-Type", "application/json");
-								headers.append("Access-Control-Allow-Origin", "*");
-								headers.append("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+								headers.set("Content-Type", "application/json");
+								headers.set("Access-Control-Allow-Origin", origin);
+								headers.set("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
 								return request
 										.json()
