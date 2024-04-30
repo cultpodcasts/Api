@@ -10,16 +10,22 @@ export interface Env {
 
 export default {
 		async fetch(request: Request, env: Env) {
+				const allowedOrigins: Array<string> = ["https://cultpodcasts.com".toLowerCase(), "http://localhost:4200".toLowerCase()];
+				let origin = request.headers.get("Origin");
+				if (origin == null || allowedOrigins.indexOf(origin.toLowerCase()) == -1) {
+						origin = allowedOrigins[0];
+				}
 				const leechHandlingActive = false;
 				const { pathname, searchParams } = new URL(request.url);
 				const homeRoute = "/homepage";
 				const searchRoute = "/api";
 				const submitRoute = "/submit";
 				const corsHeaders = {
-						"Access-Control-Allow-Origin": "*", //"https://cultpodcasts.com",
+						"Access-Control-Allow-Origin": origin,
 						"Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
 						"Access-Control-Max-Age": "86400",
-						"Access-Control-Allow-Headers": "content-type,authorization"
+						"Access-Control-Allow-Headers": "content-type,authorization",
+						"Access-Control-Allow-Credentials": "true"
 				};
 
 				if (request.method === "OPTIONS") {
