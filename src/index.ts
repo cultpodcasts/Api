@@ -1,4 +1,4 @@
-import { parseJwt } from './jwt/parse';
+import { parseJwt } from '@cfworker/jwt';
 
 export interface Env {
 		Content: R2Bucket;
