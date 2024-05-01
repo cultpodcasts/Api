@@ -1,3 +1,5 @@
+import { parseJwt } from './jwt/parse';
+
 export interface Env {
 		Content: R2Bucket;
 		Data: R2Bucket;
@@ -38,6 +40,19 @@ export default {
 										...corsHeaders,
 								},
 						});
+				}
+
+				const jwt = request.headers.get('Authorization');
+				if (jwt) {
+						const issuer = 'https://dev-q3x2z6aofdzbjkkf.us.auth0.com/';
+						const audience = 'https://api.cultpodcasts.com/';
+
+						const result = await parseJwt(jwt, issuer, audience);
+						if (!result.valid) {
+								console.log(result.reason); // Invalid issuer/audience, expired, etc
+						} else {
+								console.log(result.payload); // { iss, sub, aud, iat, exp, ...claims }
+						}
 				}
 
 				if (pathname.startsWith(homeRoute) && request.method === "GET") {
