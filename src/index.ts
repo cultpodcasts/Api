@@ -10,7 +10,11 @@ export interface Env {
 
 export default {
 		async fetch(request: Request, env: Env) {
-				const allowedOrigins: Array<string> = ["https://cultpodcasts.com".toLowerCase(), "http://localhost:4200".toLowerCase()];
+				const allowedOrigins: Array<string> = [
+						"https://cultpodcasts.com".toLowerCase(),
+						"http://localhost:4200".toLowerCase(),
+						"https://local.cultpodcasts.com:4200".toLowerCase()
+				];
 				let origin = request.headers.get("Origin");
 				if (origin == null || allowedOrigins.indexOf(origin.toLowerCase()) == -1) {
 						origin = allowedOrigins[0];
