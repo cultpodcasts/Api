@@ -47,7 +47,7 @@ export default {
 						const issuer = 'https://dev-q3x2z6aofdzbjkkf.us.auth0.com/';
 						const audience = 'https://api.cultpodcasts.com/';
 
-						const result = await parseJwt(jwt, issuer, audience);
+						const result = await parseJwt(jwt.slice(7), issuer, audience);
 						if (!result.valid) {
 								console.log(result.reason); // Invalid issuer/audience, expired, etc
 						} else {
