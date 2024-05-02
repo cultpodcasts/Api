@@ -165,7 +165,7 @@ app.post("/search", async (c) => {
 
 				c.header("Cache-Control", "max-age=600");
 				c.header("Content-Type", "application/json");
-				c.header("Access-Control-Allow-Origin", origin!);
+				c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 				c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
 				if (response.status != 200) {
@@ -201,7 +201,7 @@ app.post("/search", async (c) => {
 		};
 		c.header("Cache-Control", "max-age=600");
 		c.header("Content-Type", "application/json");
-		c.header("Access-Control-Allow-Origin", origin);
+		c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 		c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
 		dataPoint.blobs!.push("Leech");
@@ -251,7 +251,7 @@ app.get("/submit", async (c) => {
 app.post("/submit", async (c) => {
 	c.header("Cache-Control", "max-age=600");
 	c.header("Content-Type", "application/json");
-	c.header("Access-Control-Allow-Origin", origin);
+	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
 	return c.req
