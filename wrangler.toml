@@ -1,10 +1,10 @@
 name = "api"
 main = "src/index.ts"
-compatibility_date = "2023-09-04"
+compatibility_date = "2023-12-01"
 
 r2_buckets = [
-  { binding = "Content", bucket_name = "content", preview_bucket_name = "" },
-  { binding = "Data", bucket_name = "data", preview_bucket_name = "" }
+  { binding = "Content", bucket_name = "content", preview_bucket_name = "content" },
+  { binding = "Data", bucket_name = "data", preview_bucket_name = "data" }
 ]
 
 [[d1_databases]]
