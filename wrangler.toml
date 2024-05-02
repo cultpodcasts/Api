@@ -1,6 +1,6 @@
 name = "api"
 main = "src/index.ts"
-compatibility_date = "2023-12-01"
+compatibility_date = "2024-05-02"
 
 r2_buckets = [
   { binding = "Content", bucket_name = "content", preview_bucket_name = "content" },
