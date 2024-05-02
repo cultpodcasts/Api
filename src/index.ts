@@ -14,10 +14,10 @@ type Env = {
 }
 
 const allowedOrigins: Array<string> = [
-	"https://cultpodcasts.com".toLowerCase(),
-	"http://localhost:4200".toLowerCase(),
-	"https://local.cultpodcasts.com:4200".toLowerCase(),
-	"https://localhost:4200".toLowerCase()
+	"https://cultpodcasts.com",
+	"http://localhost:4200",
+	"https://local.cultpodcasts.com:4200",
+	"https://localhost:4200"
 ];
 
 function getOrigin(origin: string | null | undefined) {
@@ -28,6 +28,7 @@ function getOrigin(origin: string | null | undefined) {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
 app.use('/*', cors({
 	origin: (origin, c) => {
 		return getOrigin(origin);
@@ -55,11 +56,9 @@ app.get('/homepage', async (c) => {
 	c.header("Access-Control-Allow-Methods", "GET,OPTIONS");
 
 	return stream(c, async (stream) => {
-		// Write a process to be executed when aborted.
 		stream.onAbort(() => {
 		  console.log('Aborted!')
 		})
-		// Pipe a readable stream.
 		await stream.pipe(object.body)
 	  })
 });
@@ -144,7 +143,6 @@ app.post("/search", async (c) => {
 					dataPoint.blobs?.push(data.skip);
 					dataPoint.blobs?.push(data.orderby);
 				}
-
 
 				let response = await fetch(url, {
 					cf: {
