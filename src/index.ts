@@ -13,8 +13,8 @@ type Env = {
 	apikey: string;
 	apihost: string;
 	gatewayKey: string;
-	auth0Issuer: string; //https://dev-q3x2z6aofdzbjkkf.us.auth0.com/
-	auth0Audience: string; //https://api.cultpodcasts.com/
+	auth0Issuer: string;
+	auth0Audience: string;
 }
 
 const allowedOrigins: Array<string> = [
@@ -42,19 +42,18 @@ const auth0Middleware = createMiddleware<{
 }>(async (c, next) => {
 	const authorization = c.req.header('Authorization');
 	const bearer = "Bearer ";
+	c.set('auth0', (payload) => {})
 	if (authorization && authorization.startsWith(bearer)) {
 		const token = authorization.slice(bearer.length);
 		const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
 		if (result.valid) {
 			c.set('auth0', (payload) => result.payload)
 		} else {
-			c.set('auth0', (payload) => {})
 			console.log(result.reason);
 		}
 	}
 	await next()
 })
-
 
 app.use('/*', cors({
 	origin: (origin, c) => {
