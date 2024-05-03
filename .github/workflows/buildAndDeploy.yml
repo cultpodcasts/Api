@@ -3,7 +3,8 @@ on:
   push:
     branches:
       - main
-      - feature/submit-url-management
+      - feature/authorization-header
+      - feature/new-router
 jobs:
   deploy:
     runs-on: ubuntu-latest
