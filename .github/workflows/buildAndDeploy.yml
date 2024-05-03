@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - feature/authorization-header
+      - feature/new-router
 jobs:
   deploy:
     runs-on: ubuntu-latest
