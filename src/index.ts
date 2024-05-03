@@ -2,6 +2,8 @@ import { parseJwt } from '@cfworker/jwt';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors'
 import { stream } from 'hono/streaming'
+import { createMiddleware } from 'hono/factory'
+import { Bindings } from 'hono/types';
 
 type Env = {
 	Content: R2Bucket;
@@ -11,6 +13,8 @@ type Env = {
 	apikey: string;
 	apihost: string;
 	gatewayKey: string;
+	auth0Issuer: string; //https://dev-q3x2z6aofdzbjkkf.us.auth0.com/
+	auth0Audience: string; //https://api.cultpodcasts.com/
 }
 
 const allowedOrigins: Array<string> = [
@@ -29,6 +33,28 @@ function getOrigin(origin: string | null | undefined) {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+const auth0Middleware = createMiddleware<{
+	Bindings: Env,
+	Variables: {
+		auth0: (payload: any) => any
+	}
+}>(async (c, next) => {
+	const authorization = c.req.header('Authorization');
+	const bearer = "Bearer ";
+	if (authorization && authorization.startsWith(bearer)) {
+		const token = authorization.slice(bearer.length);
+		const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
+		if (result.valid) {
+			c.set('auth0', (payload) => result.payload)
+		} else {
+			c.set('auth0', (payload) => {})
+			console.log(result.reason);
+		}
+	}
+	await next()
+})
+
 
 app.use('/*', cors({
 	origin: (origin, c) => {
@@ -58,10 +84,10 @@ app.get('/homepage', async (c) => {
 
 	return stream(c, async (stream) => {
 		stream.onAbort(() => {
-		  console.log('Aborted!')
+			console.log('Aborted!')
 		})
 		await stream.pipe(object.body)
-	  })
+	})
 });
 
 app.post("/search", async (c) => {
@@ -247,7 +273,8 @@ app.get("/submit", async (c) => {
 	}
 });
 
-app.post("/submit", async (c) => {
+app.post("/submit", auth0Middleware, async (c) => {
+	const auth0Payload = c.var.auth0('payload');
 	c.header("Cache-Control", "max-age=600");
 	c.header("Content-Type", "application/json");
 	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
@@ -281,17 +308,6 @@ app.post("/submit", async (c) => {
 
 export default app;
 
-async function auth(request: Request) {
-	const jwt = request.headers.get('Authorization');
-	if (jwt) {
-		const issuer = 'https://dev-q3x2z6aofdzbjkkf.us.auth0.com/';
-		const audience = 'https://api.cultpodcasts.com/';
 
-		const result = await parseJwt(jwt.slice(7), issuer, audience);
-		if (!result.valid) {
-			console.log(result.reason);
-		} else {
-			console.log(result.payload); // { iss, sub, aud, iat, exp, ...claims }
-		}
-	}
-}
+
+
