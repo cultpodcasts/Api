@@ -17,7 +17,8 @@ const allowedOrigins: Array<string> = [
 	"https://cultpodcasts.com",
 	"http://localhost:4200",
 	"https://local.cultpodcasts.com:4200",
-	"https://localhost:4200"
+	"https://localhost:4200",
+	"https://feature-api-authorisation.website-83e.pages.dev"
 ];
 
 function getOrigin(origin: string | null | undefined) {
