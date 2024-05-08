@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors'
 import { stream } from 'hono/streaming'
 import { createMiddleware } from 'hono/factory'
-import { Bindings } from 'hono/types';
+import { Auth0JwtPayload } from './Auth0JwtPayload';
 
 type Env = {
 	Content: R2Bucket;
@@ -15,6 +15,7 @@ type Env = {
 	gatewayKey: string;
 	auth0Issuer: string;
 	auth0Audience: string;
+	secureSubmitEndpoint: string;
 }
 
 const allowedOrigins: Array<string> = [
@@ -42,12 +43,12 @@ const auth0Middleware = createMiddleware<{
 }>(async (c, next) => {
 	const authorization = c.req.header('Authorization');
 	const bearer = "Bearer ";
-	c.set('auth0', (payload) => {})
+	c.set('auth0', (payload) => { })
 	if (authorization && authorization.startsWith(bearer)) {
 		const token = authorization.slice(bearer.length);
 		const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
 		if (result.valid) {
-			c.set('auth0', (payload) => result.payload)
+			c.set('auth0', (payload) => result.payload as Auth0JwtPayload)
 		} else {
 			console.log(result.reason);
 		}
@@ -273,36 +274,46 @@ app.get("/submit", async (c) => {
 });
 
 app.post("/submit", auth0Middleware, async (c) => {
-	const auth0Payload = c.var.auth0('payload');
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	c.header("Cache-Control", "max-age=600");
 	c.header("Content-Type", "application/json");
 	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
-	return c.req
-		.json()
-		.then(async (data: any) => {
-			let url: URL | undefined;
-			let urlParam = data.url;
-			if (urlParam == null) {
-				return c.json({ error: "Missing url param." }, 400);
-			}
-			try {
-				url = new URL(urlParam);
-			} catch {
-				return c.json({ error: `Invalid url '${data.url}'.` }, 400);
-			}
-			let insert = c.env.DB
-				.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
-				.bind(url.toString(), Date.now(), new Date().toLocaleString(), c.req.header("CF-Connecting-IP"), c.req.header("CF-IPCountry"), c.req.header("User-Agent"));
-			let result = await insert.run();
+	if (auth0Payload.permissions.includes('submit')) {
+		let originRequest = new Request(c.req.raw);
+		const resp = await fetch(c.env.secureSubmitEndpoint, originRequest);
+		if (resp.status == 200) {
+			return c.json({ success: "Submitted" });
+		} else {
+			return c.json({ error: "Unable to accept" }, 400);
+		}
+	} else {
+		return c.req
+			.json()
+			.then(async (data: any) => {
+				let url: URL | undefined;
+				let urlParam = data.url;
+				if (urlParam == null) {
+					return c.json({ error: "Missing url param." }, 400);
+				}
+				try {
+					url = new URL(urlParam);
+				} catch {
+					return c.json({ error: `Invalid url '${data.url}'.` }, 400);
+				}
+				let insert = c.env.DB
+					.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
+					.bind(url.toString(), Date.now(), new Date().toLocaleString(), c.req.header("CF-Connecting-IP"), c.req.header("CF-IPCountry"), c.req.header("User-Agent"));
+				let result = await insert.run();
 
-			if (result.success) {
-				return c.json({ success: "Submitted" });
-			} else {
-				return c.json({ error: "Unable to accept" }, 400);
-			}
-		});
+				if (result.success) {
+					return c.json({ success: "Submitted" });
+				} else {
+					return c.json({ error: "Unable to accept" }, 400);
+				}
+			});
+	}
 });
 
 export default app;
