@@ -292,7 +292,7 @@ app.post("/submit", auth0Middleware, async (c) => {
 		const resp = await fetch(c.env.secureSubmitEndpoint, {
 			headers: {
 				'Accept': "*/*",
-				'Authorisation': authorisation,
+				'Authorization': authorisation,
 				"Content-type": "application/json",
 				"Cache-Control": "no-cache",
 				"User-Agent": "cultvault-podcasts-api",
