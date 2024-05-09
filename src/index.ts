@@ -330,7 +330,7 @@ app.post("/submit", auth0Middleware, async (c) => {
 			}
 			return c.json({ success: "Submitted" });
 		});
-}
 });
+
 
 export default app;
