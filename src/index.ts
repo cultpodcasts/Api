@@ -295,7 +295,7 @@ app.post("/submit", auth0Middleware, async (c) => {
 			console.log(`Failed to use secure submit endpoint. Response code: '${resp.status}'.`);
 		}
 	}
-	console.log(`Using non-secure submit endpoint.`);
+	console.log(`Storing submission in d1.`);
 	return c.req
 		.json()
 		.then(async (data: any) => {
