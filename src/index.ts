@@ -289,7 +289,7 @@ app.post("/submit", auth0Middleware, async (c) => {
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
 		const resp = await fetch(c.env.secureSubmitEndpoint, {
 			headers: {
-				"api-key": c.env.apikey,
+				'Authorization': c.req.header("Authorization")!,
 				"content-type": "application/json;charset=UTF-8",
 			},
 			body: data,
