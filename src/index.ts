@@ -285,9 +285,16 @@ app.post("/submit", auth0Middleware, async (c) => {
 	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
+	const data = await c.req.json();
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
-		let originRequest = new Request(c.req.raw);
-		const resp = await fetch(c.env.secureSubmitEndpoint, originRequest);
+		const resp = await fetch(c.env.secureSubmitEndpoint, {
+			headers: {
+				"api-key": c.env.apikey,
+				"content-type": "application/json;charset=UTF-8",
+			},
+			body: data,
+			method: "POST"
+		});
 		if (resp.status == 200) {
 			console.log(`Successfully used secure enpoint.`);
 			return c.json({ success: "Submitted" });
@@ -295,41 +302,38 @@ app.post("/submit", auth0Middleware, async (c) => {
 			console.log(`Failed to use secure submit endpoint. Response code: '${resp.status}'.`);
 		}
 	}
-	console.log(`Storing submission in d1.`);
-	return c.req
-		.json()
-		.then(async (data: any) => {
-			const adapter = new PrismaD1(c.env.apiDB);
-			const prisma = new PrismaClient({ adapter });
-			let url: URL | undefined;
-			let urlParam = data.url;
-			if (urlParam == null) {
-				return c.json({ error: "Missing url param." }, 400);
-			}
-			try {
-				url = new URL(urlParam);
-			} catch {
-				return c.json({ error: `Invalid url '${data.url}'.` }, 400);
-			}
 
-			try {
-				const record = {
-					url: url.toString(),
-					ip_address: c.req.header("CF-Connecting-IP") ?? null,
-					user_agent: c.req.header("User-Agent") ?? null,
-					country: c.req.header("CF-IPCountry") ?? null
-				};
-				const submission = await prisma.submissions.create({
-					data: record
-				});
-			} catch (e) {
-				if (e instanceof Prisma.PrismaClientKnownRequestError) {
-					console.log(`PrismaClientKnownRequestError code: '${e.code}'`, e);
-				}
-				return c.json({ error: "Unable to accept" }, 400);
-			}
-			return c.json({ success: "Submitted" });
+	console.log(`Storing submission in d1.`);
+	const adapter = new PrismaD1(c.env.apiDB);
+	const prisma = new PrismaClient({ adapter });
+	let url: URL | undefined;
+	let urlParam = data.url;
+	if (urlParam == null) {
+		return c.json({ error: "Missing url param." }, 400);
+	}
+	try {
+		url = new URL(urlParam);
+	} catch {
+		return c.json({ error: `Invalid url '${data.url}'.` }, 400);
+	}
+
+	try {
+		const record = {
+			url: url.toString(),
+			ip_address: c.req.header("CF-Connecting-IP") ?? null,
+			user_agent: c.req.header("User-Agent") ?? null,
+			country: c.req.header("CF-IPCountry") ?? null
+		};
+		const submission = await prisma.submissions.create({
+			data: record
 		});
+	} catch (e) {
+		if (e instanceof Prisma.PrismaClientKnownRequestError) {
+			console.log(`PrismaClientKnownRequestError code: '${e.code}'`, e);
+		}
+		return c.json({ error: "Unable to accept" }, 400);
+	}
+	return c.json({ success: "Submitted" });
 });
 
 
