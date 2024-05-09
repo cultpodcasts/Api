@@ -3,14 +3,16 @@ on:
   push:
     branches:
       - main
-      - feature/authorization-header
-      - feature/new-router
+      - feature/direct-submit
 jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build
+        run:  npx prisma generate
       - name: Publish
         uses: cloudflare/wrangler-action@v3
         with:
