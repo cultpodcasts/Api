@@ -243,7 +243,7 @@ app.get("/submit", auth0Middleware, async (c) => {
 	const prisma = new PrismaClient({ adapter });
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 
-	if (auth0Payload.permissions && auth0Payload.permissions.includes('submit')) {
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
 		try {
 			const submissionIds = await prisma.submissions.findMany({
 				where: {
@@ -285,7 +285,7 @@ app.post("/submit", auth0Middleware, async (c) => {
 	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
-	if (auth0Payload.permissions && auth0Payload.permissions.includes('submit')) {
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
 		let originRequest = new Request(c.req.raw);
 		const resp = await fetch(c.env.secureSubmitEndpoint, originRequest);
 		if (resp.status == 200) {
@@ -311,13 +311,14 @@ app.post("/submit", auth0Middleware, async (c) => {
 				}
 
 				try {
+					const record = {
+						url: url.toString(),
+						ip_address: c.req.header("CF-Connecting-IP") ?? null,
+						user_agent: c.req.header("User-Agent") ?? null,
+						country: c.req.header("CF-IPCountry") ?? null
+					};
 					const submission = await prisma.submissions.create({
-						data: {
-							url: url.toString(),
-							ip_address: c.req.header("CF-Connecting-IP"),
-							user_agent: c.req.header("User-Agent"),
-							country: c.req.header("CF-IPCountry")
-						}
+						data: record
 					});
 				} catch (e) {
 					if (e instanceof Prisma.PrismaClientKnownRequestError) {
