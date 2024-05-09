@@ -291,8 +291,10 @@ app.post("/submit", auth0Middleware, async (c) => {
 		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
 		const resp = await fetch(c.env.secureSubmitEndpoint, {
 			headers: {
+				'Accept': "*/*",
 				'Authorisation': authorisation,
-				"Content-type": "application/json;charset=UTF-8",
+				"Content-type": "application/json",
+				"Cache-Control":"no-cache",
 			},
 			body: JSON.stringify(data),
 			method: "POST"
