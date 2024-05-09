@@ -295,7 +295,8 @@ app.post("/submit", auth0Middleware, async (c) => {
 				'Authorisation': authorisation,
 				"Content-type": "application/json",
 				"Cache-Control": "no-cache",
-				"User-Agent": "PostmanRuntime/7.37.3"
+				"User-Agent": "cultvault-podcasts-api",
+				"Host": new URL(c.env.secureSubmitEndpoint).host
 			},
 			body: JSON.stringify(data),
 			method: "POST"
