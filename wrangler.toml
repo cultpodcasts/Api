@@ -7,10 +7,10 @@ r2_buckets = [
   { binding = "Data", bucket_name = "data", preview_bucket_name = "data" }
 ]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "submissions"
-database_id = "6d00eb71-b420-47f7-9e74-96d53bcb943a"
+d1_databases= [
+  {binding="DB", database_name = "submissions", database_id = "6d00eb71-b420-47f7-9e74-96d53bcb943a"},
+  {binding = "apiDB", database_name = "cultpodcasts-api", database_id = "17d94e5b-3bd9-4cec-95b7-cf418fe8c870"}
+]
 
 [[analytics_engine_datasets]]
 binding = "Analytics"

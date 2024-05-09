@@ -3,18 +3,22 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors'
 import { stream } from 'hono/streaming'
 import { createMiddleware } from 'hono/factory'
-import { Bindings } from 'hono/types';
+import { Auth0JwtPayload } from './Auth0JwtPayload';
+import { Prisma, PrismaClient } from '@prisma/client'
+import { PrismaD1 } from "@prisma/adapter-d1";
 
 type Env = {
 	Content: R2Bucket;
 	Data: R2Bucket;
 	Analytics: AnalyticsEngineDataset;
 	DB: D1Database;
+	apiDB: D1Database;
 	apikey: string;
 	apihost: string;
 	gatewayKey: string;
 	auth0Issuer: string;
 	auth0Audience: string;
+	secureSubmitEndpoint: string;
 }
 
 const allowedOrigins: Array<string> = [
@@ -42,12 +46,12 @@ const auth0Middleware = createMiddleware<{
 }>(async (c, next) => {
 	const authorization = c.req.header('Authorization');
 	const bearer = "Bearer ";
-	c.set('auth0', (payload) => {})
+	c.set('auth0', (payload) => { })
 	if (authorization && authorization.startsWith(bearer)) {
 		const token = authorization.slice(bearer.length);
 		const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
 		if (result.valid) {
-			c.set('auth0', (payload) => result.payload)
+			c.set('auth0', (payload) => result.payload as Auth0JwtPayload)
 		} else {
 			console.log(result.reason);
 		}
@@ -234,79 +238,109 @@ app.post("/search", async (c) => {
 	}
 });
 
-app.get("/submit", async (c) => {
-	if (c.req.header("key") != c.env.gatewayKey) {
-		return c.json({ message: "Unauthorised" }, 401);
-	}
-	let submissionIds = c.env.DB
-		.prepare("SELECT id FROM urls WHERE state=0");
-	let result = await submissionIds.all();
-	if (result.success) {
-		const inClause = result.results
-			.map((urlId) => {
-				if (!Number.isInteger(urlId.id)) { throw Error("invalid id, expected an integer"); }
-				return urlId.id;
+app.get("/submit", auth0Middleware, async (c) => {
+	const adapter = new PrismaD1(c.env.apiDB);
+	const prisma = new PrismaClient({ adapter });
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
+		try {
+			const submissionIds = await prisma.submissions.findMany({
+				where: {
+					state: 0
+				},
+				select: {
+					id: true
+				}
 			})
-			.join(',');
-		let urls = "SELECT id, url, timestamp_date, ip_address, country, user_agent FROM urls WHERE id IN ($urlIds)";
-		urls = urls.replace('$urlIds', inClause);
-		let urlResults = await c.env.DB
-			.prepare(urls)
-			.run();
-		if (urlResults.success) {
-			let update = "UPDATE urls SET state=1 WHERE id IN ($urlIds)";
-			update = update.replace('$urlIds', inClause);
-			let raiseState = await c.env.DB
-				.prepare(update)
-				.all();
-			if (raiseState.success) {
-				return c.json(urlResults);
-			} else {
-				return c.text("Failure to raise state of new submissons in ids " + result.results.join(", "), 400);
+			const urlResults = await prisma.submissions.findMany({
+				where: {
+					id: { in: submissionIds.map((record) => record.id) },
+				}
+			})
+			const updates = await prisma.submissions.updateMany({
+				where: {
+					id: { in: submissionIds.map((record) => record.id) }
+				},
+				data: {
+					state: 1,
+				},
+			});
+			return c.json(urlResults);
+		} catch (e) {
+			if (e instanceof Prisma.PrismaClientKnownRequestError) {
+				console.log(`PrismaClientKnownRequestError code: '${e.code}'`, e);
 			}
-		} else {
-			return c.text("Unable to retrieve new submissions", 500);
+			return c.json({ error: "Unable to accept" }, 400);
 		}
 	} else {
-		return c.text(result.error!, 500);
+		return c.json({ message: "Unauthorised" }, 401);
 	}
 });
 
 app.post("/submit", auth0Middleware, async (c) => {
-	const auth0Payload = c.var.auth0('payload');
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	c.header("Cache-Control", "max-age=600");
 	c.header("Content-Type", "application/json");
 	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
-	return c.req
-		.json()
-		.then(async (data: any) => {
-			let url: URL | undefined;
-			let urlParam = data.url;
-			if (urlParam == null) {
-				return c.json({ error: "Missing url param." }, 400);
-			}
-			try {
-				url = new URL(urlParam);
-			} catch {
-				return c.json({ error: `Invalid url '${data.url}'.` }, 400);
-			}
-			let insert = c.env.DB
-				.prepare("INSERT INTO urls (url, timestamp, timestamp_date, ip_address, country, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
-				.bind(url.toString(), Date.now(), new Date().toLocaleString(), c.req.header("CF-Connecting-IP"), c.req.header("CF-IPCountry"), c.req.header("User-Agent"));
-			let result = await insert.run();
-
-			if (result.success) {
-				return c.json({ success: "Submitted" });
-			} else {
-				return c.json({ error: "Unable to accept" }, 400);
-			}
+	const data = await c.req.json();
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
+		const authorisation: string = c.req.header("Authorization")!;
+		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
+		const resp = await fetch(c.env.secureSubmitEndpoint, {
+			headers: {
+				'Accept': "*/*",
+				'Authorization': authorisation,
+				"Content-type": "application/json",
+				"Cache-Control": "no-cache",
+				"User-Agent": "cultvault-podcasts-api",
+				"Host": new URL(c.env.secureSubmitEndpoint).host
+			},
+			body: JSON.stringify(data),
+			method: "POST"
 		});
+		if (resp.status == 200) {
+			console.log(`Successfully used secure enpoint.`);
+			return c.json({ success: "Submitted" });
+		} else {
+			console.log(`Failed to use secure submit endpoint. Response code: '${resp.status}'.`);
+		}
+	}
+
+	console.log(`Storing submission in d1.`);
+	const adapter = new PrismaD1(c.env.apiDB);
+	const prisma = new PrismaClient({ adapter });
+	let url: URL | undefined;
+	let urlParam = data.url;
+	if (urlParam == null) {
+		return c.json({ error: "Missing url param." }, 400);
+	}
+	try {
+		url = new URL(urlParam);
+	} catch {
+		return c.json({ error: `Invalid url '${data.url}'.` }, 400);
+	}
+
+	try {
+		const record = {
+			url: url.toString(),
+			ip_address: c.req.header("CF-Connecting-IP") ?? null,
+			user_agent: c.req.header("User-Agent") ?? null,
+			country: c.req.header("CF-IPCountry") ?? null
+		};
+		const submission = await prisma.submissions.create({
+			data: record
+		});
+	} catch (e) {
+		if (e instanceof Prisma.PrismaClientKnownRequestError) {
+			console.log(`PrismaClientKnownRequestError code: '${e.code}'`, e);
+		}
+		return c.json({ error: "Unable to accept" }, 400);
+	}
+	return c.json({ success: "Submitted" });
 });
 
+
 export default app;
-
-
-
-
