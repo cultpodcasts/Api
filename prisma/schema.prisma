@@ -1,0 +1,22 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Submissions {
+  id          Int       @id @default(autoincrement())
+  url         String
+  state       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  ip_address  String?
+  country     String?
+  user_agent  String?
+}
