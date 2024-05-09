@@ -285,7 +285,6 @@ app.post("/submit", auth0Middleware, async (c) => {
 	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
 	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
 
-	let secureEndpointFailed: Boolean = false;
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
 		let originRequest = new Request(c.req.raw);
 		const resp = await fetch(c.env.secureSubmitEndpoint, originRequest);
