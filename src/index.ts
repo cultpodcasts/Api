@@ -287,14 +287,15 @@ app.post("/submit", auth0Middleware, async (c) => {
 
 	const data = await c.req.json();
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
-		const authorisation:string= c.req.header("Authorization")!;
+		const authorisation: string = c.req.header("Authorization")!;
 		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
 		const resp = await fetch(c.env.secureSubmitEndpoint, {
 			headers: {
 				'Accept': "*/*",
 				'Authorisation': authorisation,
 				"Content-type": "application/json",
-				"Cache-Control":"no-cache",
+				"Cache-Control": "no-cache",
+				"User-Agent": "PostmanRuntime/7.37.3"
 			},
 			body: JSON.stringify(data),
 			method: "POST"
