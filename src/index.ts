@@ -11,7 +11,6 @@ type Env = {
 	Content: R2Bucket;
 	Data: R2Bucket;
 	Analytics: AnalyticsEngineDataset;
-	DB: D1Database;
 	apiDB: D1Database;
 	apikey: string;
 	apihost: string;
