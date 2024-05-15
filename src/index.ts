@@ -18,7 +18,8 @@ type Env = {
 	gatewayKey: string;
 	auth0Issuer: string;
 	auth0Audience: string;
-	secureSubmitEndpoint: string;
+	secureSubmitEndpoint: URL;
+	securePodcastsEndpoiint: URL;
 }
 
 const allowedOrigins: Array<string> = [
@@ -326,7 +327,7 @@ app.post("/submit", auth0Middleware, async (c) => {
 	try {
 		const record = {
 			url: url.toString(),
-			ip_address: c.req.header("CF-Connecting-IP") ?? null,
+			ip_address: c.req.header("CF-Connecting-IP") ?? "Unkown",
 			user_agent: c.req.header("User-Agent") ?? null,
 			country: c.req.header("CF-IPCountry") ?? null
 		};
@@ -340,6 +341,39 @@ app.post("/submit", auth0Middleware, async (c) => {
 		return c.json({ error: "Unable to accept" }, 400);
 	}
 	return c.json({ success: "Submitted" });
+});
+
+app.get("/podcasts", auth0Middleware, async (c) => {
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+	c.header("Cache-Control", "max-age=600");
+	c.header("Content-Type", "application/json");
+	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
+	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
+		const authorisation: string = c.req.header("Authorization")!;
+		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
+		const resp = await fetch(c.env.securePodcastsEndpoiint, {
+			headers: {
+				'Accept': "*/*",
+				'Authorization': authorisation,
+				"Content-type": "application/json",
+				"Cache-Control": "no-cache",
+				"User-Agent": "cultvault-podcasts-api",
+				"Host": new URL(c.env.securePodcastsEndpoiint).host
+			},
+			method: "GET"
+		});
+		if (resp.status == 200) {
+			console.log(`Successfully used secure enpoint.`);
+
+			return new Response(resp.body);
+		} else {
+			console.log(`Failed to use secure submit endpoint. Response code: '${resp.status}'.`);
+		}
+
+	}
+	return c.json({ error: "Unauthorised" }, 403);
 });
 
 
