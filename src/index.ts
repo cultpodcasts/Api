@@ -19,7 +19,7 @@ type Env = {
 	auth0Issuer: string;
 	auth0Audience: string;
 	secureSubmitEndpoint: URL;
-	securePodcastsEndpoiint: URL;
+	securePodcastsEndpoint: URL;
 }
 
 const allowedOrigins: Array<string> = [
@@ -353,14 +353,14 @@ app.get("/podcasts", auth0Middleware, async (c) => {
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
 		const authorisation: string = c.req.header("Authorization")!;
 		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
-		const resp = await fetch(c.env.securePodcastsEndpoiint, {
+		const resp = await fetch(c.env.securePodcastsEndpoint, {
 			headers: {
 				'Accept': "*/*",
 				'Authorization': authorisation,
 				"Content-type": "application/json",
 				"Cache-Control": "no-cache",
 				"User-Agent": "cultvault-podcasts-api",
-				"Host": new URL(c.env.securePodcastsEndpoiint).host
+				"Host": new URL(c.env.securePodcastsEndpoint).host
 			},
 			method: "GET"
 		});
