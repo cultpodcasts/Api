@@ -19,6 +19,7 @@ type Env = {
 	auth0Audience: string;
 	secureSubmitEndpoint: URL;
 	securePodcastsEndpoint: URL;
+	secureDiscoveryCurationEndpoint: URL;
 }
 
 const allowedOrigins: Array<string> = [
@@ -302,10 +303,12 @@ app.post("/submit", auth0Middleware, async (c) => {
 			method: "POST"
 		});
 		if (resp.status == 200) {
-			console.log(`Successfully used secure enpoint.`);
-			return c.json({ success: "Submitted" });
+			console.log(`Successfully used secure-submit-endpoint.`);
+			const resp = c.json({ success: "Submitted" });
+			resp.headers.set("x-origin", "true");
+			return resp;
 		} else {
-			console.log(`Failed to use secure submit endpoint. Response code: '${resp.status}'.`);
+			console.log(`Failed to use secure-submit-endpoint. Response code: '${resp.status}'.`);
 		}
 	}
 
@@ -364,16 +367,93 @@ app.get("/podcasts", auth0Middleware, async (c) => {
 			method: "GET"
 		});
 		if (resp.status == 200) {
-			console.log(`Successfully used secure enpoint.`);
+			console.log(`Successfully used secure-podcasts-endpoint.`);
 
 			return new Response(resp.body);
 		} else {
-			console.log(`Failed to use secure submit endpoint. Response code: '${resp.status}'.`);
+			console.log(`Failed to use secure-podcasts-endpoint. Response code: '${resp.status}'.`);
 		}
 
 	}
 	return c.json({ error: "Unauthorised" }, 403);
 });
 
+
+app.get("/discovery-curation", auth0Middleware, async (c) => {
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+	c.header("Cache-Control", "max-age=600");
+	c.header("Content-Type", "application/json");
+	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
+	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
+		const authorisation: string = c.req.header("Authorization")!;
+		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
+		const resp = await fetch(c.env.secureDiscoveryCurationEndpoint, {
+			headers: {
+				'Accept': "*/*",
+				'Authorization': authorisation,
+				"Content-type": "application/json",
+				"Cache-Control": "no-cache",
+				"User-Agent": "cultvault-podcasts-api",
+				"Host": new URL(c.env.secureDiscoveryCurationEndpoint).host
+			},
+			method: "GET"
+		});
+		if (resp.status == 200) {
+			console.log(`Successfully used secure secure-discovery-curation-endpoint.`);
+
+			var response = new Response(resp.body);
+			response.headers.set("content-type", "application/json; charset=utf-8");
+			return response;
+		} else {
+			console.log(`Failed to use secure-discovery-curation-endpoint. Response code: '${resp.status}'.`);
+		}
+
+	}
+	return c.json({ error: "Unauthorised" }, 403);
+});
+
+app.post("/discovery-curation", auth0Middleware, async (c) => {
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+	c.header("Cache-Control", "max-age=600");
+	c.header("Content-Type", "application/json");
+	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
+	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+	const data: any = await c.req.json();
+	const body: string = JSON.stringify(data)
+	try {
+		if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
+			const authorisation: string = c.req.header("Authorization")!;
+			console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
+			let resp: Response | undefined;
+			resp = await fetch(c.env.secureDiscoveryCurationEndpoint, {
+				headers: {
+					'Accept': "*/*",
+					'Authorization': authorisation,
+					"Content-type": "application/json",
+					"Cache-Control": "no-cache",
+					"User-Agent": "cultvault-podcasts-api",
+					"Host": new URL(c.env.secureDiscoveryCurationEndpoint).host
+				},
+				method: "POST",
+				body: body
+			});
+			if (resp.status == 200) {
+				console.log(`Successfully used secure secure-discovery-curation-endpoint.`);
+
+				var response = new Response(resp.body);
+				response.headers.set("content-type", "application/json; charset=utf-8");
+				return response;
+			} else {
+				console.log(`Failed to use secure-discovery-curation-endpoint. Response code: '${resp.status}'.`);
+			}
+		}
+	} catch (error) {
+		console.log(error);
+		return c.json({ error: "An error occurred" }, 500);
+	}
+	return c.json({ error: "Unauthorised" }, 403);
+});
 
 export default app;
