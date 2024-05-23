@@ -305,9 +305,10 @@ app.post("/submit", auth0Middleware, async (c) => {
 		});
 		if (resp.status == 200) {
 			console.log(`Successfully used secure-submit-endpoint.`);
-			const resp = c.json({ success: "Submitted" });
-			resp.headers.set("X-Origin", "true");
-			return resp;
+			var response = new Response(resp.body);
+			response.headers.set("content-type", "application/json; charset=utf-8");
+			response.headers.set("X-Origin", "true");
+			return response;
 		} else {
 			console.log(`Failed to use secure-submit-endpoint. Response code: '${resp.status}'.`);
 		}
