@@ -150,16 +150,18 @@ app.post("/search", async (c) => {
 						if (filter.indexOf(idFilter) >= 0) {
 							filterCutoff = filterCutoff = filter.indexOf(idFilter);
 							const episodeId = filter.slice(filterCutoff + idFilter.length, -2);
+							dataPoint.blobs!.push("episode");
 							dataPoint.blobs!.push(episodeId);
+						} else {
+							dataPoint.blobs!.push("podcast");
 						}
 						let query = filter.slice(17, filterCutoff);
+						dataPoint.blobs!.push(query);
 						if (index) {
 							index += " podcast=" + query;
 						} else {
 							index = "podcast=" + query;
 						}
-						dataPoint.blobs!.push(query);
-						dataPoint.blobs!.push("podcast");
 					} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
 						let query = filter.slice(22, - 2);
 						if (index) {
