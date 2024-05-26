@@ -145,7 +145,14 @@ app.post("/search", async (c) => {
 				if (data.filter) {
 					let filter: string = data.filter;
 					if (filter.indexOf("(podcastName eq '") == 0) {
-						let query = filter.slice(17, -2);
+						const idFilter = "') and (id eq ";
+						let filterCutoff = -2;
+						if (filter.indexOf(idFilter) >= 0) {
+							filterCutoff = filterCutoff = filter.indexOf(idFilter);
+							const episodeId = filter.slice(filterCutoff + idFilter.length, -2);
+							dataPoint.blobs!.push(episodeId);
+						}
+						let query = filter.slice(17, filterCutoff);
 						if (index) {
 							index += " podcast=" + query;
 						} else {
@@ -190,7 +197,11 @@ app.post("/search", async (c) => {
 				});
 				if (dataPoint) {
 					dataPoint.blobs?.push(response.status.toString());
-					c.env.Analytics.writeDataPoint(dataPoint);
+					try {
+						c.env.Analytics.writeDataPoint(dataPoint);
+					} catch (error) {
+						console.log(error);
+					}
 				}
 
 				c.header("Cache-Control", "max-age=600");
@@ -379,7 +390,6 @@ app.get("/podcasts", auth0Middleware, async (c) => {
 	}
 	return c.json({ error: "Unauthorised" }, 403);
 });
-
 
 app.get("/discovery-curation", auth0Middleware, async (c) => {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
