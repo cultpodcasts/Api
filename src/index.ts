@@ -26,10 +26,12 @@ const allowedOrigins: Array<string> = [
 	"https://cultpodcasts.com",
 	"http://localhost:4200",
 	"https://local.cultpodcasts.com:4200",
-	"https://localhost:4200"
+	"https://local.cultpodcasts.com:8788",
+	"https://localhost:4200",
+	"https://localhost:8790"
 ];
 
-const stagingHostSuffix= ".website-83e.pages.dev";
+const stagingHostSuffix = ".website-83e.pages.dev";
 
 function getOrigin(origin: string | null | undefined) {
 	if (origin == null || (allowedOrigins.indexOf(origin.toLowerCase()) == -1 && !origin.endsWith(stagingHostSuffix))) {
