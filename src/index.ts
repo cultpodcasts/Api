@@ -98,6 +98,36 @@ app.get('/homepage', async (c) => {
 	})
 });
 
+app.get('/subjects', auth0Middleware, async (c) => {
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
+		let object: R2ObjectBody | null = null;
+		try {
+			object = await c.env.Content.get("subjects");
+		} catch (e) {
+		}
+
+		if (object === null) {
+			return new Response("Object Not Found", { status: 404 });
+		}
+
+		c.header("etag", object.httpEtag);
+		c.header("Cache-Control", "max-age=600");
+		c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
+		c.header("Access-Control-Allow-Methods", "GET,OPTIONS");
+
+		return stream(c, async (stream) => {
+			stream.onAbort(() => {
+				console.log('Aborted!')
+			})
+			await stream.pipe(object.body)
+		})
+	} else {
+		return c.json({ message: "Unauthorised" }, 401);
+	}
+});
+
 app.post("/search", async (c) => {
 	const leechHandlingActive: boolean = false;
 	const url = `${c.env.apihost}`;
@@ -374,7 +404,7 @@ app.get("/episode/:id", auth0Middleware, async (c) => {
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
 		const authorisation: string = c.req.header("Authorization")!;
 		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
-		const url= `${c.env.secureEpisodeEndpoint}/${id}`;
+		const url = `${c.env.secureEpisodeEndpoint}/${id}`;
 		console.log(url);
 		const resp = await fetch(url, {
 			headers: {
