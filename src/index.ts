@@ -22,7 +22,8 @@ type Env = {
 	secureDiscoveryCurationEndpoint: URL;
 	securePodcastIndexEndpoint: URL;
 	securePodcastEndpoint: URL;
-	secureSubjectEndpoint: URL
+	secureSubjectEndpoint: URL;
+	secureEpisodesOutgoingEndpoint: URL;
 }
 
 const allowedOrigins: Array<string> = [
@@ -460,6 +461,41 @@ app.post("/episode/:id", auth0Middleware, async (c) => {
 	return c.json({ error: "Unauthorised" }, 403);
 });
 
+app.get("/episodes/outgoing", auth0Middleware, async (c) => {
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+	c.header("Cache-Control", "max-age=600");
+	c.header("Content-Type", "application/json");
+	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
+	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
+		const authorisation: string = c.req.header("Authorization")!;
+		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
+		const url = `${c.env.secureEpisodesOutgoingEndpoint}`;
+		console.log(url);
+		const resp = await fetch(url, {
+			headers: {
+				'Accept': "*/*",
+				'Authorization': authorisation,
+				"Content-type": "application/json",
+				"Cache-Control": "no-cache",
+				"User-Agent": "cult-podcasts-api",
+				"Host": new URL(c.env.secureEpisodeEndpoint).host
+			},
+			method: "GET"
+		});
+		if (resp.status == 200) {
+			console.log(`Successfully used secure-episodes-outgoing-endpoint.`);
+
+			return new Response(resp.body);
+		} else {
+			console.log(`Failed to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.`);
+			return c.json({ error: "Error" }, 500);
+		}
+	}
+	return c.json({ error: "Unauthorised" }, 403);
+});
+
 app.get("/podcast/:name", auth0Middleware, async (c) => {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	const name = c.req.param('name')
@@ -667,10 +703,10 @@ app.put("/subject", auth0Middleware, async (c) => {
 		});
 		if (resp.status == 202) {
 			console.log(`Successfully used secure-subject-endpoint.`);
-			return new Response(resp.body, {status:resp.status});
+			return new Response(resp.body, { status: resp.status });
 		} else if (resp.status == 409) {
 			console.log(`Conflict reported on secure-subject-endpoint.`);
-			return new Response(resp.body, {status:resp.status});
+			return new Response(resp.body, { status: resp.status });
 		} else {
 			console.log(`Failed to use secure-subject-endpoint. Response code: '${resp.status}'.`);
 			return c.json({ error: "Error" }, 500);
