@@ -633,6 +633,12 @@ app.post("/podcast/index/:name", auth0Middleware, async (c) => {
 		if (resp.status == 202) {
 			console.log(`Successfully used secure-podcast-index-endpoint.`);
 			return new Response(resp.body);
+		} else if (resp.status == 404) {
+			console.log(`Successfully used secure-podcast-index-endpoint. Not Found.`);
+			return new Response(resp.body, { status: resp.status });
+		} else if (resp.status == 400) {
+			console.log(`Successfully used secure-podcast-index-endpoint. Not Performed.`);
+			return new Response(resp.body, { status: resp.status });
 		} else {
 			console.log(`Failed to use secure-podcast-index-endpoint. Response code: '${resp.status}'.`);
 			return c.json({ error: "Error" }, 500);
