@@ -13,9 +13,3 @@ d1_databases= [
 
 [[analytics_engine_datasets]]
 binding = "Analytics"
-
-[vars]
-secureEpisodeEndpoint = "https://api-cultpodcasts.azurewebsites.net/api/episode"
-securePodcastIndexEndpoint = "https://api-cultpodcasts.azurewebsites.net/api/podcast/index"
-
-
