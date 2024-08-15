@@ -6,3 +6,6 @@ podcasts.sql
 /wrangler.toml
 /queries.cmd
 .dev.vars
+subjects.json
+flairs.json
+homepage.json
