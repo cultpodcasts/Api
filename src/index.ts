@@ -627,6 +627,9 @@ app.post("/podcast/:id", auth0Middleware, async (c) => {
 		if (resp.status == 202) {
 			console.log(`Successfully used secure-podcast-endpoint.`);
 			return new Response(resp.body);
+		} else if (resp.status == 404) {
+			console.log(`Unable to find podcast.`);
+			return new Response(resp.body, { status: resp.status });
 		} else {
 			console.log(`Failed to use secure-podcast-endpoint. Response code: '${resp.status}'.`);
 			return c.json({ error: "Error" }, 500);
