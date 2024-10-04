@@ -536,7 +536,11 @@ app.get("/episodes/outgoing", auth0Middleware, async (c) => {
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
 		const authorisation: string = c.req.header("Authorization")!;
 		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
-		const url = `${c.env.secureEpisodesOutgoingEndpoint}`;
+		let url = c.env.secureEpisodesOutgoingEndpoint.toString();
+		const reqUrl = new URL(c.req.url);
+		if (reqUrl.search) {
+			url += reqUrl.search;
+		}
 		console.log(url);
 		const resp = await fetch(url, {
 			headers: {
@@ -551,8 +555,10 @@ app.get("/episodes/outgoing", auth0Middleware, async (c) => {
 		});
 		if (resp.status == 200) {
 			console.log(`Successfully used secure-episodes-outgoing-endpoint.`);
-
 			return new Response(resp.body);
+		} else if (resp.status == 400) {
+			console.log(`Bad request to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.`);
+			return new Response(resp.body, { status: 400 });
 		} else {
 			console.log(`Failed to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.`);
 			return c.json({ error: "Error" }, 500);
