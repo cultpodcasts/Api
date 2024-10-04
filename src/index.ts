@@ -25,6 +25,7 @@ type Env = {
 	secureSubjectEndpoint: URL;
 	secureEpisodesOutgoingEndpoint: URL;
 	secureEpisodePublishEndpoint: URL;
+	secureAdminSearchIndexerEndpoint: URL;
 }
 
 const allowedOrigins: Array<string> = [
@@ -64,6 +65,8 @@ const auth0Middleware = createMiddleware<{
 		} else {
 			console.log(result.reason);
 		}
+	} else {
+		console.log("no bearer")
 	}
 	await next()
 })
@@ -536,7 +539,11 @@ app.get("/episodes/outgoing", auth0Middleware, async (c) => {
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
 		const authorisation: string = c.req.header("Authorization")!;
 		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
-		const url = `${c.env.secureEpisodesOutgoingEndpoint}`;
+		let url = c.env.secureEpisodesOutgoingEndpoint.toString();
+		const reqUrl = new URL(c.req.url);
+		if (reqUrl.search) {
+			url += reqUrl.search;
+		}
 		console.log(url);
 		const resp = await fetch(url, {
 			headers: {
@@ -551,8 +558,10 @@ app.get("/episodes/outgoing", auth0Middleware, async (c) => {
 		});
 		if (resp.status == 200) {
 			console.log(`Successfully used secure-episodes-outgoing-endpoint.`);
-
 			return new Response(resp.body);
+		} else if (resp.status == 400) {
+			console.log(`Bad request to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.`);
+			return new Response(resp.body, { status: 400 });
 		} else {
 			console.log(`Failed to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.`);
 			return c.json({ error: "Error" }, 500);
@@ -862,6 +871,52 @@ app.post("/discovery-curation", auth0Middleware, async (c) => {
 		}
 	} catch (error) {
 		console.log(error);
+		return c.json({ error: "An error occurred" }, 500);
+	}
+	return c.json({ error: "Unauthorised" }, 403);
+});
+
+
+app.post("/searchindex/run", auth0Middleware, async (c) => {
+	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+	c.header("Cache-Control", "max-age=600");
+	c.header("Content-Type", "application/json");
+	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin")));
+	c.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+	try {
+		console.log(auth0Payload.permissions);
+		if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
+			const authorisation: string = c.req.header("Authorization")!;
+			console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
+			let resp: Response | undefined;
+console.log(c.env.secureAdminSearchIndexerEndpoint.toString())
+			resp = await fetch(c.env.secureAdminSearchIndexerEndpoint, {
+				headers: {
+					'Accept': "*/*",
+					'Authorization': authorisation,
+					"Content-type": "application/json",
+					"Cache-Control": "no-cache",
+					"User-Agent": "cult-podcasts-api",
+					"Host": new URL(c.env.secureAdminSearchIndexerEndpoint).host
+				},
+				method: "POST",
+				body: "{}"
+			});
+			if (resp.status == 200) {
+				console.log(`Successfully used secure secure-admin-search-indexer-endpoint.`);
+				var response = new Response(resp.body);
+				response.headers.set("content-type", "application/json; charset=utf-8");
+				return response;
+			} else if (resp.status == 400) {
+				console.log(`Failure using secure secure-admin-search-indexer-endpoint.`);
+				var response = new Response(resp.body, { status: 400 });
+				response.headers.set("content-type", "application/json; charset=utf-8");
+				return response;
+			} else {
+				console.log(`Failed to use secure-admin-search-indexer-endpoint. Response code: '${resp.status}'.`);
+			}
+		}
+	} catch (error) {
 		return c.json({ error: "An error occurred" }, 500);
 	}
 	return c.json({ error: "Unauthorised" }, 403);
