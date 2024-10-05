@@ -39,7 +39,7 @@ const allowedOrigins: Array<string> = [
 ];
 
 function getOrigin(origin: string | null | undefined, stagingHostSuffix: string) {
-	if (origin == null || (allowedOrigins.indexOf(origin.toLowerCase()) == -1 && !origin.endsWith(stagingHostSuffix))) {
+	if (origin == null || (allowedOrigins.indexOf(origin.toLowerCase()) == -1 && (stagingHostSuffix && !origin.endsWith(stagingHostSuffix)))) {
 		origin = allowedOrigins[0];
 	}
 	return origin;
