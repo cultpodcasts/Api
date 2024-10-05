@@ -26,6 +26,7 @@ type Env = {
 	secureEpisodesOutgoingEndpoint: URL;
 	secureEpisodePublishEndpoint: URL;
 	secureAdminSearchIndexerEndpoint: URL;
+	stagingHostSuffix: string;
 }
 
 const allowedOrigins: Array<string> = [
@@ -37,9 +38,7 @@ const allowedOrigins: Array<string> = [
 	"https://localhost:8790"
 ];
 
-const stagingHostSuffix = ".website-83e.pages.dev";
-
-function getOrigin(origin: string | null | undefined) {
+function getOrigin(origin: string | null | undefined, stagingHostSuffix: string) {
 	if (origin == null || (allowedOrigins.indexOf(origin.toLowerCase()) == -1 && !origin.endsWith(stagingHostSuffix))) {
 		origin = allowedOrigins[0];
 	}
@@ -73,7 +72,7 @@ const auth0Middleware = createMiddleware<{
 
 app.use('/*', cors({
 	origin: (origin, c) => {
-		return getOrigin(origin);
+		return getOrigin(origin, c.env.stagingHostSuffix);
 	},
 	allowHeaders: ['content-type', 'authorization'],
 	allowMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PUT'],
@@ -889,7 +888,6 @@ app.post("/searchindex/run", auth0Middleware, async (c) => {
 			const authorisation: string = c.req.header("Authorization")!;
 			console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
 			let resp: Response | undefined;
-console.log(c.env.secureAdminSearchIndexerEndpoint.toString())
 			resp = await fetch(c.env.secureAdminSearchIndexerEndpoint, {
 				headers: {
 					'Accept': "*/*",
