@@ -21,6 +21,7 @@ import { createSubject } from './createSubject';
 import { getDiscoveryReports } from './getDiscoveryReports';
 import { submitDiscovery } from './submitDiscovery';
 import { runSearchIndexer } from './runSearchIndexer';
+import { publishHomepage } from './publishHomepage';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -43,5 +44,6 @@ app.put("/subject", Auth0Middleware, createSubject);
 app.get("/discovery-curation", Auth0Middleware, getDiscoveryReports);
 app.post("/discovery-curation", Auth0Middleware, submitDiscovery);
 app.post("/searchindex/run", Auth0Middleware, runSearchIndexer);
+app.post("/publish/homepage", Auth0Middleware, publishHomepage);
 
 export default app;
