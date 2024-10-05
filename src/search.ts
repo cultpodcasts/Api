@@ -23,19 +23,7 @@ export async function search(c: ActionContext): Promise<Response> {
 			dataPoint.blobs!.push(c.req.raw.cf.country as string);
 		}
 	}
-	let isLeech: boolean = false;
-
-	if (leechHandlingActive) {
-		const object = await c.env.Data.get("leeches");
-
-		if (object != null) {
-			var leeches: string[] = await object.json();
-			console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
-			if (leeches.indexOf(ipAddress) >= 0) {
-				isLeech = true;
-			}
-		}
-	}
+	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, ipAddress);
 	if (!isLeech) {
 		return c.req
 			.json()
@@ -120,31 +108,58 @@ export async function search(c: ActionContext): Promise<Response> {
 				return c.json(body, 200);
 			});
 	} else {
-		const leechResponse = {
-			"@odata.context": null,
-			"@odata.count": 1,
-			"@search.facets": {
-				"subjects": [],
-				"podcastName": []
-			},
-			"value": [{
-				"@search.score": 1.0,
-				"id": "00000000-0000-0000-0000-000000000000",
-				"episodeTitle": "Leech Detected",
-				"podcastName": "Leech Detected",
-				"episodeDescription": "Contact leeching@cultpodcasts.com.",
-				"release": "1970-01-01T00:00:00Z",
-				"duration": "01:00:00.0000000",
-				"explicit": false,
-				"spotify": null,
-				"apple": null,
-				"youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-				"subjects": []
-			}]
-		};
-		AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-		dataPoint.blobs!.push("Leech");
-		c.env.Analytics.writeDataPoint(dataPoint);
-		return c.json(leechResponse, 200);
+		return createLeachResponse(c, dataPoint);
 	}
+
+
 }
+
+async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string): Promise<boolean> {
+	let isLeech: boolean = false;
+	if (leechHandlingActive) {
+		const object = await data.get("leeches");
+
+		if (object != null) {
+			var leeches: string[] = await object.json();
+			console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
+			if (leeches.indexOf(ipAddress) >= 0) {
+				isLeech = true;
+			}
+		}
+	}
+	return isLeech;
+}
+
+function createLeachResponse(c: ActionContext, dataPoint: AnalyticsEngineDataPoint) {
+	const leechResponse = {
+		"@odata.context": null,
+		"@odata.count": 1,
+		"@search.facets": {
+			"subjects": [],
+			"podcastName": []
+		},
+		"value": [{
+			"@search.score": 1.0,
+			"id": "00000000-0000-0000-0000-000000000000",
+			"episodeTitle": "Leech Detected",
+			"podcastName": "Leech Detected",
+			"episodeDescription": "Contact leeching@cultpodcasts.com.",
+			"release": "1970-01-01T00:00:00Z",
+			"duration": "01:00:00.0000000",
+			"explicit": false,
+			"spotify": null,
+			"apple": null,
+			"youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+			"subjects": []
+		}]
+	};
+	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+	dataPoint.blobs!.push("Leech");
+	try {
+		c.env.Analytics.writeDataPoint(dataPoint);
+	} catch (error) {
+		console.log(error);
+	}
+	return c.json(leechResponse, 200);
+}
+
