@@ -11,8 +11,8 @@ export async function getFlairs(c: Auth0ActionContext): Promise<Response> {
         try {
             object = await c.env.Content.get("flairs");
         } catch (e) {
+            console.error("Unable to retreve flairs");
         }
-
         if (object === null) {
             return new Response("Object Not Found", { status: 404 });
         }

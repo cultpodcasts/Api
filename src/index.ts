@@ -3,7 +3,7 @@ import { cors } from 'hono/cors'
 import { Env } from './Env';
 import { Auth0Middleware } from './Auth0Middleware';
 import { getEpisode } from './getEpisode';
-import { getOrigin } from './getOrigin';
+import { corsOptions } from "./corsOptions";
 import { homepage } from './homepage';
 import { getSubjects } from './getSubjects';
 import { getFlairs } from './getFlairs';
@@ -24,17 +24,7 @@ import { runSearchIndexer } from './runSearchIndexer';
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.use('/*', cors({
-	origin: (origin, c) => {
-		return getOrigin(origin, c.env.stagingHostSuffix);
-	},
-	allowHeaders: ['content-type', 'authorization'],
-	allowMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PUT'],
-	maxAge: 86400,
-	credentials: true,
-	exposeHeaders: ['X-Origin']
-}))
-
+app.use('/*', cors(corsOptions))
 app.get('/homepage', homepage);
 app.get('/subjects', Auth0Middleware, getSubjects);
 app.get('/flairs', Auth0Middleware, getFlairs);

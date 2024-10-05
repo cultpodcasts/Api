@@ -1,6 +1,7 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
+import { buildFetchHeaders } from "./buildFetchHeaders";
 
 export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -9,18 +10,9 @@ export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> 
     const body: string = JSON.stringify(data);
     try {
         if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-            const authorisation: string = c.req.header("Authorization")!;
-            console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
             let resp: Response | undefined;
             resp = await fetch(c.env.secureDiscoveryCurationEndpoint, {
-                headers: {
-                    'Accept': "*/*",
-                    'Authorization': authorisation,
-                    "Content-type": "application/json",
-                    "Cache-Control": "no-cache",
-                    "User-Agent": "cult-podcasts-api",
-                    "Host": new URL(c.env.secureDiscoveryCurationEndpoint).host
-                },
+                headers: buildFetchHeaders(c.req, c.env.secureDiscoveryCurationEndpoint),
                 method: "POST",
                 body: body
             });

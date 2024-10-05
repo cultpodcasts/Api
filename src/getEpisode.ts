@@ -1,7 +1,7 @@
 import { AddResponseHeaders } from './AddResponseHeaders';
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
-import { Env } from "./Env";
 import { Auth0ActionContext } from "./Auth0ActionContext";
+import { buildFetchHeaders } from './buildFetchHeaders';
 
 export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -14,14 +14,7 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
         const url = `${c.env.secureEpisodeEndpoint}/${id}`;
         console.log(url);
         const resp = await fetch(url, {
-            headers: {
-                'Accept': "*/*",
-                'Authorization': authorisation,
-                "Content-type": "application/json",
-                "Cache-Control": "no-cache",
-                "User-Agent": "cult-podcasts-api",
-                "Host": new URL(c.env.secureEpisodeEndpoint).host
-            },
+            headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
             method: "GET"
         });
         if (resp.status == 200) {

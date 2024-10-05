@@ -4,23 +4,15 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
+import { buildFetchHeaders } from "./buildFetchHeaders";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
-		const authorisation: string = c.req.header("Authorization")!;
-		console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
 		const resp = await fetch(c.env.secureSubmitEndpoint, {
-			headers: {
-				'Accept': "*/*",
-				'Authorization': authorisation,
-				"Content-type": "application/json",
-				"Cache-Control": "no-cache",
-				"User-Agent": "cult-podcasts-api",
-				"Host": new URL(c.env.secureSubmitEndpoint).host
-			},
+			headers: buildFetchHeaders(c.req, c.env.secureSubmitEndpoint),
 			body: JSON.stringify(data),
 			method: "POST"
 		});

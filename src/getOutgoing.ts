@@ -1,13 +1,12 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
+import { buildFetchHeaders } from "./buildFetchHeaders";
 
 export async function getOutgoing(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        const authorisation: string = c.req.header("Authorization")!;
-        console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
         let url = c.env.secureEpisodesOutgoingEndpoint.toString();
         const reqUrl = new URL(c.req.url);
         if (reqUrl.search) {
@@ -15,14 +14,7 @@ export async function getOutgoing(c: Auth0ActionContext): Promise<Response> {
         }
         console.log(url);
         const resp = await fetch(url, {
-            headers: {
-                'Accept': "*/*",
-                'Authorization': authorisation,
-                "Content-type": "application/json",
-                "Cache-Control": "no-cache",
-                "User-Agent": "cult-podcasts-api",
-                "Host": new URL(c.env.secureEpisodeEndpoint).host
-            },
+            headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
             method: "GET"
         });
         if (resp.status == 200) {

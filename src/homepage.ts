@@ -7,6 +7,8 @@ export async function homepage(c: ActionContext): Promise<Response> {
 	try {
 		object = await c.env.Content.get("homepage");
 	} catch (e) {
+		console.error("Failure to retrieve homepage");
+		console.error(e);
 	}
 	if (object === null) {
 		return new Response("Object Not Found", { status: 404 });
