@@ -1,7 +1,7 @@
 import { AddResponseHeaders } from './AddResponseHeaders';
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Env } from "./Env";
-import { Auth0ActionContext } from "./ActionContext";
+import { Auth0ActionContext } from "./Auth0ActionContext";
 
 export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
