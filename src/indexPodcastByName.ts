@@ -16,7 +16,7 @@ export async function indexPodcastByName(c: Auth0ActionContext): Promise<Respons
             method: "POST",
             body: body
         });
-        if (resp.status == 202) {
+        if (resp.status == 200) {
             console.log(`Successfully used secure-podcast-index-endpoint.`);
             return new Response(resp.body);
         } else if (resp.status == 404) {
