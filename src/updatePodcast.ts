@@ -12,7 +12,7 @@ export async function updatePodcast(c: Auth0ActionContext): Promise<Response> {
 		const data: any = await c.req.json();
 		const body: string = JSON.stringify(data);
 		const resp = await fetch(url, {
-			headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
+			headers: buildFetchHeaders(c.req, c.env.securePodcastEndpoint),
 			method: "POST",
 			body: body
 		});
