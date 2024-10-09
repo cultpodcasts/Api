@@ -48,6 +48,6 @@ app.post("/discovery-curation", Auth0Middleware, submitDiscovery);
 app.post("/searchindex/run", Auth0Middleware, runSearchIndexer);
 app.post("/publish/homepage", Auth0Middleware, publishHomepage);
 app.post("/terms", Auth0Middleware, publishTerm);
-app.patch("/podcast/:podcastName/name/:newName", Auth0Middleware, renamePodcast)
+app.post("/podcast/name/:name", Auth0Middleware, renamePodcast)
 
 export default app;
