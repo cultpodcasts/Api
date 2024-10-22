@@ -19,10 +19,13 @@ export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 			return new Response(resp.body);
 		} else if (resp.status == 404) {
 			console.log(`Failed to use secure-episode-endpoint. Episode not found.`);
-			return new Response(resp.body, {status: resp.status});
+			return new Response(resp.body, { status: resp.status });
+		} else if (resp.status == 400) {
+			console.log(`Failed to use secure-episode-endpoint. Episode published.`);
+			return new Response(resp.body, { status: resp.status });
 		} else if (resp.status == 300) {
 			console.log(`Failed to use secure-episode-endpoint. Multple podcast/episodes found.`);
-			return new Response(resp.body, {status: resp.status});
+			return new Response(resp.body, { status: resp.status });
 		} else {
 			console.log(`Failed to use secure-episode-endpoint. Response code: '${resp.status}'.`);
 			return c.json({ error: "Error" }, 500);
