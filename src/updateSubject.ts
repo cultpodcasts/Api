@@ -17,12 +17,13 @@ export async function updateSubject(c: Auth0ActionContext): Promise<Response> {
 			body: body
 		});
 		if (resp.status == 202) {
-			console.log(`Successfully used secure-subject-endpoint.`);
+			console.log({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
 			return new Response(resp.body);
 		} else {
-			console.log(`Failed to use secure-subject-endpoint. Response code: '${resp.status}'.`);
+			console.error({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
 			return c.json({ error: "Error" }, 500);
 		}
 	}
+	console.error({ message: "Unauthorised to use updateSubject." })
 	return c.json({ error: "Unauthorised" }, 403);
 }

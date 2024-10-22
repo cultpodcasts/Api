@@ -1,26 +1,24 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
+import { searchLog } from "./searchLog";
+import { searchMode } from "./searchMode";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
 	const url = `${c.env.apihost}`;
-	let dataPoint: AnalyticsEngineDataPoint = { indexes: [], blobs: [] };
+	let searchLog: searchLog = {};
 	let ipAddress: string = "";
-	let asn: string = "";
-	let city: string = "";
+
 	if (c.req.raw.cf != undefined && c.req.raw.cf) {
-		dataPoint.blobs!.push(c.req.raw.cf.clientTrustScoretr as string);
-		asn = c.req.raw.cf.asn as string;
-		dataPoint.blobs!.push(asn);
-		ipAddress = c.req.header('cf-connecting-ip') as string;
-		dataPoint.blobs!.push(ipAddress);
-		dataPoint.blobs!.push(c.req.header('User-Agent') as string);
+		searchLog.clientTrustScoretr = c.req.raw.cf.clientTrustScoretr as string;
+		searchLog.asn = c.req.raw.cf.asn as string;
+		searchLog.ipAddress = c.req.header('cf-connecting-ip') as string;
+		searchLog.userAgent = c.req.header('User-Agent') as string;
 		if (c.req.raw.cf.city) {
-			city = c.req.raw.cf.city as string;
-			dataPoint.blobs!.push(city);
+			searchLog.city = c.req.raw.cf.city as string;
 		}
 		if (c.req.raw.cf.country) {
-			dataPoint.blobs!.push(c.req.raw.cf.country as string);
+			searchLog.country = c.req.raw.cf.country as string;
 		}
 	}
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, ipAddress);
@@ -29,11 +27,9 @@ export async function search(c: ActionContext): Promise<Response> {
 			.json()
 			.then(async (data: any) => {
 				let requestBody = JSON.stringify(data);
-				let index: string = "";
 				if (data.search) {
-					index = data.search;
-					dataPoint.blobs!.push(data.search);
-					dataPoint.blobs!.push("search");
+					searchLog.query = data.search;
+					searchLog.mode = searchMode.search;
 				}
 				if (data.filter) {
 					let filter: string = data.filter;
@@ -43,39 +39,29 @@ export async function search(c: ActionContext): Promise<Response> {
 						if (filter.indexOf(idFilter) >= 0) {
 							filterCutoff = filterCutoff = filter.indexOf(idFilter);
 							const episodeId = filter.slice(filterCutoff + idFilter.length, -2);
-							dataPoint.blobs!.push("episode");
-							dataPoint.blobs!.push(episodeId);
+
+							searchLog.mode = searchMode.episode;
+							searchLog.episodeId = episodeId;
 						} else {
-							dataPoint.blobs!.push("podcast");
+							searchLog.mode = searchMode.podcast;
 						}
 						let query = filter.slice(17, filterCutoff);
-						dataPoint.blobs!.push(query);
-						if (index) {
-							index += " podcast=" + query;
-						} else {
-							index = "podcast=" + query;
-						}
+						searchLog.additionalQuery = query;
 					} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
 						let query = filter.slice(22, -2);
-						if (index) {
-							index += " subject=" + query;
-						} else {
-							index = "subject=" + query;
-						}
-						dataPoint.blobs!.push(query);
-						dataPoint.blobs!.push("subject");
+						searchLog.additionalQuery = query;
+						searchLog.mode = searchMode.subject;
 					} else {
-						console.log("Unrecognised search filter");
+						console.log({ message: `Unrecognised search filter: '${filter}'.` });
 					}
 				}
-				dataPoint.indexes!.push(index);
 
 				if (!data.search && !data.filter) {
-					console.log("Unrecognised search request");
+					console.log({ message: "Unrecognised search request. No search or filter." });
 				}
-				if (dataPoint) {
-					dataPoint.blobs?.push(data.skip);
-					dataPoint.blobs?.push(data.orderby);
+				if (searchLog) {
+					searchLog.skip = data.skip;
+					searchLog.orderBy = data.orderby;
 				}
 
 				let response = await fetch(url, {
@@ -90,13 +76,9 @@ export async function search(c: ActionContext): Promise<Response> {
 					body: requestBody,
 					method: "POST"
 				});
-				if (dataPoint) {
-					dataPoint.blobs?.push(response.status.toString());
-					try {
-						c.env.Analytics.writeDataPoint(dataPoint);
-					} catch (error) {
-						console.log(error);
-					}
+				if (searchLog) {
+					searchLog.searchStatus = response.status.toString();
+					console.log(searchLog);
 				}
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 				if (response.status != 200) {
@@ -108,10 +90,8 @@ export async function search(c: ActionContext): Promise<Response> {
 				return c.json(body, 200);
 			});
 	} else {
-		return createLeachResponse(c, dataPoint);
+		return createLeachResponse(c, searchLog);
 	}
-
-
 }
 
 async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string): Promise<boolean> {
@@ -121,7 +101,6 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 
 		if (object != null) {
 			var leeches: string[] = await object.json();
-			console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
 			if (leeches.indexOf(ipAddress) >= 0) {
 				isLeech = true;
 			}
@@ -130,7 +109,7 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 	return isLeech;
 }
 
-function createLeachResponse(c: ActionContext, dataPoint: AnalyticsEngineDataPoint) {
+function createLeachResponse(c: ActionContext, dataPoint: searchLog) {
 	const leechResponse = {
 		"@odata.context": null,
 		"@odata.count": 1,
@@ -154,12 +133,8 @@ function createLeachResponse(c: ActionContext, dataPoint: AnalyticsEngineDataPoi
 		}]
 	};
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-	dataPoint.blobs!.push("Leech");
-	try {
-		c.env.Analytics.writeDataPoint(dataPoint);
-	} catch (error) {
-		console.log(error);
-	}
+	dataPoint.leech = true;
+	console.warn(dataPoint);
 	return c.json(leechResponse, 200);
 }
 

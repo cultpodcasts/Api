@@ -13,3 +13,6 @@ d1_databases= [
 
 [[analytics_engine_datasets]]
 binding = "Analytics"
+
+[observability]
+enabled = true

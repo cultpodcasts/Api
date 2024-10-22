@@ -14,10 +14,10 @@ export const Auth0Middleware = createMiddleware<AppContext>(async (c: Context<Ap
 		if (result.valid) {
 			c.set('auth0', (payload) => result.payload as Auth0JwtPayload);
 		} else {
-			console.log(result.reason);
+			console.error({ message: "JWT invalid", reason: result.reason });
 		}
 	} else {
-		console.log("no bearer");
+		console.error({ message: "no bearer" });
 	}
 	await next();
 });

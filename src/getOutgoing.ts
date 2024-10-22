@@ -12,21 +12,21 @@ export async function getOutgoing(c: Auth0ActionContext): Promise<Response> {
         if (reqUrl.search) {
             url += reqUrl.search;
         }
-        console.log(url);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
             method: "GET"
         });
         if (resp.status == 200) {
-            console.log(`Successfully used secure-episodes-outgoing-endpoint.`);
+            console.log({ message: `Successfully used secure-episodes-outgoing-endpoint.`, status: resp.status });
             return new Response(resp.body);
         } else if (resp.status == 400) {
-            console.log(`Bad request to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.`);
+            console.error({ message: `Bad request to use secure-episodes-outgoing-endpoint.`, status: resp.status });
             return new Response(resp.body, { status: 400 });
         } else {
-            console.log(`Failed to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.`);
+            console.error({ message: `Failed to use secure-episodes-outgoing-endpoint.`, status: resp.status });
             return c.json({ error: "Error" }, 500);
         }
     }
+    console.error({ message: "Unauthorised to use getOutgoing." })
     return c.json({ error: "Unauthorised" }, 403);
 }
