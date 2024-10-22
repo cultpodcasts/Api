@@ -17,13 +17,13 @@ export async function updatePodcast(c: Auth0ActionContext): Promise<Response> {
 			body: body
 		});
 		if (resp.status == 202) {
-			console.log(`Successfully used secure-podcast-endpoint.`);
+			console.log({ message: `Successfully used secure-podcast-endpoint.` });
 			return new Response(resp.body);
 		} else if (resp.status == 404) {
-			console.log(`Unable to find podcast.`);
+			console.log({ message: `Unable to find podcast.` });
 			return new Response(resp.body, { status: resp.status });
 		} else {
-			console.log(`Failed to use secure-podcast-endpoint. Response code: '${resp.status}'.`);
+			console.log({ message: `Failed to use secure-podcast-endpoint. Response code: '${resp.status}'.` });
 			return c.json({ error: "Error" }, 500);
 		}
 	}

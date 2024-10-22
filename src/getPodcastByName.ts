@@ -9,19 +9,18 @@ export async function getPodcastByName(c: Auth0ActionContext): Promise<Response>
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = `${c.env.securePodcastEndpoint}/${encodeURIComponent(name)}`;
-        console.log(url);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, c.env.securePodcastEndpoint),
             method: "GET"
         });
         if (resp.status == 200) {
-            console.log(`Successfully used secure-podcast-endpoint.`);
+            console.log({ message: `Successfully used secure-podcast-endpoint.` });
             return new Response(resp.body);
         } else if (resp.status == 404) {
-            console.log(`Unable to find podcast.`);
+            console.log({ message: `Unable to find podcast.` });
             return new Response(resp.body, { status: resp.status });
         } else {
-            console.log(`Failed to use secure-podcast-endpoint. Response code: '${resp.status}'.`);
+            console.log({ message: `Failed to use secure-podcast-endpoint. Response code: '${resp.status}'.` });
             return c.json({ error: "Error" }, 500);
         }
     }

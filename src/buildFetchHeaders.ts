@@ -5,7 +5,7 @@ export function buildFetchHeaders(request: HonoRequest, downstream: URL): Header
 	if (!auth) {
 		throw new Error("Missing auth-header");
 	}
-	console.log(`Using auth header '${auth.slice(0, 20)}..'`);
+	console.log({ message: `Using auth header '${auth.slice(0, 20)}..'` });
 	return {
 		'Accept': "*/*",
 		'Authorization': auth,

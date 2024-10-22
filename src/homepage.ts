@@ -7,8 +7,7 @@ export async function homepage(c: ActionContext): Promise<Response> {
 	try {
 		object = await c.env.Content.get("homepage");
 	} catch (e) {
-		console.error("Failure to retrieve homepage");
-		console.error(e);
+		console.error({ message: "Failure to retrieve homepage", error: e });
 	}
 	if (object === null) {
 		return new Response("Object Not Found", { status: 404 });
@@ -16,7 +15,7 @@ export async function homepage(c: ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
 	return stream(c, async (stream) => {
 		stream.onAbort(() => {
-			console.log('Aborted!');
+			console.log({ message: 'Aborted!' });
 		});
 		await stream.pipe(object.body);
 	});

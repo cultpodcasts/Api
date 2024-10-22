@@ -10,8 +10,7 @@ export async function getSubjects(c: Auth0ActionContext): Promise<Response> {
 		try {
 			object = await c.env.Content.get("subjects");
 		} catch (e) {
-			console.error("Unable to retrieve subjects");
-			console.error(e);
+			console.error({ message: "Unable to retrieve subjects", error: e });
 		}
 		if (object === null) {
 			return new Response("Object Not Found", { status: 404 });
@@ -19,7 +18,7 @@ export async function getSubjects(c: Auth0ActionContext): Promise<Response> {
 		AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
 		return stream(c, async (stream) => {
 			stream.onAbort(() => {
-				console.log('Aborted!');
+				console.log({ message: 'Aborted!' });
 			});
 			await stream.pipe(object.body);
 		});

@@ -16,13 +16,13 @@ export async function createSubject(c: Auth0ActionContext): Promise<Response> {
             body: body
         });
         if (resp.status == 202) {
-            console.log(`Successfully used secure-subject-endpoint.`);
+            console.log({ message: `Successfully used secure-subject-endpoint.` });
             return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 409) {
-            console.log(`Conflict reported on secure-subject-endpoint.`);
+            console.log({ message: `Conflict reported on secure-subject-endpoint.` });
             return new Response(resp.body, { status: resp.status });
         } else {
-            console.log(`Failed to use secure-subject-endpoint. Response code: '${resp.status}'.`);
+            console.log({ message: `Failed to use secure-subject-endpoint. Response code: '${resp.status}'.` });
             return c.json({ error: "Error" }, 500);
         }
     }

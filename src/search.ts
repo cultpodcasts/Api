@@ -6,19 +6,19 @@ import { searchMode } from "./searchMode";
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
 	const url = `${c.env.apihost}`;
-	let dataPoint: searchLog = {};
+	let searchLog: searchLog = {};
 	let ipAddress: string = "";
 
 	if (c.req.raw.cf != undefined && c.req.raw.cf) {
-		dataPoint.clientTrustScoretr = c.req.raw.cf.clientTrustScoretr as string;
-		dataPoint.asn = c.req.raw.cf.asn as string;
-		dataPoint.ipAddress = c.req.header('cf-connecting-ip') as string;
-		dataPoint.userAgent = c.req.header('User-Agent') as string;
+		searchLog.clientTrustScoretr = c.req.raw.cf.clientTrustScoretr as string;
+		searchLog.asn = c.req.raw.cf.asn as string;
+		searchLog.ipAddress = c.req.header('cf-connecting-ip') as string;
+		searchLog.userAgent = c.req.header('User-Agent') as string;
 		if (c.req.raw.cf.city) {
-			dataPoint.city = c.req.raw.cf.city as string;
+			searchLog.city = c.req.raw.cf.city as string;
 		}
 		if (c.req.raw.cf.country) {
-			dataPoint.country = c.req.raw.cf.country as string;
+			searchLog.country = c.req.raw.cf.country as string;
 		}
 	}
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, ipAddress);
@@ -28,8 +28,8 @@ export async function search(c: ActionContext): Promise<Response> {
 			.then(async (data: any) => {
 				let requestBody = JSON.stringify(data);
 				if (data.search) {
-					dataPoint.query = data.search;
-					dataPoint.mode = searchMode.search;
+					searchLog.query = data.search;
+					searchLog.mode = searchMode.search;
 				}
 				if (data.filter) {
 					let filter: string = data.filter;
@@ -40,28 +40,28 @@ export async function search(c: ActionContext): Promise<Response> {
 							filterCutoff = filterCutoff = filter.indexOf(idFilter);
 							const episodeId = filter.slice(filterCutoff + idFilter.length, -2);
 
-							dataPoint.mode = searchMode.episode;
-							dataPoint.episodeId = episodeId;
+							searchLog.mode = searchMode.episode;
+							searchLog.episodeId = episodeId;
 						} else {
-							dataPoint.mode = searchMode.podcast;
+							searchLog.mode = searchMode.podcast;
 						}
 						let query = filter.slice(17, filterCutoff);
-						dataPoint.additionalQuery = query;
+						searchLog.additionalQuery = query;
 					} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
 						let query = filter.slice(22, -2);
-						dataPoint.additionalQuery = query;
-						dataPoint.mode = searchMode.subject;
+						searchLog.additionalQuery = query;
+						searchLog.mode = searchMode.subject;
 					} else {
-						console.log("Unrecognised search filter");
+						console.log({ message: `Unrecognised search filter: '${filter}'.` });
 					}
 				}
 
 				if (!data.search && !data.filter) {
-					console.log("Unrecognised search request");
+					console.log({ message: "Unrecognised search request. No search or filter." });
 				}
-				if (dataPoint) {
-					dataPoint.skip = data.skip;
-					dataPoint.orderBy = data.orderby;
+				if (searchLog) {
+					searchLog.skip = data.skip;
+					searchLog.orderBy = data.orderby;
 				}
 
 				let response = await fetch(url, {
@@ -76,9 +76,9 @@ export async function search(c: ActionContext): Promise<Response> {
 					body: requestBody,
 					method: "POST"
 				});
-				if (dataPoint) {
-					dataPoint.searchStatus = response.status.toString();
-					console.log(dataPoint);
+				if (searchLog) {
+					searchLog.searchStatus = response.status.toString();
+					console.log(searchLog);
 				}
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 				if (response.status != 200) {
@@ -90,7 +90,7 @@ export async function search(c: ActionContext): Promise<Response> {
 				return c.json(body, 200);
 			});
 	} else {
-		return createLeachResponse(c, dataPoint);
+		return createLeachResponse(c, searchLog);
 	}
 }
 
@@ -101,7 +101,6 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 
 		if (object != null) {
 			var leeches: string[] = await object.json();
-			console.log(`ip-address: ${ipAddress} index: ${leeches.indexOf(ipAddress)} lookup: ${JSON.stringify(leeches)}`);
 			if (leeches.indexOf(ipAddress) >= 0) {
 				isLeech = true;
 			}

@@ -11,7 +11,7 @@ export async function getFlairs(c: Auth0ActionContext): Promise<Response> {
         try {
             object = await c.env.Content.get("flairs");
         } catch (e) {
-            console.error("Unable to retreve flairs");
+            console.error({ message: "Unable to retreve flairs" });
         }
         if (object === null) {
             return new Response("Object Not Found", { status: 404 });
@@ -19,7 +19,7 @@ export async function getFlairs(c: Auth0ActionContext): Promise<Response> {
         AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
         return stream(c, async (stream) => {
             stream.onAbort(() => {
-                console.log('Aborted!');
+                console.log({ message: 'Aborted!' });
             });
             await stream.pipe(object.body);
         });

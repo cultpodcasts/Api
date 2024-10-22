@@ -9,17 +9,15 @@ export async function getSubjectByName(c: Auth0ActionContext): Promise<Response>
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = `${c.env.secureSubjectEndpoint}/${encodeURIComponent(name)}`;
-        console.log(url);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, c.env.secureSubjectEndpoint),
             method: "GET"
         });
         if (resp.status == 200) {
-            console.log(`Successfully used secure-subject-endpoint.`);
-
+            console.log({ message: `Successfully used secure-subject-endpoint.` });
             return new Response(resp.body);
         } else {
-            console.log(`Failed to use secure-subject-endpoint. Response code: '${resp.status}'.`);
+            console.log({ message: `Failed to use secure-subject-endpoint. Response code: '${resp.status}'.` });
             return c.json({ error: "Error" }, 500);
         }
     }

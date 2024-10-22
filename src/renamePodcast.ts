@@ -18,19 +18,19 @@ export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
             body: body
         });
         if (resp.status == 200) {
-            console.log(`Successfully used secure-podcast-endpoint to rename podcast.`);
+            console.log({ message: `Successfully used secure-podcast-endpoint to rename podcast.` });
             return new Response(resp.body);
         } else if (resp.status == 400) {
-            console.log(`Unable to find podcast to rename podcast.`);
+            console.log({ message: `Unable to find podcast to rename podcast.` });
             return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 404) {
-            console.log(`Unable to find podcast to rename podcast. Podccast not found.`);
+            console.log({ message: `Unable to find podcast to rename podcast. Podccast not found.` });
             return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 409) {
-            console.log(`Unable to find podcast to rename podcast. Podcast exists with new-name.`);
+            console.log({ message: `Unable to find podcast to rename podcast. Podcast exists with new-name.` });
             return new Response(resp.body, { status: resp.status });
         } else {
-            console.log(`Failed to use secure-podcast-endpoint to rename podcast. Response code: '${resp.status}'.`);
+            console.log({ message: `Failed to use secure-podcast-endpoint to rename podcast. Response code: '${resp.status}'.` });
             return c.json({ error: "Error" }, 500);
         }
     }

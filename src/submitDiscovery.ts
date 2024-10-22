@@ -17,17 +17,17 @@ export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> 
                 body: body
             });
             if (resp.status == 200) {
-                console.log(`Successfully used secure secure-discovery-curation-endpoint.`);
+                console.log({ message: `Successfully used secure secure-discovery-curation-endpoint.` });
 
                 var response = new Response(resp.body);
                 response.headers.set("content-type", "application/json; charset=utf-8");
                 return response;
             } else {
-                console.log(`Failed to use secure-discovery-curation-endpoint. Response code: '${resp.status}'.`);
+                console.log({ message: `Failed to use secure-discovery-curation-endpoint. Response code: '${resp.status}'.` });
             }
         }
     } catch (error) {
-        console.log(error);
+        console.log({ error: error });
         return c.json({ error: "An error occurred" }, 500);
     }
     return c.json({ error: "Unauthorised" }, 403);

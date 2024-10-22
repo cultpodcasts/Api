@@ -10,19 +10,16 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
 
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const authorisation: string = c.req.header("Authorization")!;
-        console.log(`Using auth header '${authorisation.slice(0, 20)}..'`);
         const url = `${c.env.secureEpisodeEndpoint}/${id}`;
-        console.log(url);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
             method: "GET"
         });
         if (resp.status == 200) {
-            console.log(`Successfully used secure-episode-endpoint.`);
-
+            console.log({ message: `Successfully used secure-episode-endpoint.` });
             return new Response(resp.body);
         } else {
-            console.log(`Failed to use secure-episode-endpoint. Response code: '${resp.status}'.`);
+            console.log({ message: `Failed to use secure-episode-endpoint. Response code: '${resp.status}'.` });
             return c.json({ error: "Error" }, 500);
         }
     }
