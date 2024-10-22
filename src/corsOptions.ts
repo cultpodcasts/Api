@@ -6,7 +6,7 @@ export const corsOptions = {
 		return getOrigin(origin, c.env.stagingHostSuffix);
 	},
 	allowHeaders: ['content-type', 'authorization'],
-	allowMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PUT'],
+	allowMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
 	maxAge: 86400,
 	credentials: true,
 	exposeHeaders: ['X-Origin']

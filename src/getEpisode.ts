@@ -6,7 +6,7 @@ import { buildFetchHeaders } from './buildFetchHeaders';
 export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const id = c.req.param('id');
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS", "DELETE"] });
 
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const authorisation: string = c.req.header("Authorization")!;
