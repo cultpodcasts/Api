@@ -15,23 +15,23 @@ export async function runSearchIndexer(c: Auth0ActionContext): Promise<Response>
                 body: "{}"
             });
             if (resp.status == 200) {
-                console.log({ message: `Successfully used secure secure-admin-search-indexer-endpoint.` });
+                console.log({ message: `Successfully used secure secure-admin-search-indexer-endpoint.`, status: resp.status });
                 var response = new Response(resp.body);
                 response.headers.set("content-type", "application/json; charset=utf-8");
                 return response;
             } else if (resp.status == 400) {
-                console.error({ message: `Failure using secure secure-admin-search-indexer-endpoint.` });
+                console.error({ message: `Failure using secure secure-admin-search-indexer-endpoint.`, status: resp.status });
                 var response = new Response(resp.body, { status: 400 });
                 response.headers.set("content-type", "application/json; charset=utf-8");
                 return response;
             } else {
-                console.error({ message: `Failed to use secure-admin-search-indexer-endpoint. Response code: '${resp.status}'.` });
+                console.error({ message: `Failed to use secure-admin-search-indexer-endpoint.`, status: resp.status });
             }
         }
     } catch (error) {
-        console.error({ error: error });
+        console.error({ message: "Error in runSearchIndexer.", error: error });
         return c.json({ error: "An error occurred" }, 500);
     }
-	console.error({ message: "Unauthorised to use runSearchIndexer." })
+    console.error({ message: "Unauthorised to use runSearchIndexer." })
     return c.json({ error: "Unauthorised" }, 403);
 }

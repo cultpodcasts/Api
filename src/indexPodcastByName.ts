@@ -17,16 +17,16 @@ export async function indexPodcastByName(c: Auth0ActionContext): Promise<Respons
             body: body
         });
         if (resp.status == 200) {
-            console.log({ message: `Successfully used secure-podcast-index-endpoint.` });
+            console.log({ message: `Successfully used secure-podcast-index-endpoint.`, status: resp.status });
             return new Response(resp.body);
         } else if (resp.status == 404) {
-            console.error({ message: `Successfully used secure-podcast-index-endpoint. Not Found.` });
+            console.error({ message: `Successfully used secure-podcast-index-endpoint. Not Found.`, status: resp.status });
             return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 400) {
-            console.error({ message: `Successfully used secure-podcast-index-endpoint. Not Performed.` });
+            console.error({ message: `Successfully used secure-podcast-index-endpoint. Not Performed.`, status: resp.status });
             return new Response(resp.body, { status: resp.status });
         } else {
-            console.error({ message: `Failed to use secure-podcast-index-endpoint. Response code: '${resp.status}'.` });
+            console.error({ message: `Failed to use secure-podcast-index-endpoint.`, status: resp.status });
             return c.json({ error: "Error" }, 500);
         }
     }

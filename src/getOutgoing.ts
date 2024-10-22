@@ -17,13 +17,13 @@ export async function getOutgoing(c: Auth0ActionContext): Promise<Response> {
             method: "GET"
         });
         if (resp.status == 200) {
-            console.log({ message: `Successfully used secure-episodes-outgoing-endpoint.` });
+            console.log({ message: `Successfully used secure-episodes-outgoing-endpoint.`, status: resp.status });
             return new Response(resp.body);
         } else if (resp.status == 400) {
-            console.error({ message: `Bad request to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.` });
+            console.error({ message: `Bad request to use secure-episodes-outgoing-endpoint.`, status: resp.status });
             return new Response(resp.body, { status: 400 });
         } else {
-            console.error({ message: `Failed to use secure-episodes-outgoing-endpoint. Response code: '${resp.status}'.` });
+            console.error({ message: `Failed to use secure-episodes-outgoing-endpoint.`, status: resp.status });
             return c.json({ error: "Error" }, 500);
         }
     }

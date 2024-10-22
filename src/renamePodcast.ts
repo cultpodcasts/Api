@@ -18,22 +18,22 @@ export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
             body: body
         });
         if (resp.status == 200) {
-            console.log({ message: `Successfully used secure-podcast-endpoint to rename podcast.` });
+            console.log({ message: `Successfully used secure-podcast-endpoint to rename podcast.`, status: resp.status });
             return new Response(resp.body);
         } else if (resp.status == 400) {
-            console.error({ message: `Unable to find podcast to rename podcast.` });
+            console.error({ message: `Unable to find podcast to rename podcast.`, status: resp.status });
             return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 404) {
-            console.error({ message: `Unable to find podcast to rename podcast. Podccast not found.` });
+            console.error({ message: `Unable to find podcast to rename podcast. Podccast not found.`, status: resp.status });
             return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 409) {
-            console.error({ message: `Unable to find podcast to rename podcast. Podcast exists with new-name.` });
+            console.error({ message: `Unable to find podcast to rename podcast. Podcast exists with new-name.`, status: resp.status });
             return new Response(resp.body, { status: resp.status });
         } else {
-            console.error({ message: `Failed to use secure-podcast-endpoint to rename podcast. Response code: '${resp.status}'.` });
+            console.error({ message: `Failed to use secure-podcast-endpoint to rename podcast.`, status: resp.status });
             return c.json({ error: "Error" }, 500);
         }
     }
-	console.error({ message: "Unauthorised to use renamePodcast." })
+    console.error({ message: "Unauthorised to use renamePodcast." })
     return c.json({ error: "Unauthorised" }, 403);
 }

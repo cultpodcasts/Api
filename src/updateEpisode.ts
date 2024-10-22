@@ -17,10 +17,10 @@ export async function updateEpisode(c: Auth0ActionContext): Promise<Response> {
 			body: body
 		});
 		if (resp.status == 202) {
-			console.log({ message: `Successfully used secure-episode-endpoint.` });
+			console.log({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
 			return new Response(resp.body);
 		} else {
-			console.error({ message: `Failed to use secure-episode-endpoint. Response code: '${resp.status}'.` });
+			console.error({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
 			return c.json({ error: "Error" }, 500);
 		}
 	}

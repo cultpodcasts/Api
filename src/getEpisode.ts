@@ -16,13 +16,13 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
             method: "GET"
         });
         if (resp.status == 200) {
-            console.log({ message: `Successfully used secure-episode-endpoint.` });
+            console.log({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
             return new Response(resp.body);
         } else {
-            console.error({ message: `Failed to use secure-episode-endpoint. Response code: '${resp.status}'.` });
+            console.error({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
             return c.json({ error: "Error" }, 500);
         }
     }
-	console.error({ message: "Unauthorised to use getEpisode." })
+    console.error({ message: "Unauthorised to use getEpisode." })
     return c.json({ error: "Unauthorised" }, 403);
 }
