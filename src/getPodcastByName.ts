@@ -17,12 +17,13 @@ export async function getPodcastByName(c: Auth0ActionContext): Promise<Response>
             console.log({ message: `Successfully used secure-podcast-endpoint.` });
             return new Response(resp.body);
         } else if (resp.status == 404) {
-            console.log({ message: `Unable to find podcast.` });
+            console.error({ message: `Unable to find podcast.` });
             return new Response(resp.body, { status: resp.status });
         } else {
-            console.log({ message: `Failed to use secure-podcast-endpoint. Response code: '${resp.status}'.` });
+            console.error({ message: `Failed to use secure-podcast-endpoint. Response code: '${resp.status}'.` });
             return c.json({ error: "Error" }, 500);
         }
     }
+    console.error({ message: "Unauthorised to use getPodcastByName." })
     return c.json({ error: "Unauthorised" }, 403);
 }

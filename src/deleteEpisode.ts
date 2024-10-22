@@ -18,18 +18,19 @@ export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 			console.log({ message: `Successfully used secure-episode-endpoint.` });
 			return new Response(resp.body);
 		} else if (resp.status == 404) {
-			console.log({ message: `Failed to use secure-episode-endpoint. Episode not found.` });
+			console.error({ message: `Failed to use secure-episode-endpoint. Episode not found.` });
 			return new Response(resp.body, { status: resp.status });
 		} else if (resp.status == 400) {
-			console.log({ message: `Failed to use secure-episode-endpoint. Episode published.` });
+			console.error({ message: `Failed to use secure-episode-endpoint. Episode published.` });
 			return new Response(resp.body, { status: resp.status });
 		} else if (resp.status == 300) {
-			console.log({ message: `Failed to use secure-episode-endpoint. Multple podcast/episodes found.` });
+			console.error({ message: `Failed to use secure-episode-endpoint. Multple podcast/episodes found.` });
 			return new Response(resp.body, { status: resp.status });
 		} else {
-			console.log({ message: `Failed to use secure-episode-endpoint. Response code: '${resp.status}'.` });
+			console.error({ message: `Failed to use secure-episode-endpoint. Response code: '${resp.status}'.` });
 			return c.json({ error: "Error" }, 500);
 		}
 	}
+	console.error({ message: "Unauthorised to use deleteEpisode." })
 	return c.json({ error: "Unauthorised" }, 403);
 }

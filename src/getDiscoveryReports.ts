@@ -18,8 +18,9 @@ export async function getDiscoveryReports(c: Auth0ActionContext): Promise<Respon
             response.headers.set("content-type", "application/json; charset=utf-8");
             return response;
         } else {
-            console.log({ message: `Failed to use secure-discovery-curation-endpoint. Response code: '${resp.status}'.` });
+            console.error({ message: `Failed to use secure-discovery-curation-endpoint. Response code: '${resp.status}'.` });
         }
     }
+    console.error({ message: "Unauthorised to use getDiscoveryReports." })
     return c.json({ error: "Unauthorised" }, 403);
 }

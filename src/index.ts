@@ -53,9 +53,6 @@ app.post("/terms", Auth0Middleware, publishTerm);
 app.post("/podcast/name/:name", Auth0Middleware, renamePodcast)
 
 app.get('/test', (c) => {
-    console.error({ error: "error", message: "message" });
-    console.log({ error: "log", message: "log" });
-    console.warn({ error: "warn", message: "warn" });
     return c.text('Hello World!!')
 });
 

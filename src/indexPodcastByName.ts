@@ -20,15 +20,16 @@ export async function indexPodcastByName(c: Auth0ActionContext): Promise<Respons
             console.log({ message: `Successfully used secure-podcast-index-endpoint.` });
             return new Response(resp.body);
         } else if (resp.status == 404) {
-            console.log({ message: `Successfully used secure-podcast-index-endpoint. Not Found.` });
+            console.error({ message: `Successfully used secure-podcast-index-endpoint. Not Found.` });
             return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 400) {
-            console.log({ message: `Successfully used secure-podcast-index-endpoint. Not Performed.` });
+            console.error({ message: `Successfully used secure-podcast-index-endpoint. Not Performed.` });
             return new Response(resp.body, { status: resp.status });
         } else {
-            console.log({ message: `Failed to use secure-podcast-index-endpoint. Response code: '${resp.status}'.` });
+            console.error({ message: `Failed to use secure-podcast-index-endpoint. Response code: '${resp.status}'.` });
             return c.json({ error: "Error" }, 500);
         }
     }
+    console.error({ message: "Unauthorised to use indexPodcastByName." })
     return c.json({ error: "Unauthorised" }, 403);
 }

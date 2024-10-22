@@ -18,11 +18,12 @@ export async function getSubjects(c: Auth0ActionContext): Promise<Response> {
 		AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
 		return stream(c, async (stream) => {
 			stream.onAbort(() => {
-				console.log({ message: 'Aborted!' });
+				console.error({ message: 'Aborted!' });
 			});
 			await stream.pipe(object.body);
 		});
 	} else {
+		console.error({ message: "Unauthorised to use getSubjects." })
 		return c.json({ message: "Unauthorised" }, 401);
 	}
 }

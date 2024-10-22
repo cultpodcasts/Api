@@ -20,9 +20,10 @@ export async function updateSubject(c: Auth0ActionContext): Promise<Response> {
 			console.log({ message: `Successfully used secure-subject-endpoint.` });
 			return new Response(resp.body);
 		} else {
-			console.log({ message: `Failed to use secure-subject-endpoint. Response code: '${resp.status}'.` });
+			console.error({ message: `Failed to use secure-subject-endpoint. Response code: '${resp.status}'.` });
 			return c.json({ error: "Error" }, 500);
 		}
 	}
+	console.error({ message: "Unauthorised to use updateSubject." })
 	return c.json({ error: "Unauthorised" }, 403);
 }

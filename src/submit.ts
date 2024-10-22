@@ -23,7 +23,7 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 			response.headers.set("X-Origin", "true");
 			return response;
 		} else {
-			console.log({ message: `Failed to use secure-submit-endpoint. Response code: '${resp.status}'.` });
+			console.error({ message: `Failed to use secure-submit-endpoint. Response code: '${resp.status}'.` });
 		}
 	}
 	console.log({ message: `Storing submission in d1.` });
@@ -51,7 +51,7 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 		});
 	} catch (e) {
 		if (e instanceof Prisma.PrismaClientKnownRequestError) {
-			console.log({ message: `PrismaClientKnownRequestError code: '${e.code}'`, error: e });
+			console.error({ message: `PrismaClientKnownRequestError code: '${e.code}'`, error: e });
 		}
 		return c.json({ error: "Unable to accept" }, 400);
 	}

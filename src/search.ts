@@ -134,7 +134,7 @@ function createLeachResponse(c: ActionContext, dataPoint: searchLog) {
 	};
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	dataPoint.leech = true;
-	console.log(dataPoint);
+	console.warn(dataPoint);
 	return c.json(leechResponse, 200);
 }
 
