@@ -10,12 +10,9 @@ export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS", "DELETE"] });
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
 		const url = `${c.env.secureEpisodeEndpoint}/${id}`;
-		const data: any = await c.req.json();
-		const body: string = JSON.stringify(data);
 		const resp = await fetch(url, {
 			headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
-			method: "DELETE",
-			body: body
+			method: "DELETE"
 		});
 		if (resp.status == 200) {
 			console.log(`Successfully used secure-episode-endpoint.`);

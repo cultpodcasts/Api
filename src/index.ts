@@ -24,6 +24,7 @@ import { submitDiscovery } from './submitDiscovery';
 import { runSearchIndexer } from './runSearchIndexer';
 import { publishHomepage } from './publishHomepage';
 import { publishTerm } from './publishTerm';
+import { deleteEpisode } from './deleteEpisode';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -35,6 +36,7 @@ app.post("/search", search);
 app.post("/submit", Auth0Middleware, submit);
 app.get("/episode/:id", Auth0Middleware, getEpisode);
 app.post("/episode/:id", Auth0Middleware, updateEpisode);
+app.delete("/episode/:id", Auth0Middleware, deleteEpisode);
 app.post("/episode/publish/:id", Auth0Middleware, publish);
 app.get("/episodes/outgoing", Auth0Middleware, getOutgoing);
 app.get("/podcast/:name", Auth0Middleware, getPodcastByName);
