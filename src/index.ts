@@ -53,7 +53,7 @@ app.post("/terms", Auth0Middleware, publishTerm);
 app.post("/podcast/name/:name", Auth0Middleware, renamePodcast)
 
 app.get('/test', (c) => {
-    return c.text('Hello World!')
+    return c.text('Hello World!!')
 });
 
 export default app;
