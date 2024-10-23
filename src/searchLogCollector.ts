@@ -41,13 +41,14 @@ export class searchLogCollector implements searchOperation {
                 if (filter.indexOf(idFilter) >= 0) {
                     filterCutoff = filterCutoff = filter.indexOf(idFilter);
                     const episodeId = filter.slice(filterCutoff + idFilter.length + 1, -2);
-                    this.add({ mode: searchMode.episode, episodeId: episodeId, filter: filter });
+                    const podcastName =
+                        this.add({ mode: searchMode.episode, episodeId: episodeId, filter: filter });
                 } else {
-                    this.add({ additionalQuery: query, mode: searchMode.podcast, filter: filter });
+                    this.add({ podcastName: query, mode: searchMode.podcast, filter: filter });
                 }
             } else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
                 let query = filter.slice(22, -2);
-                this.add({ additionalQuery: query, mode: searchMode.subject });
+                this.add({ subject: query, mode: searchMode.subject });
             } else if (filter.indexOf("(id eq '") == 0) {
                 let query = filter.slice(8, -2);
                 this.add({ episodeId: query, mode: searchMode.shortnerFallback, filter: filter });
@@ -83,8 +84,11 @@ export class searchLogCollector implements searchOperation {
         if (props.hasOwnProperty('skip')) {
             this.skip = props.skip;
         }
-        if (props.hasOwnProperty('additionalQuery')) {
-            this.additionalQuery = props.additionalQuery;
+        if (props.hasOwnProperty('subject')) {
+            this.subject = props.subject;
+        }
+        if (props.hasOwnProperty('podcastName')) {
+            this.podcastName = props.podcastName;
         }
         if (props.hasOwnProperty('episodeId')) {
             this.episodeId = props.episodeId;
@@ -140,7 +144,8 @@ export class searchLogCollector implements searchOperation {
                 skip: this.skip,
                 episodeId: this.episodeId,
                 mode: this.mode && Number(this.mode) >= 0 ? searchMode[this.mode] : undefined,
-                additionalQuery: this.additionalQuery,
+                podcastName: this.podcastName,
+                subject: this.subject,
                 query: this.query,
                 filter: this.filter,
             },
@@ -171,7 +176,8 @@ export class searchLogCollector implements searchOperation {
     searchStatus?: number;
     orderBy?: string;
     skip?: number;
-    additionalQuery?: string;
+    subject?: string;
+    podcastName?: string;
     episodeId?: string;
     mode?: searchMode;
     country?: string;

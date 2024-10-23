@@ -5,7 +5,8 @@ export interface searchOperation {
     searchStatus?: number;
     orderBy?: string;
     skip?: number;
-    additionalQuery?: string;
+    subject?: string;
+    podcastName?: string;
     episodeId?: string;
     mode?: searchMode;
     country?: string;
