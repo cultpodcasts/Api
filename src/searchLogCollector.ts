@@ -132,7 +132,7 @@ export class searchLogCollector implements searchOperation {
     }
 
     toSearchLog(): searchLog {
-        return {
+        const searchLog: searchLog = {
             query: {
                 orderBy: this.orderBy,
                 skip: this.skip,
@@ -142,12 +142,6 @@ export class searchLogCollector implements searchOperation {
                 query: this.query,
                 filter: this.filter,
             },
-            errors: {
-                leech: this.leech,
-                unrecognisedSearchFilter: this.unrecognisedSearchFilter,
-                missingSearch: this.missingSearch
-            },
-            searchStatus: this.searchStatus,
             request: {
                 country: this.country,
                 city: this.city,
@@ -159,6 +153,15 @@ export class searchLogCollector implements searchOperation {
                 asOrganization: this.asOrganization
             }
         };
+        if (this.leech || this.unrecognisedSearchFilter || this.missingSearch) {
+            searchLog.errors = {
+                searchStatus: this.searchStatus,
+                leech: this.leech,
+                unrecognisedSearchFilter: this.unrecognisedSearchFilter,
+                missingSearch: this.missingSearch
+            };
+        }
+        return searchLog;
     }
 
     error: boolean = false;
