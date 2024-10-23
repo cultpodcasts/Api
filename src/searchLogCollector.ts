@@ -4,7 +4,6 @@ import { searchLog } from "./searchLog";
 import { searchMode } from "./searchMode";
 import { searchOperation } from "./searchOperation";
 
-
 export class searchLogCollector implements searchOperation {
     collectRequest(c: ActionContext) {
         if (c.req.raw.cf != undefined && c.req.raw.cf) {
@@ -41,7 +40,7 @@ export class searchLogCollector implements searchOperation {
                 let query = filter.slice(17, filterCutoff);
                 if (filter.indexOf(idFilter) >= 0) {
                     filterCutoff = filterCutoff = filter.indexOf(idFilter);
-                    const episodeId = filter.slice(filterCutoff + idFilter.length, -2);
+                    const episodeId = filter.slice(filterCutoff + idFilter.length + 1, -2);
                     this.add({ additionalQuery: query, mode: searchMode.episode, episodeId: episodeId, filter: filter });
                 } else {
                     this.add({ additionalQuery: query, mode: searchMode.podcast, filter: filter });
