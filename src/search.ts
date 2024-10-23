@@ -1,26 +1,13 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
-import { searchLog } from "./searchLog";
+import { searchLog, searchLogImpl } from "./searchLog";
 import { searchMode } from "./searchMode";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
 	const url = `${c.env.apihost}`;
-	let searchLog: searchLog = {};
+	let searchLog = createSearchLog(c);
 	let ipAddress: string = "";
-
-	if (c.req.raw.cf != undefined && c.req.raw.cf) {
-		searchLog.clientTrustScoretr = c.req.raw.cf.clientTrustScoretr as string;
-		searchLog.asn = c.req.raw.cf.asn as string;
-		searchLog.ipAddress = c.req.header('cf-connecting-ip') as string;
-		searchLog.userAgent = c.req.header('User-Agent') as string;
-		if (c.req.raw.cf.city) {
-			searchLog.city = c.req.raw.cf.city as string;
-		}
-		if (c.req.raw.cf.country) {
-			searchLog.country = c.req.raw.cf.country as string;
-		}
-	}
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, ipAddress);
 	if (!isLeech) {
 		return c.req
@@ -28,42 +15,35 @@ export async function search(c: ActionContext): Promise<Response> {
 			.then(async (data: any) => {
 				let requestBody = JSON.stringify(data);
 				if (data.search) {
-					searchLog.query = data.search;
-					searchLog.mode = searchMode.search;
+					searchLog.add({query:data.search, mode:searchMode.search});
 				}
 				if (data.filter) {
 					let filter: string = data.filter;
 					if (filter.indexOf("(podcastName eq '") == 0) {
 						const idFilter = "') and (id eq ";
 						let filterCutoff = -2;
+						let query = filter.slice(17, filterCutoff);
 						if (filter.indexOf(idFilter) >= 0) {
 							filterCutoff = filterCutoff = filter.indexOf(idFilter);
 							const episodeId = filter.slice(filterCutoff + idFilter.length, -2);
-
-							searchLog.mode = searchMode.episode;
-							searchLog.episodeId = episodeId;
+							searchLog.add({ additionalQuery: query, mode: searchMode.episode, episodeId: episodeId, filter: filter });
 						} else {
-							searchLog.mode = searchMode.podcast;
+							searchLog.add({ additionalQuery: query, mode: searchMode.podcast, filter: filter });
 						}
-						let query = filter.slice(17, filterCutoff);
-						searchLog.additionalQuery = query;
 					} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
 						let query = filter.slice(22, -2);
-						searchLog.additionalQuery = query;
-						searchLog.mode = searchMode.subject;
+						searchLog.add({ additionalQuery: query, mode: searchMode.subject });
 					} else {
-						console.log({ message: `Unrecognised search filter: '${filter}'.` });
+						searchLog.add({ unrecognisedSearchFilter: true, filter: filter });
 					}
 				}
-
 				if (!data.search && !data.filter) {
-					console.log({ message: "Unrecognised search request. No search or filter." });
+					searchLog.add({ unrecognisedSearchFilter: true, missingSearch: true });
 				}
-				if (searchLog) {
-					searchLog.skip = data.skip;
-					searchLog.orderBy = data.orderby;
+				if (data.skip) {
+					searchLog.add({ skip: parseInt(data.skip) });
 				}
-
+				searchLog.add({  orderBy: data.orderby });
 				let response = await fetch(url, {
 					cf: {
 						cacheEverything: true,
@@ -76,15 +56,16 @@ export async function search(c: ActionContext): Promise<Response> {
 					body: requestBody,
 					method: "POST"
 				});
-				if (searchLog) {
-					searchLog.searchStatus = response.status.toString();
-					console.log(searchLog);
+				searchLog.add({ searchStatus: response.status });
+				if (searchLog.error) {
+					console.error(searchLog as searchLog);
+				} else {
+					console.log(searchLog as searchLog);
 				}
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 				if (response.status != 200) {
 					return c.json(response.body, 400);
 				}
-
 				let body: any = await response.json();
 				body["@odata.context"] = null;
 				return c.json(body, 200);
@@ -92,6 +73,23 @@ export async function search(c: ActionContext): Promise<Response> {
 	} else {
 		return createLeachResponse(c, searchLog);
 	}
+}
+
+function createSearchLog(c: ActionContext): searchLogImpl {
+	var searchLog: searchLogImpl = new searchLogImpl();
+	if (c.req.raw.cf != undefined && c.req.raw.cf) {
+		searchLog.clientTrustScoretr = c.req.raw.cf.clientTrustScoretr as string;
+		searchLog.asn = c.req.raw.cf.asn as string;
+		searchLog.ipAddress = c.req.header('cf-connecting-ip') as string;
+		searchLog.userAgent = c.req.header('User-Agent') as string;
+		if (c.req.raw.cf.city) {
+			searchLog.city = c.req.raw.cf.city as string;
+		}
+		if (c.req.raw.cf.country) {
+			searchLog.country = c.req.raw.cf.country as string;
+		}
+	}
+	return searchLog;
 }
 
 async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string): Promise<boolean> {
@@ -109,7 +107,7 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 	return isLeech;
 }
 
-function createLeachResponse(c: ActionContext, dataPoint: searchLog) {
+function createLeachResponse(c: ActionContext, searchLog: searchLogImpl) {
 	const leechResponse = {
 		"@odata.context": null,
 		"@odata.count": 1,
@@ -133,8 +131,8 @@ function createLeachResponse(c: ActionContext, dataPoint: searchLog) {
 		}]
 	};
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-	dataPoint.leech = true;
-	console.warn(dataPoint);
+	searchLog.add({ leech: true });
+	console.warn(searchLog as searchLog);
 	return c.json(leechResponse, 200);
 }
 
