@@ -1,9 +1,9 @@
 export interface searchLogQueryDetails {
-    orderBy?: string;
-    skip?: number;
+    mode?: string;
     additionalQuery?: string;
     episodeId?: string;
-    mode?: string;
     query?: string;
+    orderBy?: string;
+    skip?: number;
     filter?: string;
 }
