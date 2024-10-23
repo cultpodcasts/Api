@@ -41,13 +41,16 @@ export class searchLogCollector implements searchOperation {
                 if (filter.indexOf(idFilter) >= 0) {
                     filterCutoff = filterCutoff = filter.indexOf(idFilter);
                     const episodeId = filter.slice(filterCutoff + idFilter.length + 1, -2);
-                    this.add({ additionalQuery: query, mode: searchMode.episode, episodeId: episodeId, filter: filter });
+                    this.add({ mode: searchMode.episode, episodeId: episodeId, filter: filter });
                 } else {
                     this.add({ additionalQuery: query, mode: searchMode.podcast, filter: filter });
                 }
             } else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
                 let query = filter.slice(22, -2);
                 this.add({ additionalQuery: query, mode: searchMode.subject });
+            } else if (filter.indexOf("(id eq '") == 0) {
+                let query = filter.slice(8, -2);
+                this.add({ additionalQuery: query, mode: searchMode.shortnerFallback, filter: filter });
             } else {
                 this.add({ unrecognisedSearchFilter: true, filter: filter });
             }

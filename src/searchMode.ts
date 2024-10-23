@@ -3,5 +3,6 @@ export enum searchMode {
     search = 1,
     episode,
     podcast,
-    subject
+    subject,
+    shortnerFallback
 }
