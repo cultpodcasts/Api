@@ -28,17 +28,18 @@ export async function search(c: ActionContext): Promise<Response> {
 					method: "POST"
 				});
 				searchLog.add({ searchStatus: response.status });
-				if (searchLog.error) {
-					console.error(searchLog.toSearchLog());
-				} else {
-					console.log(searchLog.toSearchLog());
-				}
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+				searchLog.add({searchStatus: response.status});
 				if (response.status != 200) {
 					return c.json(response.body, 400);
 				}
 				let body: any = await response.json();
 				body["@odata.context"] = null;
+				if (searchLog.error) {
+					console.error(searchLog.toSearchLog());
+				} else {
+					console.log(searchLog.toSearchLog());
+				}
 				return c.json(body, 200);
 			});
 	} else {
