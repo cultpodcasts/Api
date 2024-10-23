@@ -19,4 +19,6 @@ export interface searchOperation {
     filter?: string;
     missingSearch?: boolean;
     modeStr?: string;
+    verifiedBotCategory?: string;
+    asOrganization?: string;
 }

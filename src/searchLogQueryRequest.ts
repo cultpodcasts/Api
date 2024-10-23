@@ -5,4 +5,6 @@ export interface searchLogQueryRequest {
     clientTrustScoretr?: string;
     asn?: string;
     ipAddress?: string;
+    verifiedBotCategory?: string;
+    asOrganization?: string;
 }

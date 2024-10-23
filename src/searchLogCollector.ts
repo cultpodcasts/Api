@@ -6,7 +6,6 @@ import { searchOperation } from "./searchOperation";
 
 
 export class searchLogCollector implements searchOperation {
-
     collectRequest(c: ActionContext) {
         if (c.req.raw.cf != undefined && c.req.raw.cf) {
             this.add({
@@ -20,6 +19,12 @@ export class searchLogCollector implements searchOperation {
             }
             if (c.req.raw.cf.country) {
                 this.add({ country: c.req.raw.cf.country as string });
+            }
+            if (c.req.raw.cf.verifiedBotCategory) {
+                this.add({ verifiedBotCategory: c.req.raw.cf.verifiedBotCategory as string })
+            }
+            if (c.req.raw.cf.asOrganization) {
+                this.add({ asOrganization: c.req.raw.cf.asOrganization as string })
             }
         }
     }
@@ -117,6 +122,13 @@ export class searchLogCollector implements searchOperation {
             this.missingSearch = props.missingSearch;
             this.error = true;
         }
+
+        if (props.hasOwnProperty('verifiedBotCategory')) {
+            this.verifiedBotCategory = props.verifiedBotCategory;
+        }
+        if (props.hasOwnProperty('asOrganization')) {
+            this.asOrganization = props.asOrganization;
+        }
     }
 
     toSearchLog(): searchLog {
@@ -143,6 +155,8 @@ export class searchLogCollector implements searchOperation {
                 clientTrustScoretr: this.clientTrustScoretr,
                 asn: this.asn,
                 ipAddress: this.ipAddress,
+                verifiedBotCategory: this.verifiedBotCategory,
+                asOrganization: this.asOrganization
             }
         };
     }
@@ -165,4 +179,6 @@ export class searchLogCollector implements searchOperation {
     unrecognisedSearchFilter?: boolean;
     filter?: string;
     missingSearch?: boolean;
+    verifiedBotCategory?: string;
+    asOrganization?: string;
 }
