@@ -1,12 +1,12 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
-import { searchOperationCollector } from "./searchOperationCollector";
+import { searchLogCollector } from "./searchLogCollector";
 import { oDataSearchModel } from "./oDataSearchModel";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
 	const url = `${c.env.apihost}`;
-	let searchLog = new searchOperationCollector();
+	let searchLog = new searchLogCollector();
 	searchLog.collectRequest(c);
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, c.req.header('cf-connecting-ip'));
 	if (!isLeech) {
@@ -61,7 +61,7 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 	return isLeech;
 }
 
-function createLeachResponse(c: ActionContext, searchLog: searchOperationCollector) {
+function createLeachResponse(c: ActionContext, searchLog: searchLogCollector) {
 	const leechResponse = {
 		"@odata.context": null,
 		"@odata.count": 1,

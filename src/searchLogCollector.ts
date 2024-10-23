@@ -4,8 +4,9 @@ import { searchLog } from "./searchLog";
 import { searchMode } from "./searchMode";
 import { searchOperation } from "./searchOperation";
 
-export class searchOperationCollector implements searchOperation {
-    
+
+export class searchLogCollector implements searchOperation {
+
     collectRequest(c: ActionContext) {
         if (c.req.raw.cf != undefined && c.req.raw.cf) {
             this.add({
