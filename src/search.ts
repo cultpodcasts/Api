@@ -1,12 +1,12 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
-import { searchLog, searchLogImpl } from "./searchLog";
+import { searchOperationCollector } from "./searchOperationCollector";
 import { searchMode } from "./searchMode";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
 	const url = `${c.env.apihost}`;
-	let searchLog = createSearchLog(c);
+	let searchLog = createSearchOperationCollector(c);
 	let ipAddress: string = "";
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, ipAddress);
 	if (!isLeech) {
@@ -15,7 +15,7 @@ export async function search(c: ActionContext): Promise<Response> {
 			.then(async (data: any) => {
 				let requestBody = JSON.stringify(data);
 				if (data.search) {
-					searchLog.add({query:data.search, mode:searchMode.search});
+					searchLog.add({ query: data.search, mode: searchMode.search });
 				}
 				if (data.filter) {
 					let filter: string = data.filter;
@@ -43,7 +43,7 @@ export async function search(c: ActionContext): Promise<Response> {
 				if (data.skip) {
 					searchLog.add({ skip: parseInt(data.skip) });
 				}
-				searchLog.add({  orderBy: data.orderby });
+				searchLog.add({ orderBy: data.orderby });
 				let response = await fetch(url, {
 					cf: {
 						cacheEverything: true,
@@ -58,9 +58,9 @@ export async function search(c: ActionContext): Promise<Response> {
 				});
 				searchLog.add({ searchStatus: response.status });
 				if (searchLog.error) {
-					console.error(searchLog as searchLog);
+					console.error(searchLog.toSearchLog());
 				} else {
-					console.log(searchLog as searchLog);
+					console.log(searchLog.toSearchLog());
 				}
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 				if (response.status != 200) {
@@ -75,8 +75,8 @@ export async function search(c: ActionContext): Promise<Response> {
 	}
 }
 
-function createSearchLog(c: ActionContext): searchLogImpl {
-	var searchLog: searchLogImpl = new searchLogImpl();
+function createSearchOperationCollector(c: ActionContext): searchOperationCollector {
+	var searchLog: searchOperationCollector = new searchOperationCollector();
 	if (c.req.raw.cf != undefined && c.req.raw.cf) {
 		searchLog.clientTrustScoretr = c.req.raw.cf.clientTrustScoretr as string;
 		searchLog.asn = c.req.raw.cf.asn as string;
@@ -107,7 +107,7 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 	return isLeech;
 }
 
-function createLeachResponse(c: ActionContext, searchLog: searchLogImpl) {
+function createLeachResponse(c: ActionContext, searchLog: searchOperationCollector) {
 	const leechResponse = {
 		"@odata.context": null,
 		"@odata.count": 1,
@@ -132,7 +132,7 @@ function createLeachResponse(c: ActionContext, searchLog: searchLogImpl) {
 	};
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	searchLog.add({ leech: true });
-	console.warn(searchLog as searchLog);
+	console.warn(searchLog.toSearchLog());
 	return c.json(leechResponse, 200);
 }
 
