@@ -1,6 +1,7 @@
 export interface searchLogQueryDetails {
     mode?: string;
-    additionalQuery?: string;
+    podcastName?: string;
+    subject?: string;
     episodeId?: string;
     query?: string;
     orderBy?: string;
