@@ -128,7 +128,6 @@ export class searchLogCollector implements searchOperation {
             this.missingSearch = props.missingSearch;
             this.error = true;
         }
-
         if (props.hasOwnProperty('verifiedBotCategory')) {
             this.verifiedBotCategory = props.verifiedBotCategory;
         }
@@ -160,7 +159,7 @@ export class searchLogCollector implements searchOperation {
                 asOrganization: this.asOrganization
             }
         };
-        if (this.leech || this.unrecognisedSearchFilter || this.missingSearch) {
+        if (this.error) {
             searchLog.errors = {
                 searchStatus: this.searchStatus,
                 leech: this.leech,
