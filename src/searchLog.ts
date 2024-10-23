@@ -1,18 +1,10 @@
-import { searchMode } from "./searchMode";
+import { searchLogQueryDetails } from "./searchLogQueryDetails";
+import { searchLogQueryErrors } from "./searchLogQueryErrors";
+import { searchLogQueryRequest } from "./searchLogQueryRequest";
 
 export interface searchLog {
-    leech?: boolean;
-    searchStatus?: string;
-    orderBy?: any;
-    skip?: any;
-    additionalQuery?: string;
-    episodeId?: string;
-    mode?: searchMode;
-    country?: string;
-    city?: string;
-    userAgent?: string;
-    clientTrustScoretr?: string;
-    asn?: string;
-    ipAddress?: string;
-    query?: string;
+    query?: searchLogQueryDetails;
+    errors?: searchLogQueryErrors;
+    searchStatus?: number;
+    request: searchLogQueryRequest;
 }
