@@ -48,6 +48,9 @@ export class searchLogCollector implements searchOperation {
             } else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
                 let query = filter.slice(22, -2);
                 this.add({ additionalQuery: query, mode: searchMode.subject });
+            } else if (filter.indexOf("(id eq '") == 0) {
+                let query = filter.slice(8, -2);
+                this.add({ additionalQuery: query, mode: searchMode.shortnerFallback, filter: filter });
             } else {
                 this.add({ unrecognisedSearchFilter: true, filter: filter });
             }

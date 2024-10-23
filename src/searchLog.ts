@@ -3,8 +3,7 @@ import { searchLogQueryErrors } from "./searchLogQueryErrors";
 import { searchLogQueryRequest } from "./searchLogQueryRequest";
 
 export interface searchLog {
-    query?: searchLogQueryDetails;
     errors?: searchLogQueryErrors;
-    searchStatus?: number;
+    query?: searchLogQueryDetails;
     request: searchLogQueryRequest;
 }
