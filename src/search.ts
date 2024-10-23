@@ -1,49 +1,20 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
-import { searchOperationCollector } from "./searchOperationCollector";
-import { searchMode } from "./searchMode";
+import { searchLogCollector } from "./searchLogCollector";
+import { oDataSearchModel } from "./oDataSearchModel";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
 	const url = `${c.env.apihost}`;
-	let searchLog = createSearchOperationCollector(c);
-	let ipAddress: string = "";
-	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, ipAddress);
+	let searchLog = new searchLogCollector();
+	searchLog.collectRequest(c);
+	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, c.req.header('cf-connecting-ip'));
 	if (!isLeech) {
 		return c.req
 			.json()
-			.then(async (data: any) => {
+			.then(async (data: oDataSearchModel) => {
 				let requestBody = JSON.stringify(data);
-				if (data.search) {
-					searchLog.add({ query: data.search, mode: searchMode.search });
-				}
-				if (data.filter) {
-					let filter: string = data.filter;
-					if (filter.indexOf("(podcastName eq '") == 0) {
-						const idFilter = "') and (id eq ";
-						let filterCutoff = -2;
-						let query = filter.slice(17, filterCutoff);
-						if (filter.indexOf(idFilter) >= 0) {
-							filterCutoff = filterCutoff = filter.indexOf(idFilter);
-							const episodeId = filter.slice(filterCutoff + idFilter.length, -2);
-							searchLog.add({ additionalQuery: query, mode: searchMode.episode, episodeId: episodeId, filter: filter });
-						} else {
-							searchLog.add({ additionalQuery: query, mode: searchMode.podcast, filter: filter });
-						}
-					} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
-						let query = filter.slice(22, -2);
-						searchLog.add({ additionalQuery: query, mode: searchMode.subject });
-					} else {
-						searchLog.add({ unrecognisedSearchFilter: true, filter: filter });
-					}
-				}
-				if (!data.search && !data.filter) {
-					searchLog.add({ unrecognisedSearchFilter: true, missingSearch: true });
-				}
-				if (data.skip) {
-					searchLog.add({ skip: parseInt(data.skip) });
-				}
-				searchLog.add({ orderBy: data.orderby });
+				searchLog.collectSearchRequest(data);
 				let response = await fetch(url, {
 					cf: {
 						cacheEverything: true,
@@ -75,26 +46,9 @@ export async function search(c: ActionContext): Promise<Response> {
 	}
 }
 
-function createSearchOperationCollector(c: ActionContext): searchOperationCollector {
-	var searchLog: searchOperationCollector = new searchOperationCollector();
-	if (c.req.raw.cf != undefined && c.req.raw.cf) {
-		searchLog.clientTrustScoretr = c.req.raw.cf.clientTrustScoretr as string;
-		searchLog.asn = c.req.raw.cf.asn as string;
-		searchLog.ipAddress = c.req.header('cf-connecting-ip') as string;
-		searchLog.userAgent = c.req.header('User-Agent') as string;
-		if (c.req.raw.cf.city) {
-			searchLog.city = c.req.raw.cf.city as string;
-		}
-		if (c.req.raw.cf.country) {
-			searchLog.country = c.req.raw.cf.country as string;
-		}
-	}
-	return searchLog;
-}
-
-async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string): Promise<boolean> {
+async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string | undefined): Promise<boolean> {
 	let isLeech: boolean = false;
-	if (leechHandlingActive) {
+	if (leechHandlingActive && ipAddress) {
 		const object = await data.get("leeches");
 
 		if (object != null) {
@@ -107,7 +61,7 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 	return isLeech;
 }
 
-function createLeachResponse(c: ActionContext, searchLog: searchOperationCollector) {
+function createLeachResponse(c: ActionContext, searchLog: searchLogCollector) {
 	const leechResponse = {
 		"@odata.context": null,
 		"@odata.count": 1,
