@@ -19,5 +19,6 @@ export type Env = {
 	secureAdminSearchIndexerEndpoint: URL;
 	secureAdminPublishHomepageEndpoint: URL;
 	secureAdminTermsEndpoint: URL;
+	securePushSubscriptionEndpoint: URL;
 	stagingHostSuffix: string;
 };

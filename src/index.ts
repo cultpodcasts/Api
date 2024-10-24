@@ -25,6 +25,7 @@ import { runSearchIndexer } from './runSearchIndexer';
 import { publishHomepage } from './publishHomepage';
 import { publishTerm } from './publishTerm';
 import { deleteEpisode } from './deleteEpisode';
+import { pushSubscription } from './pushSubscription';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -51,5 +52,6 @@ app.post("/searchindex/run", Auth0Middleware, runSearchIndexer);
 app.post("/publish/homepage", Auth0Middleware, publishHomepage);
 app.post("/terms", Auth0Middleware, publishTerm);
 app.post("/podcast/name/:name", Auth0Middleware, renamePodcast)
+app.post("/pushsubscription", Auth0Middleware, pushSubscription)
 
 export default app;
