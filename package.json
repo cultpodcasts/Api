@@ -7,9 +7,9 @@
     "start": "wrangler dev --local-protocol https"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240423.0",
+    "@cloudflare/workers-types": "^4.20241022.0",
     "typescript": "^5.0.4",
-    "wrangler": "^3.81.0"
+    "wrangler": "^3.84.1"
   },
   "dependencies": {
     "@cfworker/jwt": "^4.0.6",
