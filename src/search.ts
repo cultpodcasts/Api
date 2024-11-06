@@ -3,7 +3,6 @@ import { ActionContext } from "./ActionContext";
 import { searchLogCollector } from "./searchLogCollector";
 import { oDataSearchModel } from "./oDataSearchModel";
 import { searchMode } from "./searchMode";
-import { ISearchResult } from "./ISearchResult";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
