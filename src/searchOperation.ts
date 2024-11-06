@@ -1,3 +1,4 @@
+import { ISearchResult } from "./ISearchResult";
 import { searchMode } from "./searchMode";
 
 export interface searchOperation {
@@ -22,4 +23,6 @@ export interface searchOperation {
     modeStr?: string;
     verifiedBotCategory?: string;
     asOrganization?: string;
+    searchResult?: ISearchResult;
+    results?: number | null | undefined;
 }
