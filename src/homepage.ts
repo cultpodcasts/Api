@@ -1,7 +1,7 @@
 import { stream } from "hono/streaming";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
-import { LogCollector } from "./logCollector";
+import { LogCollector } from "./LogCollector";
 
 export async function homepage(c: ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();

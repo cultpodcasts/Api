@@ -2,7 +2,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
-import { LogCollector } from "./logCollector";
+import { LogCollector } from "./LogCollector";
 
 export async function publishTerm(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
