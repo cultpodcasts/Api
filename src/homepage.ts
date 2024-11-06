@@ -1,22 +1,33 @@
 import { stream } from "hono/streaming";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
+import { LogCollector } from "./logCollector";
 
 export async function homepage(c: ActionContext): Promise<Response> {
+	const logCollector = new LogCollector();
+	logCollector.collectRequest(c);
 	let object: R2ObjectBody | null = null;
 	try {
 		object = await c.env.Content.get("homepage");
-	} catch (e) {
-		console.error({ message: "Failure to retrieve homepage", error: e });
+	} catch {
+		logCollector.add({ message: "Failure to retrieve homepage" });
 	}
 	if (object === null) {
+		console.error(logCollector.toEndpointLog());
 		return new Response("Object Not Found", { status: 404 });
 	}
 	AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
 	return stream(c, async (stream) => {
+		let aborted = false;
 		stream.onAbort(() => {
-			console.error({ message: 'Aborted!' });
+			logCollector.add({ message: 'Aborted!' });
+			aborted = true;
 		});
 		await stream.pipe(object.body);
+		if (aborted) {
+			console.error(logCollector.toEndpointLog());
+		} else {
+			console.log(logCollector.toEndpointLog());
+		}
 	});
 }

@@ -2,10 +2,12 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
-
+import { LogCollector } from "./logCollector";
 
 export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+	const logCollector = new LogCollector();
+    logCollector.collectRequest(c);
 	const id = c.req.param('id');
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS", "DELETE"] });
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
@@ -15,22 +17,28 @@ export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 			method: "DELETE"
 		});
 		if (resp.status == 200) {
-			console.log({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			console.log(logCollector.toEndpointLog());
 			return new Response(resp.body);
 		} else if (resp.status == 404) {
-			console.error({ message: `Failed to use secure-episode-endpoint. Episode not found.`, status: resp.status });
+			logCollector.add({ message: `Failed to use secure-episode-endpoint. Episode not found.`, status: resp.status });
+			console.error(logCollector.toEndpointLog());
 			return new Response(resp.body, { status: resp.status });
 		} else if (resp.status == 400) {
-			console.error({ message: `Failed to use secure-episode-endpoint. Episode published.`, status: resp.status });
+			logCollector.add({ message: `Failed to use secure-episode-endpoint. Episode published.`, status: resp.status });
+			console.error(logCollector.toEndpointLog());
 			return new Response(resp.body, { status: resp.status });
 		} else if (resp.status == 300) {
-			console.error({ message: `Failed to use secure-episode-endpoint. Multple podcast/episodes found.`, status: resp.status });
+			logCollector.add({ message: `Failed to use secure-episode-endpoint. Multple podcast/episodes found.`, status: resp.status });
+			console.error(logCollector.toEndpointLog());
 			return new Response(resp.body, { status: resp.status });
 		} else {
-			console.error({ message: `Failed to use secure-episode-endpoint..`, status: resp.status });
+			logCollector.add({ message: `Failed to use secure-episode-endpoint..`, status: resp.status });
+			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	console.error({ message: "Unauthorised to use deleteEpisode." })
+	logCollector.add({ message: "Unauthorised to use deleteEpisode." });
+	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }

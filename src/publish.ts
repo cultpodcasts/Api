@@ -2,12 +2,14 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
+import { LogCollector } from "./logCollector";
 
 export async function publish(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+    const logCollector = new LogCollector();
+    logCollector.collectRequest(c);
     const id = c.req.param('id');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = `${c.env.secureEpisodePublishEndpoint}/${id}`;
         const data: any = await c.req.json();
@@ -18,13 +20,16 @@ export async function publish(c: Auth0ActionContext): Promise<Response> {
             body: body
         });
         if (resp.status == 202) {
-            console.log({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+            logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+            console.log(logCollector.toEndpointLog());
             return new Response(resp.body);
         } else {
-            console.error({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+            logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+            console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    console.error({ message: "Unauthorised to use publish." })
+    logCollector.add({ message: "Unauthorised to use publish." });
+    console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }
