@@ -2,9 +2,12 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
+import { LogCollector } from "./logCollector";
 
 export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+    const logCollector = new LogCollector();
+    logCollector.collectRequest(c);
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     const data: any = await c.req.json();
     const body: string = JSON.stringify(data);
@@ -17,18 +20,23 @@ export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> 
                 body: body
             });
             if (resp.status == 200) {
-                console.log({ message: `Successfully used secure secure-discovery-curation-endpoint.`, status: resp.status });
+                logCollector.add({ message: `Successfully used secure secure-discovery-curation-endpoint.`, status: resp.status });
+                console.log(logCollector.toEndpointLog());
                 var response = new Response(resp.body);
                 response.headers.set("content-type", "application/json; charset=utf-8");
                 return response;
             } else {
-                console.error({ message: `Failed to use secure-discovery-curation-endpoint.`, status: resp.status });
+                logCollector.add({ message: `Failed to use secure-discovery-curation-endpoint.`, status: resp.status });
+                console.error(logCollector.toEndpointLog());
+                return c.json({ error: "Error" }, 500);
             }
         }
-    } catch (error) {
-        console.error({ message: "Error in submitDiscovery.", error: error });
+    } catch {
+        logCollector.add({ message: "Error in submitDiscovery." });
+        console.error(logCollector.toEndpointLog());
         return c.json({ error: "An error occurred" }, 500);
     }
-    console.error({ message: "Unauthorised to use submitDiscovery." })
+    logCollector.add({ message: "Unauthorised to use submitDiscovery." });
+    console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

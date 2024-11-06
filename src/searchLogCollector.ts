@@ -42,8 +42,7 @@ export class searchLogCollector implements searchOperation {
                 if (filter.indexOf(idFilter) >= 0) {
                     filterCutoff = filterCutoff = filter.indexOf(idFilter);
                     const episodeId = filter.slice(filterCutoff + idFilter.length + 1, -2);
-                    const podcastName =
-                        this.add({ mode: searchMode.episode, episodeId: episodeId, filter: filter });
+                    this.add({ mode: searchMode.episode, episodeId: episodeId, filter: filter });
                 } else {
                     this.add({ podcastName: query, mode: searchMode.podcast, filter: filter });
                 }
