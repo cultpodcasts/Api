@@ -19,19 +19,14 @@ export async function getSubjects(c: Auth0ActionContext): Promise<Response> {
 			console.error(logCollector.toEndpointLog());
 			return new Response("Object Not Found", { status: 404 });
 		}
-		AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
+		AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
+		console.log(logCollector.toEndpointLog());
 		return stream(c, async (stream) => {
-			let aborted = false;
 			stream.onAbort(() => {
 				logCollector.add({ message: 'Aborted!' });
-				aborted = true;
+				console.error(logCollector.toEndpointLog());
 			});
 			await stream.pipe(object.body);
-			if (aborted) {
-				console.error(logCollector.toEndpointLog());
-			} else {
-				console.log(logCollector.toEndpointLog());
-			}
 		});
 	} else {
 		logCollector.add({ message: "Unauthorised to use getSubjects." });
