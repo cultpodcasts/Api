@@ -39,7 +39,9 @@ export async function search(c: ActionContext): Promise<Response> {
 				if (searchLog.error) {
 					console.error(searchLog.toSearchLog());
 				} else {
-					if (searchLog.mode == searchMode.shortnerFallback && body.value?.length == 1) {
+					if ((searchLog.mode == searchMode.shortnerFallback ||
+						searchLog.mode == searchMode.episode) &&
+						body.value?.length == 1) {
 						searchLog.add({ searchResult: body.value[0] });
 					} else {
 						searchLog.add({ results: body.value?.length });
