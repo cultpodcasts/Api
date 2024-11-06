@@ -17,17 +17,12 @@ export async function homepage(c: ActionContext): Promise<Response> {
 		return new Response("Object Not Found", { status: 404 });
 	}
 	AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
+	console.log(logCollector.toEndpointLog());
 	return stream(c, async (stream) => {
-		let aborted = false;
 		stream.onAbort(() => {
 			logCollector.add({ message: 'Aborted!' });
-			aborted = true;
+			console.error(logCollector.toEndpointLog());
 		});
 		await stream.pipe(object.body);
-		if (aborted) {
-			console.error(logCollector.toEndpointLog());
-		} else {
-			console.log(logCollector.toEndpointLog());
-		}
 	});
 }
