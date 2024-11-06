@@ -52,6 +52,12 @@ export class LogCollector implements endpointOperation {
         if (props.hasOwnProperty('asOrganization')) {
             this.asOrganization = props.asOrganization;
         }
+        if (props.hasOwnProperty('message')) {
+            this.message = props.message;
+        }
+        if (props.hasOwnProperty('status')) {
+            this.status = props.status;
+        }
     }
 
     toEndpointLog(): endpointLog {
