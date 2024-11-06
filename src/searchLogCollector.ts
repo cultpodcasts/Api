@@ -1,4 +1,5 @@
 import { ActionContext } from "./ActionContext";
+import { ISearchResult } from "./ISearchResult";
 import { oDataSearchModel } from "./oDataSearchModel";
 import { searchLog } from "./searchLog";
 import { searchMode } from "./searchMode";
@@ -134,6 +135,15 @@ export class searchLogCollector implements searchOperation {
         if (props.hasOwnProperty('asOrganization')) {
             this.asOrganization = props.asOrganization;
         }
+        if (props.hasOwnProperty('searchResult')) {
+            this.searchResult = {
+                podcastName: props.searchResult!.podcastName,
+                episodeTitle: props.searchResult!.episodeTitle
+            };
+        }
+        if (props.hasOwnProperty('results')) {
+            this.results = props.results;
+        }
     }
 
     toSearchLog(): searchLog {
@@ -159,6 +169,11 @@ export class searchLogCollector implements searchOperation {
                 asOrganization: this.asOrganization
             }
         };
+        if (this.searchResult) {
+            searchLog.searchResult = this.searchResult;
+        } else if (this.results) {
+            searchLog.results = this.results;
+        }
         if (this.error) {
             searchLog.errors = {
                 searchStatus: this.searchStatus,
@@ -191,4 +206,6 @@ export class searchLogCollector implements searchOperation {
     missingSearch?: boolean;
     verifiedBotCategory?: string;
     asOrganization?: string;
+    searchResult?: ISearchResult;
+    results?: number | undefined | null;
 }

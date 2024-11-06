@@ -2,6 +2,8 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
 import { searchLogCollector } from "./searchLogCollector";
 import { oDataSearchModel } from "./oDataSearchModel";
+import { searchMode } from "./searchMode";
+import { ISearchResult } from "./ISearchResult";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
@@ -29,7 +31,7 @@ export async function search(c: ActionContext): Promise<Response> {
 				});
 				searchLog.add({ searchStatus: response.status });
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-				searchLog.add({searchStatus: response.status});
+				searchLog.add({ searchStatus: response.status });
 				if (response.status != 200) {
 					return c.json(response.body, 400);
 				}
@@ -38,6 +40,11 @@ export async function search(c: ActionContext): Promise<Response> {
 				if (searchLog.error) {
 					console.error(searchLog.toSearchLog());
 				} else {
+					if (searchLog.mode == searchMode.shortnerFallback && body.value?.length == 1) {
+						searchLog.add({ searchResult: body.value[0] });
+					} else {
+						searchLog.add({ results: body.value?.length });
+					}
 					console.log(searchLog.toSearchLog());
 				}
 				return c.json(body, 200);
@@ -90,4 +97,3 @@ function createLeachResponse(c: ActionContext, searchLog: searchLogCollector) {
 	console.warn(searchLog.toSearchLog());
 	return c.json(leechResponse, 200);
 }
-
