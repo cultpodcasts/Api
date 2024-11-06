@@ -32,6 +32,8 @@ export async function runSearchIndexer(c: Auth0ActionContext): Promise<Response>
             } else {
                 logCollector.add({ message: `Failed to use secure-admin-search-indexer-endpoint.`, status: resp.status });
                 console.error(logCollector.toEndpointLog());
+                var response = new Response(resp.body, { status: 500 });
+                return response;
             }
         }
     } catch {
