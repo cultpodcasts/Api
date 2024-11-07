@@ -5,6 +5,7 @@ import { Auth0Middleware } from './Auth0Middleware';
 import { getEpisode } from './getEpisode';
 import { corsOptions } from "./corsOptions";
 import { homepage } from './homepage';
+import { homepageSsr } from "./homepageSsr";
 import { getSubjects } from './getSubjects';
 import { getFlairs } from './getFlairs';
 import { search } from './search';
@@ -31,6 +32,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use('/*', cors(corsOptions))
 app.get('/homepage', homepage);
+app.get('/homepage-ssr', homepageSsr);
 app.get('/subjects', Auth0Middleware, getSubjects);
 app.get('/flairs', Auth0Middleware, getFlairs);
 app.post("/search", search);
