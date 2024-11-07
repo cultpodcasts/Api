@@ -10,7 +10,7 @@ export async function homepage(c: ActionContext): Promise<Response> {
 	try {
 		object = await c.env.Content.get("homepage");
 	} catch {
-		logCollector.add({ message: "Failure to retrieve homepage" });
+		logCollector.add({ message: `Failure to retrieve homepage` });
 	}
 	if (object === null) {
 		logCollector.add({ message: logCollector.message ?? "No homepage object found" });
@@ -18,7 +18,7 @@ export async function homepage(c: ActionContext): Promise<Response> {
 		return new Response("Object Not Found", { status: 404 });
 	}
 	AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
-	logCollector.add({ message: "Successfully obtained homepage data." });
+	logCollector.add({ message: `Successfully obtained homepage data.` });
 	console.log(logCollector.toEndpointLog());
 	return stream(c, async (stream) => {
 		stream.onAbort(() => {
