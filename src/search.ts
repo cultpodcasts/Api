@@ -32,6 +32,7 @@ export async function search(c: ActionContext): Promise<Response> {
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 				searchLog.add({ searchStatus: response.status });
 				if (response.status != 200) {
+					console.error(searchLog.toSearchLog());
 					return c.json(response.body, 400);
 				}
 				let body: any = await response.json();
