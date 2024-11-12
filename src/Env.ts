@@ -2,6 +2,7 @@ export type Env = {
 	Content: R2Bucket;
 	Data: R2Bucket;
 	Analytics: AnalyticsEngineDataset;
+	shortner: KVNamespace;
 	apiDB: D1Database;
 	apikey: string;
 	apihost: string;

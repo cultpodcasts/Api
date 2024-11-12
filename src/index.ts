@@ -27,6 +27,7 @@ import { publishHomepage } from './publishHomepage';
 import { publishTerm } from './publishTerm';
 import { deleteEpisode } from './deleteEpisode';
 import { pushSubscription } from './pushSubscription';
+import { getPageDetails } from './getPageDetails';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -53,7 +54,8 @@ app.post("/discovery-curation", Auth0Middleware, submitDiscovery);
 app.post("/searchindex/run", Auth0Middleware, runSearchIndexer);
 app.post("/publish/homepage", Auth0Middleware, publishHomepage);
 app.post("/terms", Auth0Middleware, publishTerm);
-app.post("/podcast/name/:name", Auth0Middleware, renamePodcast)
-app.post("/pushsubscription", Auth0Middleware, pushSubscription)
+app.post("/podcast/name/:name", Auth0Middleware, renamePodcast);
+app.post("/pushsubscription", Auth0Middleware, pushSubscription);
+app.get("/pagedetails/:podcastName/:episodeId", getPageDetails)
 
 export default app;
