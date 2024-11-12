@@ -4,19 +4,18 @@ import { oDataSearchModel } from "./oDataSearchModel";
 import { GuidService } from "./guid-service";
 import { IPageDetails } from "./ipage-details";
 import { ShortnerRecord } from "./ShortnerRecord";
-import { ISearchResult } from "./ISearchResult";
 
 export async function getPageDetails(c: ActionContext): Promise<Response> {
-    console.log("in page details")
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
-
+    const isSsr= c.req.query("ssr")=="true";
+    console.log(`ssr=${isSsr}`);
     const episodeId = c.req.param('episodeId');
     const podcastName = c.req.param('podcastName');
     if (episodeId && podcastName) {
         const key = new GuidService().toBase64(episodeId);
         let foundInKv: boolean = false;
-        const episodeKvWithMetaData = await c.env.shortner.getWithMetadata<ShortnerRecord>("x"+key);
+        const episodeKvWithMetaData = await c.env.shortner.getWithMetadata<ShortnerRecord>(key);
         if (episodeKvWithMetaData != null && episodeKvWithMetaData.metadata != null) {
             foundInKv = true;
             var episodeTitle = episodeKvWithMetaData.metadata.episodeTitle;
@@ -76,11 +75,11 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
                     console.log(logCollector.toEndpointLog());
                     var pagedetails: IPageDetails = {
                         description: podcastName,
-                        title: `${episodeTitle} | ${podcastName}`,
+                        title: `${episode.episodeTitle} | ${podcastName}`,
                         releaseDate: releaseDate,
                         duration: episode.duration
                     };
-                    return new Response(JSON.stringify(pagedetails));
+                    return Response.json(pagedetails);
                 } else {
                     logCollector.add({ message: "No item for episode-uuid" });
                     console.error(logCollector.toEndpointLog());
