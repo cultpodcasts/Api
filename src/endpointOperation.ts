@@ -1,5 +1,6 @@
 export interface endpointOperation {
     message?: string;
+    messages?: string[];
     status?: number;
     country?: string;
     city?: string;

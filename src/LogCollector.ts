@@ -27,6 +27,13 @@ export class LogCollector implements endpointOperation {
         }
     }
 
+    addMessage(message: string) {
+        if (!this.messages) {
+            this.messages = [];
+        }
+        this.messages.push(message);
+    }
+
     add(props: endpointOperation): void {
         if (props.hasOwnProperty('country')) {
             this.country = props.country;
@@ -76,6 +83,9 @@ export class LogCollector implements endpointOperation {
         if (this.message) {
             endpointLog.message = this.message;
         }
+        if (this.messages && this.messages.length > 0) {
+            endpointLog.messages = this.messages;
+        }
         if (this.status) {
             endpointLog.status = this.status;
         }
@@ -92,4 +102,5 @@ export class LogCollector implements endpointOperation {
     ipAddress?: string;
     verifiedBotCategory?: string;
     asOrganization?: string;
+    messages?: string[];
 }
