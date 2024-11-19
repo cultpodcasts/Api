@@ -3,6 +3,7 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
+import { Endpoint, getEndpoint } from "./endpoints";
 
 export async function runSearchIndexer(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -12,7 +13,7 @@ export async function runSearchIndexer(c: Auth0ActionContext): Promise<Response>
     try {
         if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
             let resp: Response | undefined;
-            resp = await fetch(c.env.secureAdminSearchIndexerEndpoint, {
+            resp = await fetch(getEndpoint(Endpoint.searchIndexer, c.env), {
                 headers: buildFetchHeaders(c.req, c.env.secureAdminSearchIndexerEndpoint),
                 method: "POST",
                 body: "{}"
