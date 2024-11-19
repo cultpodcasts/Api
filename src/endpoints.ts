@@ -60,7 +60,7 @@ console.log(`getEndpoints. endpoint='${endpoint}'.`);
     }
 console.log(`getEndpoints. url='${url}', env.overrideHost='${env.overrideHost}'.`);
     if (env.overrideHost) {
-        url = new URL(`${url.protocol}//${env.overrideHost}${url.port}${url.search}`);
+        url = new URL(`${url.protocol}//${env.overrideHost}${url.port}${url.pathname}${url.search}`);
 console.log(`getEndpoints. changed-url='${url}'.`);
     }
     return url;
