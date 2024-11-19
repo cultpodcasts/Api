@@ -3,6 +3,7 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from './buildFetchHeaders';
 import { LogCollector } from './LogCollector';
+import { Endpoint, getEndpoint } from './endpoints';
 
 export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -13,7 +14,7 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
 
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const authorisation: string = c.req.header("Authorization")!;
-        const url = `${c.env.secureEpisodeEndpoint}/${id}`;
+        const url = `${getEndpoint(Endpoint.episode, c.env)}/${id}`;
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
             method: "GET"

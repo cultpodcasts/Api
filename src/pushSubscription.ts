@@ -2,6 +2,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
+import { Endpoint, getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
 
 export async function pushSubscription(c: Auth0ActionContext): Promise<Response> {
@@ -10,7 +11,7 @@ export async function pushSubscription(c: Auth0ActionContext): Promise<Response>
     logCollector.collectRequest(c);
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload && auth0Payload.permissions.includes('admin')) {
-        const url = `${c.env.securePushSubscriptionEndpoint}`;
+        const url = `${getEndpoint(Endpoint.pushSubscriptions, c.env)}`;
         const data: any = await c.req.json();
         const body: string = JSON.stringify(data);
         const resp = await fetch(url, {
