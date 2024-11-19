@@ -4,6 +4,7 @@ export type Env = {
 	Analytics: AnalyticsEngineDataset;
 	shortner: KVNamespace;
 	apiDB: D1Database;
+	overrideHost:string|undefined|null,
 	apikey: string;
 	apihost: string;
 	gatewayKey: string;

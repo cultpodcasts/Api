@@ -3,6 +3,7 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
+import { Endpoint, getEndpoint } from "./endpoints";
 
 export async function publishHomepage(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -12,7 +13,7 @@ export async function publishHomepage(c: Auth0ActionContext): Promise<Response> 
     try {
         if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
             let resp: Response | undefined;
-            resp = await fetch(c.env.secureAdminPublishHomepageEndpoint, {
+            resp = await fetch(getEndpoint(Endpoint.publishHomepage, c.env), {
                 headers: buildFetchHeaders(c.req, c.env.secureAdminPublishHomepageEndpoint),
                 method: "POST",
                 body: "{}"

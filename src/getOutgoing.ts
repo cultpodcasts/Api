@@ -3,6 +3,7 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
+import { Endpoint, getEndpoint } from "./endpoints";
 
 export async function getOutgoing(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -10,7 +11,7 @@ export async function getOutgoing(c: Auth0ActionContext): Promise<Response> {
     logCollector.collectRequest(c);
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        let url = c.env.secureEpisodesOutgoingEndpoint.toString();
+        let url = getEndpoint(Endpoint.outgoingEpisodes, c.env).toString();
         const reqUrl = new URL(c.req.url);
         if (reqUrl.search) {
             url += reqUrl.search;

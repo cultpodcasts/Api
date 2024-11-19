@@ -6,6 +6,7 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
+import { getEndpoint, Endpoint } from "./endpoints";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -14,7 +15,7 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
-		const resp = await fetch(c.env.secureSubmitEndpoint, {
+		const resp = await fetch(getEndpoint(Endpoint.submit, c.env), {
 			headers: buildFetchHeaders(c.req, c.env.secureSubmitEndpoint),
 			body: JSON.stringify(data),
 			method: "POST"
