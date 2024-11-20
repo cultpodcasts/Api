@@ -12,7 +12,8 @@ export async function indexPodcastByName(c: Auth0ActionContext): Promise<Respons
     const name = c.req.param('name');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        const url = `${getEndpoint(Endpoint.podcastIndex, c.env)}/${encodeURIComponent(name)}`;
+        const url = `${getEndpoint(Endpoint.podcastIndex, c.env)}/${encodeURIComponent(encodeURIComponent(name))}`;
+        console.log("indexPodcastByName: "+url);
         const data: any = await c.req.json();
         const body: string = JSON.stringify(data);
         const resp = await fetch(url, {
