@@ -2,6 +2,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
+import { encodeUrlParameter } from "./encodeUrlParameter";
 import { Endpoint, getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
 
@@ -13,7 +14,7 @@ export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
     const newName = c.req.param('newName');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
-        const url = `${getEndpoint(Endpoint.podcast, c.env)}/name/${encodeURIComponent(encodeURIComponent(podcastName))}`;
+        const url = `${getEndpoint(Endpoint.podcast, c.env)}/name/${encodeUrlParameter(podcastName)}`;
         console.log("renamePodcast: "+url);
         const data: any = await c.req.json();
         const body: string = JSON.stringify(data);
