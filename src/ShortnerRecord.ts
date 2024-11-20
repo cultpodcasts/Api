@@ -1,4 +1,3 @@
-
 export interface ShortnerRecord {
     episodeTitle?: string;
     releaseDate?: string;
