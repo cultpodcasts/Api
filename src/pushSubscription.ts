@@ -11,7 +11,7 @@ export async function pushSubscription(c: Auth0ActionContext): Promise<Response>
     logCollector.collectRequest(c);
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload && auth0Payload.permissions.includes('admin')) {
-        const url = `${getEndpoint(Endpoint.pushSubscriptions, c.env)}`;
+        const url = getEndpoint(Endpoint.pushSubscriptions, c.env);
         const data: any = await c.req.json();
         const body: string = JSON.stringify(data);
         const resp = await fetch(url, {
