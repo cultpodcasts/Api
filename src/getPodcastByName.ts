@@ -12,7 +12,7 @@ export async function getPodcastByName(c: Auth0ActionContext): Promise<Response>
     const name = c.req.param('name');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        const url = `${getEndpoint(Endpoint.podcast, c.env)}/${encodeURIComponent(name)}`;
+        const url = `${getEndpoint(Endpoint.podcast, c.env)}/${encodeURIComponent(encodeURIComponent(name))}`;
         console.log("get-podcast: "+url);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, c.env.securePodcastEndpoint),
