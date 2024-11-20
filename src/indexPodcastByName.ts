@@ -4,6 +4,7 @@ import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
 import { Endpoint, getEndpoint } from "./endpoints";
+import { encodeUrlParameter } from "./encodeUrlParameter";
 
 export async function indexPodcastByName(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -12,7 +13,7 @@ export async function indexPodcastByName(c: Auth0ActionContext): Promise<Respons
     const name = c.req.param('name');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        const url = `${getEndpoint(Endpoint.podcastIndex, c.env)}/${encodeURIComponent(encodeURIComponent(name))}`;
+        const url = `${getEndpoint(Endpoint.podcastIndex, c.env)}/${encodeUrlParameter(name)}`;
         console.log("indexPodcastByName: "+url);
         const data: any = await c.req.json();
         const body: string = JSON.stringify(data);
