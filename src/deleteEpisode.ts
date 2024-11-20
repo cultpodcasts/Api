@@ -2,6 +2,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
+import { Endpoint, getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
 
 export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
@@ -11,7 +12,7 @@ export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 	const id = c.req.param('id');
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS", "DELETE"] });
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
-		const url = `${c.env.secureEpisodeEndpoint}/${id}`;
+		const url = `${getEndpoint(Endpoint.episode, c.env)}/${id}`;
 		const resp = await fetch(url, {
 			headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
 			method: "DELETE"
