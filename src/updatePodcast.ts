@@ -10,14 +10,14 @@ export async function updatePodcast(c: Auth0ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
 	const id = c.req.param('id');
-	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["POST", "GET", "PUT", "OPTIONS"] });
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
 		const url = `${getEndpoint(Endpoint.podcast, c.env)}/${id}`;
 		const data: any = await c.req.json();
 		const body: string = JSON.stringify(data);
 		const resp = await fetch(url, {
 			headers: buildFetchHeaders(c.req, c.env.securePodcastEndpoint),
-			method: "POST",
+			method: c.req.method,
 			body: body
 		});
 		if (resp.status == 202) {
