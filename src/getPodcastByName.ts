@@ -14,7 +14,7 @@ export async function getPodcastByName(c: Auth0ActionContext): Promise<Response>
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = `${getEndpoint(Endpoint.podcast, c.env)}/${encodeUrlParameter(name)}`;
-        console.log("get-podcast: "+url);
+        console.log("get-podcast: " + url);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, c.env.securePodcastEndpoint),
             method: "GET"
@@ -25,6 +25,10 @@ export async function getPodcastByName(c: Auth0ActionContext): Promise<Response>
             return new Response(resp.body);
         } else if (resp.status == 404) {
             logCollector.add({ message: `Unable to find podcast.`, status: resp.status });
+            console.error(logCollector.toEndpointLog());
+            return new Response(resp.body, { status: resp.status });
+        } else if (resp.status == 409) {
+            logCollector.add({ message: `Multiple podcasts found.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
             return new Response(resp.body, { status: resp.status });
         } else {
