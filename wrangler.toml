@@ -21,11 +21,11 @@ binding = "Analytics"
 [observability]
 enabled = true
 
-#[[durable_objects.bindings]]
-#name = "PROFILE_DURABLE_OBJECT"
-#class_name = "ProfileDurableObject"
+[[durable_objects.bindings]]
+name = "PROFILE_DURABLE_OBJECT"
+class_name = "ProfileDurableObject"
 
-#[[migrations]]
-#tag = "v1"
-#new_classes = ["ProfileDurableObject"]
+[[migrations]]
+tag = "v1"
+new_classes = ["ProfileDurableObject"]
 
