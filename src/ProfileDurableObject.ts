@@ -2,11 +2,16 @@ import { BookmarkRequest } from "./BookmarkRequest";
 import { Env } from "./Env";
 import { DurableObject } from "cloudflare:workers";
 
-export enum bookmarkResponse {
+export enum addBookmarkResponse {
     unableToCreateUser = -1,
     duplicateUserBookmark = -2,
     unableToCreateBookmark = -3,
     created = 1
+}
+
+export enum getBookmarksResponse {
+    userNotFound = -1,
+    errorRetrievingBookmarks = -2
 }
 
 export class ProfileDurableObject extends DurableObject {
@@ -45,28 +50,46 @@ export class ProfileDurableObject extends DurableObject {
         this.sql.exec(this.bookmarks_index);
     }
 
-    async bookmark(auth0UserId: string, bookmarkRequest: BookmarkRequest): Promise<bookmarkResponse> {
+    async getBookmarks(auth0UserId: string): Promise<getBookmarksResponse | string[]> {
+        let user = this.getUserId(auth0UserId);
+        if (!user) {
+            return getBookmarksResponse.userNotFound;
+        }
+        try {
+            let userBookmarks = this.getUserBookmarks(parseInt(user.id!.toString()));
+            return userBookmarks;
+        } catch (error) {
+            return getBookmarksResponse.errorRetrievingBookmarks;
+        }
+    }
+
+    async bookmark(auth0UserId: string, bookmarkRequest: BookmarkRequest): Promise<addBookmarkResponse> {
         // this.sql.exec(`DELETE FROM bookmarks`);
         // this.sql.exec(`DELETE FROM users`);
 
         let user = this.getUserId(auth0UserId);
         if (!user) {
-            this.sql.exec(`INSERT INTO users VALUES (NULL, ?)`, auth0UserId);
+            this.sql.exec(
+                `INSERT INTO users VALUES (NULL, ?)`,
+                auth0UserId);
             user = this.getUserId(auth0UserId);
         }
         if (!user) {
-            return bookmarkResponse.unableToCreateUser;
+            return addBookmarkResponse.unableToCreateUser;
         }
         try {
-            this.sql.exec(`INSERT INTO bookmarks VALUES (NULL, ?, ?)`, user.id, bookmarkRequest.episodeId);
+            this.sql.exec(
+                `INSERT INTO bookmarks VALUES (NULL, ?, ?)`,
+                user.id,
+                bookmarkRequest.episodeId);
         } catch (error: any) {
             if (error.message.indexOf("UNIQUE constraint failed: bookmarks.user_id, bookmarks.episode_id: SQLITE_CONSTRAINT") >= 0) {
-                return bookmarkResponse.duplicateUserBookmark;
+                return addBookmarkResponse.duplicateUserBookmark;
             } else {
-                return bookmarkResponse.unableToCreateBookmark;
+                return addBookmarkResponse.unableToCreateBookmark;
             }
         }
-        return bookmarkResponse.created;
+        return addBookmarkResponse.created;
     }
 
     private getUserId(userId: string): Record<string, SqlStorageValue> | undefined {
@@ -76,6 +99,19 @@ export class ProfileDurableObject extends DurableObject {
         );
         let user = cursor.toArray()[0];
         return user;
+    }
+
+    private getUserBookmarks(userId: number): string[] {
+        let bookmarks = [];
+        let cursor = this.sql.exec(
+            `SELECT episode_id FROM bookmarks WHERE user_id = ?`,
+            userId);
+        for (let row of cursor) {
+            if (row.episode_id) {
+                bookmarks.push(row.episode_id.toString());
+            }
+        }
+        return bookmarks;
     }
 }
 
