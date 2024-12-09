@@ -28,6 +28,9 @@ import { publishTerm } from './publishTerm';
 import { deleteEpisode } from './deleteEpisode';
 import { pushSubscription } from './pushSubscription';
 import { getPageDetails } from './getPageDetails';
+import { addBookmark } from "./addBookmark";
+import { getBookmarks } from "./getBookmarks";
+import { ProfileDurableObject } from './ProfileDurableObject';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -58,5 +61,9 @@ app.post("/terms", Auth0Middleware, publishTerm);
 app.post("/podcast/name/:name", Auth0Middleware, renamePodcast);
 app.post("/pushsubscription", Auth0Middleware, pushSubscription);
 app.get("/pagedetails/:podcastName/:episodeId", getPageDetails)
+app.post("/bookmark", Auth0Middleware, addBookmark);
+app.delete("/bookmark", Auth0Middleware, deleteEpisode);
+app.get("/bookmarks", Auth0Middleware, getBookmarks);
 
 export default app;
+export { ProfileDurableObject };
