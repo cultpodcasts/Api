@@ -24,7 +24,6 @@ enabled = true
 [[durable_objects.bindings]]
 name = "PROFILE_DURABLE_OBJECT"
 class_name = "ProfileDurableObject"
-script_name = "./ProfileDurableObject"
 
 [[migrations]]
 tag = "v1"
