@@ -1,18 +1,9 @@
+import { addBookmarkResponse } from "./addBookmarkResponse";
 import { BookmarkRequest } from "./BookmarkRequest";
+import { deleteBookmarkResponse } from "./deleteBookmarkResponse";
 import { Env } from "./Env";
 import { DurableObject } from "cloudflare:workers";
-
-export enum addBookmarkResponse {
-    unableToCreateUser = -1,
-    duplicateUserBookmark = -2,
-    unableToCreateBookmark = -3,
-    created = 1
-}
-
-export enum getBookmarksResponse {
-    userNotFound = -1,
-    errorRetrievingBookmarks = -2
-}
+import { getBookmarksResponse } from "./getBookmarksResponse";
 
 export class ProfileDurableObject extends DurableObject {
     users: string = `CREATE TABLE IF NOT EXISTS users(
@@ -63,10 +54,7 @@ export class ProfileDurableObject extends DurableObject {
         }
     }
 
-    async bookmark(auth0UserId: string, bookmarkRequest: BookmarkRequest): Promise<addBookmarkResponse> {
-        // this.sql.exec(`DELETE FROM bookmarks`);
-        // this.sql.exec(`DELETE FROM users`);
-
+    async addBookmark(auth0UserId: string, bookmarkRequest: BookmarkRequest): Promise<addBookmarkResponse> {
         let user = this.getUserId(auth0UserId);
         if (!user) {
             this.sql.exec(
@@ -90,6 +78,22 @@ export class ProfileDurableObject extends DurableObject {
             }
         }
         return addBookmarkResponse.created;
+    }
+
+    async deleteBookmark(auth0UserId: string, bookmarkRequest: BookmarkRequest): Promise<deleteBookmarkResponse> {
+        let user = this.getUserId(auth0UserId);
+        if (!user) {
+            return deleteBookmarkResponse.userNotFound;
+        }
+        try {
+            this.sql.exec(
+                `DELETE FROM bookmarks WHERE user_id = ? AND episode_id = ?`,
+                user.id,
+                bookmarkRequest.episodeId);
+        } catch (error: any) {
+            return deleteBookmarkResponse.unableToDeleteBookmark;
+        }
+        return deleteBookmarkResponse.deleted;
     }
 
     private getUserId(userId: string): Record<string, SqlStorageValue> | undefined {

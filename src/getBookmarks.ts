@@ -3,7 +3,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { LogCollector } from "./LogCollector";
-import { getBookmarksResponse } from "./ProfileDurableObject";
+import { getBookmarksResponse } from "./getBookmarksResponse";
 
 
 export async function getBookmarks(c: Auth0ActionContext): Promise<Response> {

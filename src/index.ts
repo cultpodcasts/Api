@@ -62,6 +62,7 @@ app.post("/podcast/name/:name", Auth0Middleware, renamePodcast);
 app.post("/pushsubscription", Auth0Middleware, pushSubscription);
 app.get("/pagedetails/:podcastName/:episodeId", getPageDetails)
 app.post("/bookmark", Auth0Middleware, addBookmark);
+app.delete("/bookmark", Auth0Middleware, deleteEpisode);
 app.get("/bookmarks", Auth0Middleware, getBookmarks);
 
 export default app;
