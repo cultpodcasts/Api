@@ -28,6 +28,8 @@ import { publishTerm } from './publishTerm';
 import { deleteEpisode } from './deleteEpisode';
 import { pushSubscription } from './pushSubscription';
 import { getPageDetails } from './getPageDetails';
+import { callProfileObject } from './callProfileObject';
+import { ProfileDurableObject } from './ProfileDurableObject';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -58,5 +60,7 @@ app.post("/terms", Auth0Middleware, publishTerm);
 app.post("/podcast/name/:name", Auth0Middleware, renamePodcast);
 app.post("/pushsubscription", Auth0Middleware, pushSubscription);
 app.get("/pagedetails/:podcastName/:episodeId", getPageDetails)
+app.get("/durable-object-test", callProfileObject);
 
 export default app;
+export { ProfileDurableObject };
