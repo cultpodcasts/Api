@@ -3,6 +3,7 @@ import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { BookmarkRequest } from "./BookmarkRequest";
 import { LogCollector } from "./LogCollector";
+import { bookmarkResponse } from "./ProfileDurableObject";
 
 export async function bookmark(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -14,9 +15,15 @@ export async function bookmark(c: Auth0ActionContext): Promise<Response> {
 
         let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(new URL(c.req.url).pathname);
         let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
-        let sucesss = await stub.bookmark(bookmarkRequest);
-        if (sucesss) {
+        let result: bookmarkResponse = await stub.bookmark(auth0Payload.sub, bookmarkRequest);
+        if (result == bookmarkResponse.created) {
             return new Response("Success");
+        } else if (result == bookmarkResponse.duplicateUserBookmark) {
+            return new Response("Bookmark exists", { status: 409 })
+        } else if (result == bookmarkResponse.unableToCreateUser) {
+            return new Response("Unable to create user", { status: 400 });
+        } else if (result == bookmarkResponse.unableToCreateBookmark) {
+            return new Response("Unable to create bookmark", { status: 400 });
         } else {
             return new Response("Error", { status: 400 });
         }
