@@ -17,7 +17,7 @@ export type Env = {
 	secureAdminTermsEndpoint: URL;
 	securePushSubscriptionEndpoint: URL;
 	stagingHostSuffix: string;
-	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
+	PROFILE_DURABLE_OBJECT: DurableObjectNamespace /* ProfileDurableObject from ./ProfileDurableObject */;
 	Content: R2Bucket;
 	Data: R2Bucket;
 	apiDB: D1Database;
