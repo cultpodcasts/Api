@@ -1,3 +1,4 @@
+import { BookmarkRequest } from "./BookmarkRequest";
 import { Env } from "./Env";
 import { DurableObject } from "cloudflare:workers";
 
@@ -6,7 +7,7 @@ export class ProfileDurableObject extends DurableObject {
         super(ctx, env);
     }
 
-    async sayHello(name: string): Promise<string> {
-        return `Hello, ${name}!`;
+    async bookmark(bookmarkRequest:BookmarkRequest):Promise<boolean> {
+        return true;
     }
 }
