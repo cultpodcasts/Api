@@ -17,16 +17,21 @@ export async function addBookmark(c: Auth0ActionContext): Promise<Response> {
             let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
             let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
             let result: addBookmarkResponse = await stub.addBookmark(auth0Payload.sub, bookmarkRequest);
+            logCollector.addMessage(`result= ${result}`);
             if (result == addBookmarkResponse.created) {
+                console.log(logCollector.toEndpointLog());
                 return c.json({ message: "Success" });
-            } else if (result == addBookmarkResponse.duplicateUserBookmark) {
-                return c.json({ message: "Bookmark exists" }, { status: 409 });
-            } else if (result == addBookmarkResponse.unableToCreateUser) {
-                return c.json({ message: "Unable to create user" }, { status: 400 });
-            } else if (result == addBookmarkResponse.unableToCreateBookmark) {
-                return c.json({ message: "Unable to create bookmark" }, { status: 400 });
             } else {
-                return c.json({ message: "Error" }, { status: 400 });
+                console.error(logCollector.toEndpointLog());
+                if (result == addBookmarkResponse.duplicateUserBookmark) {
+                    return c.json({ message: "Bookmark exists" }, { status: 409 });
+                } else if (result == addBookmarkResponse.unableToCreateUser) {
+                    return c.json({ message: "Unable to create user" }, { status: 400 });
+                } else if (result == addBookmarkResponse.unableToCreateBookmark) {
+                    return c.json({ message: "Unable to create bookmark" }, { status: 400 });
+                } else {
+                    return c.json({ message: "Error" }, { status: 400 });
+                }
             }
         } else {
             return c.json({ message: "Episode-id does not match recognised uuid pattern." }, { status: 400 });
