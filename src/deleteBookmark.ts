@@ -5,7 +5,6 @@ import { BookmarkRequest } from "./BookmarkRequest";
 import { LogCollector } from "./LogCollector";
 import { deleteBookmarkResponse } from "./deleteBookmarkResponse";
 
-
 export async function deleteBookmark(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
