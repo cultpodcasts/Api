@@ -13,16 +13,20 @@ export async function deleteBookmark(c: Auth0ActionContext): Promise<Response> {
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload) {
         const bookmarkRequest: BookmarkRequest = await c.req.json<BookmarkRequest>();
-
         let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
         let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
         let result: deleteBookmarkResponse = await stub.deleteBookmark(auth0Payload.sub, bookmarkRequest);
+        logCollector.addMessage(`result= ${result}`);
         if (result == deleteBookmarkResponse.deleted) {
+            console.log(logCollector.toEndpointLog());
             return c.json({ message: "Success" });
-        } else if (result == deleteBookmarkResponse.unableToDeleteBookmark) {
-            return c.json({ message: "Unable to delete bookmark" }, { status: 400 });
         } else {
-            return c.json({ message: "Error" }, { status: 400 });
+            console.error(logCollector.toEndpointLog());
+            if (result == deleteBookmarkResponse.unableToDeleteBookmark) {
+                return c.json({ message: "Unable to delete bookmark" }, { status: 400 });
+            } else {
+                return c.json({ message: "Error" }, { status: 400 });
+            }
         }
     }
     logCollector.add({ message: `Unauthorised to use profile-object deleteBookmark method.` });
