@@ -69,7 +69,7 @@ export class ProfileDurableObject extends DurableObject {
             this.sql.exec(
                 `INSERT INTO bookmarks VALUES (NULL, ?, ?)`,
                 user.id,
-                bookmarkRequest.episodeId);
+                bookmarkRequest.episodeId.toLowerCase());
         } catch (error: any) {
             if (error.message.indexOf("UNIQUE constraint failed: bookmarks.user_id, bookmarks.episode_id: SQLITE_CONSTRAINT") >= 0) {
                 return addBookmarkResponse.duplicateUserBookmark;
@@ -89,7 +89,7 @@ export class ProfileDurableObject extends DurableObject {
             this.sql.exec(
                 `DELETE FROM bookmarks WHERE user_id = ? AND episode_id = ?`,
                 user.id,
-                bookmarkRequest.episodeId);
+                bookmarkRequest.episodeId.toLowerCase());
         } catch (error: any) {
             return deleteBookmarkResponse.unableToDeleteBookmark;
         }

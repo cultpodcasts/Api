@@ -1,4 +1,3 @@
-import { ProfileInstance } from "./addBookmark";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
@@ -12,11 +11,11 @@ export async function getBookmarks(c: Auth0ActionContext): Promise<Response> {
     logCollector.collectRequest(c);
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload) {
-        let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(ProfileInstance);
+        let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
         let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
         let result = await stub.getBookmarks(auth0Payload.sub);
         if (result == getBookmarksResponse.userNotFound) {
-            return new Response("User not found", { status: 401 });
+            return new Response(JSON.stringify([]), { status: 200 });
         } else if (result == getBookmarksResponse.errorRetrievingBookmarks) {
             return new Response("Could not retrieve bookmarks", { status: 402 });
         }
