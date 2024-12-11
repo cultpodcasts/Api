@@ -1,5 +1,4 @@
 import { addBookmarkResponse } from "./addBookmarkResponse";
-import { BookmarkRequest } from "./BookmarkRequest";
 import { deleteBookmarkResponse } from "./deleteBookmarkResponse";
 import { Env } from "./Env";
 import { DurableObject } from "cloudflare:workers";
@@ -54,7 +53,7 @@ export class ProfileDurableObject extends DurableObject {
         }
     }
 
-    async addBookmark(auth0UserId: string, bookmarkRequest: BookmarkRequest): Promise<addBookmarkResponse> {
+    async addBookmark(auth0UserId: string, episodeId: string): Promise<addBookmarkResponse> {
         let user = this.getUserId(auth0UserId);
         if (!user) {
             this.sql.exec(
@@ -69,7 +68,7 @@ export class ProfileDurableObject extends DurableObject {
             this.sql.exec(
                 `INSERT INTO bookmarks VALUES (NULL, ?, ?)`,
                 user.id,
-                bookmarkRequest.episodeId.toLowerCase());
+                episodeId.toLowerCase());
         } catch (error: any) {
             if (error.message.indexOf("UNIQUE constraint failed: bookmarks.user_id, bookmarks.episode_id: SQLITE_CONSTRAINT") >= 0) {
                 return addBookmarkResponse.duplicateUserBookmark;
@@ -80,7 +79,7 @@ export class ProfileDurableObject extends DurableObject {
         return addBookmarkResponse.created;
     }
 
-    async deleteBookmark(auth0UserId: string, bookmarkRequest: BookmarkRequest): Promise<deleteBookmarkResponse> {
+    async deleteBookmark(auth0UserId: string, episodeId: string): Promise<deleteBookmarkResponse> {
         let user = this.getUserId(auth0UserId);
         if (!user) {
             return deleteBookmarkResponse.userNotFound;
@@ -89,7 +88,7 @@ export class ProfileDurableObject extends DurableObject {
             this.sql.exec(
                 `DELETE FROM bookmarks WHERE user_id = ? AND episode_id = ?`,
                 user.id,
-                bookmarkRequest.episodeId.toLowerCase());
+                episodeId.toLowerCase());
         } catch (error: any) {
             return deleteBookmarkResponse.unableToDeleteBookmark;
         }

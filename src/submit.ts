@@ -1,12 +1,13 @@
 import { PrismaD1 } from "@prisma/adapter-d1";
 import { PrismaClient, Prisma } from "@prisma/client";
-import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
+//import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
-import { getEndpoint, Endpoint } from "./endpoints";
+import { getEndpoint } from "./endpoints";
+import { Endpoint } from "./Endpoint";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -15,8 +16,9 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
-		const resp = await fetch(getEndpoint(Endpoint.submit, c.env), {
-			headers: buildFetchHeaders(c.req, c.env.secureSubmitEndpoint),
+		const url = getEndpoint(Endpoint.submit, c.env);
+		const resp = await fetch(url, {
+			headers: buildFetchHeaders(c.req, url),
 			body: JSON.stringify(data),
 			method: "POST"
 		});

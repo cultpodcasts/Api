@@ -3,7 +3,8 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
-import { Endpoint, getEndpoint } from "./endpoints";
+import { getEndpoint } from "./endpoints";
+import { Endpoint } from "./Endpoint";
 
 export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -15,8 +16,9 @@ export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> 
     try {
         if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
             let resp: Response | undefined;
-            resp = await fetch(getEndpoint(Endpoint.discoveryCuration, c.env), {
-                headers: buildFetchHeaders(c.req, c.env.secureDiscoveryCurationEndpoint),
+            const url = getEndpoint(Endpoint.discoveryCuration, c.env);
+            resp = await fetch(url, {
+                headers: buildFetchHeaders(c.req, url),
                 method: "POST",
                 body: body
             });

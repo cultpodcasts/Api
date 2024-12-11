@@ -2,19 +2,20 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
-import { Endpoint, getEndpoint } from "./endpoints";
+import { getEndpoint } from "./endpoints";
+import { Endpoint } from "./Endpoint";
 import { LogCollector } from "./LogCollector";
 
 export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	const logCollector = new LogCollector();
-    logCollector.collectRequest(c);
+	logCollector.collectRequest(c);
 	const id = c.req.param('id');
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS", "DELETE"] });
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
-		const url = `${getEndpoint(Endpoint.episode, c.env)}/${id}`;
+		const url = new URL(`${getEndpoint(Endpoint.episode, c.env)}/${id}`);
 		const resp = await fetch(url, {
-			headers: buildFetchHeaders(c.req, c.env.secureEpisodeEndpoint),
+			headers: buildFetchHeaders(c.req, url),
 			method: "DELETE"
 		});
 		if (resp.status == 200) {
