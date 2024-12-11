@@ -26,6 +26,14 @@ name = "PROFILE_DURABLE_OBJECT"
 class_name = "ProfileDurableObject"
 
 [[migrations]]
+tag = "v1"
+new_classes = ["ProfileDurableObject"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ProfileDurableObject"]
+
+[[migrations]]
 tag = "v3"
 new_sqlite_classes = ["ProfileDurableObject"]
 
