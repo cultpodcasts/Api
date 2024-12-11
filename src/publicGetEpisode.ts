@@ -6,31 +6,30 @@ import { getEndpoint } from "./endpoints";
 import { Endpoint } from "./Endpoint";
 import { LogCollector } from "./LogCollector";
 
-export async function pushSubscription(c: Auth0ActionContext): Promise<Response> {
+
+export async function publicGetEpisode(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-    if (auth0Payload && auth0Payload.permissions.includes('admin')) {
-        const url = getEndpoint(Endpoint.pushSubscriptions, c.env);
-        const data: any = await c.req.json();
-        const body: string = JSON.stringify(data);
+    const id = c.req.param('id');
+    AddResponseHeaders(c, { methods: ["GET"] });
+    if (auth0Payload != null) {
+        const url = new URL(`${getEndpoint(Endpoint.publicEpisode, c.env)}/${id}`);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, url),
-            method: "POST",
-            body: body
+            method: "GET"
         });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-push-subscription-endpoint.`, status: resp.status });
+            logCollector.add({ message: `Successfully used secure-public-episode-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            return new Response(resp.body);
         } else {
-            logCollector.add({ message: `Failed to use secure-push-subscription-endpoint.`, status: resp.status });
+            logCollector.add({ message: `Failed to use secure-public-episode-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: `Unauthorised to use pushSubscription.` });
+    logCollector.add({ message: "Unauthorised to use publicGetEpisode." });
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

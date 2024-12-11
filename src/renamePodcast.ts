@@ -3,7 +3,8 @@ import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { encodeUrlParameter } from "./encodeUrlParameter";
-import { Endpoint, getEndpoint } from "./endpoints";
+import { getEndpoint } from "./endpoints";
+import { Endpoint } from "./Endpoint";
 import { LogCollector } from "./LogCollector";
 
 export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
@@ -14,12 +15,12 @@ export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
     const newName = c.req.param('newName');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('admin')) {
-        const url = `${getEndpoint(Endpoint.podcast, c.env)}/name/${encodeUrlParameter(podcastName)}`;
-        console.log("renamePodcast: "+url);
+        const url = new URL(`${getEndpoint(Endpoint.podcast, c.env)}/name/${encodeUrlParameter(podcastName)}`);
+        console.log("renamePodcast: " + url);
         const data: any = await c.req.json();
         const body: string = JSON.stringify(data);
         const resp = await fetch(url, {
-            headers: buildFetchHeaders(c.req, c.env.securePodcastEndpoint),
+            headers: buildFetchHeaders(c.req, url),
             method: "POST",
             body: body
         });

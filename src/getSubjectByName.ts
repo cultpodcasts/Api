@@ -3,7 +3,8 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
-import { Endpoint, getEndpoint } from "./endpoints";
+import { getEndpoint } from "./endpoints";
+import { Endpoint } from "./Endpoint";
 import { encodeUrlParameter } from "./encodeUrlParameter";
 
 export async function getSubjectByName(c: Auth0ActionContext): Promise<Response> {
@@ -13,10 +14,10 @@ export async function getSubjectByName(c: Auth0ActionContext): Promise<Response>
     const name = c.req.param('name');
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        const url = `${getEndpoint(Endpoint.subject, c.env)}/${encodeUrlParameter(name)}`;
-        console.log("getSubjectByName: "+url);
+        const url = new URL(`${getEndpoint(Endpoint.subject, c.env)}/${encodeUrlParameter(name)}`);
+        console.log("getSubjectByName: " + url);
         const resp = await fetch(url, {
-            headers: buildFetchHeaders(c.req, c.env.secureSubjectEndpoint),
+            headers: buildFetchHeaders(c.req, url),
             method: "GET"
         });
         if (resp.status == 200) {

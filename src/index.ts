@@ -32,6 +32,7 @@ import { addBookmark } from "./addBookmark";
 import { getBookmarks } from "./getBookmarks";
 import { ProfileDurableObject } from './ProfileDurableObject';
 import { deleteBookmark } from './deleteBookmark';
+import { publicGetEpisode } from './publicGetEpisode';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -62,9 +63,10 @@ app.post("/terms", Auth0Middleware, publishTerm);
 app.post("/podcast/name/:name", Auth0Middleware, renamePodcast);
 app.post("/pushsubscription", Auth0Middleware, pushSubscription);
 app.get("/pagedetails/:podcastName/:episodeId", getPageDetails)
-app.post("/bookmark", Auth0Middleware, addBookmark);
-app.delete("/bookmark", Auth0Middleware, deleteBookmark);
+app.post("/bookmark/:episodeId", Auth0Middleware, addBookmark);
+app.delete("/bookmark/:episodeId", Auth0Middleware, deleteBookmark);
 app.get("/bookmarks", Auth0Middleware, getBookmarks);
+app.get("/public/episode/:id", Auth0Middleware, publicGetEpisode);
 
 export default app;
 export { ProfileDurableObject };

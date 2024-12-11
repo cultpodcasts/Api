@@ -1,22 +1,21 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
-import { BookmarkRequest } from "./BookmarkRequest";
 import { LogCollector } from "./LogCollector";
 import { addBookmarkResponse } from "./addBookmarkResponse";
+import { uuidPattern } from "./uuidPattern";
 
 export async function addBookmark(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
-    const uuidPattern = /^[0-9A-F]{8}[-]?(?:[0-9A-F]{4}[-]?){3}[0-9A-F]{12}$/i;
     logCollector.collectRequest(c);
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload && auth0Payload.sub) {
-        const bookmarkRequest: BookmarkRequest = await c.req.json<BookmarkRequest>();
-        if (uuidPattern.test(bookmarkRequest.episodeId)) {
+        const episodeId = c.req.param('episodeId');
+        if (uuidPattern.test(episodeId)) {
             let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
             let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
-            let result: addBookmarkResponse = await stub.addBookmark(auth0Payload.sub, bookmarkRequest);
+            let result: addBookmarkResponse = await stub.addBookmark(auth0Payload.sub, episodeId);
             logCollector.addMessage(`result= ${result}`);
             if (result == addBookmarkResponse.created) {
                 console.log(logCollector.toEndpointLog());

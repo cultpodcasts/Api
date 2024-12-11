@@ -6,6 +6,7 @@ export type Env = {
 	apikey: string;
 	secureSubmitEndpoint: URL;
 	secureEpisodeEndpoint: URL;
+	securePublicEpisodeEndpoint: URL;
 	secureEpisodePublishEndpoint: URL;
 	secureDiscoveryCurationEndpoint: URL;
 	securePodcastIndexEndpoint: URL;
@@ -22,6 +23,6 @@ export type Env = {
 	Data: R2Bucket;
 	apiDB: D1Database;
 	Analytics: AnalyticsEngineDataset;
-	overrideHost:string|undefined|null,
+	overrideHost: string | undefined | null,
 	gatewayKey: string;
 };
