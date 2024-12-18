@@ -26,7 +26,7 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
                     releaseDate: episodeKvWithMetaData.metadata.releaseDate,
                     duration: episodeKvWithMetaData.metadata.duration
                 };
-                logCollector.add({ message: `Found kv-meta-data with key '${key}'. podcast-name= '${podcastName}', episode-title: '${episodeTitle}', episode-id: '${episodeId}'.` });
+                logCollector.add({ message: `Found kv-meta-data with key '${key}'. podcast-name: '${podcastName}', episode-title: '${episodeTitle}', episode-id: '${episodeId}'.` });
                 console.log(logCollector.toEndpointLog());
                 return new Response(JSON.stringify(pagedetails));
             } else {
