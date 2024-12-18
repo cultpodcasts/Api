@@ -3,7 +3,6 @@ import { Env } from "./Env";
 
 export function getEndpoint(endpoint: Endpoint, env: Env): URL {
     let url: URL;
-    console.log(`getEndpoints. endpoint='${endpoint}'.`);
     switch (endpoint) {
         case Endpoint.submit:
             url = new URL(env.secureSubmitEndpoint);
@@ -47,10 +46,8 @@ export function getEndpoint(endpoint: Endpoint, env: Env): URL {
         default:
             throw new Error(`Unrecognised endpoint: '${endpoint}'.`);
     }
-    console.log(`getEndpoints. url='${url}', env.overrideHost='${env.overrideHost}'.`);
     if (env.overrideHost) {
         url = new URL(`${url.protocol}//${env.overrideHost}${url.port}${url.pathname}${url.search}`);
-        console.log(`getEndpoints. changed-url='${url}'.`);
     }
     return url;
 }

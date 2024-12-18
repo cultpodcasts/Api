@@ -26,11 +26,11 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
                     releaseDate: episodeKvWithMetaData.metadata.releaseDate,
                     duration: episodeKvWithMetaData.metadata.duration
                 };
-                logCollector.add({ message: `Found kv-meta-data with key '${key}'` });
+                logCollector.add({ message: `Found kv-meta-data with key '${key}'. podcast-name= '${podcastName}', episode-title: '${episodeTitle}', episode-id: '${episodeId}'.` });
                 console.log(logCollector.toEndpointLog());
                 return new Response(JSON.stringify(pagedetails));
             } else {
-                logCollector.add({ message: `Missing kv-meta-data with key '${key}'` });
+                logCollector.add({ message: `Missing kv-meta-data with key '${key}', episode-id '${episodeId}'.` });
                 console.error(logCollector.toEndpointLog());
                 return new Response(logCollector.message, { status: 400 });
             }
