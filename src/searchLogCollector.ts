@@ -52,6 +52,11 @@ export class searchLogCollector implements searchOperation {
             } else if (filter.indexOf("(id eq '") == 0) {
                 let query = filter.slice(8, -2);
                 this.add({ episodeId: query, mode: searchMode.shortnerFallback, filter: filter });
+            } else if (
+                filter.indexOf("search.in(podcastName, '") == 0 ||
+                filter.indexOf("subjects/any(s: search.in(s, '") == 0
+            ) {
+                // valid
             } else {
                 this.add({ unrecognisedSearchFilter: true, filter: filter });
             }
