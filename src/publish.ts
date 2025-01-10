@@ -21,14 +21,14 @@ export async function publish(c: Auth0ActionContext): Promise<Response> {
             method: "POST",
             body: body
         });
-        if (resp.status == 202) {
+        if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
             return new Response(resp.body);
         } else {
             logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return c.json({ error: "Error" }, 500);
+            return new Response(resp.body, {status: resp.status});
         }
     }
     logCollector.add({ message: "Unauthorised to use publish." });
