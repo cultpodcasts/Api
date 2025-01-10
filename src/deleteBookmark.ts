@@ -9,7 +9,7 @@ export async function deleteBookmark(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+    AddResponseHeaders(c, { methods: ["POST", "DELETE", "OPTIONS"] });
     if (auth0Payload) {
         const episodeId = c.req.param('episodeId');
         if (uuidPattern.test(episodeId)) {
