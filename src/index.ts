@@ -33,6 +33,7 @@ import { getBookmarks } from "./getBookmarks";
 import { ProfileDurableObject } from './ProfileDurableObject';
 import { deleteBookmark } from './deleteBookmark';
 import { publicGetEpisode } from './publicGetEpisode';
+import { getDiscoveryInfo } from './getDiscoveryInfo';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -57,6 +58,7 @@ app.post("/subject/:id", Auth0Middleware, updateSubject);
 app.put("/subject", Auth0Middleware, createSubject);
 app.get("/discovery-curation", Auth0Middleware, getDiscoveryReports);
 app.post("/discovery-curation", Auth0Middleware, submitDiscovery);
+app.get("/discovery-info", Auth0Middleware, getDiscoveryInfo);
 app.post("/searchindex/run", Auth0Middleware, runSearchIndexer);
 app.post("/publish/homepage", Auth0Middleware, publishHomepage);
 app.post("/terms", Auth0Middleware, publishTerm);
