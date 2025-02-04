@@ -15,11 +15,11 @@ export async function getBookmarks(c: Auth0ActionContext): Promise<Response> {
         let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
         let result = await stub.getBookmarks(auth0Payload.sub);
         if (result == getBookmarksResponse.userNotFound) {
-            return new Response(JSON.stringify([]), { status: 200 });
+            return c.json([], 200);
         } else if (result == getBookmarksResponse.errorRetrievingBookmarks) {
-            return new Response("Could not retrieve bookmarks", { status: 402 });
+            return c.json({ message: "Could not retrieve bookmarks" }, 500);
         }
-        return new Response(JSON.stringify(result));
+        return c.json(result);
     }
     logCollector.add({ message: `Unauthorised to use profile-object getBookmarks method.` });
     console.error(logCollector.toEndpointLog());
