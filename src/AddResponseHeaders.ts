@@ -4,7 +4,7 @@ import { HttpResponseHeaderOptions } from "./HttpResponseHeaderOptions";
 
 
 export function AddResponseHeaders(c: Context<any>, opts: HttpResponseHeaderOptions) {
-	if (!opts.noCacheControlMaxAge != true) {
+	if (opts.noCacheControlMaxAge != true) {
 		if (opts.cacheControlMaxAge && parseInt(opts.cacheControlMaxAge.toString())) {
 			c.header("Cache-Control", `max-age=${parseInt(opts.cacheControlMaxAge.toString())}`);
 		} else {
