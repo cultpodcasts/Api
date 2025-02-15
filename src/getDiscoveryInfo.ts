@@ -21,7 +21,9 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
             console.error(logCollector.toEndpointLog());
             return new Response("Object Not Found", { status: 404 });
         }
-        AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
+        logCollector.addMessage(`Object found with uploaded-date: ${object.uploaded}`);
+        object.writeHttpMetadata(c.res.headers);
+        AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
         logCollector.add({ message: "Successfully obtained discovery-info data." });
         console.log(logCollector.toEndpointLog());
         return stream(c, async (stream) => {
