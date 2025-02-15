@@ -12,10 +12,7 @@ export async function getSubjectByName(c: Auth0ActionContext): Promise<Response>
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
     const name = c.req.param('name');
-    AddResponseHeaders(c, {
-        cacheControlMaxAge: 300,
-        methods: ["POST", "GET", "OPTIONS"]
-    });
+    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = new URL(`${getEndpoint(Endpoint.subject, c.env)}/${encodeUrlParameter(name)}`);
         console.log("getSubjectByName: " + url);
@@ -26,7 +23,7 @@ export async function getSubjectByName(c: Auth0ActionContext): Promise<Response>
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return c.json(resp.json());
+            return new Response(resp.body);
         } else {
             logCollector.add({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());

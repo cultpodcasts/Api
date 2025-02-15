@@ -8,6 +8,7 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
+    AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         let object: R2ObjectBody | null = null;
         try {
@@ -18,13 +19,12 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
         if (object === null) {
             logCollector.add({ message: logCollector.message ?? "No discovery-info object found" });
             console.error(logCollector.toEndpointLog());
-            AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
-            return c.notFound();
+            return new Response("Object Not Found", { status: 404 });
         }
         logCollector.addMessage(`Object found with uploaded-date: ${object.uploaded}`);
         object.writeHttpMetadata(c.res.headers);
         AddResponseHeaders(c, {
-            cacheControlMaxAge: 30,
+            cacheControlMaxAge: 60,
             etag: object.httpEtag,
             methods: ["GET", "OPTIONS"]
         });
@@ -40,7 +40,6 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
     } else {
         logCollector.add({ message: "Unauthorised to use getDiscoveryInfo." });
         console.error(logCollector.toEndpointLog());
-        AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
         return c.json({ message: "Unauthorised" }, 401);
     }
 

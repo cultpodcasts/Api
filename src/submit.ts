@@ -25,8 +25,10 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 		if (resp.status == 200) {
 			logCollector.add({ message: `Successfully used secure-submit-endpoint.`, status: resp.status });
 			console.log(logCollector.toEndpointLog());
-			resp.headers.set("X-Origin", "true");
-			return c.json(resp.json());
+			var response = new Response(resp.body);
+			response.headers.set("content-type", "application/json; charset=utf-8");
+			response.headers.set("X-Origin", "true");
+			return response;
 		} else {
 			logCollector.add({ message: `Failed to use secure-submit-endpoint.`, status: resp.status });
 			console.error(logCollector.toEndpointLog());

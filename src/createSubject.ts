@@ -23,11 +23,11 @@ export async function createSubject(c: Auth0ActionContext): Promise<Response> {
         if (resp.status == 202) {
             logCollector.add({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return c.json(resp.json(), resp.status);
+            return new Response(resp.body, { status: resp.status });
         } else if (resp.status == 409) {
             logCollector.add({ message: `Conflict reported on secure-subject-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return c.json(resp.json(), resp.status);
+            return new Response(resp.body, { status: resp.status });
         } else {
             logCollector.add({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());

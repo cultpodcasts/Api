@@ -25,11 +25,15 @@ export async function publishTerm(c: Auth0ActionContext): Promise<Response> {
             if (resp.status == 200) {
                 logCollector.add({ message: `Successfully used secure secure-term-endpoint.`, status: resp.status });
                 console.log(logCollector.toEndpointLog());
-                return c.json(resp.json());
+                var response = new Response(resp.body);
+                response.headers.set("content-type", "application/json; charset=utf-8");
+                return response;
             } else if (resp.status == 409) {
                 logCollector.add({ message: `Failure using secure secure-term-endpoint. Conflict`, status: resp.status });
                 console.error(logCollector.toEndpointLog());
-                return c.text("Conflict", resp.status);
+                var response = new Response(resp.body, { status: resp.status });
+                response.headers.set("content-type", "application/json; charset=utf-8");
+                return response;
             } else {
                 logCollector.add({ message: `Failed to use secure-term-endpoint.`, status: resp.status });
                 console.error(logCollector.toEndpointLog());

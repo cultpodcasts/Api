@@ -24,7 +24,7 @@ export async function updateSubject(c: Auth0ActionContext): Promise<Response> {
 		if (resp.status == 202) {
 			logCollector.add({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
 			console.log(logCollector.toEndpointLog());
-			return c.text("Accepted", resp.status);
+			return new Response(resp.body);
 		} else {
 			logCollector.add({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
 			console.error(logCollector.toEndpointLog());

@@ -24,7 +24,7 @@ export async function updateEpisode(c: Auth0ActionContext): Promise<Response> {
 		if (resp.status == 202) {
 			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
 			console.log(logCollector.toEndpointLog());
-			return c.json(resp.body);
+			return new Response(resp.body);
 		} else {
 			logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
 			console.error(logCollector.toEndpointLog());

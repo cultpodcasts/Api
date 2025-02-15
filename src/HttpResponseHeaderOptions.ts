@@ -3,5 +3,4 @@ export type HttpResponseHeaderOptions = {
 	contextType?: string;
 	etag?: string;
 	methods: string[];
-	noCacheControlMaxAge?: boolean;
 };

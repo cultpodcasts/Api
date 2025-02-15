@@ -23,11 +23,15 @@ export async function publishHomepage(c: Auth0ActionContext): Promise<Response> 
             if (resp.status == 200) {
                 logCollector.add({ message: `Successfully used secure secure-admin-publish-homepage-endpoint.`, status: resp.status });
                 console.log(logCollector.toEndpointLog());
-                return c.json(resp.json());
+                var response = new Response(resp.body);
+                response.headers.set("content-type", "application/json; charset=utf-8");
+                return response;
             } else if (resp.status == 500) {
                 logCollector.add({ message: `Failure using secure secure-admin-publish-homepage-endpoint.`, status: resp.status });
                 console.error(logCollector.toEndpointLog());
-                return resp;
+                var response = new Response(resp.body, { status: resp.status });
+                response.headers.set("content-type", "application/json; charset=utf-8");
+                return response;
             } else {
                 logCollector.add({ message: `Failed to use secure-admin-publish-homepage-endpoint.`, status: resp.status });
                 console.error(logCollector.toEndpointLog());

@@ -15,13 +15,9 @@ export async function homepageSsr(c: ActionContext): Promise<Response> {
     if (object === null) {
         logCollector.add({ message: logCollector.message ?? "No homepage object found" });
         console.error(logCollector.toEndpointLog());
-        return c.notFound();
+        return new Response("Object Not Found", { status: 404 });
     }
-    AddResponseHeaders(c, {
-        cacheControlMaxAge: 300,
-        etag: object.etag,
-        methods: ["GET", "OPTIONS"]
-    });
+    AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
     logCollector.add({ message: `Successfully obtained ssr-homepage data.` });
     console.log(logCollector.toEndpointLog());
     return stream(c, async (stream) => {

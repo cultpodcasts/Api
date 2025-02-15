@@ -12,11 +12,7 @@ export async function publicGetEpisode(c: Auth0ActionContext): Promise<Response>
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
     const id = c.req.param('id');
-    AddResponseHeaders(c, {
-        cacheControlMaxAge: 600,
-        methods: ["GET"]
-    }
-    );
+    AddResponseHeaders(c, { methods: ["GET"] });
     if (auth0Payload != null) {
         const url = new URL(`${getEndpoint(Endpoint.publicEpisode, c.env)}/${id}`);
         const resp = await fetch(url, {
@@ -26,7 +22,7 @@ export async function publicGetEpisode(c: Auth0ActionContext): Promise<Response>
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-public-episode-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return c.json(resp.json());
+            return new Response(resp.body);
         } else {
             logCollector.add({ message: `Failed to use secure-public-episode-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
