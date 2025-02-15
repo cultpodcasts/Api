@@ -26,7 +26,7 @@ export async function getSubjectByName(c: Auth0ActionContext): Promise<Response>
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return c.json(resp.body);
+            return c.json(resp.json());
         } else {
             logCollector.add({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());

@@ -27,7 +27,7 @@ export async function updatePodcast(c: Auth0ActionContext): Promise<Response> {
 		} else if (resp.status == 404) {
 			logCollector.add({ message: `Unable to find podcast.`, status: resp.status });
 			console.error(logCollector.toEndpointLog());
-			return c.json(resp.body, resp.status);
+			return c.json(resp.json(), resp.status);
 		} else {
 			logCollector.add({ message: `Failed to use secure-podcast-endpoint.`, status: resp.status });
 			console.error(logCollector.toEndpointLog());

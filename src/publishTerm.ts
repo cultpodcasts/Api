@@ -25,7 +25,7 @@ export async function publishTerm(c: Auth0ActionContext): Promise<Response> {
             if (resp.status == 200) {
                 logCollector.add({ message: `Successfully used secure secure-term-endpoint.`, status: resp.status });
                 console.log(logCollector.toEndpointLog());
-                return c.json(resp.body);
+                return c.json(resp.json());
             } else if (resp.status == 409) {
                 logCollector.add({ message: `Failure using secure secure-term-endpoint. Conflict`, status: resp.status });
                 console.error(logCollector.toEndpointLog());

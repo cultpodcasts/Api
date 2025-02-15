@@ -27,7 +27,7 @@ export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-podcast-endpoint to rename podcast.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return c.json(resp.body);
+            return c.json(resp.json());
         } else if (resp.status == 400) {
             logCollector.add({ message: `Unable to find podcast to rename podcast.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
