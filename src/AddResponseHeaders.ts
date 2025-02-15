@@ -4,10 +4,12 @@ import { HttpResponseHeaderOptions } from "./HttpResponseHeaderOptions";
 
 
 export function AddResponseHeaders(c: Context<any>, opts: HttpResponseHeaderOptions) {
-	if (opts.cacheControlMaxAge && parseInt(opts.cacheControlMaxAge.toString())) {
-		c.header("Cache-Control", `max-age=${parseInt(opts.cacheControlMaxAge.toString())}`);
-	} else {
-		c.header("Cache-Control", `max-age=600`);
+	if (!opts.noCacheControlMaxAge != true) {
+		if (opts.cacheControlMaxAge && parseInt(opts.cacheControlMaxAge.toString())) {
+			c.header("Cache-Control", `max-age=${parseInt(opts.cacheControlMaxAge.toString())}`);
+		} else {
+			c.header("Cache-Control", `max-age=600`);
+		}
 	}
 	if (opts.contextType) {
 		c.header("Content-Type", opts.contextType);

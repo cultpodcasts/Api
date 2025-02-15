@@ -11,8 +11,10 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
     const id = c.req.param('id');
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS", "DELETE"] });
-
+    AddResponseHeaders(c, {
+        cacheControlMaxAge: 30,
+        methods: ["POST", "GET", "OPTIONS", "DELETE"]
+    });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = new URL(`${getEndpoint(Endpoint.episode, c.env)}/${id}`);
         const resp = await fetch(url, {
@@ -22,11 +24,11 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return new Response(resp.body);
+            return c.json(resp.body);
         } else if (resp.status == 404) {
             logCollector.add({ message: `Successfully used secure-episode-endpoint. Episode not found.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            return c.notFound();
         } else {
             logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
