@@ -11,7 +11,10 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
     const id = c.req.param('id');
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS", "DELETE"] });
+    AddResponseHeaders(c, {
+        cacheControlMaxAge: 30,
+        methods: ["POST", "GET", "OPTIONS", "DELETE"]
+    });
 
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = new URL(`${getEndpoint(Endpoint.episode, c.env)}/${id}`);
