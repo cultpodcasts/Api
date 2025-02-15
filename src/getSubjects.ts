@@ -18,9 +18,13 @@ export async function getSubjects(c: Auth0ActionContext): Promise<Response> {
 		if (object === null) {
 			logCollector.add({ message: logCollector.message ?? "No subjects object found" });
 			console.error(logCollector.toEndpointLog());
-			return new Response("Object Not Found", { status: 404 });
+			return c.notFound();
 		}
-		AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
+		AddResponseHeaders(c, {
+			cacheControlMaxAge: 300,
+			etag: object.httpEtag,
+			methods: ["GET", "OPTIONS"]
+		});
 		logCollector.add({ message: "Successfully obtained subjects data." });
 		console.log(logCollector.toEndpointLog());
 		return stream(c, async (stream) => {

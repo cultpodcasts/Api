@@ -4,6 +4,7 @@ import { oDataSearchModel } from "./oDataSearchModel";
 import { GuidService } from "./guid-service";
 import { IPageDetails } from "./ipage-details";
 import { ShortnerRecord } from "./ShortnerRecord";
+import { AddResponseHeaders } from "./AddResponseHeaders";
 
 export async function getPageDetails(c: ActionContext): Promise<Response> {
     const logCollector = new LogCollector();
@@ -12,6 +13,10 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
     logCollector.addMessage(`ssr=${isSsr}`);
     const episodeId = c.req.param('episodeId');
     const podcastName = c.req.param('podcastName');
+    AddResponseHeaders(c, {
+        cacheControlMaxAge: 60,
+        methods: ["GET", "OPTIONS"]
+    });
     if (episodeId && podcastName) {
         const key = new GuidService().toBase64(episodeId);
         let foundInKv: boolean = false;
@@ -28,11 +33,11 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
                 };
                 logCollector.add({ message: `Found kv-meta-data with key '${key}'. podcast-name: '${podcastName}', episode-title: '${episodeTitle}', episode-id: '${episodeId}'.` });
                 console.log(logCollector.toEndpointLog());
-                return new Response(JSON.stringify(pagedetails));
+                return c.json(pagedetails);
             } else {
                 logCollector.add({ message: `Missing kv-meta-data with key '${key}', episode-id '${episodeId}'.` });
                 console.error(logCollector.toEndpointLog());
-                return new Response(logCollector.message, { status: 400 });
+                return c.text(logCollector.message!, 400);
             }
         } else {
             const search: oDataSearchModel = {
@@ -80,21 +85,21 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
                         releaseDate: releaseDate,
                         duration: episode.duration
                     };
-                    return Response.json(pagedetails);
+                    return c.json(pagedetails);
                 } else {
                     logCollector.add({ message: `No item for episode-uuid '${episodeId}' and podcast-name '${podcastName}'` });
                     console.error(logCollector.toEndpointLog());
-                    return new Response(logCollector.message, { status: 400 });
+                    return c.text(logCollector.message!, 400);
                 }
             } else {
                 logCollector.add({ message: `Search-api responded with status '${response.status}'` });
                 console.error(logCollector.toEndpointLog());
-                return new Response(logCollector.message, { status: 400 });
+                return c.text(logCollector.message!, 400);
             }
         }
     } else {
         logCollector.add({ message: `Missing episode-id or podcast-name from request to api. Podcast-name: '${podcastName}', episode-id '${episodeId}'` });
         console.error(logCollector.toEndpointLog());
-        return new Response(logCollector.message, { status: 400 });
+        return c.text(logCollector.message!, 400);
     }
 }

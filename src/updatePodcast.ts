@@ -23,12 +23,11 @@ export async function updatePodcast(c: Auth0ActionContext): Promise<Response> {
 		});
 		if (resp.status == 202) {
 			logCollector.add({ message: `Successfully used secure-podcast-endpoint.`, status: resp.status });
-			console.log(logCollector.toEndpointLog());
-			return new Response(resp.body);
+			return c.text("Accepted", resp.status);
 		} else if (resp.status == 404) {
 			logCollector.add({ message: `Unable to find podcast.`, status: resp.status });
 			console.error(logCollector.toEndpointLog());
-			return new Response(resp.body, { status: resp.status });
+			return c.json(resp.body, resp.status);
 		} else {
 			logCollector.add({ message: `Failed to use secure-podcast-endpoint.`, status: resp.status });
 			console.error(logCollector.toEndpointLog());

@@ -27,23 +27,23 @@ export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-podcast-endpoint to rename podcast.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return new Response(resp.body);
+            return c.json(resp.body);
         } else if (resp.status == 400) {
             logCollector.add({ message: `Unable to find podcast to rename podcast.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            return c.text("Bad Request", resp.status);
         } else if (resp.status == 404) {
             logCollector.add({ message: `Unable to find podcast to rename podcast. Podccast not found.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            c.notFound();
         } else if (resp.status == 409) {
             logCollector.add({ message: `Unable to find podcast to rename podcast. Podcast exists with new-name.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            return c.text("Conflict", resp.status);
         } else {
             logCollector.add({ message: `Failed to use secure-podcast-endpoint to rename podcast.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return c.json({ error: "Error" }, 500);
+            return resp;
         }
     }
     logCollector.add({ message: "Unauthorised to use renamePodcast." });

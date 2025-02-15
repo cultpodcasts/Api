@@ -26,15 +26,15 @@ export async function indexPodcastByName(c: Auth0ActionContext): Promise<Respons
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-podcast-index-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return new Response(resp.body);
+            return c.json(resp.body);
         } else if (resp.status == 404) {
             logCollector.add({ message: `Successfully used secure-podcast-index-endpoint. Not Found.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            return c.json(resp.body, resp.status);
         } else if (resp.status == 400) {
             logCollector.add({ message: `Successfully used secure-podcast-index-endpoint. Not Performed.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            return c.json(resp.body, resp.status);
         } else {
             logCollector.add({ message: `Failed to use secure-podcast-index-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
