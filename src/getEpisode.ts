@@ -24,7 +24,7 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return c.json(resp.body);
+            return resp;
         } else if (resp.status == 404) {
             logCollector.add({ message: `Successfully used secure-episode-endpoint. Episode not found.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
