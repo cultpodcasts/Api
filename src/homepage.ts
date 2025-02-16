@@ -17,7 +17,11 @@ export async function homepage(c: ActionContext): Promise<Response> {
 		console.error(logCollector.toEndpointLog());
 		return c.notFound();
 	}
-	AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
+	AddResponseHeaders(c, { 
+		cacheControlMaxAge: 300,
+		etag: object.etag, 
+		methods: ["GET", "OPTIONS"] }
+	);
 	logCollector.add({ message: `Successfully obtained homepage data.` });
 	console.log(logCollector.toEndpointLog());
 	return stream(c, async (stream) => {

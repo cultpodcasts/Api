@@ -2,5 +2,6 @@ export type HttpResponseHeaderOptions = {
 	cacheControlMaxAge?: number;
 	contextType?: string;
 	etag?: string;
-	methods: string[];
+	methods: string[],
+	omitCacheControlHeader?: boolean;
 };

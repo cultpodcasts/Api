@@ -6,13 +6,14 @@ import { getEndpoint } from "./endpoints";
 import { Endpoint } from "./Endpoint";
 import { LogCollector } from "./LogCollector";
 
-
 export async function publicGetEpisode(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
     const id = c.req.param('id');
-    AddResponseHeaders(c, { methods: ["GET"] });
+    AddResponseHeaders(c, {
+        methods: ["GET"]
+    });
     if (auth0Payload != null) {
         const url = new URL(`${getEndpoint(Endpoint.publicEpisode, c.env)}/${id}`);
         const resp = await fetch(url, {

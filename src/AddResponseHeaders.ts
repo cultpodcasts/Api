@@ -2,11 +2,10 @@ import { Context } from "hono";
 import { getOrigin } from './getOrigin';
 import { HttpResponseHeaderOptions } from "./HttpResponseHeaderOptions";
 
-
 export function AddResponseHeaders(c: Context<any>, opts: HttpResponseHeaderOptions) {
 	if (opts.cacheControlMaxAge && parseInt(opts.cacheControlMaxAge.toString())) {
 		c.header("Cache-Control", `max-age=${parseInt(opts.cacheControlMaxAge.toString())}`);
-	} else {
+	} else if (c.req.method == "GET" && opts.omitCacheControlHeader != true) {
 		c.header("Cache-Control", `max-age=600`);
 	}
 	if (opts.contextType) {
