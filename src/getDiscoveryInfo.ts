@@ -26,11 +26,7 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
         }
         logCollector.addMessage(`Object found with uploaded-date: ${object.uploaded}`);
         object.writeHttpMetadata(c.res.headers);
-        AddResponseHeaders(c, {
-            cacheControlMaxAge: 60,
-            etag: object.httpEtag,
-            methods: ["GET", "OPTIONS"]
-        });
+        c.res.headers.set("ETag", object.httpEtag);
         logCollector.addMessage("Successfully obtained discovery-info data.");
         console.log(logCollector.toEndpointLog());
         return stream(c, async (stream) => {
