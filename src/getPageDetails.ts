@@ -4,12 +4,16 @@ import { oDataSearchModel } from "./oDataSearchModel";
 import { GuidService } from "./guid-service";
 import { IPageDetails } from "./ipage-details";
 import { ShortnerRecord } from "./ShortnerRecord";
+import { AddResponseHeaders } from "./AddResponseHeaders";
 
 export async function getPageDetails(c: ActionContext): Promise<Response> {
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
     const isSsr = c.req.query("ssr") == "true";
     logCollector.addMessage(`ssr=${isSsr}`);
+    AddResponseHeaders(c, {
+        methods: ["GET", "OPTIONS"]
+    });
     const episodeId = c.req.param('episodeId');
     const podcastName = c.req.param('podcastName');
     if (episodeId && podcastName) {

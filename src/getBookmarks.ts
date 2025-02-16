@@ -4,12 +4,14 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { LogCollector } from "./LogCollector";
 import { getBookmarksResponse } from "./getBookmarksResponse";
 
-
 export async function getBookmarks(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+    AddResponseHeaders(c, {
+        omitCacheControlHeader: true,
+        methods: ["POST", "GET", "OPTIONS"]
+    });
     if (auth0Payload) {
         let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
         let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);

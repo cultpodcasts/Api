@@ -12,7 +12,7 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
     logCollector.collectRequest(c);
     const id = c.req.param('id');
     AddResponseHeaders(c, {
-        cacheControlMaxAge: 30,
+        omitCacheControlHeader: true,
         methods: ["POST", "GET", "OPTIONS", "DELETE"]
     });
 

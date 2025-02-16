@@ -12,7 +12,10 @@ export async function getPodcastByName(c: Auth0ActionContext): Promise<Response>
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
     const name = c.req.param('name');
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+    AddResponseHeaders(c, {
+        omitCacheControlHeader: true,
+        methods: ["POST", "GET", "OPTIONS"]
+    });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = new URL(`${getEndpoint(Endpoint.podcast, c.env)}/${encodeUrlParameter(name)}`);
         console.log("get-podcast: " + url);

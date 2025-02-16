@@ -10,7 +10,10 @@ export async function getDiscoveryReports(c: Auth0ActionContext): Promise<Respon
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+    AddResponseHeaders(c, {
+        omitCacheControlHeader: true,
+        methods: ["POST", "GET", "OPTIONS"]
+    });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = getEndpoint(Endpoint.discoveryCuration, c.env);
         const resp = await fetch(url, {

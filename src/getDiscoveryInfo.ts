@@ -8,7 +8,10 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
-    AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
+    AddResponseHeaders(c, {
+        omitCacheControlHeader: true,
+        methods: ["GET", "OPTIONS"]
+    });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         let object: R2ObjectBody | null = null;
         try {
