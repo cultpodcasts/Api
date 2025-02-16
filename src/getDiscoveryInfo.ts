@@ -19,7 +19,7 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
         if (object === null) {
             logCollector.add({ message: logCollector.message ?? "No discovery-info object found" });
             console.error(logCollector.toEndpointLog());
-            return new Response("Object Not Found", { status: 404 });
+            return c.notFound();
         }
         logCollector.addMessage(`Object found with uploaded-date: ${object.uploaded}`);
         object.writeHttpMetadata(c.res.headers);

@@ -20,9 +20,7 @@ export async function getDiscoveryReports(c: Auth0ActionContext): Promise<Respon
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure secure-discovery-curation-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            var response = new Response(resp.body);
-            response.headers.set("content-type", "application/json; charset=utf-8");
-            return response;
+            return c.newResponse(resp.body);
         } else {
             logCollector.add({ message: `Failed to use secure-discovery-curation-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());

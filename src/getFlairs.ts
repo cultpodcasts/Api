@@ -18,7 +18,7 @@ export async function getFlairs(c: Auth0ActionContext): Promise<Response> {
         if (object === null) {
             logCollector.add({ message: logCollector.message ?? "No flares object found" });
             console.error(logCollector.toEndpointLog());
-            return new Response("Object Not Found", { status: 404 });
+            return c.notFound();
         }
         AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
         logCollector.add({ message: "Successfully obtained flairs data." });

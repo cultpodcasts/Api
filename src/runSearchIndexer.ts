@@ -23,20 +23,15 @@ export async function runSearchIndexer(c: Auth0ActionContext): Promise<Response>
             if (resp.status == 200) {
                 logCollector.add({ message: `Successfully used secure secure-admin-search-indexer-endpoint.`, status: resp.status });
                 console.log(logCollector.toEndpointLog());
-                var response = new Response(resp.body);
-                response.headers.set("content-type", "application/json; charset=utf-8");
-                return response;
+                return c.newResponse(resp.body);
             } else if (resp.status == 400) {
                 logCollector.add({ message: `Failure using secure secure-admin-search-indexer-endpoint.`, status: resp.status });
                 console.error(logCollector.toEndpointLog());
-                var response = new Response(resp.body, { status: 400 });
-                response.headers.set("content-type", "application/json; charset=utf-8");
-                return response;
+                return c.newResponse(resp.body, resp.status);
             } else {
                 logCollector.add({ message: `Failed to use secure-admin-search-indexer-endpoint.`, status: resp.status });
                 console.error(logCollector.toEndpointLog());
-                var response = new Response(resp.body, { status: 500 });
-                return response;
+                return c.newResponse(resp.body, 500);
             }
         }
     } catch {

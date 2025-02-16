@@ -23,7 +23,7 @@ export async function pushSubscription(c: Auth0ActionContext): Promise<Response>
         if (resp.status == 200) {
             logCollector.add({ message: `Successfully used secure-push-subscription-endpoint.`, status: resp.status });
             console.log(logCollector.toEndpointLog());
-            return new Response(resp.body, { status: resp.status });
+            return c.newResponse(resp.body, resp.status);
         } else {
             logCollector.add({ message: `Failed to use secure-push-subscription-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
