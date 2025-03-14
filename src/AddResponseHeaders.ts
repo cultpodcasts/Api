@@ -3,7 +3,7 @@ import { getOrigin } from './getOrigin';
 import { HttpResponseHeaderOptions } from "./HttpResponseHeaderOptions";
 
 export function AddResponseHeaders(c: Context<any>, opts: HttpResponseHeaderOptions) {
-	if (opts.cacheControlMaxAge && parseInt(opts.cacheControlMaxAge.toString())) {
+	if (opts.cacheControlMaxAge && parseInt(opts.cacheControlMaxAge.toString()) >= 0) {
 		c.header("Cache-Control", `max-age=${parseInt(opts.cacheControlMaxAge.toString())}`);
 	} else if (c.req.method == "GET" && opts.omitCacheControlHeader != true) {
 		c.header("Cache-Control", `max-age=600`);

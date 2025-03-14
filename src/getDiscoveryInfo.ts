@@ -41,5 +41,4 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
         console.error(logCollector.toEndpointLog());
         return c.json({ message: "Unauthorised" }, 401);
     }
-
 }
