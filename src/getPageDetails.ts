@@ -15,7 +15,7 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
         methods: ["GET", "OPTIONS"]
     });
     const episodeId = c.req.param('episodeId');
-    const podcastName = c.req.param('podcastName');
+    const podcastName = decodeURIComponent(c.req.param('podcastName')??"");
     if (episodeId && podcastName) {
         const key = new GuidService().toBase64(episodeId);
         let foundInKv: boolean = false;
