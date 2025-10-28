@@ -6,7 +6,6 @@ import { searchMode } from "./searchMode";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
-	console.log(c.env.apihost);
 	let searchLog = new searchLogCollector();
 	searchLog.collectRequest(c);
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, c.req.header('cf-connecting-ip'));
