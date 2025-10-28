@@ -1,0 +1,67 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-02",
+  "r2_buckets": [
+    {
+      "binding": "Content",
+      "bucket_name": "content",
+      "preview_bucket_name": "content"
+    },
+    {
+      "binding": "Data",
+      "bucket_name": "data",
+      "preview_bucket_name": "data"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "apiDB",
+      "database_name": "cultpodcasts-api",
+      "database_id": "17d94e5b-3bd9-4cec-95b7-cf418fe8c870"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "shortner",
+      "id": "663cd5c74988404dafbf67e1e06b21e8"
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "Analytics"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PROFILE_DURABLE_OBJECT",
+        "class_name": "ProfileDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": [
+        "ProfileDurableObject"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "ProfileDurableObject"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "ProfileDurableObject"
+      ]
+    }
+  ]
+}
