@@ -6,7 +6,7 @@ import { searchMode } from "./searchMode";
 
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
-	const url = `${c.env.apihost}`;
+	console.log(c.env.apihost);
 	let searchLog = new searchLogCollector();
 	searchLog.collectRequest(c);
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, c.req.header('cf-connecting-ip'));
@@ -16,7 +16,7 @@ export async function search(c: ActionContext): Promise<Response> {
 			.then(async (data: oDataSearchModel) => {
 				let requestBody = JSON.stringify(data);
 				searchLog.collectSearchRequest(data);
-				let response = await fetch(url, {
+				const response = await fetch(c.env.apihost, {
 					cf: {
 						cacheEverything: true,
 						cacheTtl: 600

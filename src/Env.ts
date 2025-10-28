@@ -23,6 +23,5 @@ export type Env = {
 	Data: R2Bucket;
 	apiDB: D1Database;
 	Analytics: AnalyticsEngineDataset;
-	overrideHost: string | undefined | null,
-	gatewayKey: string;
+	overrideHost: string | undefined | null
 };
