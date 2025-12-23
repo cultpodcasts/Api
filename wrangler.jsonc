@@ -47,18 +47,6 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_classes": [
-        "ProfileDurableObject"
-      ]
-    },
-    {
-      "tag": "v2",
-      "new_sqlite_classes": [
-        "ProfileDurableObject"
-      ]
-    },
-    {
-      "tag": "v3",
       "new_sqlite_classes": [
         "ProfileDurableObject"
       ]

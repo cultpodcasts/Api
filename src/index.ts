@@ -34,6 +34,7 @@ import { ProfileDurableObject } from './ProfileDurableObject';
 import { deleteBookmark } from './deleteBookmark';
 import { publicGetEpisode } from './publicGetEpisode';
 import { getDiscoveryInfo } from './getDiscoveryInfo';
+import { getLanguages } from './getLanguages';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -69,6 +70,7 @@ app.post("/bookmark/:episodeId", Auth0Middleware, addBookmark);
 app.delete("/bookmark/:episodeId", Auth0Middleware, deleteBookmark);
 app.get("/bookmarks", Auth0Middleware, getBookmarks);
 app.get("/public/episode/:id", Auth0Middleware, publicGetEpisode);
+app.get('/languages', Auth0Middleware, getLanguages);
 
 export default app;
 export { ProfileDurableObject };
