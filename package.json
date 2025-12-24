@@ -1,6 +1,6 @@
 {
   "name": "d1-tutorial",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
