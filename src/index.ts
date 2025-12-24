@@ -35,6 +35,7 @@ import { deleteBookmark } from './deleteBookmark';
 import { publicGetEpisode } from './publicGetEpisode';
 import { getDiscoveryInfo } from './getDiscoveryInfo';
 import { getLanguages } from './getLanguages';
+import { getPodcastByNameAndEpisodeId } from './getPodcastByNameAndEpisodeId';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -51,6 +52,7 @@ app.delete("/episode/:id", Auth0Middleware, deleteEpisode);
 app.post("/episode/publish/:id", Auth0Middleware, publish);
 app.get("/episodes/outgoing", Auth0Middleware, getOutgoing);
 app.get("/podcast/:name", Auth0Middleware, getPodcastByName);
+app.get("/podcast/:name/:id", Auth0Middleware, getPodcastByNameAndEpisodeId);
 app.post("/podcast/:id", Auth0Middleware, updatePodcast);
 app.put("/podcast/:id", Auth0Middleware, updatePodcast);
 app.post("/podcast/index/:name", Auth0Middleware, indexPodcastByName);
