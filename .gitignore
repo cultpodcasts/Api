@@ -10,3 +10,4 @@ subjects.json
 flairs.json
 homepage.json
 homepage-ssr.json
+scripts/set-secrets-*.cmd
