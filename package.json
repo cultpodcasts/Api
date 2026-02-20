@@ -1,15 +1,15 @@
 {
-  "name": "d1-tutorial",
-  "version": "1.0.2",
+  "name": "cultpodcasts-api",
+  "version": "1.0.3",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "start": "wrangler dev --local-protocol https"
+    "start": "wrangler dev --env local --local-protocol https"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241022.0",
     "typescript": "^5.0.4",
-    "wrangler": "^4.45.1"
+    "wrangler": "^4.67.0"
   },
   "dependencies": {
     "@cfworker/jwt": "^4.0.6",
