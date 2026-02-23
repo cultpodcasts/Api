@@ -7,6 +7,7 @@ import { Env } from './Env';
 import { Auth0JwtPayload } from './Auth0JwtPayload';
 import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
+import { docsPageHtml } from './resources/docsPageHtml';
 import {
 	AddBookmarkRoute,
 	CreateSubjectRoute,
@@ -104,8 +105,6 @@ const requireOpenApiAuth = async (c: any, next: () => Promise<void>) => {
 app.use('/*', cors(corsOptions))
 app.use('/docs', requireOpenApiAuth);
 app.use('/docs/*', requireOpenApiAuth);
-app.use('/docs-ui', requireOpenApiAuth);
-app.use('/docs-ui/*', requireOpenApiAuth);
 app.use('/openapi.json', requireOpenApiAuth);
 
 app.get('/docs/login', (c) => {
@@ -208,32 +207,11 @@ app.get('/docs/logout', (c) => {
 });
 
 app.get('/docs', (c) => {
-	const html = `<!doctype html>
-<html>
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>API Docs</title>
-		<style>
-			html, body { margin: 0; padding: 0; height: 100%; font-family: system-ui, sans-serif; }
-			.bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid #ddd; }
-			.link { text-decoration: none; font-weight: 600; }
-			.frame { width: 100%; height: calc(100% - 49px); border: 0; }
-		</style>
-	</head>
-	<body>
-		<div class="bar">
-			<span>OpenAPI Docs</span>
-			<a class="link" href="/docs/logout">Logout</a>
-		</div>
-		<iframe class="frame" src="/docs-ui" title="OpenAPI Docs"></iframe>
-	</body>
-</html>`;
-	return c.html(html);
+	return c.html(docsPageHtml);
 });
 
 const openapi = fromHono(app, {
-	docs_url: '/docs-ui',
+	docs_url: null,
 	openapi_url: '/openapi.json',
 	schema: {
 		info: {
