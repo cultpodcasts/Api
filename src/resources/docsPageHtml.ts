@@ -20,14 +20,35 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 		<style>
 			html, body { margin: 0; padding: 0; }
 			#swagger-ui { min-height: 100vh; }
-			.token-bar {
+			.top-actions {
 				position: fixed;
 				top: 12px;
-				left: 16px;
+				right: 16px;
 				z-index: 10000;
 				display: flex;
 				gap: 8px;
 				align-items: center;
+			}
+			.hamburger {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 38px;
+				height: 36px;
+				border: 1px solid #111827;
+				background: #111827;
+				color: #ffffff;
+				border-radius: 6px;
+				cursor: pointer;
+				font: 700 18px/1 system-ui, sans-serif;
+			}
+			.token-overlay {
+				position: fixed;
+				z-index: 10001;
+				display: none;
+				gap: 8px;
+				align-items: center;
+				flex-wrap: wrap;
 				background: #ffffff;
 				border: 1px solid #d1d5db;
 				border-radius: 6px;
@@ -35,9 +56,10 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 				font: 500 13px system-ui, sans-serif;
 			}
+			.token-overlay.open { display: flex; }
 			.token-input {
-				width: 360px;
-				max-width: 45vw;
+				width: 320px;
+				max-width: 50vw;
 				padding: 6px 8px;
 				border: 1px solid #d1d5db;
 				border-radius: 6px;
@@ -61,10 +83,8 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 				color: #111827;
 			}
 			.logout {
-				position: fixed;
-				top: 12px;
-				right: 16px;
-				z-index: 10000;
+				display: inline-flex;
+				align-items: center;
 				background: #111827;
 				color: #ffffff;
 				padding: 8px 12px;
@@ -75,14 +95,17 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 		</style>
 	</head>
 	<body>
-		<div class="token-bar">
+		<div class="top-actions">
+			<button id="token-toggle" class="hamburger" type="button" aria-label="Toggle token controls" title="Token controls">☰</button>
+			<a class="logout" href="/docs/logout">Logout</a>
+		</div>
+		<div id="token-overlay" class="token-overlay">
 			<label for="api-token">Bearer token</label>
 			<input id="api-token" class="token-input" type="password" placeholder="Paste Auth0 access token" autocomplete="off" />
 			<button id="auth0-login" class="token-button" type="button" ${auth0Enabled ? '' : 'disabled'}>Login with Auth0</button>
 			<button id="save-token" class="token-button" type="button">Use token</button>
 			<button id="clear-token" class="token-button token-clear" type="button">Clear</button>
 		</div>
-		<a class="logout" href="/docs/logout">Logout</a>
 		<div id="swagger-ui"></div>
 		<script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
 		<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
@@ -93,10 +116,37 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 			const auth0Audience = ${JSON.stringify(auth0Audience)};
 			const auth0ClientId = ${JSON.stringify(auth0ClientId)};
 			const auth0Enabled = ${JSON.stringify(auth0Enabled)};
+			const tokenToggleButton = document.getElementById('token-toggle');
+			const tokenOverlay = document.getElementById('token-overlay');
 			const tokenInput = document.getElementById('api-token');
 			const auth0LoginButton = document.getElementById('auth0-login');
 			const saveTokenButton = document.getElementById('save-token');
 			const clearTokenButton = document.getElementById('clear-token');
+
+			const positionTokenOverlay = () => {
+				if (!tokenOverlay.classList.contains('open')) {
+					return;
+				}
+				const rect = tokenToggleButton.getBoundingClientRect();
+				tokenOverlay.style.top = rect.top + 'px';
+				tokenOverlay.style.left = Math.max(8, rect.left - tokenOverlay.offsetWidth - 8) + 'px';
+			};
+
+			tokenToggleButton.addEventListener('click', () => {
+				tokenOverlay.classList.toggle('open');
+				positionTokenOverlay();
+			});
+
+			window.addEventListener('resize', positionTokenOverlay);
+			document.addEventListener('click', (event) => {
+				if (!tokenOverlay.classList.contains('open')) {
+					return;
+				}
+				const target = event.target;
+				if (target instanceof Node && !tokenOverlay.contains(target) && target !== tokenToggleButton) {
+					tokenOverlay.classList.remove('open');
+				}
+			});
 
 			const getSavedToken = () => localStorage.getItem(tokenStorageKey) || '';
 			const setSavedToken = (value) => {
