@@ -1,78 +1,91 @@
+import { fromHono } from 'chanfana';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors'
 import { Env } from './Env';
-import { Auth0Middleware } from './Auth0Middleware';
-import { getEpisode } from './getEpisode';
 import { corsOptions } from "./corsOptions";
-import { homepage } from './homepage';
-import { homepageSsr } from "./homepageSsr";
-import { getSubjects } from './getSubjects';
-import { getFlairs } from './getFlairs';
-import { search } from './search';
-import { submit } from './submit';
-import { updateEpisode } from './updateEpisode';
-import { publish } from './publish';
-import { getOutgoing } from './getOutgoing';
-import { getPodcastByName } from './getPodcastByName';
-import { updatePodcast } from './updatePodcast';
-import { renamePodcast } from "./renamePodcast";
-import { indexPodcastByName } from './indexPodcastByName';
-import { getSubjectByName } from './getSubjectByName';
-import { updateSubject } from './updateSubject';
-import { createSubject } from './createSubject';
-import { getDiscoveryReports } from './getDiscoveryReports';
-import { submitDiscovery } from './submitDiscovery';
-import { runSearchIndexer } from './runSearchIndexer';
-import { publishHomepage } from './publishHomepage';
-import { publishTerm } from './publishTerm';
-import { deleteEpisode } from './deleteEpisode';
-import { pushSubscription } from './pushSubscription';
-import { getPageDetails } from './getPageDetails';
-import { addBookmark } from "./addBookmark";
-import { getBookmarks } from "./getBookmarks";
 import { ProfileDurableObject } from './ProfileDurableObject';
-import { deleteBookmark } from './deleteBookmark';
-import { publicGetEpisode } from './publicGetEpisode';
-import { getDiscoveryInfo } from './getDiscoveryInfo';
-import { getLanguages } from './getLanguages';
-import { getPodcastByNameAndEpisodeId } from './getPodcastByNameAndEpisodeId';
+import {
+	AddBookmarkRoute,
+	CreateSubjectRoute,
+	DeleteBookmarkRoute,
+	DeleteEpisodeRoute,
+	GetBookmarksRoute,
+	GetDiscoveryInfoRoute,
+	GetDiscoveryReportsRoute,
+	GetEpisodeRoute,
+	GetFlairsRoute,
+	GetLanguagesRoute,
+	GetOutgoingRoute,
+	GetPageDetailsRoute,
+	GetPodcastByNameAndEpisodeIdRoute,
+	GetPodcastByNameRoute,
+	GetSubjectByNameRoute,
+	GetSubjectsRoute,
+	HomepageRoute,
+	HomepageSsrRoute,
+	IndexPodcastByNameRoute,
+	PublicGetEpisodeRoute,
+	PublishEpisodeRoute,
+	PublishHomepageRoute,
+	PublishTermRoute,
+	PushSubscriptionRoute,
+	RenamePodcastRoute,
+	RunSearchIndexerRoute,
+	SearchRoute,
+	SubmitDiscoveryRoute,
+	SubmitRoute,
+	UpdateEpisodeRoute,
+	UpdatePodcastPostRoute,
+	UpdatePodcastPutRoute,
+	UpdateSubjectRoute
+} from './openapiRoutes';
 
 const app = new Hono<{ Bindings: Env }>();
+const openapi = fromHono(app, {
+	docs_url: '/docs',
+	openapi_url: '/openapi.json',
+	schema: {
+		info: {
+			title: 'Cult Podcasts API',
+			version: '1.0.3'
+		}
+	}
+});
 
 app.use('/*', cors(corsOptions))
-app.get('/homepage', homepage);
-app.get('/homepage-ssr', homepageSsr);
-app.get('/subjects', Auth0Middleware, getSubjects);
-app.get('/flairs', Auth0Middleware, getFlairs);
-app.post("/search", search);
-app.post("/submit", Auth0Middleware, submit);
-app.get("/episode/:id", Auth0Middleware, getEpisode);
-app.post("/episode/:id", Auth0Middleware, updateEpisode);
-app.delete("/episode/:id", Auth0Middleware, deleteEpisode);
-app.post("/episode/publish/:id", Auth0Middleware, publish);
-app.get("/episodes/outgoing", Auth0Middleware, getOutgoing);
-app.get("/podcast/:name", Auth0Middleware, getPodcastByName);
-app.get("/podcast/:name/:id", Auth0Middleware, getPodcastByNameAndEpisodeId);
-app.post("/podcast/:id", Auth0Middleware, updatePodcast);
-app.put("/podcast/:id", Auth0Middleware, updatePodcast);
-app.post("/podcast/index/:name", Auth0Middleware, indexPodcastByName);
-app.get("/subject/:name", Auth0Middleware, getSubjectByName);
-app.post("/subject/:id", Auth0Middleware, updateSubject);
-app.put("/subject", Auth0Middleware, createSubject);
-app.get("/discovery-curation", Auth0Middleware, getDiscoveryReports);
-app.post("/discovery-curation", Auth0Middleware, submitDiscovery);
-app.get("/discovery-info", Auth0Middleware, getDiscoveryInfo);
-app.post("/searchindex/run", Auth0Middleware, runSearchIndexer);
-app.post("/publish/homepage", Auth0Middleware, publishHomepage);
-app.post("/terms", Auth0Middleware, publishTerm);
-app.post("/podcast/name/:name", Auth0Middleware, renamePodcast);
-app.post("/pushsubscription", Auth0Middleware, pushSubscription);
-app.get("/pagedetails/:podcastName/:episodeId", getPageDetails)
-app.post("/bookmark/:episodeId", Auth0Middleware, addBookmark);
-app.delete("/bookmark/:episodeId", Auth0Middleware, deleteBookmark);
-app.get("/bookmarks", Auth0Middleware, getBookmarks);
-app.get("/public/episode/:id", Auth0Middleware, publicGetEpisode);
-app.get('/languages', Auth0Middleware, getLanguages);
+openapi.get('/homepage', HomepageRoute);
+openapi.get('/homepage-ssr', HomepageSsrRoute);
+openapi.get('/subjects', GetSubjectsRoute);
+openapi.get('/flairs', GetFlairsRoute);
+openapi.post('/search', SearchRoute);
+openapi.post('/submit', SubmitRoute);
+openapi.get('/episode/:id', GetEpisodeRoute);
+openapi.post('/episode/:id', UpdateEpisodeRoute);
+openapi.delete('/episode/:id', DeleteEpisodeRoute);
+openapi.post('/episode/publish/:id', PublishEpisodeRoute);
+openapi.get('/episodes/outgoing', GetOutgoingRoute);
+openapi.get('/podcast/:name', GetPodcastByNameRoute);
+openapi.get('/podcast/:name/:id', GetPodcastByNameAndEpisodeIdRoute);
+openapi.post('/podcast/:id', UpdatePodcastPostRoute);
+openapi.put('/podcast/:id', UpdatePodcastPutRoute);
+openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);
+openapi.get('/subject/:name', GetSubjectByNameRoute);
+openapi.post('/subject/:id', UpdateSubjectRoute);
+openapi.put('/subject', CreateSubjectRoute);
+openapi.get('/discovery-curation', GetDiscoveryReportsRoute);
+openapi.post('/discovery-curation', SubmitDiscoveryRoute);
+openapi.get('/discovery-info', GetDiscoveryInfoRoute);
+openapi.post('/searchindex/run', RunSearchIndexerRoute);
+openapi.post('/publish/homepage', PublishHomepageRoute);
+openapi.post('/terms', PublishTermRoute);
+openapi.post('/podcast/name/:name', RenamePodcastRoute);
+openapi.post('/pushsubscription', PushSubscriptionRoute);
+openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);
+openapi.post('/bookmark/:episodeId', AddBookmarkRoute);
+openapi.delete('/bookmark/:episodeId', DeleteBookmarkRoute);
+openapi.get('/bookmarks', GetBookmarksRoute);
+openapi.get('/public/episode/:id', PublicGetEpisodeRoute);
+openapi.get('/languages', GetLanguagesRoute);
 
 export default app;
 export { ProfileDurableObject };
