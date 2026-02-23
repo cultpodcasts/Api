@@ -67,6 +67,9 @@
   ],
   "env": {
     "preview": {
+      "observability": {
+        "enabled": true
+      },
       "r2_buckets": [
         {
           "binding": "Content",
