@@ -7,7 +7,7 @@ import { Env } from './Env';
 import { Auth0JwtPayload } from './Auth0JwtPayload';
 import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
-import { docsPageHtml } from './resources/docsPageHtml';
+import { buildDocsPageHtml } from './resources/docsPageHtml';
 import {
 	AddBookmarkRoute,
 	CreateSubjectRoute,
@@ -207,7 +207,11 @@ app.get('/docs/logout', (c) => {
 });
 
 app.get('/docs', (c) => {
-	return c.html(docsPageHtml);
+	return c.html(buildDocsPageHtml({
+		auth0Issuer: c.env.auth0Issuer,
+		auth0Audience: c.env.auth0Audience,
+		auth0ClientId: c.env.auth0ClientId
+	}));
 });
 
 const openapi = fromHono(app, {
