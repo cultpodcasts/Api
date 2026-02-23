@@ -107,7 +107,15 @@
             "class_name": "ProfileDurableObject"
           }
         ]
-      }
+      },
+      "migrations": [
+        {
+          "tag": "preview-v1",
+          "new_classes": [
+            "ProfileDurableObject"
+          ]
+        }
+      ]
     },
     "production": {
       "r2_buckets": [

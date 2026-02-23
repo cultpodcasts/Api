@@ -48,11 +48,37 @@ const app = new Hono<{ Bindings: Env }>();
 const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
 const OPENAPI_AUTH_STATE_COOKIE = 'openapi_auth_state';
 
+const trimValue = (value: string | undefined | null): string | undefined => {
+	if (value == null) {
+		return undefined;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const normalizeIssuer = (value: string | undefined | null): string | undefined => {
+	const trimmed = trimValue(value);
+	if (!trimmed) {
+		return undefined;
+	}
+	try {
+		return new URL(trimmed).toString();
+	} catch {
+		try {
+			return new URL(`https://${trimmed}`).toString();
+		} catch {
+			return undefined;
+		}
+	}
+};
+
 const tryGetPayload = async (c: any, token: string | undefined): Promise<Auth0JwtPayload | null> => {
-	if (!token || !c.env.auth0Issuer || !c.env.auth0Audience) {
+	const issuer = normalizeIssuer(c.env.auth0Issuer);
+	const audience = trimValue(c.env.auth0Audience);
+	if (!token || !issuer || !audience) {
 		return null;
 	}
-	const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
+	const result = await parseJwt(token, issuer, audience);
 	if (!result.valid) {
 		return null;
 	}
@@ -108,7 +134,11 @@ app.use('/docs/*', requireOpenApiAuth);
 app.use('/openapi.json', requireOpenApiAuth);
 
 app.get('/docs/login', (c) => {
-	if (!c.env.auth0Issuer || !c.env.auth0Audience || !c.env.auth0ClientId) {
+	const issuer = normalizeIssuer(c.env.auth0Issuer);
+	const audience = trimValue(c.env.auth0Audience);
+	const clientId = trimValue(c.env.auth0ClientId);
+
+	if (!issuer || !audience || !clientId) {
 		return c.json({ error: 'Auth0 docs login not configured' }, 500);
 	}
 
@@ -122,11 +152,11 @@ app.get('/docs/login', (c) => {
 		maxAge: 300
 	});
 
-	const authorizeUrl = new URL('/authorize', c.env.auth0Issuer);
+	const authorizeUrl = new URL('/authorize', issuer);
 	authorizeUrl.searchParams.set('response_type', 'token');
-	authorizeUrl.searchParams.set('client_id', c.env.auth0ClientId);
+	authorizeUrl.searchParams.set('client_id', clientId);
 	authorizeUrl.searchParams.set('redirect_uri', `${requestUrl.origin}/docs/callback`);
-	authorizeUrl.searchParams.set('audience', c.env.auth0Audience);
+	authorizeUrl.searchParams.set('audience', audience);
 	authorizeUrl.searchParams.set('scope', 'openid profile email');
 	authorizeUrl.searchParams.set('state', state);
 
@@ -208,9 +238,9 @@ app.get('/docs/logout', (c) => {
 
 app.get('/docs', (c) => {
 	return c.html(buildDocsPageHtml({
-		auth0Issuer: c.env.auth0Issuer,
-		auth0Audience: c.env.auth0Audience,
-		auth0ClientId: c.env.auth0ClientId
+		auth0Issuer: normalizeIssuer(c.env.auth0Issuer),
+		auth0Audience: trimValue(c.env.auth0Audience),
+		auth0ClientId: trimValue(c.env.auth0ClientId)
 	}));
 });
 
