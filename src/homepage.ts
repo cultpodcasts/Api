@@ -6,12 +6,18 @@ export async function homepage(c: ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
 	const cache = caches.default;
-	const cacheKey = new Request(c.req.url, c.req.raw);
+	const cacheKey = new Request(c.req.url, { method: "GET" });
+	logCollector.add({message:`cacheKey: ${cacheKey.url}`});
 	const cached = await cache.match(cacheKey);
 	if (cached) {
 		logCollector.add({ message: "Served homepage from cache." });
 		console.log(logCollector.toEndpointLog());
-		return cached;
+		const hitHeaders = new Headers(cached.headers);
+		hitHeaders.set("X-Homepage-Cache", "HIT");
+		return new Response(cached.body, {
+			status: cached.status,
+			headers: hitHeaders
+		});
 	}
 
 	let object: R2ObjectBody | null = null;
@@ -37,7 +43,8 @@ export async function homepage(c: ActionContext): Promise<Response> {
 		status: 200,
 		headers: new Headers(c.res.headers)
 	});
+	response.headers.set("X-Homepage-Cache", "MISS");
 
-	c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+	await cache.put(cacheKey, response.clone());
 	return response;
 }
