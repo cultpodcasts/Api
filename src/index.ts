@@ -1,8 +1,10 @@
+import { parseJwt } from '@cfworker/jwt';
 import { fromHono } from 'chanfana';
 import { Hono } from 'hono';
+import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors'
 import { Env } from './Env';
-import { Auth0Middleware } from './Auth0Middleware';
+import { Auth0JwtPayload } from './Auth0JwtPayload';
 import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
 import {
@@ -42,29 +44,196 @@ import {
 } from './openapiRoutes';
 
 const app = new Hono<{ Bindings: Env }>();
+const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
+const OPENAPI_AUTH_STATE_COOKIE = 'openapi_auth_state';
+
+const tryGetPayload = async (c: any, token: string | undefined): Promise<Auth0JwtPayload | null> => {
+	if (!token || !c.env.auth0Issuer || !c.env.auth0Audience) {
+		return null;
+	}
+	const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
+	if (!result.valid) {
+		return null;
+	}
+	return result.payload as Auth0JwtPayload;
+};
+
+const getBearerToken = (c: any): string | undefined => {
+	const authorization = c.req.header('Authorization');
+	const bearer = 'Bearer ';
+	if (!authorization || !authorization.startsWith(bearer)) {
+		return undefined;
+	}
+	return authorization.slice(bearer.length);
+};
+
+const isAdmin = (payload: Auth0JwtPayload | null): boolean => {
+	return !!payload?.permissions?.includes('admin');
+};
+
+const isOpenApiAuthBypassPath = (pathname: string): boolean => {
+	return pathname === '/docs/login' ||
+		pathname === '/docs/callback' ||
+		pathname === '/docs/auth/callback' ||
+		pathname === '/docs/logout';
+};
 
 const requireOpenApiAuth = async (c: any, next: () => Promise<void>) => {
-	const middlewareResult = await Auth0Middleware(c, async () => { });
-	if (middlewareResult instanceof Response) {
-		return middlewareResult;
+	const pathname = new URL(c.req.url).pathname;
+	if (isOpenApiAuthBypassPath(pathname)) {
+		await next();
+		return;
 	}
-	const auth0Payload = c.var.auth0('payload');
-	if (!auth0Payload) {
+
+	const bearerToken = getBearerToken(c);
+	const cookieToken = getCookie(c, OPENAPI_AUTH_COOKIE);
+	const payload = await tryGetPayload(c, bearerToken ?? cookieToken);
+	if (!payload) {
+		if (pathname.startsWith('/docs')) {
+			return c.redirect('/docs/login');
+		}
 		return c.json({ error: 'Unauthorised' }, 403);
 	}
-	if (!auth0Payload.permissions || !auth0Payload.permissions.includes('admin')) {
+	if (!isAdmin(payload)) {
 		return c.json({ error: 'Forbidden' }, 403);
 	}
+
 	await next();
 };
 
 app.use('/*', cors(corsOptions))
 app.use('/docs', requireOpenApiAuth);
 app.use('/docs/*', requireOpenApiAuth);
+app.use('/docs-ui', requireOpenApiAuth);
+app.use('/docs-ui/*', requireOpenApiAuth);
 app.use('/openapi.json', requireOpenApiAuth);
 
+app.get('/docs/login', (c) => {
+	if (!c.env.auth0Issuer || !c.env.auth0Audience || !c.env.auth0ClientId) {
+		return c.json({ error: 'Auth0 docs login not configured' }, 500);
+	}
+
+	const requestUrl = new URL(c.req.url);
+	const state = crypto.randomUUID();
+	setCookie(c, OPENAPI_AUTH_STATE_COOKIE, state, {
+		httpOnly: true,
+		secure: true,
+		sameSite: 'Strict',
+		path: '/docs',
+		maxAge: 300
+	});
+
+	const authorizeUrl = new URL('/authorize', c.env.auth0Issuer);
+	authorizeUrl.searchParams.set('response_type', 'token');
+	authorizeUrl.searchParams.set('client_id', c.env.auth0ClientId);
+	authorizeUrl.searchParams.set('redirect_uri', `${requestUrl.origin}/docs/callback`);
+	authorizeUrl.searchParams.set('audience', c.env.auth0Audience);
+	authorizeUrl.searchParams.set('scope', 'openid profile email');
+	authorizeUrl.searchParams.set('state', state);
+
+	return c.redirect(authorizeUrl.toString());
+});
+
+app.get('/docs/callback', (c) => {
+	const html = `<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Authenticating...</title></head>
+  <body>
+    <script>
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const accessToken = hashParams.get('access_token');
+      const state = hashParams.get('state');
+      if (!accessToken || !state) {
+        window.location.replace('/docs/login');
+      } else {
+        const next = '/docs/auth/callback?access_token=' + encodeURIComponent(accessToken) + '&state=' + encodeURIComponent(state);
+        window.location.replace(next);
+      }
+    </script>
+  </body>
+</html>`;
+	return c.html(html);
+});
+
+app.get('/docs/auth/callback', async (c) => {
+	const state = c.req.query('state');
+	const token = c.req.query('access_token');
+	const stateCookie = getCookie(c, OPENAPI_AUTH_STATE_COOKIE);
+
+	if (!state || !stateCookie || state !== stateCookie) {
+		return c.json({ error: 'Invalid auth state' }, 403);
+	}
+
+	const payload = await tryGetPayload(c, token);
+	if (!isAdmin(payload)) {
+		return c.json({ error: 'Forbidden' }, 403);
+	}
+
+	setCookie(c, OPENAPI_AUTH_COOKIE, token!, {
+		httpOnly: true,
+		secure: true,
+		sameSite: 'Strict',
+		path: '/'
+	});
+	setCookie(c, OPENAPI_AUTH_STATE_COOKIE, '', {
+		httpOnly: true,
+		secure: true,
+		sameSite: 'Strict',
+		path: '/docs',
+		maxAge: 0,
+		expires: new Date(0)
+	});
+
+	return c.redirect('/docs');
+});
+
+app.get('/docs/logout', (c) => {
+	setCookie(c, OPENAPI_AUTH_COOKIE, '', {
+		httpOnly: true,
+		secure: true,
+		sameSite: 'Strict',
+		path: '/',
+		maxAge: 0,
+		expires: new Date(0)
+	});
+	setCookie(c, OPENAPI_AUTH_STATE_COOKIE, '', {
+		httpOnly: true,
+		secure: true,
+		sameSite: 'Strict',
+		path: '/docs',
+		maxAge: 0,
+		expires: new Date(0)
+	});
+	return c.json({ message: 'Logged out from docs session' });
+});
+
+app.get('/docs', (c) => {
+	const html = `<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>API Docs</title>
+		<style>
+			html, body { margin: 0; padding: 0; height: 100%; font-family: system-ui, sans-serif; }
+			.bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid #ddd; }
+			.link { text-decoration: none; font-weight: 600; }
+			.frame { width: 100%; height: calc(100% - 49px); border: 0; }
+		</style>
+	</head>
+	<body>
+		<div class="bar">
+			<span>OpenAPI Docs</span>
+			<a class="link" href="/docs/logout">Logout</a>
+		</div>
+		<iframe class="frame" src="/docs-ui" title="OpenAPI Docs"></iframe>
+	</body>
+</html>`;
+	return c.html(html);
+});
+
 const openapi = fromHono(app, {
-	docs_url: '/docs',
+	docs_url: '/docs-ui',
 	openapi_url: '/openapi.json',
 	schema: {
 		info: {
