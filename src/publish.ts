@@ -5,6 +5,7 @@ import { buildFetchHeaders } from "./buildFetchHeaders";
 import { LogCollector } from "./LogCollector";
 import { getEndpoint } from "./endpoints";
 import { Endpoint } from "./Endpoint";
+import { StatusCode } from "hono/utils/http-status";
 
 export async function publish(c: Auth0ActionContext): Promise<Response> {
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -28,7 +29,7 @@ export async function publish(c: Auth0ActionContext): Promise<Response> {
         } else {
             logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
             console.error(logCollector.toEndpointLog());
-            return c.newResponse(resp.body, { status: resp.status });
+            return c.newResponse(resp.body, resp.status as StatusCode);
         }
     }
     logCollector.add({ message: "Unauthorised to use publish." });
