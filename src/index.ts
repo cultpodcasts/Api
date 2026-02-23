@@ -2,6 +2,7 @@ import { fromHono } from 'chanfana';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors'
 import { Env } from './Env';
+import { Auth0Middleware } from './Auth0Middleware';
 import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
 import {
@@ -41,6 +42,27 @@ import {
 } from './openapiRoutes';
 
 const app = new Hono<{ Bindings: Env }>();
+
+const requireOpenApiAuth = async (c: any, next: () => Promise<void>) => {
+	const middlewareResult = await Auth0Middleware(c, async () => { });
+	if (middlewareResult instanceof Response) {
+		return middlewareResult;
+	}
+	const auth0Payload = c.var.auth0('payload');
+	if (!auth0Payload) {
+		return c.json({ error: 'Unauthorised' }, 403);
+	}
+	if (!auth0Payload.permissions || !auth0Payload.permissions.includes('admin')) {
+		return c.json({ error: 'Forbidden' }, 403);
+	}
+	await next();
+};
+
+app.use('/*', cors(corsOptions))
+app.use('/docs', requireOpenApiAuth);
+app.use('/docs/*', requireOpenApiAuth);
+app.use('/openapi.json', requireOpenApiAuth);
+
 const openapi = fromHono(app, {
 	docs_url: '/docs',
 	openapi_url: '/openapi.json',
@@ -52,7 +74,6 @@ const openapi = fromHono(app, {
 	}
 });
 
-app.use('/*', cors(corsOptions))
 openapi.get('/homepage', HomepageRoute);
 openapi.get('/homepage-ssr', HomepageSsrRoute);
 openapi.get('/subjects', GetSubjectsRoute);
