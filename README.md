@@ -16,6 +16,10 @@ npm run start
 
 This runs Wrangler with the `local` environment (`wrangler dev --env local`).
 
+Local development uses HTTPS with a custom trusted certificate and listens on `127.0.0.1:8787`:
+
+`wrangler dev --env local --ip 127.0.0.1 --port 8787 --local-protocol https --https-cert-path ./.cert/dev-cert.pem --https-key-path ./.cert/dev-key.pem`
+
 ### Why `env.local` exists
 
 `wrangler.jsonc` keeps production migrations (`v1`, `v2`, `v3`) unchanged for deploys, and also defines `env.local.migrations` with a local baseline migration for `ProfileDurableObject`.
