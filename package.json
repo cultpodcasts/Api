@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "start": "wrangler dev --env local --local-protocol https"
+    "start": "wrangler dev --env local --ip 127.0.0.1 --port 8787 --local-protocol https --https-cert-path ./.cert/dev-cert.pem --https-key-path ./.cert/dev-key.pem"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241022.0",

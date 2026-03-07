@@ -11,3 +11,5 @@ flairs.json
 homepage.json
 homepage-ssr.json
 scripts/set-secrets-*.cmd
+scripts/set-secrets-*.ps1
+.cert/
