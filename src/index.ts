@@ -266,7 +266,7 @@ openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
 openapi.post('/submit', SubmitRoute);
 // New Episode Endpoints
-openapi.get('/episode/:podcastId/:episodeId', GetPodcastEpisodeRoute);
+openapi.get('/episode/:podcastName/:episodeId', GetPodcastEpisodeRoute);
 openapi.post('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
 openapi.delete('/episode/:podcastId/:episodeId', DeletePodcastEpisodeRoute);
 // \New Episode Endpoints

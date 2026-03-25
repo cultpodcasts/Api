@@ -45,14 +45,14 @@ export async function getPodcastEpisode(c:Auth0ActionContext): Promise<Response>
     const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
     const logCollector = new LogCollector();
     logCollector.collectRequest(c);
-    const podcastId = c.req.param('podcastId');
+    const podcastName = c.req.param('podcastName');
     const episodeId = c.req.param('episodeId');
     AddResponseHeaders(c, {
         omitCacheControlHeader: true,
         methods: ["POST", "GET", "OPTIONS", "DELETE"]
     });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        const url = new URL(`${getEndpoint(Endpoint.episode, c.env)}/${podcastId}/${episodeId}`);
+        const url = new URL(`${getEndpoint(Endpoint.episode, c.env)}/${podcastName}/${episodeId}`);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
