@@ -4,11 +4,11 @@ import { Auth0Middleware } from "./Auth0Middleware";
 import { addBookmark } from "./addBookmark";
 import { createSubject } from "./createSubject";
 import { deleteBookmark } from "./deleteBookmark";
-import { deleteEpisode } from "./deleteEpisode";
+import { deleteEpisode, deletePodcastEpisode } from "./deleteEpisode";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
-import { getEpisode } from "./getEpisode";
+import { getEpisode, getPodcastEpisode } from "./getEpisode";
 import { getFlairs } from "./getFlairs";
 import { getLanguages } from "./getLanguages";
 import { getOutgoing } from "./getOutgoing";
@@ -21,7 +21,7 @@ import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { indexPodcastByName } from "./indexPodcastByName";
 import { publicGetEpisode } from "./publicGetEpisode";
-import { publish } from "./publish";
+import { publishEpisode, publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { publishTerm } from "./publishTerm";
 import { pushSubscription } from "./pushSubscription";
@@ -30,7 +30,7 @@ import { runSearchIndexer } from "./runSearchIndexer";
 import { search } from "./search";
 import { submit } from "./submit";
 import { submitDiscovery } from "./submitDiscovery";
-import { updateEpisode } from "./updateEpisode";
+import { updateEpisode, updatePodcastEpisode } from "./updateEpisode";
 import { updatePodcast } from "./updatePodcast";
 import { updateSubject } from "./updateSubject";
 
@@ -81,6 +81,7 @@ const idParam = z.object({ id: z.string() });
 const nameParam = z.object({ name: z.string() });
 const episodeIdParam = z.object({ episodeId: z.string().uuid() });
 const podcastAndEpisodeParam = z.object({ podcastName: z.string(), episodeId: z.string() });
+const podcastIdAndEpisodeParam = z.object({ podcastId: z.string(), episodeId: z.string() });
 const podcastNameAndIdParam = z.object({ name: z.string(), id: z.string() });
 
 export const HomepageRoute = createOpenApiRoute(homepage, {
@@ -146,12 +147,32 @@ export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
     }
 });
 
+export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
+    auth: true,
+    schema: {
+        tags: ["Episodes"],
+        summary: "Get podcast episode by podcast id and episode id",
+        request: { params: podcastAndEpisodeParam },
+        responses: { 200: { description: "Podcast episode", ...contentJson(genericOkSchema) }, 404: { description: "Not found" }, ...authResponses }
+    }
+});
+
 export const UpdateEpisodeRoute = createOpenApiRoute(updateEpisode, {
     auth: true,
     schema: {
         tags: ["Episodes"],
         summary: "Update episode by id",
         request: { params: idParam, body: jsonBodySchema },
+        responses: { 200: { description: "Updated", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode, {
+    auth: true,
+    schema: {
+        tags: ["Episodes"],
+        summary: "Update podcast episode by podcast id and episode id",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBodySchema },
         responses: { 200: { description: "Updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -166,12 +187,32 @@ export const DeleteEpisodeRoute = createOpenApiRoute(deleteEpisode, {
     }
 });
 
-export const PublishEpisodeRoute = createOpenApiRoute(publish, {
+export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode, {
+    auth: true,
+    schema: {
+        tags: ["Episodes"],
+        summary: "Delete podcast episode by podcast id and episode id",
+        request: { params: podcastIdAndEpisodeParam },
+        responses: { 200: { description: "Deleted", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
     auth: true,
     schema: {
         tags: ["Publishing"],
         summary: "Publish episode by id",
         request: { params: idParam },
+        responses: { 200: { description: "Published", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpisode, {
+    auth: true,
+    schema: {
+        tags: ["Publishing"],
+        summary: "Publish podcast episode by podcast id and episode id",
+        request: { params: podcastIdAndEpisodeParam },
         responses: { 200: { description: "Published", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
