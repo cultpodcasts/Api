@@ -13,6 +13,7 @@ import {
 	CreateSubjectRoute,
 	DeleteBookmarkRoute,
 	DeleteEpisodeRoute,
+	DeletePodcastEpisodeRoute,
 	GetBookmarksRoute,
 	GetDiscoveryInfoRoute,
 	GetDiscoveryReportsRoute,
@@ -23,6 +24,7 @@ import {
 	GetPageDetailsRoute,
 	GetPodcastByNameAndEpisodeIdRoute,
 	GetPodcastByNameRoute,
+	GetPodcastEpisodeRoute,
 	GetSubjectByNameRoute,
 	GetSubjectsRoute,
 	HomepageRoute,
@@ -31,6 +33,7 @@ import {
 	PublicGetEpisodeRoute,
 	PublishEpisodeRoute,
 	PublishHomepageRoute,
+	PublishPodcastEpisodeRoute,
 	PublishTermRoute,
 	PushSubscriptionRoute,
 	RenamePodcastRoute,
@@ -39,6 +42,7 @@ import {
 	SubmitDiscoveryRoute,
 	SubmitRoute,
 	UpdateEpisodeRoute,
+	UpdatePodcastEpisodeRoute,
 	UpdatePodcastPostRoute,
 	UpdatePodcastPutRoute,
 	UpdateSubjectRoute
@@ -261,10 +265,23 @@ openapi.get('/subjects', GetSubjectsRoute);
 openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
 openapi.post('/submit', SubmitRoute);
+// New Episode Endpoints
+openapi.get('/episode/:podcastId/:episodeId', GetPodcastEpisodeRoute);
+openapi.post('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
+openapi.delete('/episode/:podcastId/:episodeId', DeletePodcastEpisodeRoute);
+// \New Episode Endpoints
+// Old Episode Endpoints
 openapi.get('/episode/:id', GetEpisodeRoute);
 openapi.post('/episode/:id', UpdateEpisodeRoute);
 openapi.delete('/episode/:id', DeleteEpisodeRoute);
+// \Old Episode Endpoints
+// New Episode Publish Endpoint
+openapi.post('/episode/publish/:podcastId/:episodeId', PublishPodcastEpisodeRoute);
+// \New Episode Publish Endpoint
+// Old Episode Publish Endpoint
 openapi.post('/episode/publish/:id', PublishEpisodeRoute);
+// \Old Episode Publish Endpoint
+
 openapi.get('/episodes/outgoing', GetOutgoingRoute);
 openapi.get('/podcast/:name', GetPodcastByNameRoute);
 openapi.get('/podcast/:name/:id', GetPodcastByNameAndEpisodeIdRoute);
