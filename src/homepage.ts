@@ -10,7 +10,7 @@ export async function homepage(c: ActionContext): Promise<Response> {
 	logCollector.add({message:`cacheKey: ${cacheKey.url}`});
 	const cached = await cache.match(cacheKey);
 	if (cached) {
-		logCollector.add({ message: "Served homepage from cache." });
+		logCollector.addMessage("Served homepage from cache.");
 		console.log(logCollector.toEndpointLog());
 		const hitHeaders = new Headers(cached.headers);
 		hitHeaders.set("X-Homepage-Cache", "HIT");
@@ -24,10 +24,10 @@ export async function homepage(c: ActionContext): Promise<Response> {
 	try {
 		object = await c.env.Content.get("homepage");
 	} catch {
-		logCollector.add({ message: `Failure to retrieve homepage` });
+		logCollector.addMessage(`Failure to retrieve homepage`);
 	}
 	if (object === null) {
-		logCollector.add({ message: logCollector.message ?? "No homepage object found" });
+		logCollector.addMessage(logCollector.message ?? "No homepage object found");
 		console.error(logCollector.toEndpointLog());
 		return c.notFound();
 	}
@@ -36,7 +36,7 @@ export async function homepage(c: ActionContext): Promise<Response> {
 		etag: object.etag, 
 		methods: ["GET", "OPTIONS"] }
 	);
-	logCollector.add({ message: `Successfully obtained homepage data.` });
+	logCollector.addMessage(`Successfully obtained homepage data.`);
 	console.log(logCollector.toEndpointLog());
 
 	const response = new Response(object.body, {

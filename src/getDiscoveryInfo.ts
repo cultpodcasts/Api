@@ -17,10 +17,10 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
         try {
             object = await c.env.Content.get("discovery-info");
         } catch {
-            logCollector.add({ message: "Unable to retrieve discovery-info" });
+            logCollector.addMessage("Unable to retrieve discovery-info");
         }
         if (object === null) {
-            logCollector.add({ message: logCollector.message ?? "No discovery-info object found" });
+            logCollector.addMessage(logCollector.message ?? "No discovery-info object found");
             console.warn(logCollector.toEndpointLog());
             return c.notFound();
         }
@@ -31,13 +31,13 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
         console.log(logCollector.toEndpointLog());
         return stream(c, async (stream) => {
             stream.onAbort(() => {
-                logCollector.add({ message: 'Aborted!' });
+                logCollector.addMessage('Aborted!');
                 console.error(logCollector.toEndpointLog());
             });
             await stream.pipe(object.body);
         });
     } else {
-        logCollector.add({ message: "Unauthorised to use getDiscoveryInfo." });
+        logCollector.addMessage("Unauthorised to use getDiscoveryInfo.");
         console.error(logCollector.toEndpointLog());
         return c.json({ message: "Unauthorised" }, 401);
     }

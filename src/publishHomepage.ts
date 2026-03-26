@@ -20,25 +20,26 @@ export async function publishHomepage(c: Auth0ActionContext): Promise<Response> 
                 method: "POST",
                 body: "{}"
             });
+            logCollector.add({ status: resp.status });
             if (resp.status == 200) {
-                logCollector.add({ message: `Successfully used secure secure-admin-publish-homepage-endpoint.`, status: resp.status });
+                logCollector.addMessage(`Successfully used secure secure-admin-publish-homepage-endpoint.`);
                 console.log(logCollector.toEndpointLog());
                 return c.newResponse(resp.body);
             } else if (resp.status == 500) {
-                logCollector.add({ message: `Failure using secure secure-admin-publish-homepage-endpoint.`, status: resp.status });
+                logCollector.addMessage(`Failure using secure secure-admin-publish-homepage-endpoint.`);
                 console.error(logCollector.toEndpointLog());
                 return c.newResponse(resp.body, resp.status);
             } else {
-                logCollector.add({ message: `Failed to use secure-admin-publish-homepage-endpoint.`, status: resp.status });
+                logCollector.addMessage(`Failed to use secure-admin-publish-homepage-endpoint.`);
                 console.error(logCollector.toEndpointLog());
             }
         }
     } catch {
-        logCollector.add({ message: "Error in publishHomepage." });
+        logCollector.addMessage("Error in publishHomepage.");
         console.error(logCollector.toEndpointLog());
         return c.json({ error: "An error occurred" }, 500);
     }
-    logCollector.add({ message: "Unauthorised to use publishHomepage." });
+    logCollector.addMessage("Unauthorised to use publishHomepage.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

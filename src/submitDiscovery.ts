@@ -22,22 +22,23 @@ export async function submitDiscovery(c: Auth0ActionContext): Promise<Response> 
                 method: "POST",
                 body: body
             });
+            logCollector.add({ status: resp.status });
             if (resp.status == 200) {
-                logCollector.add({ message: `Successfully used secure secure-discovery-curation-endpoint.`, status: resp.status });
+                logCollector.addMessage(`Successfully used secure secure-discovery-curation-endpoint.`);
                 console.log(logCollector.toEndpointLog());
                 return c.newResponse(resp.body);
             } else {
-                logCollector.add({ message: `Failed to use secure-discovery-curation-endpoint.`, status: resp.status });
+                logCollector.addMessage(`Failed to use secure-discovery-curation-endpoint.`);
                 console.error(logCollector.toEndpointLog());
                 return c.json({ error: "Error" }, 500);
             }
         }
     } catch {
-        logCollector.add({ message: "Error in submitDiscovery." });
+        logCollector.addMessage("Error in submitDiscovery.");
         console.error(logCollector.toEndpointLog());
         return c.json({ error: "An error occurred" }, 500);
     }
-    logCollector.add({ message: "Unauthorised to use submitDiscovery." });
+    logCollector.addMessage("Unauthorised to use submitDiscovery.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

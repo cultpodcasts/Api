@@ -24,29 +24,30 @@ export async function renamePodcast(c: Auth0ActionContext): Promise<Response> {
             method: "POST",
             body: body
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-podcast-endpoint to rename podcast.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-podcast-endpoint to rename podcast.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else if (resp.status == 400) {
-            logCollector.add({ message: `Unable to find podcast to rename podcast.`, status: resp.status });
+            logCollector.addMessage(`Unable to find podcast to rename podcast.`);
             console.error(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else if (resp.status == 404) {
-            logCollector.add({ message: `Unable to find podcast to rename podcast. Podccast not found.`, status: resp.status });
+            logCollector.addMessage(`Unable to find podcast to rename podcast. Podcast not found.`);
             console.error(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else if (resp.status == 409) {
-            logCollector.add({ message: `Unable to find podcast to rename podcast. Podcast exists with new-name.`, status: resp.status });
+            logCollector.addMessage(`Unable to find podcast to rename podcast. Podcast exists with new-name.`);
             console.error(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else {
-            logCollector.add({ message: `Failed to use secure-podcast-endpoint to rename podcast.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-podcast-endpoint to rename podcast.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: "Unauthorised to use renamePodcast." });
+    logCollector.addMessage("Unauthorised to use renamePodcast.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

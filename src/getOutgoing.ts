@@ -25,20 +25,20 @@ export async function getOutgoing(c: Auth0ActionContext): Promise<Response> {
             method: "GET"
         });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-episodes-outgoing-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-episodes-outgoing-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else if (resp.status == 400) {
-            logCollector.add({ message: `Bad request to use secure-episodes-outgoing-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Bad request to use secure-episodes-outgoing-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.newResponse(resp.body, 400);
         } else {
-            logCollector.add({ message: `Failed to use secure-episodes-outgoing-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-episodes-outgoing-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: "Unauthorised to use getOutgoing." })
+    logCollector.addMessage("Unauthorised to use getOutgoing.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

@@ -13,25 +13,25 @@ export async function getSubjects(c: Auth0ActionContext): Promise<Response> {
 		try {
 			object = await c.env.Content.get("subjects");
 		} catch {
-			logCollector.add({ message: "Unable to retrieve subjects" });
+			logCollector.addMessage("Unable to retrieve subjects");
 		}
 		if (object === null) {
-			logCollector.add({ message: logCollector.message ?? "No subjects object found" });
+			logCollector.addMessage(logCollector.message ?? "No subjects object found");
 			console.error(logCollector.toEndpointLog());
 			return c.notFound();
 		}
 		AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
-		logCollector.add({ message: "Successfully obtained subjects data." });
+		logCollector.addMessage("Successfully obtained subjects data.");
 		console.log(logCollector.toEndpointLog());
 		return stream(c, async (stream) => {
 			stream.onAbort(() => {
-				logCollector.add({ message: 'Aborted!' });
+				logCollector.addMessage('Aborted!');
 				console.error(logCollector.toEndpointLog());
 			});
 			await stream.pipe(object.body);
 		});
 	} else {
-		logCollector.add({ message: "Unauthorised to use getSubjects." });
+		logCollector.addMessage("Unauthorised to use getSubjects.");
 		console.error(logCollector.toEndpointLog());
 		return c.json({ message: "Unauthorised" }, 401);
 	}

@@ -118,6 +118,14 @@
       ]
     },
     "production": {
+      "migrations": [
+        {
+          "tag": "production-v1",
+          "new_classes": [
+            "ProfileDurableObject"
+          ]
+        }
+      ],
       "r2_buckets": [
         {
           "binding": "Content",

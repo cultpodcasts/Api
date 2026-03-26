@@ -22,25 +22,26 @@ export async function publishTerm(c: Auth0ActionContext): Promise<Response> {
                 method: "POST",
                 body: body
             });
+            logCollector.add({ status: resp.status });
             if (resp.status == 200) {
-                logCollector.add({ message: `Successfully used secure secure-term-endpoint.`, status: resp.status });
+                logCollector.addMessage(`Successfully used secure secure-term-endpoint.`);
                 console.log(logCollector.toEndpointLog());
                 return c.newResponse(resp.body);
             } else if (resp.status == 409) {
-                logCollector.add({ message: `Failure using secure secure-term-endpoint. Conflict`, status: resp.status });
+                logCollector.addMessage(`Failure using secure secure-term-endpoint. Conflict`);
                 console.error(logCollector.toEndpointLog());
                 return c.newResponse(resp.body, resp.status);
             } else {
-                logCollector.add({ message: `Failed to use secure-term-endpoint.`, status: resp.status });
+                logCollector.addMessage(`Failed to use secure-term-endpoint.`);
                 console.error(logCollector.toEndpointLog());
             }
         }
     } catch {
-        logCollector.add({ message: "Error in publishTerm." });
+        logCollector.addMessage("Error in publishTerm.");
         console.error(logCollector.toEndpointLog());
         return c.json({ error: "An error occurred" }, 500);
     }
-    logCollector.add({ message: "Unauthorised to use publishTerm." });
+    logCollector.addMessage("Unauthorised to use publishTerm.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

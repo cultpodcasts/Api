@@ -21,21 +21,22 @@ export async function updatePodcast(c: Auth0ActionContext): Promise<Response> {
 			method: c.req.method,
 			body: body
 		});
+        logCollector.add({ status: resp.status });
 		if (resp.status == 202) {
-			logCollector.add({ message: `Successfully used secure-podcast-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-podcast-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else if (resp.status == 404) {
-			logCollector.add({ message: `Unable to find podcast.`, status: resp.status });
+			logCollector.addMessage(`Unable to find podcast.`);
 			console.error(logCollector.toEndpointLog());
 			return c.newResponse(resp.body, resp.status);
 		} else {
-			logCollector.add({ message: `Failed to use secure-podcast-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-podcast-endpoint.`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use updatePodcast." });
+	logCollector.addMessage("Unauthorised to use updatePodcast.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }

@@ -21,22 +21,24 @@ export async function updateEpisode(c: Auth0ActionContext): Promise<Response> {
 			method: "POST",
 			body: body
 		});
+        logCollector.add({ status: resp.status });
 		if (resp.status == 202) {
-			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint.`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use updateEpisode." });
+	logCollector.addMessage("Unauthorised to use updateEpisode.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }
 
 export async function updatePodcastEpisode(c: Auth0ActionContext): Promise<Response> {
+console.log("updatePodcastEpisode called.");
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
@@ -47,22 +49,24 @@ export async function updatePodcastEpisode(c: Auth0ActionContext): Promise<Respo
 		const url = new URL(`${getEndpoint(Endpoint.episode, c.env)}/${podcastId}/${episodeId}`);
 		const data: any = await c.req.json();
 		const body: string = JSON.stringify(data);
+		const headers= buildFetchHeaders(c.req, url);
 		const resp = await fetch(url, {
-			headers: buildFetchHeaders(c.req, url),
+			headers: headers,
 			method: "POST",
 			body: body
 		});
+        logCollector.add({ status: resp.status });
 		if (resp.status == 202) {
-			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint.`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use updateEpisode." });
+	logCollector.addMessage("Unauthorised to use updateEpisode.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }

@@ -20,16 +20,17 @@ export async function getDiscoveryReports(c: Auth0ActionContext): Promise<Respon
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure secure-discovery-curation-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure secure-discovery-curation-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else {
-            logCollector.add({ message: `Failed to use secure-discovery-curation-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-discovery-curation-endpoint.`);
             console.error(logCollector.toEndpointLog());
         }
     }
-    logCollector.add({ message: "Unauthorised to use getDiscoveryReports." });
+    logCollector.addMessage("Unauthorised to use getDiscoveryReports.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

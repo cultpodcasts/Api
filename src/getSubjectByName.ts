@@ -23,17 +23,18 @@ export async function getSubjectByName(c: Auth0ActionContext): Promise<Response>
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-subject-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else {
-            logCollector.add({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-subject-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: "Unauthorised to use getSubjectByName." });
+    logCollector.addMessage("Unauthorised to use getSubjectByName.");
     console.log(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

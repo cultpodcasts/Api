@@ -20,17 +20,18 @@ export async function pushSubscription(c: Auth0ActionContext): Promise<Response>
             method: "POST",
             body: body
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-push-subscription-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-push-subscription-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else {
-            logCollector.add({ message: `Failed to use secure-push-subscription-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-push-subscription-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: `Unauthorised to use pushSubscription.` });
+    logCollector.addMessage("Unauthorised to use pushSubscription.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

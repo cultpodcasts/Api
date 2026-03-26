@@ -10,19 +10,19 @@ export async function homepageSsr(c: ActionContext): Promise<Response> {
     try {
         object = await c.env.Content.get("homepage-ssr");
     } catch {
-        logCollector.add({ message: `Failure to retrieve ssr-homepage` });
+        logCollector.addMessage(`Failure to retrieve ssr-homepage`);
     }
     if (object === null) {
-        logCollector.add({ message: logCollector.message ?? "No homepage object found" });
+        logCollector.addMessage(logCollector.message ?? "No homepage object found");
         console.error(logCollector.toEndpointLog());
         return c.notFound();
     }
     AddResponseHeaders(c, { etag: object.etag, methods: ["GET", "OPTIONS"] });
-    logCollector.add({ message: `Successfully obtained ssr-homepage data.` });
+    logCollector.addMessage(`Successfully obtained ssr-homepage data.`);
     console.log(logCollector.toEndpointLog());
     return stream(c, async (stream) => {
         stream.onAbort(() => {
-            logCollector.add({ message: 'Aborted!' });
+            logCollector.addMessage('Aborted!');
             console.error(logCollector.toEndpointLog());
         });
         await stream.pipe(object.body);
