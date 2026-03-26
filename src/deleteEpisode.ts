@@ -18,29 +18,30 @@ export async function deleteEpisode(c: Auth0ActionContext): Promise<Response> {
 			headers: buildFetchHeaders(c.req, url),
 			method: "DELETE"
 		});
+		logCollector.add({ status: resp.status });
 		if (resp.status == 200) {
-			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else if (resp.status == 404) {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint. Episode not found.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint. Episode not found.`);
 			console.error(logCollector.toEndpointLog());
 			return c.newResponse(resp.body, resp.status);
 		} else if (resp.status == 400) {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint. Episode published.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint. Episode published.`);
 			console.error(logCollector.toEndpointLog());
-			return c.newResponse(resp.body, resp.status );
+			return c.newResponse(resp.body, resp.status);
 		} else if (resp.status == 300) {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint. Multple podcast/episodes found.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint. Multple podcast/episodes found.`);
 			console.error(logCollector.toEndpointLog());
 			return c.newResponse(resp.body, resp.status);
 		} else {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint..`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint..`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use deleteEpisode." });
+	logCollector.addMessage("Unauthorised to use deleteEpisode.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }
@@ -58,29 +59,30 @@ export async function deletePodcastEpisode(c: Auth0ActionContext): Promise<Respo
 			headers: buildFetchHeaders(c.req, url),
 			method: "DELETE"
 		});
+		logCollector.add({ status: resp.status });
 		if (resp.status == 200) {
-			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else if (resp.status == 404) {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint. Episode not found.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint. Episode not found.`);
 			console.error(logCollector.toEndpointLog());
 			return c.newResponse(resp.body, resp.status);
 		} else if (resp.status == 400) {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint. Episode published.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint. Episode published.`);
 			console.error(logCollector.toEndpointLog());
-			return c.newResponse(resp.body, resp.status );
+			return c.newResponse(resp.body, resp.status);
 		} else if (resp.status == 300) {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint. Multple podcast/episodes found.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint. Multple podcast/episodes found.`);
 			console.error(logCollector.toEndpointLog());
 			return c.newResponse(resp.body, resp.status);
 		} else {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint..`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint..`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use deleteEpisode." });
+	logCollector.addMessage("Unauthorised to use deleteEpisode.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }

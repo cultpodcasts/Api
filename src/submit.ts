@@ -22,31 +22,32 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 			body: JSON.stringify(data),
 			method: "POST"
 		});
+		logCollector.add({status: resp.status });
 		if (resp.status == 200) {
-			logCollector.add({ message: `Successfully used secure-submit-endpoint.`, status: resp.status });
+			logCollector.addMessage( `Successfully used secure-submit-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			var response = c.newResponse(resp.body);
 			response.headers.set("X-Origin", "true");
 			return response;
 		} else {
-			logCollector.add({ message: `Failed to use secure-submit-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-submit-endpoint.`);
 			console.error(logCollector.toEndpointLog());
 		}
 	}
-	logCollector.add({ message: `Storing submission in d1.` });
+	logCollector.addMessage(`Storing submission in d1.`);
 	const adapter = new PrismaD1(c.env.apiDB);
 	const prisma = new PrismaClient({ adapter });
 	let url: URL | undefined;
 	let urlParam = data.url;
 	if (urlParam == null) {
-		logCollector.add({ message: "Missing url param" });
+		logCollector.addMessage("Missing url param");
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: "Missing url param." }, 400);
 	}
 	try {
 		url = new URL(urlParam);
 	} catch {
-		logCollector.add({ message: `Invalid url: '${data.url}'.` });
+		logCollector.addMessage(`Invalid url: '${data.url}'.`);
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: `Invalid url '${data.url}'.` }, 400);
 	}
@@ -60,12 +61,12 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 		const submission = await prisma.submissions.create({
 			data: record
 		});
-		logCollector.add({ message: "Stored url in db." });
+		logCollector.addMessage("Stored url in db.");
 	} catch (e) {
 		if (e instanceof Prisma.PrismaClientKnownRequestError) {
-			logCollector.add({ message: `PrismaClientKnownRequestError code: '${e.code}', error: '${e}'.` });
+			logCollector.addMessage(`PrismaClientKnownRequestError code: '${e.code}', error: '${e}'.`);
 		} else {
-			logCollector.add({ message: "Unable to accept" });
+			logCollector.addMessage("Unable to accept");
 		}
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: "Unable to accept" }, 400);

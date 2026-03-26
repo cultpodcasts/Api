@@ -20,17 +20,18 @@ export async function publicGetEpisode(c: Auth0ActionContext): Promise<Response>
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-public-episode-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-public-episode-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else {
-            logCollector.add({ message: `Failed to use secure-public-episode-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-public-episode-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: "Unauthorised to use publicGetEpisode." });
+    logCollector.addMessage("Unauthorised to use publicGetEpisode.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

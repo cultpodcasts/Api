@@ -21,17 +21,18 @@ export async function updateEpisode(c: Auth0ActionContext): Promise<Response> {
 			method: "POST",
 			body: body
 		});
+        logCollector.add({ status: resp.status });
 		if (resp.status == 202) {
-			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint.`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use updateEpisode." });
+	logCollector.addMessage("Unauthorised to use updateEpisode.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }
@@ -54,17 +55,18 @@ console.log("updatePodcastEpisode called.");
 			method: "POST",
 			body: body
 		});
+        logCollector.add({ status: resp.status });
 		if (resp.status == 202) {
-			logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else {
-			logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-episode-endpoint.`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use updateEpisode." });
+	logCollector.addMessage("Unauthorised to use updateEpisode.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }

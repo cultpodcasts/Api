@@ -22,21 +22,22 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else if (resp.status == 404) {
-            logCollector.add({ message: `Successfully used secure-episode-endpoint. Episode not found.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-episode-endpoint. Episode not found.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else {
-            logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-episode-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: "Unauthorised to use getEpisode." });
+    logCollector.addMessage("Unauthorised to use getEpisode.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }
@@ -57,21 +58,22 @@ export async function getPodcastEpisode(c:Auth0ActionContext): Promise<Response>
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-episode-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else if (resp.status == 404) {
-            logCollector.add({ message: `Successfully used secure-episode-endpoint. Episode not found.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-episode-endpoint. Episode not found.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else {
-            logCollector.add({ message: `Failed to use secure-episode-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-episode-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: "Unauthorised to use getEpisode." });
+    logCollector.addMessage("Unauthorised to use getEpisode.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

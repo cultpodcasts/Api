@@ -23,7 +23,7 @@ export async function getBookmarks(c: Auth0ActionContext): Promise<Response> {
         }
         return c.json(result);
     }
-    logCollector.add({ message: `Unauthorised to use profile-object getBookmarks method.` });
+    logCollector.addMessage(`Unauthorised to use profile-object getBookmarks method.`);
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 

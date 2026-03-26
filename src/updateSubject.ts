@@ -21,17 +21,18 @@ export async function updateSubject(c: Auth0ActionContext): Promise<Response> {
 			method: "POST",
 			body: body
 		});
+        logCollector.add({ status: resp.status });
 		if (resp.status == 202) {
-			logCollector.add({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Successfully used secure-subject-endpoint.`);
 			console.log(logCollector.toEndpointLog());
 			return c.newResponse(resp.body);
 		} else {
-			logCollector.add({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
+			logCollector.addMessage(`Failed to use secure-subject-endpoint.`);
 			console.error(logCollector.toEndpointLog());
 			return c.json({ error: "Error" }, 500);
 		}
 	}
-	logCollector.add({ message: "Unauthorised to use updateSubject." });
+	logCollector.addMessage("Unauthorised to use updateSubject.");
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Unauthorised" }, 403);
 }

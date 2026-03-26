@@ -18,30 +18,30 @@ export async function getPodcastByName(c: Auth0ActionContext): Promise<Response>
     });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         const url = new URL(`${getEndpoint(Endpoint.podcast, c.env)}/${encodeUrlParameter(name)}`);
-        console.log("get-podcast: " + url);
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
         });
+        logCollector.add({ status: resp.status });
         if (resp.status == 200) {
-            logCollector.add({ message: `Successfully used secure-podcast-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-podcast-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
         } else if (resp.status == 404) {
-            logCollector.add({ message: `Unable to find podcast.`, status: resp.status });
+            logCollector.addMessage(`Unable to find podcast.`);
             console.error(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else if (resp.status == 409) {
-            logCollector.add({ message: `Multiple podcasts found.`, status: resp.status });
+            logCollector.addMessage(`Multiple podcasts found.`);
             console.error(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else {
-            logCollector.add({ message: `Failed to use secure-podcast-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-podcast-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: "Unauthorised to use getPodcastByName." });
+    logCollector.addMessage("Unauthorised to use getPodcastByName.");
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

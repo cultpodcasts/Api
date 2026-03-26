@@ -13,25 +13,25 @@ export async function getFlairs(c: Auth0ActionContext): Promise<Response> {
         try {
             object = await c.env.Content.get("flairs");
         } catch {
-            logCollector.add({ message: "Unable to retreve flairs" });
+            logCollector.addMessage("Unable to retrieve flairs");
         }
         if (object === null) {
-            logCollector.add({ message: logCollector.message ?? "No flares object found" });
+            logCollector.addMessage(logCollector.message ?? "No flairs object found");
             console.error(logCollector.toEndpointLog());
             return c.notFound();
         }
         AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
-        logCollector.add({ message: "Successfully obtained flairs data." });
+        logCollector.addMessage("Successfully obtained flairs data.");
         console.log(logCollector.toEndpointLog());
         return stream(c, async (stream) => {
             stream.onAbort(() => {
-                logCollector.add({ message: 'Aborted!' });
+                logCollector.addMessage('Aborted!');
                 console.error(logCollector.toEndpointLog());
             });
             await stream.pipe(object.body);
         });
     } else {
-        logCollector.add({ message: "Unauthorised to use getFlairs." })
+        logCollector.addMessage("Unauthorised to use getFlairs.");
         console.error(logCollector.toEndpointLog());
         return c.json({ message: "Unauthorised" }, 401);
     }

@@ -20,21 +20,22 @@ export async function createSubject(c: Auth0ActionContext): Promise<Response> {
             method: "PUT",
             body: body
         });
+            logCollector.add({ status: resp.status });
         if (resp.status == 202) {
-            logCollector.add({ message: `Successfully used secure-subject-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Successfully used secure-subject-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else if (resp.status == 409) {
-            logCollector.add({ message: `Conflict reported on secure-subject-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Conflict reported on secure-subject-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.newResponse(resp.body, resp.status);
         } else {
-            logCollector.add({ message: `Failed to use secure-subject-endpoint.`, status: resp.status });
+            logCollector.addMessage(`Failed to use secure-subject-endpoint.`);
             console.error(logCollector.toEndpointLog());
             return c.json({ error: "Error" }, 500);
         }
     }
-    logCollector.add({ message: `Unauthorised to use createSubject.` });
+    logCollector.addMessage(`Unauthorised to use createSubject.`);
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }

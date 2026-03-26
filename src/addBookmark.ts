@@ -36,7 +36,7 @@ export async function addBookmark(c: Auth0ActionContext): Promise<Response> {
             return c.json({ message: "Episode-id does not match recognised uuid pattern." }, { status: 400 });
         }
     }
-    logCollector.add({ message: `Unauthorised to use profile-object addBookmark method.` });
+    logCollector.addMessage(`Unauthorised to use profile-object addBookmark method.`);
     console.error(logCollector.toEndpointLog());
     return c.json({ error: "Unauthorised" }, 403);
 }
