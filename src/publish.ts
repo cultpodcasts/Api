@@ -17,7 +17,7 @@ export async function publishPodcastEpisode(c: Auth0ActionContext): Promise<Resp
     AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
         try {
-            const url = new URL(`${getEndpoint(Endpoint.episodePublish, c.env)}${podcastId}/${episodeId}`);
+            const url = new URL(`${getEndpoint(Endpoint.episodePublish, c.env)}/${podcastId}/${episodeId}`);
             logCollector.addMessage(`Publishing to ${url.toString()}.`);
             const data: any = await c.req.json();
             const body: string = JSON.stringify(data);
