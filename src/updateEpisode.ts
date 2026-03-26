@@ -37,6 +37,7 @@ export async function updateEpisode(c: Auth0ActionContext): Promise<Response> {
 }
 
 export async function updatePodcastEpisode(c: Auth0ActionContext): Promise<Response> {
+console.log("updatePodcastEpisode called.");
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
@@ -47,8 +48,9 @@ export async function updatePodcastEpisode(c: Auth0ActionContext): Promise<Respo
 		const url = new URL(`${getEndpoint(Endpoint.episode, c.env)}/${podcastId}/${episodeId}`);
 		const data: any = await c.req.json();
 		const body: string = JSON.stringify(data);
+		const headers= buildFetchHeaders(c.req, url);
 		const resp = await fetch(url, {
-			headers: buildFetchHeaders(c.req, url),
+			headers: headers,
 			method: "POST",
 			body: body
 		});

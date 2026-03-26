@@ -21,7 +21,7 @@ import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { indexPodcastByName } from "./indexPodcastByName";
 import { publicGetEpisode } from "./publicGetEpisode";
-import { publishEpisode, publishPodcastEpisode } from "./publish";
+import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { publishTerm } from "./publishTerm";
 import { pushSubscription } from "./pushSubscription";
@@ -197,22 +197,12 @@ export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode
     }
 });
 
-export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
-    auth: true,
-    schema: {
-        tags: ["Publishing"],
-        summary: "Publish episode by id",
-        request: { params: idParam },
-        responses: { 200: { description: "Published", ...contentJson(genericOkSchema) }, ...authResponses }
-    }
-});
-
 export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpisode, {
     auth: true,
     schema: {
         tags: ["Publishing"],
         summary: "Publish podcast episode by podcast id and episode id",
-        request: { params: podcastIdAndEpisodeParam },
+        request: { params: podcastIdAndEpisodeParam, body: jsonBodySchema },
         responses: { 200: { description: "Published", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
