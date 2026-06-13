@@ -15,7 +15,11 @@ export async function getDiscoveryReports(c: Auth0ActionContext): Promise<Respon
         methods: ["POST", "GET", "OPTIONS"]
     });
     if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        const url = getEndpoint(Endpoint.discoveryCuration, c.env);
+        let url = getEndpoint(Endpoint.discoveryCuration, c.env);
+        const reqUrl = new URL(c.req.url);
+        if (reqUrl.search) {
+            url = new URL(url.toString() + reqUrl.search);
+        }
         const resp = await fetch(url, {
             headers: buildFetchHeaders(c.req, url),
             method: "GET"
@@ -28,6 +32,7 @@ export async function getDiscoveryReports(c: Auth0ActionContext): Promise<Respon
         } else {
             logCollector.addMessage(`Failed to use secure-discovery-curation-endpoint.`);
             console.error(logCollector.toEndpointLog());
+            return c.json({ error: "Error" }, 500);
         }
     }
     logCollector.addMessage("Unauthorised to use getDiscoveryReports.");
