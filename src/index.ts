@@ -10,6 +10,7 @@ import { ProfileDurableObject } from './ProfileDurableObject';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
 import {
 	AddBookmarkRoute,
+	CreatePersonRoute,
 	CreateSubjectRoute,
 	DeleteBookmarkRoute,
 	DeleteEpisodeRoute,
@@ -22,9 +23,11 @@ import {
 	GetLanguagesRoute,
 	GetOutgoingRoute,
 	GetPageDetailsRoute,
+	GetPersonByNameRoute,
 	GetPodcastByNameAndEpisodeIdRoute,
 	GetPodcastByNameRoute,
 	GetPodcastEpisodeRoute,
+	GetPeopleRoute,
 	GetSubjectByNameRoute,
 	GetSubjectsRoute,
 	HomepageRoute,
@@ -41,6 +44,7 @@ import {
 	SubmitDiscoveryRoute,
 	SubmitRoute,
 	UpdateEpisodeRoute,
+	UpdatePersonRoute,
 	UpdatePodcastEpisodeRoute,
 	UpdatePodcastPostRoute,
 	UpdatePodcastPutRoute,
@@ -261,6 +265,10 @@ const openapi = fromHono(app, {
 openapi.get('/homepage', HomepageRoute);
 openapi.get('/homepage-ssr', HomepageSsrRoute);
 openapi.get('/subjects', GetSubjectsRoute);
+openapi.get('/people', GetPeopleRoute);
+openapi.get('/person/:name', GetPersonByNameRoute);
+openapi.post('/person/:id', UpdatePersonRoute);
+openapi.put('/person', CreatePersonRoute);
 openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
 openapi.post('/submit', SubmitRoute);
