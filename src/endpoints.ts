@@ -31,6 +31,15 @@ export function getEndpoint(endpoint: Endpoint, env: Env): URL {
         case Endpoint.subject:
             url = new URL(env.secureSubjectEndpoint);
             break;
+        case Endpoint.people:
+            url = new URL(env.securePeopleEndpoint);
+            break;
+        case Endpoint.person: {
+            const peopleUrl = new URL(env.securePeopleEndpoint);
+            peopleUrl.pathname = peopleUrl.pathname.replace(/\/people\/?$/, '/person');
+            url = peopleUrl;
+            break;
+        }
         case Endpoint.publishHomepage:
             url = new URL(env.secureAdminPublishHomepageEndpoint);
             break;

@@ -2,6 +2,7 @@ import { OpenAPIRoute, OpenAPIRouteSchema, contentJson } from "chanfana";
 import { z } from "zod";
 import { Auth0Middleware } from "./Auth0Middleware";
 import { addBookmark } from "./addBookmark";
+import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
 import { deleteBookmark } from "./deleteBookmark";
 import { deleteEpisode, deletePodcastEpisode } from "./deleteEpisode";
@@ -13,9 +14,11 @@ import { getFlairs } from "./getFlairs";
 import { getLanguages } from "./getLanguages";
 import { getOutgoing } from "./getOutgoing";
 import { getPageDetails } from "./getPageDetails";
+import { getPersonByName } from "./getPersonByName";
 import { getPodcastByName } from "./getPodcastByName";
 import { getPodcastByNameAndEpisodeId } from "./getPodcastByNameAndEpisodeId";
 import { getSubjectByName } from "./getSubjectByName";
+import { getPeople } from "./getPeople";
 import { getSubjects } from "./getSubjects";
 import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
@@ -31,6 +34,7 @@ import { search } from "./search";
 import { submit } from "./submit";
 import { submitDiscovery } from "./submitDiscovery";
 import { updateEpisode, updatePodcastEpisode } from "./updateEpisode";
+import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { updateSubject } from "./updateSubject";
 
@@ -106,6 +110,45 @@ export const GetSubjectsRoute = createOpenApiRoute(getSubjects, {
         tags: ["Subjects"],
         summary: "List subjects",
         responses: { 200: { description: "Subjects", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const GetPeopleRoute = createOpenApiRoute(getPeople, {
+    auth: true,
+    schema: {
+        tags: ["People"],
+        summary: "List people",
+        responses: { 200: { description: "People", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const GetPersonByNameRoute = createOpenApiRoute(getPersonByName, {
+    auth: true,
+    schema: {
+        tags: ["People"],
+        summary: "Get person by name",
+        request: { params: nameParam },
+        responses: { 200: { description: "Person", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
+    auth: true,
+    schema: {
+        tags: ["People"],
+        summary: "Update person by id",
+        request: { params: idParam, body: jsonBodySchema },
+        responses: { 202: { description: "Person updated", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const CreatePersonRoute = createOpenApiRoute(createPerson, {
+    auth: true,
+    schema: {
+        tags: ["People"],
+        summary: "Create person",
+        request: { body: jsonBodySchema },
+        responses: { 202: { description: "Person created", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
 

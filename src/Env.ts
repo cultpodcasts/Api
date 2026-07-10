@@ -13,6 +13,7 @@ export type Env = {
 	securePodcastIndexEndpoint: URL;
 	securePodcastEndpoint: URL;
 	secureSubjectEndpoint: URL;
+	securePeopleEndpoint: URL;
 	secureEpisodesOutgoingEndpoint: URL;
 	secureAdminSearchIndexerEndpoint: URL;
 	secureAdminPublishHomepageEndpoint: URL;

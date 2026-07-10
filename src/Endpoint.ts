@@ -9,6 +9,8 @@ export enum Endpoint {
     outgoingEpisodes,
     podcast,
     subject,
+    people,
+    person,
     publishHomepage,
     terms,
     pushSubscriptions,
