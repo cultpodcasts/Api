@@ -12,7 +12,7 @@ export async function getBookmarks(c: Auth0ActionContext): Promise<Response> {
         omitCacheControlHeader: true,
         methods: ["POST", "GET", "OPTIONS"]
     });
-    if (auth0Payload) {
+    if (auth0Payload?.sub) {
         let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
         let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
         let result = await stub.getBookmarks(auth0Payload.sub);
@@ -21,7 +21,8 @@ export async function getBookmarks(c: Auth0ActionContext): Promise<Response> {
         } else if (result == getBookmarksResponse.errorRetrievingBookmarks) {
             return c.json({ message: "Could not retrieve bookmarks" }, 500);
         }
-        return c.json(result);
+        // Copy out of any RPC stub array so JSON serializes as a real array.
+        return c.json(Array.isArray(result) ? [...result] : result);
     }
     logCollector.addMessage(`Unauthorised to use profile-object getBookmarks method.`);
     console.error(logCollector.toEndpointLog());
