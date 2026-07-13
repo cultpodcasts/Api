@@ -25,6 +25,12 @@ export async function publicGetEpisode(c: Auth0ActionContext): Promise<Response>
             logCollector.addMessage(`Successfully used secure-public-episode-endpoint.`);
             console.log(logCollector.toEndpointLog());
             return c.newResponse(resp.body);
+        } else if (resp.status == 404) {
+            // Forward not-found so the bookmarks page can skip missing episodes
+            // instead of treating every miss as a hard 500 failure.
+            logCollector.addMessage(`Public episode not found.`);
+            console.log(logCollector.toEndpointLog());
+            return c.newResponse(resp.body, resp.status);
         } else {
             logCollector.addMessage(`Failed to use secure-public-episode-endpoint.`);
             console.error(logCollector.toEndpointLog());
