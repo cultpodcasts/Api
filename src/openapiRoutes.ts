@@ -27,6 +27,7 @@ import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { publishTerm } from "./publishTerm";
+import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
@@ -393,6 +394,25 @@ export const PublishTermRoute = createOpenApiRoute(publishTerm, {
         summary: "Publish term",
         request: { body: jsonBodySchema },
         responses: { 200: { description: "Term published", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule, {
+    auth: true,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Get Discovery UK schedule",
+        responses: { 200: { description: "Schedule", ...contentJson(genericOkSchema) }, ...authResponses }
+    }
+});
+
+export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule, {
+    auth: true,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Update Discovery UK schedule",
+        request: { body: jsonBodySchema },
+        responses: { 200: { description: "Schedule updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
 
