@@ -46,6 +46,9 @@ export function getEndpoint(endpoint: Endpoint, env: Env): URL {
         case Endpoint.terms:
             url = new URL(env.secureAdminTermsEndpoint);
             break;
+        case Endpoint.discoverySchedule:
+            url = new URL(env.secureDiscoveryScheduleEndpoint);
+            break;
         case Endpoint.pushSubscriptions:
             url = new URL(env.securePushSubscriptionEndpoint);
             break;

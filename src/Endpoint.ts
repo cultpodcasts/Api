@@ -14,5 +14,6 @@ export enum Endpoint {
     publishHomepage,
     terms,
     pushSubscriptions,
-    searchIndexer
+    searchIndexer,
+    discoverySchedule
 }

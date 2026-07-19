@@ -37,6 +37,8 @@ import {
 	PublishHomepageRoute,
 	PublishPodcastEpisodeRoute,
 	PublishTermRoute,
+	GetDiscoveryScheduleRoute,
+	PutDiscoveryScheduleRoute,
 	PushSubscriptionRoute,
 	RenamePodcastRoute,
 	RunSearchIndexerRoute,
@@ -304,6 +306,8 @@ openapi.get('/discovery-info', GetDiscoveryInfoRoute);
 openapi.post('/searchindex/run', RunSearchIndexerRoute);
 openapi.post('/publish/homepage', PublishHomepageRoute);
 openapi.post('/terms', PublishTermRoute);
+openapi.get('/discovery-schedule', GetDiscoveryScheduleRoute);
+openapi.put('/discovery-schedule', PutDiscoveryScheduleRoute);
 openapi.post('/podcast/name/:name', RenamePodcastRoute);
 openapi.post('/pushsubscription', PushSubscriptionRoute);
 openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);
