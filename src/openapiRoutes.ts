@@ -75,9 +75,21 @@ const jsonBodySchema = {
     required: true
 } as const;
 
+/**
+ * Auth response matrix (Wave 2 Vitest: auth-matrix.spec.ts):
+ * - 401 Unauthorized: missing or invalid bearer / Auth0 payload
+ * - 403 Forbidden: authenticated but missing required permission (e.g. curate, admin)
+ *
+ * Note: many Azure proxy handlers still collapse both cases to 403 until Wave 3
+ * `proxyToAzure` extract; R2 list handlers + OpenAPI docs gate follow this matrix.
+ */
 const authResponses = {
+    401: {
+        description: "Unauthorized — missing or invalid authentication",
+        ...contentJson(errorSchema)
+    },
     403: {
-        description: "Unauthorized",
+        description: "Forbidden — authenticated but missing required permission",
         ...contentJson(errorSchema)
     }
 };

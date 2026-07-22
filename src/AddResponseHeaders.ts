@@ -17,5 +17,5 @@ export function AddResponseHeaders(c: Context<any>, opts: HttpResponseHeaderOpti
 		c.header("etag", opts.etag);
 	}
 	c.header("Access-Control-Allow-Origin", getOrigin(c.req.header("Origin"), c.env.stagingHostSuffix));
-	c.header("Access-Control-Allow-Methods", opts.methods.map(x => x.toUpperCase).join(","));
+	c.header("Access-Control-Allow-Methods", opts.methods.map(x => x.toUpperCase()).join(","));
 }

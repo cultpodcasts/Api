@@ -4,11 +4,15 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "start": "wrangler dev --env local --ip 127.0.0.1 --port 8787 --local-protocol https --https-cert-path ./.cert/dev-cert.pem --https-key-path ./.cert/dev-key.pem"
+    "start": "wrangler dev --env local --ip 127.0.0.1 --port 8787 --local-protocol https --https-cert-path ./.cert/dev-cert.pem --https-key-path ./.cert/dev-key.pem",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.7",
     "@cloudflare/workers-types": "^4.20241022.0",
     "typescript": "^5.0.4",
+    "vitest": "^4.1.0",
     "wrangler": "^4.67.0"
   },
   "dependencies": {

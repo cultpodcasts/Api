@@ -36,9 +36,13 @@ export async function getDiscoveryInfo(c: Auth0ActionContext): Promise<Response>
             });
             await stream.pipe(object.body);
         });
-    } else {
+    } else if (!auth0Payload) {
         logCollector.addMessage("Unauthorised to use getDiscoveryInfo.");
         console.error(logCollector.toEndpointLog());
-        return c.json({ message: "Unauthorised" }, 401);
+        return c.json({ error: "Unauthorised" }, 401);
+    } else {
+        logCollector.addMessage("Forbidden to use getDiscoveryInfo.");
+        console.error(logCollector.toEndpointLog());
+        return c.json({ error: "Forbidden" }, 403);
     }
 }

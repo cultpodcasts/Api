@@ -6,10 +6,13 @@ podcasts.sql
 /wrangler.toml
 /queries.cmd
 .dev.vars
+.env
+.env.*
+!.env.example
 subjects.json
 flairs.json
 homepage.json
 homepage-ssr.json
-scripts/set-secrets-*.cmd
-scripts/set-secrets-*.ps1
+scripts/local-secrets.*.env
+!scripts/local-secrets.*.env.example
 .cert/

@@ -128,7 +128,7 @@ const requireOpenApiAuth = async (c: any, next: () => Promise<void>) => {
 		if (pathname.startsWith('/docs')) {
 			return c.redirect('/docs/login');
 		}
-		return c.json({ error: 'Unauthorised' }, 403);
+		return c.json({ error: 'Unauthorised' }, 401);
 	}
 	if (!isAdmin(payload)) {
 		return c.json({ error: 'Forbidden' }, 403);
@@ -199,10 +199,13 @@ app.get('/docs/auth/callback', async (c) => {
 	const stateCookie = getCookie(c, OPENAPI_AUTH_STATE_COOKIE);
 
 	if (!state || !stateCookie || state !== stateCookie) {
-		return c.json({ error: 'Invalid auth state' }, 403);
+		return c.json({ error: 'Invalid auth state' }, 401);
 	}
 
 	const payload = await tryGetPayload(c, token);
+	if (!payload) {
+		return c.json({ error: 'Unauthorised' }, 401);
+	}
 	if (!isAdmin(payload)) {
 		return c.json({ error: 'Forbidden' }, 403);
 	}

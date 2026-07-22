@@ -47,7 +47,7 @@ export class LogCollector implements endpointOperation {
         if (props.hasOwnProperty('clientTrustScoretr')) {
             this.clientTrustScoretr = props.clientTrustScoretr;
         }
-        if (props.hasOwnProperty('asn)')) {
+        if (props.hasOwnProperty('asn')) {
             this.asn = props.asn;
         }
         if (props.hasOwnProperty('ipAddress')) {
