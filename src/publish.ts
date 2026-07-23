@@ -1,48 +1,22 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
-import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
-import { buildFetchHeaders } from "./buildFetchHeaders";
-import { LogCollector } from "./LogCollector";
-import { getEndpoint } from "./endpoints";
 import { Endpoint } from "./Endpoint";
-import { StatusCode } from "hono/utils/http-status";
+import { proxyToAzure } from "./proxyToAzure";
 
 export async function publishPodcastEpisode(c: Auth0ActionContext): Promise<Response> {
-    const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
-    const logCollector = new LogCollector();
-    logCollector.collectRequest(c);
-    const podcastId = c.req.param('podcastId');
-    const episodeId = c.req.param('episodeId');
-    logCollector.addMessage(`Matched publishPodcastEpisode route for podcastId ${podcastId} and episodeId ${episodeId}.`);
-    AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-    if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
-        try {
-            const url = new URL(`${getEndpoint(Endpoint.episodePublish, c.env)}/${podcastId}/${episodeId}`);
-            logCollector.addMessage(`Publishing to ${url.toString()}.`);
-            const data: any = await c.req.json();
-            const body: string = JSON.stringify(data);
-            const resp = await fetch(url, {
-                headers: buildFetchHeaders(c.req, url),
-                method: "POST",
-                body: body
-            });
-                logCollector.add({  status: resp.status });
-            if (resp.status == 200) {
-                logCollector.addMessage(`Successfully used secure-episode-endpoint.`);
-                console.log(logCollector.toEndpointLog());
-                return c.newResponse(resp.body);
-            } else {
-                logCollector.addMessage(`Failed to use secure-episode-endpoint.`);
-                console.error(logCollector.toEndpointLog());
-                return c.newResponse(resp.body, resp.status as StatusCode);
-            }
-        } catch (error) {
-            logCollector.addMessage(`publishPodcastEpisode threw ${(error as Error).message}.`);
-            console.error(logCollector.toEndpointLog(), error);
-            return c.json({ error: "Error" }, 500);
-        }
-    }
-    logCollector.addMessage("Unauthorised to use publish.");
-    console.error(logCollector.toEndpointLog());
-    return c.json({ error: "Unauthorised" }, 403);
+	const podcastId = c.req.param("podcastId");
+	const episodeId = c.req.param("episodeId");
+	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+	const data: unknown = await c.req.json();
+	const body = JSON.stringify(data);
+	return proxyToAzure(c, {
+		permission: "curate",
+		endpoint: Endpoint.episodePublish,
+		method: "POST",
+		pathSuffix: `/${encodeURIComponent(podcastId)}/${encodeURIComponent(episodeId)}`,
+		body,
+		successStatuses: [200],
+		passthroughOtherStatuses: true,
+		logName: "secure-episode-endpoint"
+	});
 }

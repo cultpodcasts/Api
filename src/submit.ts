@@ -1,13 +1,11 @@
 import { PrismaD1 } from "@prisma/adapter-d1";
 import { PrismaClient, Prisma } from "@prisma/client";
-//import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
-import { buildFetchHeaders } from "./buildFetchHeaders";
-import { LogCollector } from "./LogCollector";
-import { getEndpoint } from "./endpoints";
 import { Endpoint } from "./Endpoint";
+import { LogCollector } from "./LogCollector";
+import { proxyToAzure } from "./proxyToAzure";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
@@ -16,23 +14,19 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
 	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
-		const url = getEndpoint(Endpoint.submit, c.env);
-		const resp = await fetch(url, {
-			headers: buildFetchHeaders(c.req, url),
+		const resp = await proxyToAzure(c, {
+			permission: "submit",
+			endpoint: Endpoint.submit,
+			method: "POST",
 			body: JSON.stringify(data),
-			method: "POST"
+			successStatuses: [200],
+			logName: "secure-submit-endpoint"
 		});
-		logCollector.add({status: resp.status });
 		if (resp.status == 200) {
-			logCollector.addMessage( `Successfully used secure-submit-endpoint.`);
-			console.log(logCollector.toEndpointLog());
-			var response = c.newResponse(resp.body);
-			response.headers.set("X-Origin", "true");
-			return response;
-		} else {
-			logCollector.addMessage(`Failed to use secure-submit-endpoint.`);
-			console.error(logCollector.toEndpointLog());
+			resp.headers.set("X-Origin", "true");
+			return resp;
 		}
+		logCollector.addMessage(`Failed to use secure-submit-endpoint.`);
 	}
 	logCollector.addMessage(`Storing submission in d1.`);
 	const adapter = new PrismaD1(c.env.apiDB);
