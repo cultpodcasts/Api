@@ -31,7 +31,6 @@ import {
 	discoveryScheduleUpdateRequestSchema,
 	discoverySubmitRequestSchema,
 	discoverySubmitResponseSchema,
-	emptyObjectSchema,
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
@@ -585,7 +584,7 @@ export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
     schema: {
         tags: ["Publishing"],
         summary: "Publish homepage",
-        request: { body: jsonBody(emptyObjectSchema) },
+        // No request body — worker posts "{}" to Azure; PublishController has no [FromBody].
         responses: {
             200: { description: "Homepage published", ...contentJson(publishHomepageResponseSchema) },
             ...serverErrorResponse,

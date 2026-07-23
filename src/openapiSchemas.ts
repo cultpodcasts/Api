@@ -265,9 +265,6 @@ export const podcastChangeRequestSchema = z.object({
 	minimumDuration: z.string().optional().nullable()
 });
 
-/** Unmodelled admin request blobs only — prefer empty object when Azure ignores body. */
-export const emptyObjectSchema = z.object({});
-
 /** Api.Models.EpisodePublishRequest */
 export const episodePublishRequestSchema = z.object({
 	post: z.boolean(),
