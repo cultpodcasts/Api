@@ -13,6 +13,7 @@ import {
 	episodeUpdateResponseSchema,
 	errorSchema,
 	flairsResponseSchema,
+	homepageResponseSchema,
 	languagesResponseSchema,
 	pageDetailsResponseSchema,
 	podcastChangeRequestSchema,
@@ -277,5 +278,24 @@ describe("openapi Zod schemas", () => {
 			subjectType: "Canonical"
 		}).subjectType).toBe("Canonical");
 		expect(() => podcastChangeRequestSchema.parse({ releaseAuthority: "Bbc" })).toThrow();
+	});
+
+	it("accepts homepage HomePageModel JSON", () => {
+		const parsed = homepageResponseSchema.parse({
+			recentEpisodes: [{
+				id: "550e8400-e29b-41d4-a716-446655440000",
+				episodeId: "550e8400-e29b-41d4-a716-446655440000",
+				podcastName: "Show",
+				episodeTitle: "Ep",
+				episodeDescription: "Desc",
+				duration: "01:00:00",
+				release: "2026-07-01T12:00:00Z",
+				spotify: "https://open.spotify.com/episode/x",
+				subjects: ["cult"]
+			}],
+			episodeCount: 1,
+			totalDuration: "01:00:00"
+		});
+		expect(parsed.recentEpisodes[0].podcastName).toBe("Show");
 	});
 });

@@ -572,3 +572,35 @@ export const searchResponseSchema = z.object({
 	"@odata.count": z.number().optional(),
 	value: z.array(episodeSearchHitSchema)
 });
+
+/**
+ * R2 `homepage` — RedditPodcastPoster.Models.HomePage.HomePageModel /
+ * RecentEpisode (camelCase; TimeSpan as string).
+ */
+export const homepageEpisodeSchema = z.object({
+	id: z.string().uuid(),
+	episodeId: z.string().uuid().optional(),
+	podcastName: z.string(),
+	episodeTitle: z.string(),
+	episodeDescription: z.string(),
+	length: z.string().optional(),
+	duration: z.string(),
+	release: z.string(),
+	releaseDayDisplay: z.string().optional(),
+	spotify: z.string().url().optional().nullable(),
+	apple: z.string().url().optional().nullable(),
+	youtube: z.string().url().optional().nullable(),
+	bbc: z.string().url().optional().nullable(),
+	internetArchive: z.string().url().optional().nullable(),
+	subjects: z.array(z.string()).optional().nullable(),
+	image: z.string().url().optional().nullable()
+});
+
+export const homepageResponseSchema = z.object({
+	recentEpisodes: z.array(homepageEpisodeSchema),
+	episodeCount: z.number(),
+	totalDuration: z.string()
+});
+
+/** R2 `homepage-ssr` — pre-rendered HTML document. */
+export const homepageSsrResponseSchema = z.string();

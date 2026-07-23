@@ -41,6 +41,8 @@ import {
 	episodeUpdateResponseSchema,
 	errorSchema,
 	flairsResponseSchema,
+	homepageResponseSchema,
+	homepageSsrResponseSchema,
 	indexPodcastResponseSchema,
 	indexerStateDtoSchema,
 	jsonBody,
@@ -150,7 +152,10 @@ export const HomepageRoute = createOpenApiRoute(homepage, {
     schema: {
         tags: ["Public"],
         summary: "Get homepage payload",
-        responses: { 200: { description: "Homepage response" } }
+        responses: {
+            200: { description: "Homepage JSON (R2)", ...contentJson(homepageResponseSchema) },
+            404: { description: "Homepage object missing" }
+        }
     }
 });
 
@@ -158,7 +163,17 @@ export const HomepageSsrRoute = createOpenApiRoute(homepageSsr, {
     schema: {
         tags: ["Public"],
         summary: "Get homepage server-side rendered HTML",
-        responses: { 200: { description: "Homepage SSR response" } }
+        responses: {
+            200: {
+                description: "Pre-rendered homepage HTML (R2)",
+                content: {
+                    "text/html": {
+                        schema: homepageSsrResponseSchema
+                    }
+                }
+            },
+            404: { description: "Homepage SSR object missing" }
+        }
     }
 });
 
