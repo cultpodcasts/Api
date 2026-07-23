@@ -6,6 +6,7 @@ import {
 	discoveryScheduleResponseSchema,
 	discoverySubmitRequestSchema,
 	discoverySubmitResponseSchema,
+	episodeChangeRequestSchema,
 	episodeDtoSchema,
 	episodeListResponseSchema,
 	episodePublishRequestSchema,
@@ -14,10 +15,12 @@ import {
 	flairsResponseSchema,
 	languagesResponseSchema,
 	pageDetailsResponseSchema,
+	podcastChangeRequestSchema,
 	podcastRenameRequestSchema,
 	publicEpisodeDtoSchema,
 	searchRequestSchema,
 	searchResponseSchema,
+	subjectChangeRequestSchema,
 	subjectsNameListResponseSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema
@@ -245,5 +248,34 @@ describe("openapi Zod schemas", () => {
 			tweet: false,
 			blueskyPost: true
 		}).blueskyPost).toBe(true);
+	});
+
+	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {
+		const parsed = episodeChangeRequestSchema.parse({
+			title: "New title",
+			bluesky: false,
+			urls: {
+				spotify: "https://open.spotify.com/episode/x",
+				apple: "",
+				youtube: null
+			},
+			images: { other: "" },
+			guests: ["Alice"]
+		});
+		expect(parsed.urls?.apple).toBe("");
+		expect(parsed.images?.other).toBe("");
+	});
+
+	it("accepts PodcastChangeRequest Service enum and SubjectChangeRequest SubjectType", () => {
+		expect(podcastChangeRequestSchema.parse({
+			releaseAuthority: "Spotify",
+			primaryPostService: "YouTube",
+			appleId: 123
+		}).releaseAuthority).toBe("Spotify");
+		expect(subjectChangeRequestSchema.parse({
+			name: "Topic",
+			subjectType: "Canonical"
+		}).subjectType).toBe("Canonical");
+		expect(() => podcastChangeRequestSchema.parse({ releaseAuthority: "Bbc" })).toThrow();
 	});
 });

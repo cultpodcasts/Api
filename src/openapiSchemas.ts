@@ -138,7 +138,7 @@ export const pushSubscriptionRequestSchema = z.object({
 	})
 });
 
-/** ServiceUrls — Api.Dtos / RedditPodcastPoster.Models.Podcasts */
+/** ServiceUrls — RedditPodcastPoster.Models.Podcasts.ServiceUrls (response / absolute URIs). */
 export const serviceUrlsSchema = z.object({
 	spotify: z.string().url().optional().nullable(),
 	apple: z.string().url().optional().nullable(),
@@ -147,13 +147,45 @@ export const serviceUrlsSchema = z.object({
 	bbc: z.string().url().optional().nullable()
 });
 
-export const episodeImagesSchema = z.object({
-	youtube: z.string().url().optional().nullable(),
+/** ServiceImageUrls — RedditPodcastPoster.Models.Podcasts.ServiceImageUrls */
+export const serviceImageUrlsSchema = z.object({
 	spotify: z.string().url().optional().nullable(),
 	apple: z.string().url().optional().nullable(),
+	youtube: z.string().url().optional().nullable(),
 	other: z.string().url().optional().nullable()
 });
 
+/** @deprecated Prefer serviceImageUrlsSchema */
+export const episodeImagesSchema = serviceImageUrlsSchema;
+
+/**
+ * Patch URI: absolute URL, empty string (Angular clears with ''), or null.
+ * Mirrors System.Uri? JSON on EpisodeChangeRequest.urls / images.
+ */
+const patchUriSchema = z.union([z.string().url(), z.literal(""), z.null()]).optional();
+
+const serviceUrlsChangeSchema = z.object({
+	spotify: patchUriSchema,
+	apple: patchUriSchema,
+	youtube: patchUriSchema,
+	internetArchive: patchUriSchema,
+	bbc: patchUriSchema
+});
+
+const serviceImageUrlsChangeSchema = z.object({
+	spotify: patchUriSchema,
+	apple: patchUriSchema,
+	youtube: patchUriSchema,
+	other: patchUriSchema
+});
+
+/** JsonStringEnumConverter — RedditPodcastPoster.Models.Podcasts.Service */
+export const serviceEnumSchema = z.enum(["Spotify", "Apple", "YouTube", "Other"]);
+
+/** JsonStringEnumConverter — RedditPodcastPoster.Models.Subjects.SubjectType */
+export const subjectTypeSchema = z.enum(["Unset", "Canonical", "Meta"]);
+
+/** Api.Models.EpisodeChangeRequest */
 export const episodeChangeRequestSchema = z.object({
 	title: z.string().optional().nullable(),
 	description: z.string().optional().nullable(),
@@ -165,14 +197,15 @@ export const episodeChangeRequestSchema = z.object({
 	explicit: z.boolean().optional().nullable(),
 	release: z.string().optional().nullable(),
 	duration: z.string().optional().nullable(),
-	urls: serviceUrlsSchema.optional().nullable(),
-	images: episodeImagesSchema.optional().nullable(),
+	urls: serviceUrlsChangeSchema.optional().nullable(),
+	images: serviceImageUrlsChangeSchema.optional().nullable(),
 	subjects: z.array(z.string()).optional().nullable(),
 	searchTerms: z.string().optional().nullable(),
 	lang: z.string().optional().nullable(),
 	guests: z.array(z.string()).optional().nullable()
 });
 
+/** Api.Models.PersonChangeRequest */
 export const personChangeRequestSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
 	name: z.string().optional().nullable(),
@@ -183,6 +216,7 @@ export const personChangeRequestSchema = z.object({
 	blueskyHandle: z.string().optional().nullable()
 });
 
+/** Api.Models.SubjectChangeRequest */
 export const subjectChangeRequestSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
 	aliases: z.array(z.string()).optional().nullable(),
@@ -192,11 +226,11 @@ export const subjectChangeRequestSchema = z.object({
 	hashTag: z.string().optional().nullable(),
 	redditFlairTemplateId: z.string().uuid().optional().nullable(),
 	redditFlareText: z.string().optional().nullable(),
-	subjectType: z.string().optional().nullable(),
+	subjectType: subjectTypeSchema.optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable()
 });
 
-/** Large patch surface — known keys only (matches PodcastDto / change request). */
+/** Api.Models.PodcastChangeRequest */
 export const podcastChangeRequestSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
 	name: z.string().optional().nullable(),
@@ -204,12 +238,12 @@ export const podcastChangeRequestSchema = z.object({
 	removed: z.boolean().optional().nullable(),
 	indexAllEpisodes: z.boolean().optional().nullable(),
 	bypassShortEpisodeChecking: z.boolean().optional().nullable(),
-	releaseAuthority: z.string().optional().nullable(),
+	releaseAuthority: serviceEnumSchema.optional().nullable(),
 	unsetReleaseAuthority: z.boolean().optional().nullable(),
-	primaryPostService: z.string().optional().nullable(),
+	primaryPostService: serviceEnumSchema.optional().nullable(),
 	unsetPrimaryPostService: z.boolean().optional().nullable(),
 	spotifyId: z.string().optional().nullable(),
-	appleId: z.number().optional().nullable(),
+	appleId: z.number().int().optional().nullable(),
 	nullAppleId: z.boolean().optional().nullable(),
 	youTubePublicationDelay: z.string().optional().nullable(),
 	skipEnrichingFromYouTube: z.boolean().optional().nullable(),
@@ -255,7 +289,7 @@ export const searchIndexerStateSchema = z.enum([
 ]);
 
 /** JsonStringEnumConverter Service values used on EpisodeDto / PodcastDto. */
-export const serviceNameSchema = z.string();
+export const serviceNameSchema = serviceEnumSchema;
 
 export const personDtoSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
@@ -311,7 +345,7 @@ export const episodeDtoSchema = z.object({
 	removedSubjects: z.array(z.string()).optional(),
 	matches: z.array(episodeSubjectMatchSchema).optional(),
 	searchTerms: z.string().optional().nullable(),
-	images: episodeImagesSchema.optional().nullable(),
+	images: serviceImageUrlsSchema.optional().nullable(),
 	guests: z.array(z.string()).optional().nullable(),
 	youTubePodcast: z.boolean().optional(),
 	spotifyPodcast: z.boolean().optional(),
@@ -365,7 +399,7 @@ export const subjectDtoSchema = z.object({
 	hashTag: z.string().optional().nullable(),
 	redditFlairTemplateId: z.string().uuid().optional().nullable(),
 	redditFlareText: z.string().optional().nullable(),
-	subjectType: z.string().optional().nullable(),
+	subjectType: subjectTypeSchema.optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable()
 });
 
@@ -377,9 +411,9 @@ export const podcastDtoSchema = z.object({
 	removed: z.boolean().optional().nullable(),
 	indexAllEpisodes: z.boolean().optional().nullable(),
 	bypassShortEpisodeChecking: z.boolean().optional().nullable(),
-	releaseAuthority: serviceNameSchema.optional().nullable(),
+	releaseAuthority: serviceEnumSchema.optional().nullable(),
 	unsetReleaseAuthority: z.boolean().optional().nullable(),
-	primaryPostService: serviceNameSchema.optional().nullable(),
+	primaryPostService: serviceEnumSchema.optional().nullable(),
 	unsetPrimaryPostService: z.boolean().optional().nullable(),
 	spotifyId: z.string().optional().nullable(),
 	appleId: z.number().optional().nullable(),
