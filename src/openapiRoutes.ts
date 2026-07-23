@@ -24,12 +24,16 @@ import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { indexPodcastByName } from "./indexPodcastByName";
 import {
+	bookmarksListResponseSchema,
+	discoveryCurationResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
 	discoverySubmitRequestSchema,
 	episodeChangeRequestSchema,
 	errorSchema,
+	flairsResponseSchema,
 	jsonBody,
+	languagesResponseSchema,
 	opaqueJsonSchema,
 	opaqueObjectRequestSchema,
 	personChangeRequestSchema,
@@ -180,7 +184,7 @@ export const GetFlairsRoute = createOpenApiRoute(getFlairs, {
     schema: {
         tags: ["Subjects"],
         summary: "List flairs",
-        responses: { 200: { description: "Flairs", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Flairs", ...contentJson(flairsResponseSchema) }, ...authResponses }
     }
 });
 
@@ -367,7 +371,7 @@ export const GetDiscoveryReportsRoute = createOpenApiRoute(getDiscoveryReports, 
     schema: {
         tags: ["Discovery"],
         summary: "Get discovery curation reports",
-        responses: { 200: { description: "Discovery reports", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Discovery reports", ...contentJson(discoveryCurationResponseSchema) }, ...authResponses }
     }
 });
 
@@ -492,7 +496,7 @@ export const GetBookmarksRoute = createOpenApiRoute(getBookmarks, {
     schema: {
         tags: ["Bookmarks"],
         summary: "List current user bookmarks",
-        responses: { 200: { description: "Bookmarks", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Bookmarks", ...contentJson(bookmarksListResponseSchema) }, ...authResponses }
     }
 });
 
@@ -511,6 +515,6 @@ export const GetLanguagesRoute = createOpenApiRoute(getLanguages, {
     schema: {
         tags: ["Metadata"],
         summary: "List languages",
-        responses: { 200: { description: "Languages", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Languages", ...contentJson(languagesResponseSchema) }, ...authResponses }
     }
 });

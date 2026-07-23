@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+	bookmarksListResponseSchema,
+	discoveryCurationResponseSchema,
+	discoveryScheduleResponseSchema,
 	discoverySubmitRequestSchema,
+	errorSchema,
+	flairsResponseSchema,
+	languagesResponseSchema,
 	podcastRenameRequestSchema,
 	searchRequestSchema,
 	submitUrlRequestSchema
@@ -24,5 +30,74 @@ describe("openapi Zod schemas", () => {
 
 	it("rejects discovery submit without uuid arrays", () => {
 		expect(() => discoverySubmitRequestSchema.parse({ ids: ["not-a-uuid"], resultIds: [] })).toThrow();
+	});
+
+	it("accepts discovery curation GET response matching DiscoveryResponse DTO", () => {
+		const parsed = discoveryCurationResponseSchema.parse({
+			ids: ["550e8400-e29b-41d4-a716-446655440000"],
+			hiddenCount: 2,
+			results: [{
+				id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				episodeName: "Episode title",
+				showName: "Show name",
+				released: "2026-07-01T12:00:00Z",
+				duration: "01:30:00",
+				urls: { spotify: "https://open.spotify.com/episode/abc" },
+				subjects: ["comedy"],
+				discoverService: ["Spotify", "YouTube"],
+				enrichedTimeFromApple: false,
+				enrichedUrlFromSpotify: true,
+				autoHidden: false,
+				acceptProbability: 0.85,
+				matchingPodcasts: [{ name: "Pod", visible: true, visibleEpisodes: 3 }]
+			}]
+		});
+		expect(parsed.results).toHaveLength(1);
+		expect(parsed.hiddenCount).toBe(2);
+	});
+
+	it("accepts discovery schedule response", () => {
+		const parsed = discoveryScheduleResponseSchema.parse({
+			runTimes: ["09:00"],
+			timeZoneId: "Europe/London",
+			enabled: true,
+			isDefault: false,
+			nextRuns: [{
+				slotId: "slot-1",
+				slotStartUtc: "2026-07-23T08:00:00Z",
+				slotStartUk: "2026-07-23T09:00:00+01:00"
+			}]
+		});
+		expect(parsed.nextRuns).toHaveLength(1);
+	});
+
+	it("accepts flairs map keyed by flair template uuid", () => {
+		const parsed = flairsResponseSchema.parse({
+			"550e8400-e29b-41d4-a716-446655440000": {
+				text: "Discussion",
+				textEditable: false,
+				textColour: "#ffffff",
+				backgroundColour: "#0079d3"
+			}
+		});
+		expect(Object.keys(parsed)).toHaveLength(1);
+	});
+
+	it("accepts languages code-to-name map", () => {
+		const parsed = languagesResponseSchema.parse({ en: "English", fr: "French" });
+		expect(parsed.en).toBe("English");
+	});
+
+	it("accepts bookmarks list as episode uuid array", () => {
+		const parsed = bookmarksListResponseSchema.parse([
+			"550e8400-e29b-41d4-a716-446655440000",
+			"6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+		]);
+		expect(parsed).toHaveLength(2);
+	});
+
+	it("accepts error response with error or message", () => {
+		expect(errorSchema.parse({ error: "Unauthorised" }).error).toBe("Unauthorised");
+		expect(errorSchema.parse({ message: "Could not retrieve bookmarks" }).message).toContain("bookmarks");
 	});
 });

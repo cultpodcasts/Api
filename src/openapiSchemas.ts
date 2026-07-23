@@ -64,6 +64,64 @@ export const discoveryScheduleResponseSchema = z.object({
 	}))
 });
 
+/** GET /discovery-curation — mirrors Api.Dtos.DiscoveryResponse. */
+const discoveryResultUrlsSchema = z.object({
+	spotify: z.string().url().optional().nullable(),
+	apple: z.string().url().optional().nullable(),
+	youtube: z.string().url().optional().nullable()
+});
+
+const discoverServiceSchema = z.enum(["Spotify", "ListenNotes", "YouTube", "Taddy"]);
+
+const discoveryMatchingPodcastSchema = z.object({
+	name: z.string(),
+	visible: z.boolean(),
+	visibleEpisodes: z.number()
+});
+
+const discoveryCurationItemSchema = z.object({
+	id: z.string().uuid(),
+	episodeName: z.string().optional().nullable(),
+	showName: z.string().optional().nullable(),
+	episodeDescription: z.string().optional().nullable(),
+	showDescription: z.string().optional().nullable(),
+	released: z.string(),
+	duration: z.string().optional().nullable(),
+	urls: discoveryResultUrlsSchema,
+	subjects: z.array(z.string()),
+	youTubeViews: z.number().optional().nullable(),
+	youTubeChannelMembers: z.number().optional().nullable(),
+	imageUrl: z.string().url().optional().nullable(),
+	discoverService: z.array(discoverServiceSchema),
+	enrichedTimeFromApple: z.boolean(),
+	enrichedUrlFromSpotify: z.boolean(),
+	matchingPodcasts: z.array(discoveryMatchingPodcastSchema).optional().nullable(),
+	acceptProbability: z.number().optional().nullable(),
+	autoHidden: z.boolean()
+});
+
+export const discoveryCurationResponseSchema = z.object({
+	ids: z.array(z.string().uuid()),
+	results: z.array(discoveryCurationItemSchema),
+	hiddenCount: z.number()
+});
+
+/** GET /flairs — R2 map keyed by Reddit flair template id (Guid). */
+export const flairSchema = z.object({
+	text: z.string(),
+	textEditable: z.boolean(),
+	textColour: z.string(),
+	backgroundColour: z.string()
+});
+
+export const flairsResponseSchema = z.record(z.string().uuid(), flairSchema);
+
+/** GET /languages — R2 map of ISO 639-1 code → English display name. */
+export const languagesResponseSchema = z.record(z.string(), z.string());
+
+/** GET /bookmarks — episode ids for the authenticated user. */
+export const bookmarksListResponseSchema = z.array(z.string().uuid());
+
 export const termSubmitRequestSchema = z.object({
 	term: z.string().min(1)
 });
