@@ -2,8 +2,9 @@ import { z } from "zod";
 
 /**
  * OpenAPI/Zod contracts for the Cloudflare Api worker.
- * Incremental: concrete request bodies for known Azure/DTO shapes;
- * opaque JSON for responses not yet modelled end-to-end.
+ * Known Azure/DTO shapes are strict objects (no `.passthrough()` / open records) so
+ * Swagger examples show real fields instead of additionalProp1/2/3.
+ * `opaqueJsonSchema` / `opaqueObjectRequestSchema` remain only for unmodelled blobs.
  */
 
 /** Prefer over `z.any()` — documents "some JSON" without claiming a shape. */
@@ -33,7 +34,7 @@ export const searchRequestSchema = z.object({
 	filter: z.string().optional(),
 	skip: z.string().optional(),
 	orderby: z.string().optional()
-}).passthrough();
+});
 
 export const submitUrlRequestSchema = z.object({
 	url: z.string().url(),
@@ -139,6 +140,22 @@ export const pushSubscriptionRequestSchema = z.object({
 	})
 });
 
+/** ServiceUrls — Api.Dtos / RedditPodcastPoster.Models.Podcasts */
+export const serviceUrlsSchema = z.object({
+	spotify: z.string().url().optional().nullable(),
+	apple: z.string().url().optional().nullable(),
+	youtube: z.string().url().optional().nullable(),
+	internetArchive: z.string().url().optional().nullable(),
+	bbc: z.string().url().optional().nullable()
+});
+
+export const episodeImagesSchema = z.object({
+	youtube: z.string().url().optional().nullable(),
+	spotify: z.string().url().optional().nullable(),
+	apple: z.string().url().optional().nullable(),
+	other: z.string().url().optional().nullable()
+});
+
 export const episodeChangeRequestSchema = z.object({
 	title: z.string().optional().nullable(),
 	description: z.string().optional().nullable(),
@@ -150,13 +167,13 @@ export const episodeChangeRequestSchema = z.object({
 	explicit: z.boolean().optional().nullable(),
 	release: z.string().optional().nullable(),
 	duration: z.string().optional().nullable(),
-	urls: z.record(z.string(), z.unknown()).optional().nullable(),
-	images: z.record(z.string(), z.unknown()).optional().nullable(),
+	urls: serviceUrlsSchema.optional().nullable(),
+	images: episodeImagesSchema.optional().nullable(),
 	subjects: z.array(z.string()).optional().nullable(),
 	searchTerms: z.string().optional().nullable(),
 	lang: z.string().optional().nullable(),
 	guests: z.array(z.string()).optional().nullable()
-}).passthrough();
+});
 
 export const personChangeRequestSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
@@ -166,7 +183,7 @@ export const personChangeRequestSchema = z.object({
 	aliases: z.array(z.string()).optional().nullable(),
 	twitterHandle: z.string().optional().nullable(),
 	blueskyHandle: z.string().optional().nullable()
-}).passthrough();
+});
 
 export const subjectChangeRequestSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
@@ -179,9 +196,9 @@ export const subjectChangeRequestSchema = z.object({
 	redditFlareText: z.string().optional().nullable(),
 	subjectType: z.string().optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable()
-}).passthrough();
+});
 
-/** Large patch surface — document known keys; allow additional fields. */
+/** Large patch surface — known keys only (matches PodcastDto / change request). */
 export const podcastChangeRequestSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
 	name: z.string().optional().nullable(),
@@ -214,9 +231,9 @@ export const podcastChangeRequestSchema = z.object({
 	ignoredSubjects: z.array(z.string()).optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable(),
 	minimumDuration: z.string().optional().nullable()
-}).passthrough();
+});
 
-/** Homepage publish / other admin blobs not yet fully modelled. */
+/** Unmodelled admin request blobs only. */
 export const opaqueObjectRequestSchema = z.record(z.string(), z.unknown());
 
 // --- Azure Functions response DTOs (Cloud/Api/Dtos) ---
@@ -235,14 +252,6 @@ export const searchIndexerStateSchema = z.enum([
 /** JsonStringEnumConverter Service values used on EpisodeDto / PodcastDto. */
 export const serviceNameSchema = z.string();
 
-export const serviceUrlsSchema = z.object({
-	spotify: z.string().url().optional().nullable(),
-	apple: z.string().url().optional().nullable(),
-	youtube: z.string().url().optional().nullable(),
-	internetArchive: z.string().url().optional().nullable(),
-	bbc: z.string().url().optional().nullable()
-}).passthrough();
-
 export const personDtoSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
 	name: z.string().optional().nullable(),
@@ -251,7 +260,7 @@ export const personDtoSchema = z.object({
 	aliases: z.array(z.string()).optional().nullable(),
 	twitterHandle: z.string().optional().nullable(),
 	blueskyHandle: z.string().optional().nullable()
-}).passthrough();
+});
 
 export const peopleListResponseSchema = z.array(personDtoSchema);
 
@@ -263,20 +272,13 @@ const episodeGuestMatchResultSchema = z.object({
 const episodeGuestSuggestionSchema = z.object({
 	person: personDtoSchema,
 	matchResults: z.array(episodeGuestMatchResultSchema)
-}).passthrough();
+});
 
 const episodeSubjectMatchSchema = z.object({
 	subject: z.string().optional(),
 	term: z.string().optional(),
 	source: z.string().optional()
-}).passthrough();
-
-const episodeImagesSchema = z.object({
-	youtube: z.string().url().optional().nullable(),
-	spotify: z.string().url().optional().nullable(),
-	apple: z.string().url().optional().nullable(),
-	other: z.string().url().optional().nullable()
-}).passthrough();
+});
 
 /** Api.Dtos.EpisodeDto — TimeSpan `duration` serialises as string (e.g. "01:30:00"). */
 export const episodeDtoSchema = z.object({
@@ -314,7 +316,7 @@ export const episodeDtoSchema = z.object({
 	image: z.string().url().optional().nullable(),
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
 	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable()
-}).passthrough();
+});
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
 
@@ -330,14 +332,14 @@ export const publicEpisodeDtoSchema = z.object({
 	subjects: z.array(z.string()),
 	urls: serviceUrlsSchema,
 	image: z.string().url().optional().nullable()
-}).passthrough();
+});
 
 /** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
 export const episodeUpdateResponseSchema = z.object({
 	tweetDeleted: z.boolean().optional().nullable(),
 	blueskyPostDeleted: z.boolean().optional().nullable(),
 	searchIndexerState: searchIndexerStateSchema.optional().nullable()
-}).passthrough();
+});
 
 /** Api.Dtos.EpisodePublishResponse */
 export const episodePublishResponseSchema = z.object({
@@ -346,7 +348,7 @@ export const episodePublishResponseSchema = z.object({
 	blueskyPosted: z.boolean().optional().nullable(),
 	failedTweetContent: z.string().optional().nullable(),
 	podcastId: z.string().uuid().optional().nullable()
-}).passthrough();
+});
 
 /** Api.Dtos.SubjectDto */
 export const subjectDtoSchema = z.object({
@@ -360,7 +362,7 @@ export const subjectDtoSchema = z.object({
 	redditFlareText: z.string().optional().nullable(),
 	subjectType: z.string().optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable()
-}).passthrough();
+});
 
 /** Api.Dtos.PodcastDto */
 export const podcastDtoSchema = z.object({
@@ -395,7 +397,7 @@ export const podcastDtoSchema = z.object({
 	ignoredSubjects: z.array(z.string()).optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable(),
 	minimumDuration: z.string().optional().nullable()
-}).passthrough();
+});
 
 /** Api.Dtos.DiscoverySubmitResponse */
 export const discoverySubmitResponseSchema = z.object({
@@ -406,20 +408,20 @@ export const discoverySubmitResponseSchema = z.object({
 		podcastId: z.string().uuid().optional().nullable(),
 		episodeId: z.string().uuid().optional().nullable(),
 		message: z.string()
-	}).passthrough()),
+	})),
 	searchIndexerState: searchIndexerStateSchema
-}).passthrough();
+});
 
 /** Api.Dtos.PublishHomepageResponse */
 export const publishHomepageResponseSchema = z.object({
 	homepagePublished: z.boolean(),
 	preProcessedHomepagePublished: z.boolean().optional().nullable()
-}).passthrough();
+});
 
 /** Api.Dtos.PodcastRenameResponse */
 export const podcastRenameResponseSchema = z.object({
 	indexState: searchIndexerStateSchema
-}).passthrough();
+});
 
 /** Api.Dtos.IndexPodcastResponse */
 export const indexPodcastResponseSchema = z.object({
@@ -430,17 +432,17 @@ export const indexPodcastResponseSchema = z.object({
 		apple: z.boolean(),
 		youtube: z.boolean(),
 		subjects: z.array(z.string())
-	}).passthrough()).optional().nullable(),
+	})).optional().nullable(),
 	indexStatus: z.string(),
 	searchIndexerState: searchIndexerStateSchema.optional()
-}).passthrough();
+});
 
 /** Api.Dtos.IndexerStateDto */
 export const indexerStateDtoSchema = z.object({
 	state: z.string(),
 	nextRun: z.string().optional().nullable(),
 	lastRan: z.string().optional().nullable()
-}).passthrough();
+});
 
 const submitUrlItemStateSchema = z.enum([
 	"None",
@@ -472,14 +474,14 @@ export const submitUrlResponseSchema = z.object({
 					matches: z.number()
 				}))
 			})).optional().nullable()
-		}).passthrough().optional().nullable()
-	}).passthrough().optional().nullable(),
+		}).optional().nullable()
+	}).optional().nullable(),
 	error: z.string().optional().nullable()
-}).passthrough();
+});
 
 /** Delete episode 400 body when social posts block delete. */
 export const episodeDeleteBlockedSchema = z.object({
 	message: z.string().optional(),
 	posted: z.boolean().optional(),
 	tweeted: z.boolean().optional()
-}).passthrough();
+});
