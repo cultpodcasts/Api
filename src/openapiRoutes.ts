@@ -162,16 +162,22 @@ export const HomepageSsrRoute = createOpenApiRoute(homepageSsr, {
     schema: {
         tags: ["Public"],
         summary: "Get homepage server-side rendered HTML",
+        description:
+            "Returns the pre-rendered homepage HTML document stored in R2 (`homepage-ssr`), " +
+            "published by the content publisher alongside the JSON homepage payload. " +
+            "Body is `text/html` (not JSON) — use `GET /homepage` for the structured HomePageModel.",
         responses: {
             200: {
-                description: "Pre-rendered homepage HTML (R2)",
+                description:
+                    "Full HTML document for the public homepage (SSR blob). " +
+                    "Content-Type: text/html. Not a JSON schema — the body is markup.",
                 content: {
                     "text/html": {
                         schema: homepageSsrResponseSchema
                     }
                 }
             },
-            404: { description: "Homepage SSR object missing" }
+            404: { description: "Homepage SSR object missing from R2" }
         }
     }
 });
