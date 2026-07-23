@@ -218,3 +218,268 @@ export const podcastChangeRequestSchema = z.object({
 
 /** Homepage publish / other admin blobs not yet fully modelled. */
 export const opaqueObjectRequestSchema = z.record(z.string(), z.unknown());
+
+// --- Azure Functions response DTOs (Cloud/Api/Dtos) ---
+
+export const searchIndexerStateSchema = z.enum([
+	"EpisodeNotFound",
+	"EpisodeIdConflict",
+	"NoDocuments",
+	"Executed",
+	"Failure",
+	"TooManyRequests",
+	"AlreadyRunning",
+	"Unknown"
+]);
+
+/** JsonStringEnumConverter Service values used on EpisodeDto / PodcastDto. */
+export const serviceNameSchema = z.string();
+
+export const serviceUrlsSchema = z.object({
+	spotify: z.string().url().optional().nullable(),
+	apple: z.string().url().optional().nullable(),
+	youtube: z.string().url().optional().nullable(),
+	internetArchive: z.string().url().optional().nullable(),
+	bbc: z.string().url().optional().nullable()
+}).passthrough();
+
+export const personDtoSchema = z.object({
+	id: z.string().uuid().optional().nullable(),
+	name: z.string().optional().nullable(),
+	sortName: z.string().optional().nullable(),
+	isOrganization: z.boolean().optional().nullable(),
+	aliases: z.array(z.string()).optional().nullable(),
+	twitterHandle: z.string().optional().nullable(),
+	blueskyHandle: z.string().optional().nullable()
+}).passthrough();
+
+export const peopleListResponseSchema = z.array(personDtoSchema);
+
+const episodeGuestMatchResultSchema = z.object({
+	term: z.string(),
+	matches: z.number()
+});
+
+const episodeGuestSuggestionSchema = z.object({
+	person: personDtoSchema,
+	matchResults: z.array(episodeGuestMatchResultSchema)
+}).passthrough();
+
+const episodeSubjectMatchSchema = z.object({
+	subject: z.string().optional(),
+	term: z.string().optional(),
+	source: z.string().optional()
+}).passthrough();
+
+const episodeImagesSchema = z.object({
+	youtube: z.string().url().optional().nullable(),
+	spotify: z.string().url().optional().nullable(),
+	apple: z.string().url().optional().nullable(),
+	other: z.string().url().optional().nullable()
+}).passthrough();
+
+/** Api.Dtos.EpisodeDto — TimeSpan `duration` serialises as string (e.g. "01:30:00"). */
+export const episodeDtoSchema = z.object({
+	id: z.string().uuid(),
+	podcastId: z.string().uuid(),
+	podcastName: z.string(),
+	title: z.string(),
+	displayTitle: z.string().optional(),
+	description: z.string(),
+	displayDescription: z.string().optional(),
+	release: z.string(),
+	duration: z.string(),
+	explicit: z.boolean(),
+	posted: z.boolean(),
+	tweeted: z.boolean(),
+	bluesky: z.boolean().optional().nullable(),
+	ignored: z.boolean(),
+	removed: z.boolean(),
+	lang: z.string().optional().nullable(),
+	spotifyId: z.string().optional(),
+	appleId: z.number().optional().nullable(),
+	youTubeId: z.string().optional(),
+	urls: serviceUrlsSchema,
+	subjects: z.array(z.string()),
+	removedSubjects: z.array(z.string()).optional(),
+	matches: z.array(episodeSubjectMatchSchema).optional(),
+	searchTerms: z.string().optional().nullable(),
+	images: episodeImagesSchema.optional().nullable(),
+	guests: z.array(z.string()).optional().nullable(),
+	youTubePodcast: z.boolean().optional(),
+	spotifyPodcast: z.boolean().optional(),
+	applePodcast: z.boolean().optional(),
+	releaseAuthority: serviceNameSchema.optional().nullable(),
+	primaryPostService: serviceNameSchema.optional().nullable(),
+	image: z.string().url().optional().nullable(),
+	guestPeople: z.array(personDtoSchema).optional().nullable(),
+	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable()
+}).passthrough();
+
+export const episodeListResponseSchema = z.array(episodeDtoSchema);
+
+/** Api.Dtos.PublicEpisodeDto */
+export const publicEpisodeDtoSchema = z.object({
+	id: z.string().uuid(),
+	podcastName: z.string(),
+	title: z.string(),
+	description: z.string(),
+	release: z.string(),
+	duration: z.string(),
+	explicit: z.boolean(),
+	subjects: z.array(z.string()),
+	urls: serviceUrlsSchema,
+	image: z.string().url().optional().nullable()
+}).passthrough();
+
+/** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
+export const episodeUpdateResponseSchema = z.object({
+	tweetDeleted: z.boolean().optional().nullable(),
+	blueskyPostDeleted: z.boolean().optional().nullable(),
+	searchIndexerState: searchIndexerStateSchema.optional().nullable()
+}).passthrough();
+
+/** Api.Dtos.EpisodePublishResponse */
+export const episodePublishResponseSchema = z.object({
+	posted: z.boolean().optional().nullable(),
+	tweeted: z.boolean().optional().nullable(),
+	blueskyPosted: z.boolean().optional().nullable(),
+	failedTweetContent: z.string().optional().nullable(),
+	podcastId: z.string().uuid().optional().nullable()
+}).passthrough();
+
+/** Api.Dtos.SubjectDto */
+export const subjectDtoSchema = z.object({
+	id: z.string().uuid().optional().nullable(),
+	aliases: z.array(z.string()).optional().nullable(),
+	associatedSubjects: z.array(z.string()).optional().nullable(),
+	name: z.string().optional().nullable(),
+	enrichmentHashTags: z.array(z.string()).optional().nullable(),
+	hashTag: z.string().optional().nullable(),
+	redditFlairTemplateId: z.string().uuid().optional().nullable(),
+	redditFlareText: z.string().optional().nullable(),
+	subjectType: z.string().optional().nullable(),
+	knownTerms: z.array(z.string()).optional().nullable()
+}).passthrough();
+
+/** Api.Dtos.PodcastDto */
+export const podcastDtoSchema = z.object({
+	id: z.string().uuid().optional().nullable(),
+	name: z.string().optional().nullable(),
+	lang: z.string().optional().nullable(),
+	removed: z.boolean().optional().nullable(),
+	indexAllEpisodes: z.boolean().optional().nullable(),
+	bypassShortEpisodeChecking: z.boolean().optional().nullable(),
+	releaseAuthority: serviceNameSchema.optional().nullable(),
+	unsetReleaseAuthority: z.boolean().optional().nullable(),
+	primaryPostService: serviceNameSchema.optional().nullable(),
+	unsetPrimaryPostService: z.boolean().optional().nullable(),
+	spotifyId: z.string().optional().nullable(),
+	appleId: z.number().optional().nullable(),
+	nullAppleId: z.boolean().optional().nullable(),
+	youTubePublicationDelay: z.string().optional().nullable(),
+	skipEnrichingFromYouTube: z.boolean().optional().nullable(),
+	twitterHandle: z.string().optional().nullable(),
+	blueskyHandle: z.string().optional().nullable(),
+	enrichmentHashTags: z.array(z.string()).optional().nullable(),
+	hashTag: z.string().optional().nullable(),
+	titleRegex: z.string().optional().nullable(),
+	descriptionRegex: z.string().optional().nullable(),
+	episodeMatchRegex: z.string().optional().nullable(),
+	episodeIncludeTitleRegex: z.string().optional().nullable(),
+	defaultSubject: z.string().optional().nullable(),
+	ignoreAllEpisodes: z.boolean().optional().nullable(),
+	youTubeChannelId: z.string().optional().nullable(),
+	youTubePlaylistId: z.string().optional().nullable(),
+	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable(),
+	ignoredSubjects: z.array(z.string()).optional().nullable(),
+	knownTerms: z.array(z.string()).optional().nullable(),
+	minimumDuration: z.string().optional().nullable()
+}).passthrough();
+
+/** Api.Dtos.DiscoverySubmitResponse */
+export const discoverySubmitResponseSchema = z.object({
+	message: z.string(),
+	errorsOccurred: z.boolean(),
+	results: z.array(z.object({
+		discoveryItemId: z.string().uuid(),
+		podcastId: z.string().uuid().optional().nullable(),
+		episodeId: z.string().uuid().optional().nullable(),
+		message: z.string()
+	}).passthrough()),
+	searchIndexerState: searchIndexerStateSchema
+}).passthrough();
+
+/** Api.Dtos.PublishHomepageResponse */
+export const publishHomepageResponseSchema = z.object({
+	homepagePublished: z.boolean(),
+	preProcessedHomepagePublished: z.boolean().optional().nullable()
+}).passthrough();
+
+/** Api.Dtos.PodcastRenameResponse */
+export const podcastRenameResponseSchema = z.object({
+	indexState: searchIndexerStateSchema
+}).passthrough();
+
+/** Api.Dtos.IndexPodcastResponse */
+export const indexPodcastResponseSchema = z.object({
+	indexedEpisodes: z.array(z.object({
+		podcastId: z.string().uuid(),
+		episodeId: z.string().uuid(),
+		spotify: z.boolean(),
+		apple: z.boolean(),
+		youtube: z.boolean(),
+		subjects: z.array(z.string())
+	}).passthrough()).optional().nullable(),
+	indexStatus: z.string(),
+	searchIndexerState: searchIndexerStateSchema.optional()
+}).passthrough();
+
+/** Api.Dtos.IndexerStateDto */
+export const indexerStateDtoSchema = z.object({
+	state: z.string(),
+	nextRun: z.string().optional().nullable(),
+	lastRan: z.string().optional().nullable()
+}).passthrough();
+
+const submitUrlItemStateSchema = z.enum([
+	"None",
+	"Created",
+	"Enriched",
+	"Ignored",
+	"EpisodeAlreadyExists"
+]);
+
+/** Api.Dtos.SubmitUrlResponse */
+export const submitUrlResponseSchema = z.object({
+	success: z.object({
+		episode: submitUrlItemStateSchema,
+		episodeId: z.string().uuid().optional().nullable(),
+		podcastId: z.string().uuid().optional().nullable(),
+		podcast: submitUrlItemStateSchema,
+		episodeDetails: z.object({
+			spotify: z.boolean(),
+			apple: z.boolean(),
+			youtube: z.boolean(),
+			bbc: z.boolean(),
+			internetArchive: z.boolean(),
+			subjects: z.array(z.string()).optional().nullable(),
+			people: z.array(z.string()).optional().nullable(),
+			guestSuggestions: z.array(z.object({
+				name: z.string(),
+				matchResults: z.array(z.object({
+					term: z.string(),
+					matches: z.number()
+				}))
+			})).optional().nullable()
+		}).passthrough().optional().nullable()
+	}).passthrough().optional().nullable(),
+	error: z.string().optional().nullable()
+}).passthrough();
+
+/** Delete episode 400 body when social posts block delete. */
+export const episodeDeleteBlockedSchema = z.object({
+	message: z.string().optional(),
+	posted: z.boolean().optional(),
+	tweeted: z.boolean().optional()
+}).passthrough();

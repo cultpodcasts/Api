@@ -29,20 +29,36 @@ import {
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
 	discoverySubmitRequestSchema,
+	discoverySubmitResponseSchema,
 	episodeChangeRequestSchema,
+	episodeDeleteBlockedSchema,
+	episodeDtoSchema,
+	episodeListResponseSchema,
+	episodePublishResponseSchema,
+	episodeUpdateResponseSchema,
 	errorSchema,
 	flairsResponseSchema,
+	indexPodcastResponseSchema,
+	indexerStateDtoSchema,
 	jsonBody,
 	languagesResponseSchema,
 	opaqueJsonSchema,
 	opaqueObjectRequestSchema,
+	peopleListResponseSchema,
 	personChangeRequestSchema,
+	personDtoSchema,
 	podcastChangeRequestSchema,
+	podcastDtoSchema,
 	podcastRenameRequestSchema,
+	podcastRenameResponseSchema,
+	publicEpisodeDtoSchema,
+	publishHomepageResponseSchema,
 	pushSubscriptionRequestSchema,
 	searchRequestSchema,
 	subjectChangeRequestSchema,
+	subjectDtoSchema,
 	submitUrlRequestSchema,
+	submitUrlResponseSchema,
 	termSubmitRequestSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
@@ -86,7 +102,7 @@ function createOpenApiRoute(handler: RouteHandler, options: RouteFactoryOptions 
     };
 }
 
-/** Opaque success JSON until response DTOs are modelled per route. */
+/** Opaque success JSON until response DTOs are modelled per route (search, R2 subjects, page details). */
 const genericOkSchema = opaqueJsonSchema;
 
 /**
@@ -94,8 +110,7 @@ const genericOkSchema = opaqueJsonSchema;
  * - 401 Unauthorized: missing or invalid bearer / Auth0 payload
  * - 403 Forbidden: authenticated but missing required permission (e.g. curate, admin)
  *
- * Note: many Azure proxy handlers still collapse both cases to 403 until Wave 3
- * `proxyToAzure` extract; R2 list handlers + OpenAPI docs gate follow this matrix.
+ * Proxied Azure routes also surface upstream 4xx via forwardStatuses / passthrough.
  */
 const authResponses = {
     401: {
@@ -104,6 +119,20 @@ const authResponses = {
     },
     403: {
         description: "Forbidden — authenticated but missing required permission",
+        ...contentJson(errorSchema)
+    }
+};
+
+const notFoundResponse = {
+    404: {
+        description: "Not found",
+        ...contentJson(errorSchema)
+    }
+};
+
+const serverErrorResponse = {
+    500: {
+        description: "Upstream or worker failure",
         ...contentJson(errorSchema)
     }
 };
@@ -136,7 +165,7 @@ export const GetSubjectsRoute = createOpenApiRoute(getSubjects, {
     schema: {
         tags: ["Subjects"],
         summary: "List subjects",
-        responses: { 200: { description: "Subjects", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Subjects (R2 JSON)", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
 
@@ -145,7 +174,11 @@ export const GetPeopleRoute = createOpenApiRoute(getPeople, {
     schema: {
         tags: ["People"],
         summary: "List people",
-        responses: { 200: { description: "People", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "People", ...contentJson(peopleListResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -155,7 +188,12 @@ export const GetPersonByNameRoute = createOpenApiRoute(getPersonByName, {
         tags: ["People"],
         summary: "Get person by name",
         request: { params: nameParam },
-        responses: { 200: { description: "Person", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Person", ...contentJson(personDtoSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -165,7 +203,12 @@ export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
         tags: ["People"],
         summary: "Update person by id",
         request: { params: idParam, body: jsonBody(personChangeRequestSchema) },
-        responses: { 202: { description: "Person updated", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Person updated (empty body)" },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -175,7 +218,13 @@ export const CreatePersonRoute = createOpenApiRoute(createPerson, {
         tags: ["People"],
         summary: "Create person",
         request: { body: jsonBody(personChangeRequestSchema) },
-        responses: { 202: { description: "Person created", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Person created", ...contentJson(personDtoSchema) },
+            400: { description: "Validation error", ...contentJson(errorSchema) },
+            409: { description: "Conflict", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -203,7 +252,12 @@ export const SubmitRoute = createOpenApiRoute(submit, {
         tags: ["Submission"],
         summary: "Submit episode URL",
         request: { body: jsonBody(submitUrlRequestSchema) },
-        responses: { 200: { description: "Submission accepted", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Submission accepted", ...contentJson(submitUrlResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -213,7 +267,12 @@ export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
         tags: ["Episodes"],
         summary: "Get episode by id",
         request: { params: idParam },
-        responses: { 200: { description: "Episode", ...contentJson(genericOkSchema) }, 404: { description: "Not found" }, ...authResponses }
+        responses: {
+            200: { description: "Episode", ...contentJson(episodeDtoSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -221,9 +280,14 @@ export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
     auth: true,
     schema: {
         tags: ["Episodes"],
-        summary: "Get podcast episode by podcast id and episode id",
+        summary: "Get podcast episode by podcast name and episode id",
         request: { params: podcastAndEpisodeParam },
-        responses: { 200: { description: "Podcast episode", ...contentJson(genericOkSchema) }, 404: { description: "Not found" }, ...authResponses }
+        responses: {
+            200: { description: "Episode", ...contentJson(episodeDtoSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -233,7 +297,12 @@ export const UpdateEpisodeRoute = createOpenApiRoute(updateEpisode, {
         tags: ["Episodes"],
         summary: "Update episode by id",
         request: { params: idParam, body: jsonBody(episodeChangeRequestSchema) },
-        responses: { 200: { description: "Updated", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -243,7 +312,12 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
         tags: ["Episodes"],
         summary: "Update podcast episode by podcast id and episode id",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
-        responses: { 200: { description: "Updated", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -253,7 +327,14 @@ export const DeleteEpisodeRoute = createOpenApiRoute(deleteEpisode, {
         tags: ["Episodes"],
         summary: "Delete episode by id",
         request: { params: idParam },
-        responses: { 200: { description: "Deleted", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Deleted (empty body)" },
+            400: { description: "Delete blocked (e.g. already posted)", ...contentJson(episodeDeleteBlockedSchema) },
+            409: { description: "Conflict" },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -263,7 +344,14 @@ export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode
         tags: ["Episodes"],
         summary: "Delete podcast episode by podcast id and episode id",
         request: { params: podcastIdAndEpisodeParam },
-        responses: { 200: { description: "Deleted", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Deleted (empty body)" },
+            400: { description: "Delete blocked (e.g. already posted)", ...contentJson(episodeDeleteBlockedSchema) },
+            409: { description: "Conflict" },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -273,7 +361,12 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
         tags: ["Publishing"],
         summary: "Publish podcast episode by podcast id and episode id",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(opaqueObjectRequestSchema) },
-        responses: { 200: { description: "Published", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
+            400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -282,7 +375,11 @@ export const GetOutgoingRoute = createOpenApiRoute(getOutgoing, {
     schema: {
         tags: ["Episodes"],
         summary: "Get outgoing episodes",
-        responses: { 200: { description: "Outgoing episodes", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Outgoing episodes", ...contentJson(episodeListResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -292,7 +389,13 @@ export const GetPodcastByNameRoute = createOpenApiRoute(getPodcastByName, {
         tags: ["Podcasts"],
         summary: "Get podcast by name",
         request: { params: nameParam },
-        responses: { 200: { description: "Podcast", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Podcast", ...contentJson(podcastDtoSchema) },
+            409: { description: "Ambiguous podcast name", ...contentJson(z.array(z.string().uuid())) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -302,7 +405,13 @@ export const GetPodcastByNameAndEpisodeIdRoute = createOpenApiRoute(getPodcastBy
         tags: ["Podcasts"],
         summary: "Get podcast by name and episode id",
         request: { params: podcastNameAndIdParam },
-        responses: { 200: { description: "Podcast episode", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Podcast", ...contentJson(podcastDtoSchema) },
+            409: { description: "Ambiguous podcast name", ...contentJson(z.array(z.string().uuid())) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -312,7 +421,12 @@ export const UpdatePodcastPostRoute = createOpenApiRoute(updatePodcast, {
         tags: ["Podcasts"],
         summary: "Update podcast by id (POST)",
         request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
-        responses: { 200: { description: "Podcast updated", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Accepted (empty or indexing failure fields)" },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -322,7 +436,12 @@ export const UpdatePodcastPutRoute = createOpenApiRoute(updatePodcast, {
         tags: ["Podcasts"],
         summary: "Update podcast by id (PUT)",
         request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
-        responses: { 200: { description: "Podcast updated", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Accepted (empty or indexing failure fields)" },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -332,7 +451,13 @@ export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
         tags: ["Podcasts"],
         summary: "Reindex podcast by name",
         request: { params: nameParam },
-        responses: { 200: { description: "Indexed", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Indexed", ...contentJson(indexPodcastResponseSchema) },
+            400: { description: "Bad request", ...contentJson(indexPodcastResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -342,7 +467,12 @@ export const GetSubjectByNameRoute = createOpenApiRoute(getSubjectByName, {
         tags: ["Subjects"],
         summary: "Get subject by name",
         request: { params: nameParam },
-        responses: { 200: { description: "Subject", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Subject", ...contentJson(subjectDtoSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -352,7 +482,12 @@ export const UpdateSubjectRoute = createOpenApiRoute(updateSubject, {
         tags: ["Subjects"],
         summary: "Update subject by id",
         request: { params: idParam, body: jsonBody(subjectChangeRequestSchema) },
-        responses: { 200: { description: "Subject updated", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Accepted (empty body)" },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -362,7 +497,13 @@ export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
         tags: ["Subjects"],
         summary: "Create subject",
         request: { body: jsonBody(subjectChangeRequestSchema) },
-        responses: { 200: { description: "Subject created", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            202: { description: "Subject created", ...contentJson(subjectDtoSchema) },
+            400: { description: "Validation error", ...contentJson(errorSchema) },
+            409: { description: "Conflict", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -371,7 +512,13 @@ export const GetDiscoveryReportsRoute = createOpenApiRoute(getDiscoveryReports, 
     schema: {
         tags: ["Discovery"],
         summary: "Get discovery curation reports",
-        responses: { 200: { description: "Discovery reports", ...contentJson(discoveryCurationResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Discovery reports", ...contentJson(discoveryCurationResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -381,7 +528,15 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
         tags: ["Discovery"],
         summary: "Submit discovery curation",
         request: { body: jsonBody(discoverySubmitRequestSchema) },
-        responses: { 200: { description: "Discovery curation submitted", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Discovery curation submitted", ...contentJson(discoverySubmitResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            409: { description: "Conflict", ...contentJson(errorSchema) },
+            422: { description: "Unprocessable", ...contentJson(errorSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -399,7 +554,12 @@ export const RunSearchIndexerRoute = createOpenApiRoute(runSearchIndexer, {
     schema: {
         tags: ["Admin"],
         summary: "Run search indexer",
-        responses: { 200: { description: "Indexer run response", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Indexer run response", ...contentJson(indexerStateDtoSchema) },
+            400: { description: "Bad request", ...contentJson(indexerStateDtoSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -409,7 +569,11 @@ export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
         tags: ["Publishing"],
         summary: "Publish homepage",
         request: { body: jsonBody(opaqueObjectRequestSchema) },
-        responses: { 200: { description: "Homepage published", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Homepage published", ...contentJson(publishHomepageResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -419,7 +583,12 @@ export const PublishTermRoute = createOpenApiRoute(publishTerm, {
         tags: ["Publishing"],
         summary: "Publish term",
         request: { body: jsonBody(termSubmitRequestSchema) },
-        responses: { 200: { description: "Term published", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Term published (empty object)" },
+            409: { description: "Conflict" },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -428,7 +597,11 @@ export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule
     schema: {
         tags: ["Discovery"],
         summary: "Get Discovery UK schedule",
-        responses: { 200: { description: "Schedule", ...contentJson(discoveryScheduleResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Schedule", ...contentJson(discoveryScheduleResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -438,7 +611,12 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
         tags: ["Discovery"],
         summary: "Update Discovery UK schedule",
         request: { body: jsonBody(discoveryScheduleUpdateRequestSchema) },
-        responses: { 200: { description: "Schedule updated", ...contentJson(discoveryScheduleResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Schedule updated", ...contentJson(discoveryScheduleResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -448,7 +626,14 @@ export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
         tags: ["Podcasts"],
         summary: "Rename podcast",
         request: { params: nameParam, body: jsonBody(podcastRenameRequestSchema) },
-        responses: { 200: { description: "Podcast renamed", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Podcast renamed", ...contentJson(podcastRenameResponseSchema) },
+            400: { description: "Bad request" },
+            409: { description: "Conflict" },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -458,7 +643,11 @@ export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {
         tags: ["Notifications"],
         summary: "Create push subscription",
         request: { body: jsonBody(pushSubscriptionRequestSchema) },
-        responses: { 200: { description: "Subscription stored", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Subscription stored (empty body)" },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
@@ -506,7 +695,12 @@ export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
         tags: ["Episodes"],
         summary: "Get public episode by id",
         request: { params: idParam },
-        responses: { 200: { description: "Public episode", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Public episode", ...contentJson(publicEpisodeDtoSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 

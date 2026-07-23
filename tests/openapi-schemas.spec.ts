@@ -4,12 +4,18 @@ import {
 	discoveryCurationResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoverySubmitRequestSchema,
+	discoverySubmitResponseSchema,
+	episodeDtoSchema,
+	episodeListResponseSchema,
+	episodeUpdateResponseSchema,
 	errorSchema,
 	flairsResponseSchema,
 	languagesResponseSchema,
 	podcastRenameRequestSchema,
+	publicEpisodeDtoSchema,
 	searchRequestSchema,
-	submitUrlRequestSchema
+	submitUrlRequestSchema,
+	submitUrlResponseSchema
 } from "../src/openapiSchemas";
 
 describe("openapi Zod schemas", () => {
@@ -99,5 +105,105 @@ describe("openapi Zod schemas", () => {
 	it("accepts error response with error or message", () => {
 		expect(errorSchema.parse({ error: "Unauthorised" }).error).toBe("Unauthorised");
 		expect(errorSchema.parse({ message: "Could not retrieve bookmarks" }).message).toContain("bookmarks");
+	});
+
+	it("accepts EpisodeDto shaped like Azure curate episode JSON", () => {
+		const parsed = episodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			podcastName: "Show",
+			title: "Ep",
+			description: "Desc",
+			release: "2026-07-01T12:00:00Z",
+			duration: "01:30:00",
+			explicit: false,
+			posted: false,
+			tweeted: false,
+			bluesky: null,
+			ignored: false,
+			removed: false,
+			urls: { spotify: "https://open.spotify.com/episode/x" },
+			subjects: ["cult"]
+		});
+		expect(parsed.duration).toBe("01:30:00");
+	});
+
+	it("accepts outgoing episodes as EpisodeDto array", () => {
+		const list = episodeListResponseSchema.parse([{
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			podcastName: "Show",
+			title: "Ep",
+			description: "Desc",
+			release: "2026-07-01T12:00:00Z",
+			duration: "00:45:00",
+			explicit: false,
+			posted: false,
+			tweeted: false,
+			ignored: false,
+			removed: false,
+			urls: {},
+			subjects: []
+		}]);
+		expect(list).toHaveLength(1);
+	});
+
+	it("accepts EpisodeUpdateResponse 202 body", () => {
+		const parsed = episodeUpdateResponseSchema.parse({
+			tweetDeleted: true,
+			blueskyPostDeleted: false,
+			searchIndexerState: "Executed"
+		});
+		expect(parsed.searchIndexerState).toBe("Executed");
+	});
+
+	it("accepts PublicEpisodeDto", () => {
+		const parsed = publicEpisodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastName: "Show",
+			title: "Ep",
+			description: "Desc",
+			release: "2026-07-01T12:00:00Z",
+			duration: "01:00:00",
+			explicit: false,
+			subjects: [],
+			urls: {}
+		});
+		expect(parsed.title).toBe("Ep");
+	});
+
+	it("accepts DiscoverySubmitResponse", () => {
+		const parsed = discoverySubmitResponseSchema.parse({
+			message: "ok",
+			errorsOccurred: false,
+			results: [{
+				discoveryItemId: "550e8400-e29b-41d4-a716-446655440000",
+				podcastId: null,
+				episodeId: null,
+				message: "created"
+			}],
+			searchIndexerState: "Executed"
+		});
+		expect(parsed.results[0].message).toBe("created");
+	});
+
+	it("accepts SubmitUrlResponse success body", () => {
+		const parsed = submitUrlResponseSchema.parse({
+			success: {
+				episode: "Created",
+				podcast: "Enriched",
+				episodeId: "550e8400-e29b-41d4-a716-446655440000",
+				podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				episodeDetails: {
+					spotify: true,
+					apple: false,
+					youtube: true,
+					bbc: false,
+					internetArchive: false,
+					subjects: ["cult"]
+				}
+			}
+		});
+		expect(parsed.success?.episode).toBe("Created");
 	});
 });
