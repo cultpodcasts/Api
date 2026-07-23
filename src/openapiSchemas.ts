@@ -2,20 +2,18 @@ import { z } from "zod";
 
 /**
  * OpenAPI/Zod contracts for the Cloudflare Api worker.
- * Known Azure/DTO shapes are strict objects (no `.passthrough()` / open records) so
- * Swagger examples show real fields instead of additionalProp1/2/3.
- * `opaqueJsonSchema` / `opaqueObjectRequestSchema` remain only for unmodelled blobs.
+ * Known Azure/DTO / R2 / Search shapes are strict objects (no `.passthrough()` /
+ * open records) so Swagger examples show real fields instead of additionalProp1/2/3.
  */
-
-/** Prefer over `z.any()` — documents "some JSON" without claiming a shape. */
-export const opaqueJsonSchema = z.union([
-	z.record(z.string(), z.unknown()),
-	z.array(z.unknown())
-]);
 
 export const errorSchema = z.object({
 	error: z.string().optional(),
 	message: z.string().optional()
+});
+
+/** Simple `{ message }` success/error bodies (bookmarks, etc.). */
+export const messageResponseSchema = z.object({
+	message: z.string()
 });
 
 export function jsonBody(schema: z.ZodType) {
@@ -233,8 +231,15 @@ export const podcastChangeRequestSchema = z.object({
 	minimumDuration: z.string().optional().nullable()
 });
 
-/** Unmodelled admin request blobs only. */
-export const opaqueObjectRequestSchema = z.record(z.string(), z.unknown());
+/** Unmodelled admin request blobs only — prefer empty object when Azure ignores body. */
+export const emptyObjectSchema = z.object({});
+
+/** Api.Models.EpisodePublishRequest */
+export const episodePublishRequestSchema = z.object({
+	post: z.boolean(),
+	tweet: z.boolean(),
+	blueskyPost: z.boolean()
+});
 
 // --- Azure Functions response DTOs (Cloud/Api/Dtos) ---
 
@@ -484,4 +489,52 @@ export const episodeDeleteBlockedSchema = z.object({
 	message: z.string().optional(),
 	posted: z.boolean().optional(),
 	tweeted: z.boolean().optional()
+});
+
+/** R2 `subjects` publish — SubjectsPublisher serialises name-only rows. */
+export const subjectsNameListResponseSchema = z.array(z.object({
+	name: z.string()
+}));
+
+/** ContentPublisher DiscoveryInfo (R2 `discovery-info`). */
+export const discoveryInfoResponseSchema = z.object({
+	documentCount: z.number(),
+	numberOfResults: z.number().optional().nullable(),
+	discoveryBegan: z.string().optional().nullable()
+});
+
+/** Worker IPageDetails / getPageDetails. */
+export const pageDetailsResponseSchema = z.object({
+	title: z.string().optional(),
+	description: z.string().optional(),
+	releaseDate: z.string().optional(),
+	duration: z.string().optional()
+});
+
+/**
+ * Azure Search hit — EpisodeSearchRecord camelCase fields returned to clients
+ * (hidden search-term fields omitted).
+ */
+export const episodeSearchHitSchema = z.object({
+	id: z.string(),
+	episodeTitle: z.string(),
+	podcastName: z.string(),
+	episodeDescription: z.string(),
+	release: z.string(),
+	duration: z.string(),
+	spotifyId: z.string().optional().nullable(),
+	appleId: z.string().optional().nullable(),
+	podcastAppleId: z.string().optional().nullable(),
+	youtubeId: z.string().optional().nullable(),
+	bbc: z.string().optional(),
+	internetArchive: z.string().optional(),
+	subjects: z.array(z.string()).optional(),
+	image: z.string().optional().nullable(),
+	"@search.score": z.number().optional()
+});
+
+/** Azure Search POST response (worker strips @odata.context). */
+export const searchResponseSchema = z.object({
+	"@odata.count": z.number().optional(),
+	value: z.array(episodeSearchHitSchema)
 });

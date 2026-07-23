@@ -26,14 +26,17 @@ import { indexPodcastByName } from "./indexPodcastByName";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
+	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
 	discoverySubmitRequestSchema,
 	discoverySubmitResponseSchema,
+	emptyObjectSchema,
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
 	episodeListResponseSchema,
+	episodePublishRequestSchema,
 	episodePublishResponseSchema,
 	episodeUpdateResponseSchema,
 	errorSchema,
@@ -42,8 +45,8 @@ import {
 	indexerStateDtoSchema,
 	jsonBody,
 	languagesResponseSchema,
-	opaqueJsonSchema,
-	opaqueObjectRequestSchema,
+	messageResponseSchema,
+	pageDetailsResponseSchema,
 	peopleListResponseSchema,
 	personChangeRequestSchema,
 	personDtoSchema,
@@ -55,8 +58,10 @@ import {
 	publishHomepageResponseSchema,
 	pushSubscriptionRequestSchema,
 	searchRequestSchema,
+	searchResponseSchema,
 	subjectChangeRequestSchema,
 	subjectDtoSchema,
+	subjectsNameListResponseSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema,
 	termSubmitRequestSchema
@@ -101,9 +106,6 @@ function createOpenApiRoute(handler: RouteHandler, options: RouteFactoryOptions 
         }
     };
 }
-
-/** Opaque success JSON until response DTOs are modelled per route (search, R2 subjects, page details). */
-const genericOkSchema = opaqueJsonSchema;
 
 /**
  * Auth response matrix (Wave 2 Vitest: auth-matrix.spec.ts):
@@ -165,7 +167,7 @@ export const GetSubjectsRoute = createOpenApiRoute(getSubjects, {
     schema: {
         tags: ["Subjects"],
         summary: "List subjects",
-        responses: { 200: { description: "Subjects (R2 JSON)", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Subjects (R2 name list)", ...contentJson(subjectsNameListResponseSchema) }, ...authResponses }
     }
 });
 
@@ -242,7 +244,7 @@ export const SearchRoute = createOpenApiRoute(search, {
         tags: ["Search"],
         summary: "Search episodes",
         request: { body: jsonBody(searchRequestSchema) },
-        responses: { 200: { description: "Search results", ...contentJson(genericOkSchema) } }
+        responses: { 200: { description: "Search results", ...contentJson(searchResponseSchema) } }
     }
 });
 
@@ -360,7 +362,7 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
     schema: {
         tags: ["Publishing"],
         summary: "Publish podcast episode by podcast id and episode id",
-        request: { params: podcastIdAndEpisodeParam, body: jsonBody(opaqueObjectRequestSchema) },
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodePublishRequestSchema) },
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
             400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
@@ -545,7 +547,7 @@ export const GetDiscoveryInfoRoute = createOpenApiRoute(getDiscoveryInfo, {
     schema: {
         tags: ["Discovery"],
         summary: "Get discovery info",
-        responses: { 200: { description: "Discovery info", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Discovery info", ...contentJson(discoveryInfoResponseSchema) }, ...authResponses }
     }
 });
 
@@ -568,7 +570,7 @@ export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
     schema: {
         tags: ["Publishing"],
         summary: "Publish homepage",
-        request: { body: jsonBody(opaqueObjectRequestSchema) },
+        request: { body: jsonBody(emptyObjectSchema) },
         responses: {
             200: { description: "Homepage published", ...contentJson(publishHomepageResponseSchema) },
             ...serverErrorResponse,
@@ -656,7 +658,7 @@ export const GetPageDetailsRoute = createOpenApiRoute(getPageDetails, {
         tags: ["Public"],
         summary: "Get page details by podcast and episode",
         request: { params: podcastAndEpisodeParam },
-        responses: { 200: { description: "Page details", ...contentJson(genericOkSchema) } }
+        responses: { 200: { description: "Page details", ...contentJson(pageDetailsResponseSchema) } }
     }
 });
 
@@ -666,7 +668,12 @@ export const AddBookmarkRoute = createOpenApiRoute(addBookmark, {
         tags: ["Bookmarks"],
         summary: "Add bookmark by episode id",
         request: { params: episodeIdParam },
-        responses: { 200: { description: "Bookmark added", ...contentJson(genericOkSchema) }, 409: { description: "Duplicate bookmark" }, ...authResponses }
+        responses: {
+            200: { description: "Bookmark added", ...contentJson(messageResponseSchema) },
+            400: { description: "Unable to create", ...contentJson(messageResponseSchema) },
+            409: { description: "Duplicate bookmark", ...contentJson(messageResponseSchema) },
+            ...authResponses
+        }
     }
 });
 
@@ -676,7 +683,11 @@ export const DeleteBookmarkRoute = createOpenApiRoute(deleteBookmark, {
         tags: ["Bookmarks"],
         summary: "Delete bookmark by episode id",
         request: { params: episodeIdParam },
-        responses: { 200: { description: "Bookmark deleted", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Bookmark deleted", ...contentJson(messageResponseSchema) },
+            400: { description: "Unable to delete", ...contentJson(messageResponseSchema) },
+            ...authResponses
+        }
     }
 });
 

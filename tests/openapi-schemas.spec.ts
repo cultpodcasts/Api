@@ -2,18 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
+	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoverySubmitRequestSchema,
 	discoverySubmitResponseSchema,
 	episodeDtoSchema,
 	episodeListResponseSchema,
+	episodePublishRequestSchema,
 	episodeUpdateResponseSchema,
 	errorSchema,
 	flairsResponseSchema,
 	languagesResponseSchema,
+	pageDetailsResponseSchema,
 	podcastRenameRequestSchema,
 	publicEpisodeDtoSchema,
 	searchRequestSchema,
+	searchResponseSchema,
+	subjectsNameListResponseSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema
 } from "../src/openapiSchemas";
@@ -205,5 +210,40 @@ describe("openapi Zod schemas", () => {
 			}
 		});
 		expect(parsed.success?.episode).toBe("Created");
+	});
+
+	it("accepts R2 subjects name list, discovery-info, page details, and search envelope", () => {
+		expect(subjectsNameListResponseSchema.parse([{ name: "cult" }])[0].name).toBe("cult");
+		expect(discoveryInfoResponseSchema.parse({
+			documentCount: 10,
+			numberOfResults: 3,
+			discoveryBegan: "2026-07-01T08:00:00Z"
+		}).documentCount).toBe(10);
+		expect(pageDetailsResponseSchema.parse({
+			title: "Ep | Show",
+			description: "Show",
+			releaseDate: "01/07/2026",
+			duration: "01:00:00"
+		}).title).toContain("Show");
+		expect(searchResponseSchema.parse({
+			"@odata.count": 1,
+			value: [{
+				id: "550e8400-e29b-41d4-a716-446655440000",
+				episodeTitle: "Ep",
+				podcastName: "Show",
+				episodeDescription: "Desc",
+				release: "2026-07-01T12:00:00Z",
+				duration: "01:00:00",
+				subjects: ["cult"]
+			}]
+		}).value).toHaveLength(1);
+	});
+
+	it("accepts EpisodePublishRequest flags", () => {
+		expect(episodePublishRequestSchema.parse({
+			post: true,
+			tweet: false,
+			blueskyPost: true
+		}).blueskyPost).toBe(true);
 	});
 });
