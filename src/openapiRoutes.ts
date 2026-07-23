@@ -41,7 +41,7 @@ import {
 	errorSchema,
 	flairsResponseSchema,
 	homepageResponseSchema,
-	homepageSsrResponseSchema,
+	preProcessedHomepageResponseSchema,
 	indexPodcastResponseSchema,
 	indexerStateDtoSchema,
 	jsonBody,
@@ -161,23 +161,17 @@ export const HomepageRoute = createOpenApiRoute(homepage, {
 export const HomepageSsrRoute = createOpenApiRoute(homepageSsr, {
     schema: {
         tags: ["Public"],
-        summary: "Get homepage server-side rendered HTML",
+        summary: "Get pre-processed homepage JSON",
         description:
-            "Returns the pre-rendered homepage HTML document stored in R2 (`homepage-ssr`), " +
-            "published by the content publisher alongside the JSON homepage payload. " +
-            "Body is `text/html` (not JSON) — use `GET /homepage` for the structured HomePageModel.",
+            "Returns R2 key `homepage-ssr` (ContentOptions.PreProcessedHomepageKey): " +
+            "PreProcessedHomePageModel JSON grouped by day. Despite the path name, this is application/json, not HTML. " +
+            "Use `GET /homepage` for the flat HomePageModel (`recentEpisodes`).",
         responses: {
             200: {
-                description:
-                    "Full HTML document for the public homepage (SSR blob). " +
-                    "Content-Type: text/html. Not a JSON schema — the body is markup.",
-                content: {
-                    "text/html": {
-                        schema: homepageSsrResponseSchema
-                    }
-                }
+                description: "PreProcessedHomePageModel — episodesByDay, totals",
+                ...contentJson(preProcessedHomepageResponseSchema)
             },
-            404: { description: "Homepage SSR object missing from R2" }
+            404: { description: "Pre-processed homepage object missing from R2" }
         }
     }
 });

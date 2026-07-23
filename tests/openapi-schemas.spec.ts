@@ -18,6 +18,7 @@ import {
 	pageDetailsResponseSchema,
 	podcastChangeRequestSchema,
 	podcastRenameRequestSchema,
+	preProcessedHomepageResponseSchema,
 	publicEpisodeDtoSchema,
 	searchRequestSchema,
 	searchResponseSchema,
@@ -297,5 +298,27 @@ describe("openapi Zod schemas", () => {
 			totalDuration: "01:00:00"
 		});
 		expect(parsed.recentEpisodes[0].podcastName).toBe("Show");
+	});
+
+	it("accepts PreProcessedHomePageModel for homepage-ssr JSON", () => {
+		const parsed = preProcessedHomepageResponseSchema.parse({
+			totalDurationDays: 2200,
+			episodesByDay: {
+				"Friday 3 July": [{
+					id: "550e8400-e29b-41d4-a716-446655440000",
+					episodeId: "550e8400-e29b-41d4-a716-446655440000",
+					podcastName: "Show",
+					episodeTitle: "Ep",
+					episodeDescription: "Desc",
+					duration: "01:00:00",
+					release: "2026-07-03T12:00:00Z"
+				}]
+			},
+			hasNext: false,
+			episodesThisWeek: 1,
+			episodeCount: 100
+		});
+		expect(parsed.totalDurationDays).toBe(2200);
+		expect(Object.keys(parsed.episodesByDay)).toHaveLength(1);
 	});
 });

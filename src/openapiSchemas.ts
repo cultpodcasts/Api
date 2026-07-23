@@ -599,5 +599,14 @@ export const homepageResponseSchema = z.object({
 	totalDuration: z.string()
 });
 
-/** R2 `homepage-ssr` — pre-rendered HTML document. */
-export const homepageSsrResponseSchema = z.string();
+/**
+ * R2 `homepage-ssr` (PreProcessedHomepageKey) —
+ * RedditPodcastPoster.Models.HomePage.PreProcessedHomePageModel (JSON, not HTML).
+ */
+export const preProcessedHomepageResponseSchema = z.object({
+	totalDurationDays: z.number(),
+	episodesByDay: z.record(z.string(), z.array(homepageEpisodeSchema)),
+	hasNext: z.boolean(),
+	episodesThisWeek: z.number(),
+	episodeCount: z.number()
+});
