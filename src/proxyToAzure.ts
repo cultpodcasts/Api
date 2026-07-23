@@ -76,13 +76,13 @@ export async function proxyToAzure(
 			if (successStatuses.includes(resp.status) || forwardStatuses.includes(resp.status)) {
 				logCollector.addMessage(`Successfully used ${opts.logName}.`);
 				console.log(logCollector.toEndpointLog());
-				return c.newResponse(resp.body, resp.status);
+				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 			}
 
 			if (opts.passthroughOtherStatuses) {
 				logCollector.addMessage(`Passthrough from ${opts.logName}.`);
 				console.log(logCollector.toEndpointLog());
-				return c.newResponse(resp.body, resp.status);
+				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 			}
 
 			logCollector.addMessage(`Failed to use ${opts.logName}.`);

@@ -23,6 +23,24 @@ import { getSubjects } from "./getSubjects";
 import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { indexPodcastByName } from "./indexPodcastByName";
+import {
+	discoveryScheduleResponseSchema,
+	discoveryScheduleUpdateRequestSchema,
+	discoverySubmitRequestSchema,
+	episodeChangeRequestSchema,
+	errorSchema,
+	jsonBody,
+	opaqueJsonSchema,
+	opaqueObjectRequestSchema,
+	personChangeRequestSchema,
+	podcastChangeRequestSchema,
+	podcastRenameRequestSchema,
+	pushSubscriptionRequestSchema,
+	searchRequestSchema,
+	subjectChangeRequestSchema,
+	submitUrlRequestSchema,
+	termSubmitRequestSchema
+} from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
@@ -64,16 +82,8 @@ function createOpenApiRoute(handler: RouteHandler, options: RouteFactoryOptions 
     };
 }
 
-const errorSchema = z.object({ error: z.string().optional(), message: z.string().optional() });
-const genericOkSchema = z.any();
-const jsonBodySchema = {
-    content: {
-        "application/json": {
-            schema: z.any()
-        }
-    },
-    required: true
-} as const;
+/** Opaque success JSON until response DTOs are modelled per route. */
+const genericOkSchema = opaqueJsonSchema;
 
 /**
  * Auth response matrix (Wave 2 Vitest: auth-matrix.spec.ts):
@@ -150,7 +160,7 @@ export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
     schema: {
         tags: ["People"],
         summary: "Update person by id",
-        request: { params: idParam, body: jsonBodySchema },
+        request: { params: idParam, body: jsonBody(personChangeRequestSchema) },
         responses: { 202: { description: "Person updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -160,7 +170,7 @@ export const CreatePersonRoute = createOpenApiRoute(createPerson, {
     schema: {
         tags: ["People"],
         summary: "Create person",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(personChangeRequestSchema) },
         responses: { 202: { description: "Person created", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -178,7 +188,7 @@ export const SearchRoute = createOpenApiRoute(search, {
     schema: {
         tags: ["Search"],
         summary: "Search episodes",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(searchRequestSchema) },
         responses: { 200: { description: "Search results", ...contentJson(genericOkSchema) } }
     }
 });
@@ -188,7 +198,7 @@ export const SubmitRoute = createOpenApiRoute(submit, {
     schema: {
         tags: ["Submission"],
         summary: "Submit episode URL",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(submitUrlRequestSchema) },
         responses: { 200: { description: "Submission accepted", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -218,7 +228,7 @@ export const UpdateEpisodeRoute = createOpenApiRoute(updateEpisode, {
     schema: {
         tags: ["Episodes"],
         summary: "Update episode by id",
-        request: { params: idParam, body: jsonBodySchema },
+        request: { params: idParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: { 200: { description: "Updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -228,7 +238,7 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
     schema: {
         tags: ["Episodes"],
         summary: "Update podcast episode by podcast id and episode id",
-        request: { params: podcastIdAndEpisodeParam, body: jsonBodySchema },
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: { 200: { description: "Updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -258,7 +268,7 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
     schema: {
         tags: ["Publishing"],
         summary: "Publish podcast episode by podcast id and episode id",
-        request: { params: podcastIdAndEpisodeParam, body: jsonBodySchema },
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(opaqueObjectRequestSchema) },
         responses: { 200: { description: "Published", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -297,7 +307,7 @@ export const UpdatePodcastPostRoute = createOpenApiRoute(updatePodcast, {
     schema: {
         tags: ["Podcasts"],
         summary: "Update podcast by id (POST)",
-        request: { params: idParam, body: jsonBodySchema },
+        request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
         responses: { 200: { description: "Podcast updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -307,7 +317,7 @@ export const UpdatePodcastPutRoute = createOpenApiRoute(updatePodcast, {
     schema: {
         tags: ["Podcasts"],
         summary: "Update podcast by id (PUT)",
-        request: { params: idParam, body: jsonBodySchema },
+        request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
         responses: { 200: { description: "Podcast updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -337,7 +347,7 @@ export const UpdateSubjectRoute = createOpenApiRoute(updateSubject, {
     schema: {
         tags: ["Subjects"],
         summary: "Update subject by id",
-        request: { params: idParam, body: jsonBodySchema },
+        request: { params: idParam, body: jsonBody(subjectChangeRequestSchema) },
         responses: { 200: { description: "Subject updated", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -347,7 +357,7 @@ export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
     schema: {
         tags: ["Subjects"],
         summary: "Create subject",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(subjectChangeRequestSchema) },
         responses: { 200: { description: "Subject created", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -366,7 +376,7 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
     schema: {
         tags: ["Discovery"],
         summary: "Submit discovery curation",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(discoverySubmitRequestSchema) },
         responses: { 200: { description: "Discovery curation submitted", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -394,7 +404,7 @@ export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
     schema: {
         tags: ["Publishing"],
         summary: "Publish homepage",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(opaqueObjectRequestSchema) },
         responses: { 200: { description: "Homepage published", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -404,7 +414,7 @@ export const PublishTermRoute = createOpenApiRoute(publishTerm, {
     schema: {
         tags: ["Publishing"],
         summary: "Publish term",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(termSubmitRequestSchema) },
         responses: { 200: { description: "Term published", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -414,7 +424,7 @@ export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule
     schema: {
         tags: ["Discovery"],
         summary: "Get Discovery UK schedule",
-        responses: { 200: { description: "Schedule", ...contentJson(genericOkSchema) }, ...authResponses }
+        responses: { 200: { description: "Schedule", ...contentJson(discoveryScheduleResponseSchema) }, ...authResponses }
     }
 });
 
@@ -423,8 +433,8 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
     schema: {
         tags: ["Discovery"],
         summary: "Update Discovery UK schedule",
-        request: { body: jsonBodySchema },
-        responses: { 200: { description: "Schedule updated", ...contentJson(genericOkSchema) }, ...authResponses }
+        request: { body: jsonBody(discoveryScheduleUpdateRequestSchema) },
+        responses: { 200: { description: "Schedule updated", ...contentJson(discoveryScheduleResponseSchema) }, ...authResponses }
     }
 });
 
@@ -433,7 +443,7 @@ export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
     schema: {
         tags: ["Podcasts"],
         summary: "Rename podcast",
-        request: { params: nameParam, body: jsonBodySchema },
+        request: { params: nameParam, body: jsonBody(podcastRenameRequestSchema) },
         responses: { 200: { description: "Podcast renamed", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
@@ -443,7 +453,7 @@ export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {
     schema: {
         tags: ["Notifications"],
         summary: "Create push subscription",
-        request: { body: jsonBodySchema },
+        request: { body: jsonBody(pushSubscriptionRequestSchema) },
         responses: { 200: { description: "Subscription stored", ...contentJson(genericOkSchema) }, ...authResponses }
     }
 });
