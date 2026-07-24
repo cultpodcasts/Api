@@ -292,12 +292,31 @@ describe("openapi Zod schemas", () => {
 				duration: "01:00:00",
 				release: "2026-07-01T12:00:00Z",
 				spotify: "https://open.spotify.com/episode/x",
-				subjects: ["cult"]
+				subjects: ["cult"],
+				language: "fr-FR"
 			}],
 			episodeCount: 1,
 			totalDuration: "01:00:00"
 		});
 		expect(parsed.recentEpisodes[0].podcastName).toBe("Show");
+		expect(parsed.recentEpisodes[0].language).toBe("fr-FR");
+	});
+
+	it("accepts homepage episode JSON without language (English/omitted)", () => {
+		const parsed = homepageResponseSchema.parse({
+			recentEpisodes: [{
+				id: "550e8400-e29b-41d4-a716-446655440000",
+				episodeId: "550e8400-e29b-41d4-a716-446655440000",
+				podcastName: "Show",
+				episodeTitle: "Ep",
+				episodeDescription: "Desc",
+				duration: "01:00:00",
+				release: "2026-07-01T12:00:00Z"
+			}],
+			episodeCount: 1,
+			totalDuration: "01:00:00"
+		});
+		expect(parsed.recentEpisodes[0].language).toBeUndefined();
 	});
 
 	it("accepts PreProcessedHomePageModel for homepage-ssr JSON", () => {

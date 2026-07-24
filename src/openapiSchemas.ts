@@ -590,7 +590,9 @@ export const homepageEpisodeSchema = z.object({
 	bbc: z.string().url().optional().nullable(),
 	internetArchive: z.string().url().optional().nullable(),
 	subjects: z.array(z.string()).optional().nullable(),
-	image: z.string().url().optional().nullable()
+	image: z.string().url().optional().nullable(),
+	/** IETF language tag; omitted/absent for English. */
+	language: z.string().optional().nullable()
 });
 
 export const homepageResponseSchema = z.object({
