@@ -19,6 +19,12 @@ describe("CORS allowlist (getOrigin)", () => {
 		);
 	});
 
+	it("allows flix prototype origin", () => {
+		expect(getOrigin("https://flix.cultpodcasts.com", ".pages.dev")).toBe(
+			"https://flix.cultpodcasts.com"
+		);
+	});
+
 	it("treats null origin as production", () => {
 		expect(getOrigin(null, ".pages.dev")).toBe(AllowedOrigins[0]);
 	});
