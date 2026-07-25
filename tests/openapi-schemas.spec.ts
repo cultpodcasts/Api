@@ -101,12 +101,26 @@ describe("openapi Zod schemas", () => {
 		expect(() => heroCurationUpdateRequestSchema.parse({ episodeIds: ["not-a-uuid"] })).toThrow();
 		expect(heroCurationResponseSchema.parse({
 			episodeIds: ["550e8400-e29b-41d4-a716-446655440000"],
+			railSubjects: ["Scientology"],
 			updatedAt: "2026-07-25T12:00:00.000Z"
 		}).updatedAt).toContain("2026");
 		expect(heroCurationResponseSchema.parse({
 			episodeIds: [],
+			railSubjects: [],
 			updatedAt: null
 		}).updatedAt).toBeNull();
+	});
+
+	it("accepts rails-only and hero-only hero curation updates", () => {
+		const railsOnly = heroCurationUpdateRequestSchema.parse({
+			railSubjects: ["Scientology", "FLDS Church"]
+		});
+		expect(railsOnly.railSubjects).toHaveLength(2);
+		expect(railsOnly.episodeIds).toBeUndefined();
+		expect(heroCurationUpdateRequestSchema.parse({
+			episodeIds: ["550e8400-e29b-41d4-a716-446655440000"]
+		}).railSubjects).toBeUndefined();
+		expect(() => heroCurationUpdateRequestSchema.parse({ railSubjects: [""] })).toThrow();
 	});
 
 	it("accepts flairs map keyed by flair template uuid", () => {

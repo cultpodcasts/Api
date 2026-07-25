@@ -40,11 +40,22 @@ describe("hero-curation contract", () => {
 		expect(src).toContain("Curated");
 		expect(src).toContain("cacheControlMaxAge: 60");
 		expect(src).toContain('episodeIds: []');
+		expect(src).toContain("railSubjects: []");
 		expect(src).toContain("updatedAt: null");
 	});
 
-	it("dedupes and caps episode IDs at 50", () => {
+	it("dedupes and caps episode IDs at 50 and rail subjects at 12", () => {
 		expect(src).toContain("MAX_EPISODE_IDS = 50");
+		expect(src).toContain("MAX_RAIL_SUBJECTS = 12");
 		expect(src).toContain("dedupeAndCap");
+	});
+
+	it("merges partial updates so hero-only or rails-only PUTs keep the other list", () => {
+		expect(src).toContain("existing?.episodeIds ?? []");
+		expect(src).toContain("existing?.railSubjects ?? []");
+	});
+
+	it("rejects a PUT carrying neither episodeIds nor railSubjects", () => {
+		expect(src).toContain("!parsed.data.episodeIds && !parsed.data.railSubjects");
 	});
 });

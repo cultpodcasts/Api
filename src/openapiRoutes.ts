@@ -642,9 +642,9 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
 export const GetHeroCurationRoute = createOpenApiRoute(getHeroCuration, {
     schema: {
         tags: ["Public"],
-        summary: "Get curated hero episode IDs",
+        summary: "Get curated hero episode IDs and pinned rail subjects",
         responses: {
-            200: { description: "Hero episode IDs", ...contentJson(heroCurationResponseSchema) },
+            200: { description: "Hero episode IDs and rail subjects", ...contentJson(heroCurationResponseSchema) },
             ...serverErrorResponse
         }
     }
@@ -654,7 +654,7 @@ export const PutHeroCurationRoute = createOpenApiRoute(putHeroCuration, {
     auth: true,
     schema: {
         tags: ["Curation"],
-        summary: "Update curated hero episode IDs",
+        summary: "Update curated hero episode IDs and/or pinned rail subjects",
         request: { body: jsonBody(heroCurationUpdateRequestSchema) },
         responses: {
             200: { description: "Hero curation updated", ...contentJson(heroCurationResponseSchema) },
