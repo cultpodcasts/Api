@@ -13,6 +13,8 @@ import {
 	episodeUpdateResponseSchema,
 	errorSchema,
 	flairsResponseSchema,
+	heroCurationResponseSchema,
+	heroCurationUpdateRequestSchema,
 	homepageResponseSchema,
 	languagesResponseSchema,
 	pageDetailsResponseSchema,
@@ -85,6 +87,26 @@ describe("openapi Zod schemas", () => {
 			}]
 		});
 		expect(parsed.nextRuns).toHaveLength(1);
+	});
+
+	it("accepts hero curation update request and response", () => {
+		const request = heroCurationUpdateRequestSchema.parse({
+			episodeIds: [
+				"550e8400-e29b-41d4-a716-446655440000",
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+			]
+		});
+		expect(request.episodeIds).toHaveLength(2);
+		expect(heroCurationUpdateRequestSchema.parse({ episodeIds: [] }).episodeIds).toEqual([]);
+		expect(() => heroCurationUpdateRequestSchema.parse({ episodeIds: ["not-a-uuid"] })).toThrow();
+		expect(heroCurationResponseSchema.parse({
+			episodeIds: ["550e8400-e29b-41d4-a716-446655440000"],
+			updatedAt: "2026-07-25T12:00:00.000Z"
+		}).updatedAt).toContain("2026");
+		expect(heroCurationResponseSchema.parse({
+			episodeIds: [],
+			updatedAt: null
+		}).updatedAt).toBeNull();
 	});
 
 	it("accepts flairs map keyed by flair template uuid", () => {

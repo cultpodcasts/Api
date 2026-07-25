@@ -27,6 +27,10 @@
     {
       "binding": "shortner",
       "id": "663cd5c74988404dafbf67e1e06b21e8"
+    },
+    {
+      "binding": "Curated",
+      "id": "564b9b11748e4d3c9da703fe019e3176"
     }
   ],
   "analytics_engine_datasets": [
@@ -93,6 +97,10 @@
         {
           "binding": "shortner",
           "id": "663cd5c74988404dafbf67e1e06b21e8"
+        },
+        {
+          "binding": "Curated",
+          "id": "564b9b11748e4d3c9da703fe019e3176"
         }
       ],
       "analytics_engine_datasets": [
@@ -149,6 +157,10 @@
         {
           "binding": "shortner",
           "id": "663cd5c74988404dafbf67e1e06b21e8"
+        },
+        {
+          "binding": "Curated",
+          "id": "564b9b11748e4d3c9da703fe019e3176"
         }
       ],
       "analytics_engine_datasets": [
@@ -189,6 +201,10 @@
         {
           "binding": "shortner",
           "id": "663cd5c74988404dafbf67e1e06b21e8"
+        },
+        {
+          "binding": "Curated",
+          "id": "564b9b11748e4d3c9da703fe019e3176"
         }
       ],
       "analytics_engine_datasets": [

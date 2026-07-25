@@ -63,6 +63,17 @@ export const discoveryScheduleResponseSchema = z.object({
 	}))
 });
 
+/** PUT /hero-curation — ordered episode UUID list (handler dedupes and caps at 50). */
+export const heroCurationUpdateRequestSchema = z.object({
+	episodeIds: z.array(z.string().uuid())
+});
+
+/** GET/PUT /hero-curation — curated hero episode IDs. */
+export const heroCurationResponseSchema = z.object({
+	episodeIds: z.array(z.string().uuid()),
+	updatedAt: z.string().nullable()
+});
+
 /** GET /discovery-curation — mirrors Api.Dtos.DiscoveryResponse. */
 const discoveryResultUrlsSchema = z.object({
 	spotify: z.string().url().optional().nullable(),
