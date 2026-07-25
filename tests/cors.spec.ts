@@ -19,6 +19,15 @@ describe("CORS allowlist (getOrigin)", () => {
 		);
 	});
 
+	it("allows comma-separated staging host suffixes", () => {
+		expect(
+			getOrigin(
+				"https://feat-hero.flix-ac4.pages.dev",
+				"website-83e.pages.dev,flix-ac4.pages.dev"
+			)
+		).toBe("https://feat-hero.flix-ac4.pages.dev");
+	});
+
 	it("allows flix prototype origin", () => {
 		expect(getOrigin("https://flix.cultpodcasts.com", ".pages.dev")).toBe(
 			"https://flix.cultpodcasts.com"

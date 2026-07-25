@@ -63,6 +63,23 @@ export const discoveryScheduleResponseSchema = z.object({
 	}))
 });
 
+/**
+ * PUT /hero-curation — ordered hero episode UUIDs and/or ordered homepage rail
+ * subjects. Both members are optional so a caller can update one without
+ * clobbering the other; the handler merges, dedupes, and caps each list.
+ */
+export const heroCurationUpdateRequestSchema = z.object({
+	episodeIds: z.array(z.string().uuid()).optional(),
+	railSubjects: z.array(z.string().min(1).max(200)).optional()
+});
+
+/** GET/PUT /hero-curation — curated hero episode IDs and pinned rail subjects. */
+export const heroCurationResponseSchema = z.object({
+	episodeIds: z.array(z.string().uuid()),
+	railSubjects: z.array(z.string()),
+	updatedAt: z.string().nullable()
+});
+
 /** GET /discovery-curation — mirrors Api.Dtos.DiscoveryResponse. */
 const discoveryResultUrlsSchema = z.object({
 	spotify: z.string().url().optional().nullable(),

@@ -1,5 +1,6 @@
 export type Env = {
 	shortner: KVNamespace;
+	Curated: KVNamespace;
 	auth0Issuer: string;
 	auth0Audience: string;
 	auth0ClientId: string;

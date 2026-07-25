@@ -30,6 +30,8 @@ import {
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
 	discoverySubmitRequestSchema,
+	heroCurationResponseSchema,
+	heroCurationUpdateRequestSchema,
 	discoverySubmitResponseSchema,
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
@@ -72,6 +74,7 @@ import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { publishTerm } from "./publishTerm";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
+import { getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
@@ -629,6 +632,32 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
         request: { body: jsonBody(discoveryScheduleUpdateRequestSchema) },
         responses: {
             200: { description: "Schedule updated", ...contentJson(discoveryScheduleResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetHeroCurationRoute = createOpenApiRoute(getHeroCuration, {
+    schema: {
+        tags: ["Public"],
+        summary: "Get curated hero episode IDs and pinned rail subjects",
+        responses: {
+            200: { description: "Hero episode IDs and rail subjects", ...contentJson(heroCurationResponseSchema) },
+            ...serverErrorResponse
+        }
+    }
+});
+
+export const PutHeroCurationRoute = createOpenApiRoute(putHeroCuration, {
+    auth: true,
+    schema: {
+        tags: ["Curation"],
+        summary: "Update curated hero episode IDs and/or pinned rail subjects",
+        request: { body: jsonBody(heroCurationUpdateRequestSchema) },
+        responses: {
+            200: { description: "Hero curation updated", ...contentJson(heroCurationResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
