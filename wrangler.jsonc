@@ -46,6 +46,10 @@
       {
         "name": "PROFILE_DURABLE_OBJECT",
         "class_name": "ProfileDurableObject"
+      },
+      {
+        "name": "HERO_CURATION_DURABLE_OBJECT",
+        "class_name": "HeroCurationDurableObject"
       }
     ]
   },
@@ -66,6 +70,12 @@
       "tag": "v3",
       "new_sqlite_classes": [
         "ProfileDurableObject"
+      ]
+    },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": [
+        "HeroCurationDurableObject"
       ]
     }
   ],
@@ -113,6 +123,10 @@
           {
             "name": "PROFILE_DURABLE_OBJECT",
             "class_name": "ProfileDurableObject"
+          },
+          {
+            "name": "HERO_CURATION_DURABLE_OBJECT",
+            "class_name": "HeroCurationDurableObject"
           }
         ]
       },
@@ -145,8 +159,19 @@
           "deleted_classes": [
             "ProfileDurableObjectLegacy"
           ]
+        },
+        {
+          "tag": "preview-v4",
+          "new_sqlite_classes": [
+            "HeroCurationDurableObject"
+          ]
         }
-      ]
+      ],
+      "triggers": {
+        "crons": [
+          "0 */6 * * *"
+        ]
+      }
     },
     "production": {
       // Same KV→SQLite cutover as preview if this named env was ever deployed.
@@ -194,6 +219,10 @@
           {
             "name": "PROFILE_DURABLE_OBJECT_LEGACY",
             "class_name": "ProfileDurableObjectLegacy"
+          },
+          {
+            "name": "HERO_CURATION_DURABLE_OBJECT",
+            "class_name": "HeroCurationDurableObject"
           }
         ]
       },
@@ -214,6 +243,12 @@
           ],
           "new_sqlite_classes": [
             "ProfileDurableObject"
+          ]
+        },
+        {
+          "tag": "production-v3",
+          "new_sqlite_classes": [
+            "HeroCurationDurableObject"
           ]
         }
       ]
@@ -258,6 +293,10 @@
           {
             "name": "PROFILE_DURABLE_OBJECT",
             "class_name": "ProfileDurableObject"
+          },
+          {
+            "name": "HERO_CURATION_DURABLE_OBJECT",
+            "class_name": "HeroCurationDurableObject"
           }
         ]
       },
@@ -266,6 +305,12 @@
           "tag": "local-v1",
           "new_sqlite_classes": [
             "ProfileDurableObject"
+          ]
+        },
+        {
+          "tag": "local-v2",
+          "new_sqlite_classes": [
+            "HeroCurationDurableObject"
           ]
         }
       ]

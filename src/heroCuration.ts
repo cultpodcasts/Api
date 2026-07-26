@@ -3,97 +3,59 @@ import { ActionContext } from "./ActionContext";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { LogCollector } from "./LogCollector";
-import { heroCurationUpdateRequestSchema } from "./openapiSchemas";
+import {
+	heroCurationAppendRequestSchema,
+	heroCurationUpdateRequestSchema
+} from "./openapiSchemas";
+import { heroCurationStub } from "./HeroCurationDurableObject";
 
-const HERO_KV_KEY = "hero-episode-ids";
-const MAX_EPISODE_IDS = 50;
-const MAX_RAIL_SUBJECTS = 12;
-
-type HeroCurationStored = {
-	episodeIds: string[];
-	railSubjects: string[];
-	updatedAt: string;
-};
-
-function dedupeAndCap(values: string[], max: number): string[] {
-	const seen = new Set<string>();
-	const result: string[] = [];
-	for (const value of values) {
-		if (seen.has(value)) {
-			continue;
-		}
-		seen.add(value);
-		result.push(value);
-		if (result.length >= max) {
-			break;
-		}
+function requireCurate(c: Auth0ActionContext, logCollector: LogCollector): Response | null {
+	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
+	if (!auth0Payload) {
+		logCollector.addMessage("Unauthorised to mutate hero curation.");
+		console.error(logCollector.toEndpointLog());
+		return c.json({ error: "Unauthorised" }, 401);
 	}
-	return result;
-}
-
-function storedList(value: unknown): string[] {
-	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
-async function readStored(kv: KVNamespace): Promise<HeroCurationStored | null> {
-	const stored = await kv.get<Partial<HeroCurationStored>>(HERO_KV_KEY, "json");
-	if (!stored) {
-		return null;
+	if (!auth0Payload.permissions?.includes("curate")) {
+		logCollector.addMessage("Forbidden to mutate hero curation.");
+		console.error(logCollector.toEndpointLog());
+		return c.json({ error: "Forbidden" }, 403);
 	}
-	return {
-		episodeIds: storedList(stored.episodeIds),
-		railSubjects: storedList(stored.railSubjects),
-		updatedAt: stored.updatedAt ?? new Date(0).toISOString()
-	};
+	return null;
 }
 
 export async function getHeroCuration(c: ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
 	AddResponseHeaders(c, {
-		methods: ["GET", "PUT", "OPTIONS"],
+		methods: ["GET", "PUT", "POST", "OPTIONS"],
 		cacheControlMaxAge: 60
 	});
 
-	let stored: HeroCurationStored | null = null;
 	try {
-		stored = await readStored(c.env.Curated);
-	} catch {
-		logCollector.addMessage("Unable to retrieve hero curation from KV");
-		console.error(logCollector.toEndpointLog());
+		const state = await heroCurationStub(c.env).get();
+		logCollector.addMessage("Successfully obtained hero curation.");
+		console.log(logCollector.toEndpointLog());
+		return c.json({
+			episodeIds: state.episodeIds,
+			railSubjects: state.railSubjects,
+			updatedAt: state.updatedAt ?? null
+		}, 200);
+	} catch (error) {
+		logCollector.addMessage("Unable to retrieve hero curation from Durable Object");
+		console.error(logCollector.toEndpointLog(), error);
 		return c.json({ error: "Failed to load hero curation" }, 500);
 	}
-
-	if (!stored) {
-		logCollector.addMessage("Hero curation empty (no KV value).");
-		console.log(logCollector.toEndpointLog());
-		return c.json({ episodeIds: [], railSubjects: [], updatedAt: null }, 200);
-	}
-
-	logCollector.addMessage("Successfully obtained hero curation.");
-	console.log(logCollector.toEndpointLog());
-	return c.json({
-		episodeIds: stored.episodeIds,
-		railSubjects: stored.railSubjects,
-		updatedAt: stored.updatedAt ?? null
-	}, 200);
 }
 
 export async function putHeroCuration(c: Auth0ActionContext): Promise<Response> {
-	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "POST", "OPTIONS"] });
 
-	if (!auth0Payload) {
-		logCollector.addMessage("Unauthorised to use putHeroCuration.");
-		console.error(logCollector.toEndpointLog());
-		return c.json({ error: "Unauthorised" }, 401);
-	}
-	if (!auth0Payload.permissions?.includes("curate")) {
-		logCollector.addMessage("Forbidden to use putHeroCuration.");
-		console.error(logCollector.toEndpointLog());
-		return c.json({ error: "Forbidden" }, 403);
+	const denied = requireCurate(c, logCollector);
+	if (denied) {
+		return denied;
 	}
 
 	let body: unknown;
@@ -117,34 +79,73 @@ export async function putHeroCuration(c: Auth0ActionContext): Promise<Response> 
 		return c.json({ error: "Bad request" }, 400);
 	}
 
-	// Merge so a hero-only or rails-only update leaves the other list intact.
-	let existing: HeroCurationStored | null = null;
 	try {
-		existing = await readStored(c.env.Curated);
-	} catch {
-		logCollector.addMessage("Unable to retrieve hero curation from KV");
-		console.error(logCollector.toEndpointLog());
-		return c.json({ error: "Failed to load hero curation" }, 500);
-	}
+		const result = await heroCurationStub(c.env).replace({
+			episodeIds: parsed.data.episodeIds,
+			railSubjects: parsed.data.railSubjects,
+			expectedUpdatedAt: parsed.data.expectedUpdatedAt
+		});
+		if (!result.ok) {
+			logCollector.addMessage("Hero curation conflict (expectedUpdatedAt mismatch).");
+			console.warn(logCollector.toEndpointLog());
+			return c.json({
+				error: "Conflict",
+				episodeIds: result.state.episodeIds,
+				railSubjects: result.state.railSubjects,
+				updatedAt: result.state.updatedAt
+			}, 409);
+		}
 
-	const episodeIds = parsed.data.episodeIds
-		? dedupeAndCap(parsed.data.episodeIds, MAX_EPISODE_IDS)
-		: existing?.episodeIds ?? [];
-	const railSubjects = parsed.data.railSubjects
-		? dedupeAndCap(parsed.data.railSubjects.map((subject) => subject.trim()).filter((subject) => subject.length > 0), MAX_RAIL_SUBJECTS)
-		: existing?.railSubjects ?? [];
-	const updatedAt = new Date().toISOString();
-	const stored: HeroCurationStored = { episodeIds, railSubjects, updatedAt };
-
-	try {
-		await c.env.Curated.put(HERO_KV_KEY, JSON.stringify(stored));
-	} catch {
-		logCollector.addMessage("Unable to store hero curation in KV");
-		console.error(logCollector.toEndpointLog());
+		logCollector.addMessage(
+			`Hero curation updated (${result.state.episodeIds.length} episodeIds, ${result.state.railSubjects.length} railSubjects).`
+		);
+		console.log(logCollector.toEndpointLog());
+		return c.json(result.state, 200);
+	} catch (error) {
+		logCollector.addMessage("Unable to store hero curation in Durable Object");
+		console.error(logCollector.toEndpointLog(), error);
 		return c.json({ error: "Failed to save hero curation" }, 500);
 	}
-
-	logCollector.addMessage(`Hero curation updated (${episodeIds.length} episodeIds, ${railSubjects.length} railSubjects).`);
-	console.log(logCollector.toEndpointLog());
-	return c.json(stored, 200);
 }
+
+export async function appendHeroCurationEpisodes(c: Auth0ActionContext): Promise<Response> {
+	const logCollector = new LogCollector();
+	logCollector.collectRequest(c);
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "POST", "OPTIONS"] });
+
+	const denied = requireCurate(c, logCollector);
+	if (denied) {
+		return denied;
+	}
+
+	let body: unknown;
+	try {
+		body = await c.req.json();
+	} catch {
+		logCollector.addMessage("Invalid JSON body for appendHeroCurationEpisodes.");
+		console.error(logCollector.toEndpointLog());
+		return c.json({ error: "Bad request" }, 400);
+	}
+
+	const parsed = heroCurationAppendRequestSchema.safeParse(body);
+	if (!parsed.success || parsed.data.episodeIds.length === 0) {
+		logCollector.addMessage("Invalid hero curation append body.");
+		console.error(logCollector.toEndpointLog());
+		return c.json({ error: "Bad request" }, 400);
+	}
+
+	try {
+		const requested = parsed.data.episodeIds;
+		const state = await heroCurationStub(c.env).appendEpisodes(requested);
+		logCollector.addMessage(
+			`Hero auto-promote: DO append (${requested.length} requested, ${state.episodeIds.length} total). EpisodeIds: ${requested.join(",")}.`
+		);
+		console.log(logCollector.toEndpointLog());
+		return c.json(state, 200);
+	} catch (error) {
+		logCollector.addMessage("Hero auto-promote: unable to append hero curation episodes");
+		console.error(logCollector.toEndpointLog(), error);
+		return c.json({ error: "Failed to append hero episodes" }, 500);
+	}
+}
+

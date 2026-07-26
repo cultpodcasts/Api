@@ -32,6 +32,7 @@ import {
 	discoverySubmitRequestSchema,
 	heroCurationResponseSchema,
 	heroCurationUpdateRequestSchema,
+	heroCurationAppendRequestSchema,
 	discoverySubmitResponseSchema,
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
@@ -74,7 +75,7 @@ import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { publishTerm } from "./publishTerm";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
-import { getHeroCuration, putHeroCuration } from "./heroCuration";
+import { appendHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
@@ -658,6 +659,22 @@ export const PutHeroCurationRoute = createOpenApiRoute(putHeroCuration, {
         request: { body: jsonBody(heroCurationUpdateRequestSchema) },
         responses: {
             200: { description: "Hero curation updated", ...contentJson(heroCurationResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            409: { description: "Conflict — expectedUpdatedAt mismatch", ...contentJson(heroCurationResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const AppendHeroCurationEpisodesRoute = createOpenApiRoute(appendHeroCurationEpisodes, {
+    auth: true,
+    schema: {
+        tags: ["Curation"],
+        summary: "Append episode IDs to curated hero list (indexer auto-promote)",
+        request: { body: jsonBody(heroCurationAppendRequestSchema) },
+        responses: {
+            200: { description: "Hero curation after append", ...contentJson(heroCurationResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses

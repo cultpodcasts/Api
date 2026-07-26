@@ -23,6 +23,7 @@ export type Env = {
 	securePushSubscriptionEndpoint: URL;
 	stagingHostSuffix: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
+	HERO_CURATION_DURABLE_OBJECT: DurableObjectNamespace<import("./HeroCurationDurableObject").HeroCurationDurableObject>;
 	Content: R2Bucket;
 	Data: R2Bucket;
 	apiDB: D1Database;
