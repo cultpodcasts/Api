@@ -70,7 +70,13 @@ export const discoveryScheduleResponseSchema = z.object({
  */
 export const heroCurationUpdateRequestSchema = z.object({
 	episodeIds: z.array(z.string().uuid()).optional(),
-	railSubjects: z.array(z.string().min(1).max(200)).optional()
+	railSubjects: z.array(z.string().min(1).max(200)).optional(),
+	expectedUpdatedAt: z.string().datetime({ offset: true }).optional().nullable()
+});
+
+/** POST /hero-curation/episodes — append episode IDs (indexer auto-promote). */
+export const heroCurationAppendRequestSchema = z.object({
+	episodeIds: z.array(z.string().uuid()).min(1)
 });
 
 /** GET/PUT /hero-curation — curated hero episode IDs and pinned rail subjects. */

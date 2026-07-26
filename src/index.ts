@@ -8,6 +8,8 @@ import { Auth0JwtPayload } from './Auth0JwtPayload';
 import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
 import { ProfileDurableObjectLegacy } from './ProfileDurableObjectLegacy';
+import { HeroCurationDurableObject } from './HeroCurationDurableObject';
+import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
 import {
 	AddBookmarkRoute,
@@ -39,6 +41,7 @@ import {
 	PublishPodcastEpisodeRoute,
 	PublishTermRoute,
 	GetDiscoveryScheduleRoute,
+	AppendHeroCurationEpisodesRoute,
 	GetHeroCurationRoute,
 	PutDiscoveryScheduleRoute,
 	PutHeroCurationRoute,
@@ -316,6 +319,7 @@ openapi.get('/discovery-schedule', GetDiscoveryScheduleRoute);
 openapi.put('/discovery-schedule', PutDiscoveryScheduleRoute);
 openapi.get('/hero-curation', GetHeroCurationRoute);
 openapi.put('/hero-curation', PutHeroCurationRoute);
+openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);
 openapi.post('/podcast/name/:name', RenamePodcastRoute);
 openapi.post('/pushsubscription', PushSubscriptionRoute);
 openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);
@@ -325,5 +329,10 @@ openapi.get('/bookmarks', GetBookmarksRoute);
 openapi.get('/public/episode/:id', PublicGetEpisodeRoute);
 openapi.get('/languages', GetLanguagesRoute);
 
-export default app;
-export { ProfileDurableObject, ProfileDurableObjectLegacy };
+export default {
+	fetch: app.fetch,
+	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(pruneHeroCurationScheduled(env));
+	}
+};
+export { ProfileDurableObject, ProfileDurableObjectLegacy, HeroCurationDurableObject };
