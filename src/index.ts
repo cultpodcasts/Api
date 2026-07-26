@@ -7,6 +7,7 @@ import { Env } from './Env';
 import { Auth0JwtPayload } from './Auth0JwtPayload';
 import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
+import { ProfileDurableObjectLegacy } from './ProfileDurableObjectLegacy';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
 import {
 	AddBookmarkRoute,
@@ -325,4 +326,4 @@ openapi.get('/public/episode/:id', PublicGetEpisodeRoute);
 openapi.get('/languages', GetLanguagesRoute);
 
 export default app;
-export { ProfileDurableObject };
+export { ProfileDurableObject, ProfileDurableObjectLegacy };

@@ -116,24 +116,41 @@
           }
         ]
       },
+      // preview-v1 created a KV-backed DO; ProfileDurableObject uses ctx.storage.sql
+      // (SQLite only). preview-v2 renames the KV class aside and creates a SQLite
+      // class under the original name; preview-v3 deletes the legacy KV class
+      // (requires the temporary PROFILE_DURABLE_OBJECT_LEGACY binding to already
+      // have been removed — applied in the deploy after preview-v2).
       "migrations": [
         {
           "tag": "preview-v1",
           "new_classes": [
             "ProfileDurableObject"
           ]
+        },
+        {
+          "tag": "preview-v2",
+          "renamed_classes": [
+            {
+              "from": "ProfileDurableObject",
+              "to": "ProfileDurableObjectLegacy"
+            }
+          ],
+          "new_sqlite_classes": [
+            "ProfileDurableObject"
+          ]
+        },
+        {
+          "tag": "preview-v3",
+          "deleted_classes": [
+            "ProfileDurableObjectLegacy"
+          ]
         }
       ]
     },
     "production": {
-      "migrations": [
-        {
-          "tag": "production-v1",
-          "new_classes": [
-            "ProfileDurableObject"
-          ]
-        }
-      ],
+      // Same KV→SQLite cutover as preview if this named env was ever deployed.
+      // Default `npm run deploy` uses top-level migrations (v1–v3), not this block.
       "r2_buckets": [
         {
           "binding": "Content",
@@ -173,9 +190,33 @@
           {
             "name": "PROFILE_DURABLE_OBJECT",
             "class_name": "ProfileDurableObject"
+          },
+          {
+            "name": "PROFILE_DURABLE_OBJECT_LEGACY",
+            "class_name": "ProfileDurableObjectLegacy"
           }
         ]
-      }
+      },
+      "migrations": [
+        {
+          "tag": "production-v1",
+          "new_classes": [
+            "ProfileDurableObject"
+          ]
+        },
+        {
+          "tag": "production-v2",
+          "renamed_classes": [
+            {
+              "from": "ProfileDurableObject",
+              "to": "ProfileDurableObjectLegacy"
+            }
+          ],
+          "new_sqlite_classes": [
+            "ProfileDurableObject"
+          ]
+        }
+      ]
     },
     "local": {
       "r2_buckets": [
