@@ -283,7 +283,9 @@ openapi.post('/submit', SubmitRoute);
 openapi.post('/episode/publish/:podcastId/:episodeId', PublishPodcastEpisodeRoute);
 // \New Episode Publish Endpoint
 // New Episode Endpoints
-openapi.get('/episode/:podcastName/:episodeId', GetPodcastEpisodeRoute);
+// podcastName may contain `/` (encoded as %2F). Use a greedy matcher so a
+// decoded slash still binds to podcastName rather than splitting the route.
+openapi.get('/episode/:podcastName{.+}/:episodeId{[0-9a-fA-F-]{36}}', GetPodcastEpisodeRoute);
 openapi.post('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
 openapi.delete('/episode/:podcastId/:episodeId', DeletePodcastEpisodeRoute);
 // \New Episode Endpoints

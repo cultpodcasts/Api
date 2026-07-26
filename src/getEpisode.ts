@@ -1,5 +1,6 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
+import { azureEpisodePathSuffix } from "./azureEpisodePathSuffix";
 import { Endpoint } from "./Endpoint";
 import { proxyToAzure } from "./proxyToAzure";
 
@@ -31,7 +32,7 @@ export async function getPodcastEpisode(c: Auth0ActionContext): Promise<Response
 		permission: "curate",
 		endpoint: Endpoint.episode,
 		method: "GET",
-		pathSuffix: `/${encodeURIComponent(podcastName)}/${encodeURIComponent(episodeId)}`,
+		pathSuffix: azureEpisodePathSuffix(podcastName, episodeId),
 		successStatuses: [200],
 		forwardStatuses: [404],
 		logName: "secure-episode-endpoint"
