@@ -2,6 +2,8 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
+import { hasPermission } from "./hasPermission";
+import { formatCurateAuthzClaims } from "./jwtAuthzLog";
 import { LogCollector } from "./LogCollector";
 import {
 	heroCurationAppendRequestSchema,
@@ -12,12 +14,16 @@ import { heroCurationStub } from "./HeroCurationDurableObject";
 function requireCurate(c: Auth0ActionContext, logCollector: LogCollector): Response | null {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
 	if (!auth0Payload) {
-		logCollector.addMessage("Unauthorised to mutate hero curation.");
+		logCollector.addMessage(
+			`Hero curation authz 401: missing or invalid Auth0 payload. ${formatCurateAuthzClaims(null)}`
+		);
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: "Unauthorised" }, 401);
 	}
-	if (!auth0Payload.permissions?.includes("curate")) {
-		logCollector.addMessage("Forbidden to mutate hero curation.");
+	if (!hasPermission(auth0Payload, "curate")) {
+		logCollector.addMessage(
+			`Hero curation authz 403: missing curate. ${formatCurateAuthzClaims(auth0Payload)}`
+		);
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: "Forbidden" }, 403);
 	}

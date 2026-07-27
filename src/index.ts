@@ -5,6 +5,7 @@ import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors'
 import { Env } from './Env';
 import { Auth0JwtPayload } from './Auth0JwtPayload';
+import { hasPermission } from './hasPermission';
 import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
 import { ProfileDurableObjectLegacy } from './ProfileDurableObjectLegacy';
@@ -110,7 +111,7 @@ const getBearerToken = (c: any): string | undefined => {
 };
 
 const isAdmin = (payload: Auth0JwtPayload | null): boolean => {
-	return !!payload?.permissions?.includes('admin');
+	return hasPermission(payload, 'admin');
 };
 
 const isOpenApiAuthBypassPath = (pathname: string): boolean => {

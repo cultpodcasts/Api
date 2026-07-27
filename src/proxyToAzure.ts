@@ -3,6 +3,7 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
+import { hasPermission } from "./hasPermission";
 import { LogCollector } from "./LogCollector";
 
 export type ProxyToAzureOptions = {
@@ -41,9 +42,7 @@ export async function proxyToAzure(
 
 	const permitted =
 		auth0Payload != null &&
-		(opts.permission == null ||
-			(auth0Payload.permissions != null &&
-				auth0Payload.permissions.includes(opts.permission)));
+		(opts.permission == null || hasPermission(auth0Payload, opts.permission));
 
 	try {
 		if (permitted) {
