@@ -43,6 +43,17 @@ describe("hero-curation contract", () => {
 		expect(src).toContain("400");
 	});
 
+	it("logs safe JWT claims on requireCurate 401/403", () => {
+		expect(src).toContain("formatCurateAuthzClaims");
+		expect(src).toContain("Hero curation authz 401");
+		expect(src).toContain("Hero curation authz 403");
+		const helper = readFileSync(resolve(process.cwd(), "src/jwtAuthzLog.ts"), "utf8");
+		expect(helper).toContain("permissions=");
+		expect(helper).toContain("scope=");
+		expect(helper).not.toContain("authorization.slice");
+		expect(helper).not.toContain("c.req.header");
+	});
+
 	it("accepts curate from permissions or OAuth scope (M2M)", () => {
 		const helper = readFileSync(resolve(process.cwd(), "src/hasPermission.ts"), "utf8");
 		expect(helper).toContain("permissions?.includes");

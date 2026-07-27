@@ -4,6 +4,7 @@ import { buildFetchHeaders } from "./buildFetchHeaders";
 import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
 import { hasPermission } from "./hasPermission";
+import { formatCurateAuthzClaims } from "./jwtAuthzLog";
 import { LogCollector } from "./LogCollector";
 
 export type ProxyToAzureOptions = {
@@ -95,12 +96,20 @@ export async function proxyToAzure(
 	}
 
 	if (!auth0Payload) {
-		logCollector.addMessage(`Unauthorised to use ${opts.logName}.`);
+		const detail =
+			opts.permission === "curate"
+				? ` ${formatCurateAuthzClaims(null)}`
+				: "";
+		logCollector.addMessage(`Unauthorised to use ${opts.logName}.${detail}`);
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: "Unauthorised" }, 401);
 	}
 
-	logCollector.addMessage(`Forbidden to use ${opts.logName}.`);
+	const detail =
+		opts.permission === "curate"
+			? ` missing ${opts.permission}. ${formatCurateAuthzClaims(auth0Payload, opts.permission)}`
+			: "";
+	logCollector.addMessage(`Forbidden to use ${opts.logName}.${detail}`);
 	console.error(logCollector.toEndpointLog());
 	return c.json({ error: "Forbidden" }, 403);
 }
