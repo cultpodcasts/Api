@@ -37,10 +37,16 @@ describe("hero-curation contract", () => {
 	});
 
 	it("mutations enforce curate permission with 401/403", () => {
-		expect(src).toContain("permissions?.includes(\"curate\")");
+		expect(src).toContain('hasPermission(auth0Payload, "curate")');
 		expect(src).toContain("401");
 		expect(src).toContain("403");
 		expect(src).toContain("400");
+	});
+
+	it("accepts curate from permissions or OAuth scope (M2M)", () => {
+		const helper = readFileSync(resolve(process.cwd(), "src/hasPermission.ts"), "utf8");
+		expect(helper).toContain("permissions?.includes");
+		expect(helper).toContain("scope.split");
 	});
 
 	it("uses HeroCuration Durable Object and GET cache max-age 60", () => {

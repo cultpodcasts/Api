@@ -2,6 +2,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
+import { hasPermission } from "./hasPermission";
 import { LogCollector } from "./LogCollector";
 import {
 	heroCurationAppendRequestSchema,
@@ -16,7 +17,7 @@ function requireCurate(c: Auth0ActionContext, logCollector: LogCollector): Respo
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: "Unauthorised" }, 401);
 	}
-	if (!auth0Payload.permissions?.includes("curate")) {
+	if (!hasPermission(auth0Payload, "curate")) {
 		logCollector.addMessage("Forbidden to mutate hero curation.");
 		console.error(logCollector.toEndpointLog());
 		return c.json({ error: "Forbidden" }, 403);
