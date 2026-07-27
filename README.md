@@ -43,8 +43,13 @@ Default production deploys use the top-level migration history:
 npm run deploy
 ```
 
-Preview (e.g. `api-preview.jonbreen.workers.dev`):
+Preview (e.g. `api-preview.<account>.workers.dev`):
 
 ```bash
 npx wrangler deploy --env preview
 ```
+## Hero auto-promote (Azure M2M)
+
+Azure Functions append hero episodes via Auth0 M2M → `POST /hero-curation/episodes`. Committed defaults use **`https://api.cultpodcasts.com`**. Free-plan Bot Fight Mode can challenge M2M against the custom domain; production may temporarily use the Worker **workers.dev** host via Key Vault secret **`Api-Endpoint`** / Azure `api__Endpoint` only — **never commit a personal workers.dev URL**. Long-term: Pro WAF skip for Bearer on `/hero-curation`. Public browsers stay on the custom domain.
+
+Full detail and operator steps: [docs/hero-curation-m2m-edge.md](docs/hero-curation-m2m-edge.md).
