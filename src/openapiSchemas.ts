@@ -562,7 +562,11 @@ export const pageDetailsResponseSchema = z.object({
 	title: z.string().optional(),
 	description: z.string().optional(),
 	releaseDate: z.string().optional(),
-	duration: z.string().optional()
+	duration: z.string().optional(),
+	/** Absolute HTTPS episode art for social previews. */
+	image: z.string().url().optional(),
+	/** wide (YouTube / BBC iPlayer / Internet Archive) → summary_large_image; square (Spotify/Apple/BBC Sounds) → summary. */
+	imageAspect: z.enum(["wide", "square"]).optional()
 });
 
 /**
