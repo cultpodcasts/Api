@@ -59,6 +59,7 @@ import {
 	UpdatePodcastPutRoute,
 	UpdateSubjectRoute
 } from './openapiRoutes';
+import { getOgShareImage } from './ogShareImage';
 
 const app = new Hono<{ Bindings: Env }>();
 const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
@@ -329,6 +330,9 @@ openapi.delete('/bookmark/:episodeId', DeleteBookmarkRoute);
 openapi.get('/bookmarks', GetBookmarksRoute);
 openapi.get('/public/episode/:id', PublicGetEpisodeRoute);
 openapi.get('/languages', GetLanguagesRoute);
+
+// Branded OG image (CF Images overlay). Public — crawlers fetch directly.
+app.get('/og-image', getOgShareImage);
 
 export default {
 	fetch: app.fetch,

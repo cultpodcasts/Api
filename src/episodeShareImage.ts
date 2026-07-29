@@ -186,3 +186,44 @@ export function shareImageFromStorage(stored: {
 		imageAspect: stored.imageAspect ?? resolveShareImageAspect(absolute, stored)
 	};
 }
+
+/** Logo drawn onto episode art for OG cards (production site asset). */
+export const DEFAULT_OG_LOGO_URL = "https://cultpodcasts.com/assets/sq-image.png";
+
+const ALLOWED_SHARE_IMAGE_HOST_SUFFIXES = [
+	"i.ytimg.com",
+	"i.scdn.co",
+	"mzstatic.com",
+	"archive.org",
+	"bbci.co.uk",
+	"bbcimg.co.uk",
+	"bbc.co.uk",
+	"staticflickr.com"
+];
+
+export function isAllowedShareImageSourceHost(hostname: string): boolean {
+	const host = hostname.toLowerCase();
+	return ALLOWED_SHARE_IMAGE_HOST_SUFFIXES.some(
+		(suffix) => host === suffix || host.endsWith(`.${suffix}`)
+	);
+}
+
+export function parseOgImageAspect(value: string | undefined | null): EpisodeShareImageAspect {
+	return value === "wide" ? "wide" : "square";
+}
+
+/**
+ * Page-details `image` for crawlers: Api Worker URL that overlays the logo via CF Images.
+ * Falls back to the raw source if the Worker cannot transform (handled at /og-image).
+ */
+export function buildBrandedOgImageUrl(
+	apiRequestUrl: string,
+	sourceImageAbsoluteUrl: string,
+	aspect: EpisodeShareImageAspect = "square"
+): string {
+	const origin = new URL(apiRequestUrl).origin;
+	const url = new URL("/og-image", origin);
+	url.searchParams.set("u", sourceImageAbsoluteUrl);
+	url.searchParams.set("a", aspect);
+	return url.toString();
+}

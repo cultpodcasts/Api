@@ -3,7 +3,9 @@ import {
 	expandSearchImage,
 	resolveEpisodeShareImage,
 	shareImageFromStorage,
-	toShareImageStorage
+	toShareImageStorage,
+	buildBrandedOgImageUrl,
+	isAllowedShareImageSourceHost
 } from "../src/episodeShareImage";
 
 describe("expandSearchImage (search-index encoding)", () => {
@@ -143,5 +145,25 @@ describe("toShareImageStorage / shareImageFromStorage", () => {
 		});
 		expect(shareImageFromStorage(stored!)?.image)
 			.toBe("https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg");
+	});
+});
+
+describe("buildBrandedOgImageUrl / allowlist", () => {
+	it("builds Api /og-image URL with source and aspect query params", () => {
+		const branded = buildBrandedOgImageUrl(
+			"https://api.cultpodcasts.com/pagedetails/Show/abc",
+			"https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg",
+			"wide"
+		);
+		expect(branded).toBe(
+			"https://api.cultpodcasts.com/og-image?u=https%3A%2F%2Fi.ytimg.com%2Fvi%2Fgriffinsong42%2Fhqdefault.jpg&a=wide"
+		);
+	});
+
+	it("allows known episode-art hosts and rejects others", () => {
+		expect(isAllowedShareImageSourceHost("i.ytimg.com")).toBe(true);
+		expect(isAllowedShareImageSourceHost("i.scdn.co")).toBe(true);
+		expect(isAllowedShareImageSourceHost("is3-ssl.mzstatic.com")).toBe(true);
+		expect(isAllowedShareImageSourceHost("evil.example")).toBe(false);
 	});
 });

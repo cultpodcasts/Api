@@ -5,21 +5,29 @@ import { GuidService } from "./guid-service";
 import { IPageDetails } from "./ipage-details";
 import { ShortnerRecord } from "./ShortnerRecord";
 import { AddResponseHeaders } from "./AddResponseHeaders";
-import { shareImageFromStorage, toShareImageStorage } from "./episodeShareImage";
+import {
+    buildBrandedOgImageUrl,
+    shareImageFromStorage,
+    toShareImageStorage
+} from "./episodeShareImage";
 
 /**
  * Page-details for SSR / OG tags.
  * - Existing shortener KV: never rewrite; use image for og:image only if already on the record.
  * - Missing KV: fall back to search, create the record (incl. search-index image encoding), then use it.
+ * - When an image exists, `image` is the Api `/og-image` Worker URL (CF logo overlay + Free-tier fallback).
  */
-function pageDetailsFromKv(podcastName: string, meta: ShortnerRecord): IPageDetails {
+function pageDetailsFromKv(podcastName: string, meta: ShortnerRecord, requestUrl: string): IPageDetails {
     const share = shareImageFromStorage(meta);
+    const image = share?.image
+        ? buildBrandedOgImageUrl(requestUrl, share.image, share.imageAspect)
+        : undefined;
     return {
         description: podcastName,
         title: `${meta.episodeTitle} | ${podcastName}`,
         releaseDate: meta.releaseDate,
         duration: meta.duration,
-        image: share?.image,
+        image,
         imageAspect: share?.imageAspect ?? meta.imageAspect
     };
 }
@@ -45,18 +53,19 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
     const kvMeta = episodeKvWithMetaData?.metadata;
     const kvTitle = kvMeta?.episodeTitle;
     const kvExists = episodeKvWithMetaData != null && episodeKvWithMetaData.value != null;
+    const requestUrl = c.req.url;
 
     if (kvExists && kvTitle && kvMeta) {
         logCollector.addMessage(`Found kv-meta-data with key '${key}'. podcast-name: '${podcastName}', episode-title: '${kvTitle}', episode-id: '${episodeId}', hasShareImage=${!!shareImageFromStorage(kvMeta)}.`);
         console.log(logCollector.toEndpointLog());
-        return c.json(pageDetailsFromKv(podcastName, kvMeta));
+        return c.json(pageDetailsFromKv(podcastName, kvMeta, requestUrl));
     }
 
     if (kvExists) {
         logCollector.addMessage(`KV key '${key}' exists but metadata incomplete; leaving unchanged and not recreating.`);
         if (kvMeta) {
             console.log(logCollector.toEndpointLog());
-            return c.json(pageDetailsFromKv(podcastName, kvMeta));
+            return c.json(pageDetailsFromKv(podcastName, kvMeta, requestUrl));
         }
         console.error(logCollector.toEndpointLog());
         return c.text(logCollector.message!, 400);
@@ -104,7 +113,7 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
             await c.env.shortner.put(key, `${encodedPodcastName}/${episodeId}`, { metadata: shortnerRecord });
             logCollector.addMessage(`Stored kv item with key '${key}'`);
             console.log(logCollector.toEndpointLog());
-            return Response.json(pageDetailsFromKv(podcastName, shortnerRecord));
+            return Response.json(pageDetailsFromKv(podcastName, shortnerRecord, requestUrl));
         }
         logCollector.addMessage(`No item for episode-uuid '${episodeId}' and podcast-name '${podcastName}'`);
         console.error(logCollector.toEndpointLog());
