@@ -624,6 +624,19 @@ export const homepageResponseSchema = z.object({
 	totalDuration: z.string()
 });
 
+export const searchSuggestionEntrySchema = z.object({
+	type: z.enum(["subject", "podcast"]),
+	canonical: z.string(),
+	searchText: z.string(),
+	alias: z.string().optional().nullable()
+});
+
+/** R2 `search-suggestions` — flat typeahead match index. */
+export const searchSuggestionsResponseSchema = z.object({
+	generatedAtUtc: z.string(),
+	entries: z.array(searchSuggestionEntrySchema)
+});
+
 /**
  * R2 `homepage-ssr` (PreProcessedHomepageKey) —
  * RedditPodcastPoster.Models.HomePage.PreProcessedHomePageModel (JSON, not HTML).

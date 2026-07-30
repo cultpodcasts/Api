@@ -22,6 +22,7 @@ import { getPeople } from "./getPeople";
 import { getSubjects } from "./getSubjects";
 import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
+import { searchSuggestions } from "./searchSuggestions";
 import { indexPodcastByName } from "./indexPodcastByName";
 import {
 	bookmarksListResponseSchema,
@@ -45,6 +46,7 @@ import {
 	flairsResponseSchema,
 	homepageResponseSchema,
 	preProcessedHomepageResponseSchema,
+	searchSuggestionsResponseSchema,
 	indexPodcastResponseSchema,
 	indexerStateDtoSchema,
 	jsonBody,
@@ -176,6 +178,23 @@ export const HomepageSsrRoute = createOpenApiRoute(homepageSsr, {
                 ...contentJson(preProcessedHomepageResponseSchema)
             },
             404: { description: "Pre-processed homepage object missing from R2" }
+        }
+    }
+});
+
+export const SearchSuggestionsRoute = createOpenApiRoute(searchSuggestions, {
+    schema: {
+        tags: ["Public"],
+        summary: "Get search typeahead match index",
+        description:
+            "Returns R2 key `search-suggestions` (ContentOptions.SearchSuggestionsKey): " +
+            "flat match index of subject names/aliases and podcast names for Flix typeahead.",
+        responses: {
+            200: {
+                description: "Search suggestions corpus",
+                ...contentJson(searchSuggestionsResponseSchema)
+            },
+            404: { description: "Search-suggestions object missing from R2" }
         }
     }
 });
