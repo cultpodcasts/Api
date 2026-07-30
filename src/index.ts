@@ -36,6 +36,7 @@ import {
 	GetSubjectsRoute,
 	HomepageRoute,
 	HomepageSsrRoute,
+	SearchSuggestionsRoute,
 	IndexPodcastByNameRoute,
 	PublicGetEpisodeRoute,
 	PublishHomepageRoute,
@@ -276,6 +277,7 @@ const openapi = fromHono(app, {
 
 openapi.get('/homepage', HomepageRoute);
 openapi.get('/homepage-ssr', HomepageSsrRoute);
+openapi.get('/search-suggestions', SearchSuggestionsRoute);
 openapi.get('/subjects', GetSubjectsRoute);
 openapi.get('/people', GetPeopleRoute);
 openapi.get('/person/:name', GetPersonByNameRoute);
