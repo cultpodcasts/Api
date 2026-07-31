@@ -60,6 +60,7 @@ import {
 	UpdatePodcastPutRoute,
 	UpdateSubjectRoute
 } from './openapiRoutes';
+import packageJson from '../package.json';
 
 const app = new Hono<{ Bindings: Env }>();
 const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
@@ -270,7 +271,7 @@ const openapi = fromHono(app, {
 	schema: {
 		info: {
 			title: 'Cult Podcasts API',
-			version: '1.0.3'
+			version: packageJson.version
 		}
 	}
 });
