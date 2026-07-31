@@ -119,7 +119,9 @@ const discoveryCurationItemSchema = z.object({
 	enrichedUrlFromSpotify: z.boolean(),
 	matchingPodcasts: z.array(discoveryMatchingPodcastSchema).optional().nullable(),
 	acceptProbability: z.number().optional().nullable(),
-	autoHidden: z.boolean()
+	autoHidden: z.boolean(),
+	containsSyntheticMedia: z.boolean().optional().nullable(),
+	guests: z.array(z.string()).optional().nullable()
 });
 
 export const discoveryCurationResponseSchema = z.object({
