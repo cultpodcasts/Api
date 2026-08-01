@@ -2,13 +2,13 @@ import { DurableObject } from "cloudflare:workers";
 import { Env } from "./Env";
 import {
 	dedupeAndCap,
+	dedupeAndCapRails,
 	emptyHeroState,
 	HERO_KV_KEY,
 	HeroCurationReplaceInput,
 	HeroCurationReplaceResult,
 	HeroCurationState,
 	MAX_EPISODE_IDS,
-	MAX_RAIL_SUBJECTS,
 	mergeAppendEpisodes,
 	mergePruneToAllowed,
 	storedList
@@ -16,6 +16,7 @@ import {
 
 export {
 	dedupeAndCap,
+	dedupeAndCapRails,
 	HERO_KV_KEY,
 	MAX_EPISODE_IDS,
 	MAX_RAIL_SUBJECTS,
@@ -51,10 +52,7 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 			? dedupeAndCap(input.episodeIds, MAX_EPISODE_IDS)
 			: current.episodeIds;
 		const railSubjects = input.railSubjects
-			? dedupeAndCap(
-				input.railSubjects.map((subject) => subject.trim()).filter((subject) => subject.length > 0),
-				MAX_RAIL_SUBJECTS
-			)
+			? dedupeAndCapRails(input.railSubjects)
 			: current.railSubjects;
 
 		const state: HeroCurationState = {
@@ -84,10 +82,16 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 
 	async pruneToAllowedIds(
 		allowedEpisodeIds: string[],
-		allowedRailSubjects?: string[]
+		allowedRailSubjects?: string[],
+		dayCount?: number
 	): Promise<{ state: HeroCurationState; pruned: boolean }> {
 		const current = await this.loadOrMigrate();
-		const result = mergePruneToAllowed(current, allowedEpisodeIds, allowedRailSubjects);
+		const result = mergePruneToAllowed(
+			current,
+			allowedEpisodeIds,
+			allowedRailSubjects,
+			dayCount
+		);
 		if (!result.pruned) {
 			return result;
 		}
@@ -110,7 +114,7 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 			if (fromKv) {
 				const migrated: HeroCurationState = {
 					episodeIds: dedupeAndCap(storedList(fromKv.episodeIds), MAX_EPISODE_IDS),
-					railSubjects: dedupeAndCap(storedList(fromKv.railSubjects), MAX_RAIL_SUBJECTS),
+					railSubjects: dedupeAndCapRails(storedList(fromKv.railSubjects)),
 					updatedAt: fromKv.updatedAt ?? new Date().toISOString()
 				};
 				await this.ctx.storage.put(STORAGE_KEY, migrated);

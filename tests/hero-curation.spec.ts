@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { dedupeAndCap, MAX_EPISODE_IDS, MAX_RAIL_SUBJECTS } from "../src/heroCurationLogic";
+import { dedupeAndCap, dedupeAndCapRails, MAX_EPISODE_IDS, MAX_RAIL_SUBJECTS, mergePruneToAllowed } from "../src/heroCurationLogic";
 
 /**
  * Source-contract checks for /hero-curation (GET public, PUT/POST curate + DO).
@@ -11,6 +11,7 @@ describe("hero-curation contract", () => {
 	const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
 	const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
 	const wrangler = readFileSync(resolve(process.cwd(), "wrangler.jsonc"), "utf8");
+	const logic = readFileSync(resolve(process.cwd(), "src/heroCurationLogic.ts"), "utf8");
 
 	it("registers GET, PUT, and POST append routes", () => {
 		expect(index).toContain("openapi.get('/hero-curation', GetHeroCurationRoute)");
@@ -79,6 +80,37 @@ describe("hero-curation contract", () => {
 		expect(MAX_RAIL_SUBJECTS).toBe(12);
 		expect(dedupeAndCap(["a", "a", "b"], 50)).toEqual(["a", "b"]);
 		expect(dedupeAndCap(Array.from({ length: 60 }, (_, i) => `id-${i}`), 50)).toHaveLength(50);
+	});
+
+	it("dedupes mixed day slots and subject rails without capping days as subjects", () => {
+		expect(logic).toContain("dedupeAndCapRails");
+		expect(dedupeAndCapRails([
+			"day:0",
+			"Scientology",
+			"day:0",
+			"NXIVM",
+			"day:1",
+			"Scientology"
+		])).toEqual(["day:0", "Scientology", "NXIVM", "day:1"]);
+		const manySubjects = Array.from({ length: 20 }, (_, i) => `Subject ${i}`);
+		const capped = dedupeAndCapRails(["day:0", ...manySubjects, "day:1"]);
+		expect(capped.filter((entry) => entry.startsWith("day:"))).toEqual(["day:0", "day:1"]);
+		expect(capped.filter((entry) => !entry.startsWith("day:")).length).toBe(12);
+	});
+
+	it("prunes stale subjects but keeps in-range day slots", () => {
+		const { state, pruned } = mergePruneToAllowed(
+			{
+				episodeIds: ["11111111-1111-1111-1111-111111111111"],
+				railSubjects: ["day:0", "Gone", "Scientology", "day:2", "day:1"],
+				updatedAt: "2026-01-01T00:00:00.000Z"
+			},
+			["11111111-1111-1111-1111-111111111111"],
+			["Scientology"],
+			2
+		);
+		expect(pruned).toBe(true);
+		expect(state.railSubjects).toEqual(["day:0", "Scientology", "day:1"]);
 	});
 
 	it("supports expectedUpdatedAt conflict responses", () => {
