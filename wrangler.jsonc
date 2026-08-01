@@ -81,6 +81,8 @@
   ],
   "env": {
     "preview": {
+      // Explicit so Workers Builds name-check matches the api-preview service.
+      "name": "api-preview",
       "observability": {
         "enabled": true
       },
