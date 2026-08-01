@@ -76,10 +76,13 @@ export const heroCurationUpdateRequestSchema = z.object({
 	expectedUpdatedAt: z.string().datetime({ offset: true }).optional().nullable()
 });
 
-/** POST /hero-curation/episodes — append episode IDs (indexer auto-promote). */
+/** POST/DELETE /hero-curation/episodes — append or remove episode IDs (no CAS). */
 export const heroCurationAppendRequestSchema = z.object({
 	episodeIds: z.array(z.string().uuid()).min(1)
 });
+
+/** Alias — same body shape for DELETE demote. */
+export const heroCurationDeleteEpisodesRequestSchema = heroCurationAppendRequestSchema;
 
 /** GET/PUT /hero-curation — curated hero episode IDs and pinned homepage rails. */
 export const heroCurationResponseSchema = z.object({

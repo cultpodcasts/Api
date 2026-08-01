@@ -44,6 +44,7 @@ import {
 	PublishTermRoute,
 	GetDiscoveryScheduleRoute,
 	AppendHeroCurationEpisodesRoute,
+	DeleteHeroCurationEpisodesRoute,
 	GetHeroCurationRoute,
 	PutDiscoveryScheduleRoute,
 	PutHeroCurationRoute,
@@ -324,6 +325,7 @@ openapi.put('/discovery-schedule', PutDiscoveryScheduleRoute);
 openapi.get('/hero-curation', GetHeroCurationRoute);
 openapi.put('/hero-curation', PutHeroCurationRoute);
 openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);
+openapi.delete('/hero-curation/episodes', DeleteHeroCurationEpisodesRoute);
 openapi.post('/podcast/name/:name', RenamePodcastRoute);
 openapi.post('/pushsubscription', PushSubscriptionRoute);
 openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);

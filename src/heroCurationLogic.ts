@@ -116,6 +116,29 @@ export function mergeAppendEpisodes(
 	};
 }
 
+/**
+ * Remove episode IDs from the hero list. Idempotent — missing IDs are ignored.
+ * Returns null when nothing changes (no CAS required).
+ */
+export function mergeRemoveEpisodes(
+	current: HeroCurationState,
+	episodeIds: string[]
+): HeroCurationState | null {
+	const toRemove = new Set(episodeIds.filter((id) => typeof id === "string" && id.length > 0));
+	if (toRemove.size === 0) {
+		return null;
+	}
+	const nextEpisodes = current.episodeIds.filter((id) => !toRemove.has(id));
+	if (nextEpisodes.length === current.episodeIds.length) {
+		return null;
+	}
+	return {
+		episodeIds: nextEpisodes,
+		railSubjects: current.railSubjects,
+		updatedAt: new Date().toISOString()
+	};
+}
+
 export function mergePruneToAllowed(
 	current: HeroCurationState,
 	allowedEpisodeIds: string[],

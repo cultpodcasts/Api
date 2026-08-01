@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { dedupeAndCap, dedupeAndCapRails, MAX_EPISODE_IDS, MAX_RAIL_SUBJECTS, mergePruneToAllowed } from "../src/heroCurationLogic";
+import { dedupeAndCap, dedupeAndCapRails, MAX_EPISODE_IDS, MAX_RAIL_SUBJECTS, mergePruneToAllowed, mergeRemoveEpisodes } from "../src/heroCurationLogic";
 
 /**
- * Source-contract checks for /hero-curation (GET public, PUT/POST curate + DO).
+ * Source-contract checks for /hero-curation (GET public, PUT/POST/DELETE curate + DO).
  */
 describe("hero-curation contract", () => {
 	const src = readFileSync(resolve(process.cwd(), "src/heroCuration.ts"), "utf8");
@@ -13,13 +13,14 @@ describe("hero-curation contract", () => {
 	const wrangler = readFileSync(resolve(process.cwd(), "wrangler.jsonc"), "utf8");
 	const logic = readFileSync(resolve(process.cwd(), "src/heroCurationLogic.ts"), "utf8");
 
-	it("registers GET, PUT, and POST append routes", () => {
+	it("registers GET, PUT, POST append, and DELETE remove routes", () => {
 		expect(index).toContain("openapi.get('/hero-curation', GetHeroCurationRoute)");
 		expect(index).toContain("openapi.put('/hero-curation', PutHeroCurationRoute)");
 		expect(index).toContain("openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute)");
+		expect(index).toContain("openapi.delete('/hero-curation/episodes', DeleteHeroCurationEpisodesRoute)");
 	});
 
-	it("GET is public; PUT and POST require Auth0 middleware", () => {
+	it("GET is public; PUT, POST, and DELETE require Auth0 middleware", () => {
 		const getBlock = routes.match(
 			/export const GetHeroCurationRoute = createOpenApiRoute\(getHeroCuration, \{[\s\S]*?\n\}\);/
 		)?.[0];
@@ -29,12 +30,17 @@ describe("hero-curation contract", () => {
 		const appendBlock = routes.match(
 			/export const AppendHeroCurationEpisodesRoute = createOpenApiRoute\(appendHeroCurationEpisodes, \{[\s\S]*?\n\}\);/
 		)?.[0];
+		const deleteBlock = routes.match(
+			/export const DeleteHeroCurationEpisodesRoute = createOpenApiRoute\(deleteHeroCurationEpisodes, \{[\s\S]*?\n\}\);/
+		)?.[0];
 		expect(getBlock).toBeDefined();
 		expect(putBlock).toBeDefined();
 		expect(appendBlock).toBeDefined();
+		expect(deleteBlock).toBeDefined();
 		expect(getBlock).not.toContain("auth: true");
 		expect(putBlock).toContain("auth: true");
 		expect(appendBlock).toContain("auth: true");
+		expect(deleteBlock).toContain("auth: true");
 	});
 
 	it("mutations enforce curate permission with 401/403", () => {
@@ -120,6 +126,25 @@ describe("hero-curation contract", () => {
 
 	it("rejects a PUT carrying neither episodeIds nor railSubjects", () => {
 		expect(src).toContain("!parsed.data.episodeIds && !parsed.data.railSubjects");
+	});
+
+	it("mergeRemoveEpisodes drops matching IDs and is a no-op when none match", () => {
+		const current = {
+			episodeIds: ["a", "b", "c"],
+			railSubjects: ["day:0"],
+			updatedAt: "2026-01-01T00:00:00.000Z"
+		};
+		const removed = mergeRemoveEpisodes(current, ["b", "missing"]);
+		expect(removed?.episodeIds).toEqual(["a", "c"]);
+		expect(removed?.railSubjects).toEqual(["day:0"]);
+		expect(mergeRemoveEpisodes(current, ["missing"])).toBeNull();
+		expect(mergeRemoveEpisodes(current, [])).toBeNull();
+	});
+
+	it("DELETE remove handler calls Durable Object removeEpisodes", () => {
+		expect(src).toContain("deleteHeroCurationEpisodes");
+		expect(src).toContain("removeEpisodes");
+		expect(logic).toContain("mergeRemoveEpisodes");
 	});
 });
 

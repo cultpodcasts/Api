@@ -34,7 +34,7 @@ export async function getHeroCuration(c: ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
 	AddResponseHeaders(c, {
-		methods: ["GET", "PUT", "POST", "OPTIONS"],
+		methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
 		cacheControlMaxAge: 60
 	});
 
@@ -57,7 +57,7 @@ export async function getHeroCuration(c: ActionContext): Promise<Response> {
 export async function putHeroCuration(c: Auth0ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "POST", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"] });
 
 	const denied = requireCurate(c, logCollector);
 	if (denied) {
@@ -117,7 +117,7 @@ export async function putHeroCuration(c: Auth0ActionContext): Promise<Response> 
 export async function appendHeroCurationEpisodes(c: Auth0ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "POST", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"] });
 
 	const denied = requireCurate(c, logCollector);
 	if (denied) {
@@ -152,6 +152,47 @@ export async function appendHeroCurationEpisodes(c: Auth0ActionContext): Promise
 		logCollector.addMessage("Hero auto-promote: unable to append hero curation episodes");
 		console.error(logCollector.toEndpointLog(), error);
 		return c.json({ error: "Failed to append hero episodes" }, 500);
+	}
+}
+
+export async function deleteHeroCurationEpisodes(c: Auth0ActionContext): Promise<Response> {
+	const logCollector = new LogCollector();
+	logCollector.collectRequest(c);
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"] });
+
+	const denied = requireCurate(c, logCollector);
+	if (denied) {
+		return denied;
+	}
+
+	let body: unknown;
+	try {
+		body = await c.req.json();
+	} catch {
+		logCollector.addMessage("Invalid JSON body for deleteHeroCurationEpisodes.");
+		console.error(logCollector.toEndpointLog());
+		return c.json({ error: "Bad request" }, 400);
+	}
+
+	const parsed = heroCurationAppendRequestSchema.safeParse(body);
+	if (!parsed.success || parsed.data.episodeIds.length === 0) {
+		logCollector.addMessage("Invalid hero curation delete body.");
+		console.error(logCollector.toEndpointLog());
+		return c.json({ error: "Bad request" }, 400);
+	}
+
+	try {
+		const requested = parsed.data.episodeIds;
+		const state = await heroCurationStub(c.env).removeEpisodes(requested);
+		logCollector.addMessage(
+			`Hero demote: DO remove (${requested.length} requested, ${state.episodeIds.length} total). EpisodeIds: ${requested.join(",")}.`
+		);
+		console.log(logCollector.toEndpointLog());
+		return c.json(state, 200);
+	} catch (error) {
+		logCollector.addMessage("Hero demote: unable to remove hero curation episodes");
+		console.error(logCollector.toEndpointLog(), error);
+		return c.json({ error: "Failed to remove hero episodes" }, 500);
 	}
 }
 
