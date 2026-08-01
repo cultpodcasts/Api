@@ -48,6 +48,22 @@ Preview (e.g. `api-preview.<account>.workers.dev`):
 ```bash
 npx wrangler deploy --env preview
 ```
+
+### Workers Builds (Git deploy)
+
+Do **not** rely on a local `wrangler deploy` for shared hosts. Cloudflare Workers Builds deploys from Git:
+
+| Worker | Git Builds | Deploy command | Triggers |
+|--------|------------|----------------|----------|
+| `api` | connected | `npx wrangler deploy` | `main` only |
+| `api-preview` | connected | `npx wrangler deploy --env preview` | `main` + PR branches |
+
+Both Workers use build command `./build.sh` and the same repo (`cultpodcasts/Api`). On **api-preview**, enable **Builds for non-production branches** and set the non-production deploy command to `npx wrangler deploy --env preview` (not the default `versions upload`) so PR pushes update the shared `api-preview` host.
+
+**Caveat:** concurrent open PRs overwrite each other on `api-preview` (latest successful build wins). That matches the single staging API URL the website uses.
+
+Dashboard: [api Builds](https://dash.cloudflare.com/bae3f835f19899c6eee1ec48f2d658cf/workers/services/view/api/production/settings) · [api-preview Builds](https://dash.cloudflare.com/bae3f835f19899c6eee1ec48f2d658cf/workers/services/view/api-preview/production/settings).
+
 ## Hero auto-promote (Azure M2M)
 
 Azure Functions append hero episodes via Auth0 M2M → `POST /hero-curation/episodes`. Committed defaults use **`https://api.cultpodcasts.com`**. Free-plan Bot Fight Mode can challenge M2M against the custom domain; production may temporarily use the Worker **workers.dev** host via Key Vault secret **`Api-Endpoint`** / Azure `api__Endpoint` only — **never commit a personal workers.dev URL**. Long-term: Pro WAF skip for Bearer on `/hero-curation`. Public browsers stay on the custom domain.
