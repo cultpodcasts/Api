@@ -34,6 +34,7 @@ import {
 	heroCurationResponseSchema,
 	heroCurationUpdateRequestSchema,
 	heroCurationAppendRequestSchema,
+	heroCurationDeleteEpisodesRequestSchema,
 	discoverySubmitResponseSchema,
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
@@ -77,7 +78,7 @@ import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { publishTerm } from "./publishTerm";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
-import { appendHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
+import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
@@ -694,6 +695,21 @@ export const AppendHeroCurationEpisodesRoute = createOpenApiRoute(appendHeroCura
         request: { body: jsonBody(heroCurationAppendRequestSchema) },
         responses: {
             200: { description: "Hero curation after append", ...contentJson(heroCurationResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const DeleteHeroCurationEpisodesRoute = createOpenApiRoute(deleteHeroCurationEpisodes, {
+    auth: true,
+    schema: {
+        tags: ["Curation"],
+        summary: "Remove episode IDs from curated hero list (demote / unstar)",
+        request: { body: jsonBody(heroCurationDeleteEpisodesRequestSchema) },
+        responses: {
+            200: { description: "Hero curation after remove", ...contentJson(heroCurationResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses

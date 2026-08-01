@@ -10,6 +10,7 @@ import {
 	HeroCurationState,
 	MAX_EPISODE_IDS,
 	mergeAppendEpisodes,
+	mergeRemoveEpisodes,
 	mergePruneToAllowed,
 	storedList
 } from "./heroCurationLogic";
@@ -76,6 +77,22 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 		await this.ctx.storage.put(STORAGE_KEY, next);
 		console.log(
 			`Hero auto-promote: DO stored append. EpisodeIds: ${episodeIds.join(",")}. Total: ${next.episodeIds.length}. UpdatedAt: ${next.updatedAt}.`
+		);
+		return next;
+	}
+
+	async removeEpisodes(episodeIds: string[]): Promise<HeroCurationState> {
+		const current = await this.loadOrMigrate();
+		const next = mergeRemoveEpisodes(current, episodeIds);
+		if (!next) {
+			console.log(
+				`Hero demote: DO remove no-op (none present). EpisodeIds: ${episodeIds.join(",")}. Total: ${current.episodeIds.length}.`
+			);
+			return current;
+		}
+		await this.ctx.storage.put(STORAGE_KEY, next);
+		console.log(
+			`Hero demote: DO stored remove. EpisodeIds: ${episodeIds.join(",")}. Total: ${next.episodeIds.length}. UpdatedAt: ${next.updatedAt}.`
 		);
 		return next;
 	}
