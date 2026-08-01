@@ -2,7 +2,7 @@ import { Env } from "./Env";
 import { heroCurationStub } from "./HeroCurationDurableObject";
 
 type HomepagePayload = {
-	recentEpisodes?: Array<{ id?: string; subjects?: string[] }>;
+	recentEpisodes?: Array<{ id?: string; subjects?: string[]; release?: string }>;
 };
 
 /**
@@ -35,7 +35,14 @@ export async function pruneHeroCurationScheduled(env: Env): Promise<void> {
 		.filter((id): id is string => typeof id === "string" && id.length > 0);
 
 	const allowedRailSubjects = new Set<string>();
+	const releaseDays = new Set<string>();
 	for (const ep of recent) {
+		if (typeof ep.release === "string") {
+			const day = ep.release.slice(0, 10);
+			if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+				releaseDays.add(day);
+			}
+		}
 		if (!Array.isArray(ep.subjects)) {
 			continue;
 		}
@@ -49,7 +56,8 @@ export async function pruneHeroCurationScheduled(env: Env): Promise<void> {
 	try {
 		const { state, pruned } = await heroCurationStub(env).pruneToAllowedIds(
 			allowedEpisodeIds,
-			[...allowedRailSubjects]
+			[...allowedRailSubjects],
+			releaseDays.size
 		);
 		if (pruned) {
 			console.log(
@@ -62,4 +70,3 @@ export async function pruneHeroCurationScheduled(env: Env): Promise<void> {
 		console.error("hero-prune: Durable Object prune failed", error);
 	}
 }
-

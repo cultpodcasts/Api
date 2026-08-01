@@ -1,6 +1,10 @@
 export const HERO_KV_KEY = "hero-episode-ids";
 export const MAX_EPISODE_IDS = 50;
 export const MAX_RAIL_SUBJECTS = 12;
+/** Relative day slots day:0 … day:N (homepage week is ~7 days; allow a little headroom). */
+export const MAX_DAY_RAIL_OFFSET = 13;
+
+const DAY_RAIL_RE = /^day:(\d+)$/;
 
 export type HeroCurationState = {
 	episodeIds: string[];
@@ -38,6 +42,52 @@ export function dedupeAndCap(values: string[], max: number): string[] {
 	return result;
 }
 
+export function parseDayRailOffset(entry: string): number | null {
+	const match = DAY_RAIL_RE.exec(entry);
+	if (!match) {
+		return null;
+	}
+	return Number.parseInt(match[1], 10);
+}
+
+export function isDayRailEntry(entry: string): boolean {
+	return parseDayRailOffset(entry) !== null;
+}
+
+/**
+ * Dedupe a mixed rail order (relative day slots + subject names).
+ * Subjects are capped at {@link MAX_RAIL_SUBJECTS}; day offsets must be ≤ {@link MAX_DAY_RAIL_OFFSET}.
+ */
+export function dedupeAndCapRails(values: string[]): string[] {
+	const seen = new Set<string>();
+	const result: string[] = [];
+	let subjectCount = 0;
+
+	for (const raw of values) {
+		const value = raw.trim();
+		if (value.length === 0 || seen.has(value)) {
+			continue;
+		}
+		const offset = parseDayRailOffset(value);
+		if (offset !== null) {
+			if (offset > MAX_DAY_RAIL_OFFSET) {
+				continue;
+			}
+			seen.add(value);
+			result.push(`day:${offset}`);
+			continue;
+		}
+		if (subjectCount >= MAX_RAIL_SUBJECTS) {
+			continue;
+		}
+		seen.add(value);
+		result.push(value);
+		subjectCount += 1;
+	}
+
+	return result;
+}
+
 export function emptyHeroState(): HeroCurationState {
 	return {
 		episodeIds: [],
@@ -69,7 +119,8 @@ export function mergeAppendEpisodes(
 export function mergePruneToAllowed(
 	current: HeroCurationState,
 	allowedEpisodeIds: string[],
-	allowedRailSubjects?: string[]
+	allowedRailSubjects?: string[],
+	dayCount?: number
 ): { state: HeroCurationState; pruned: boolean } {
 	const episodeAllow = new Set(allowedEpisodeIds);
 	const nextEpisodes = current.episodeIds.filter((id) => episodeAllow.has(id));
@@ -77,7 +128,14 @@ export function mergePruneToAllowed(
 	let nextRails = current.railSubjects;
 	if (allowedRailSubjects) {
 		const railAllow = new Set(allowedRailSubjects);
-		nextRails = current.railSubjects.filter((subject) => railAllow.has(subject));
+		const maxDay = dayCount ?? MAX_DAY_RAIL_OFFSET + 1;
+		nextRails = current.railSubjects.filter((entry) => {
+			const offset = parseDayRailOffset(entry);
+			if (offset !== null) {
+				return offset < maxDay;
+			}
+			return railAllow.has(entry);
+		});
 	}
 
 	const pruned =
@@ -99,4 +157,3 @@ export function mergePruneToAllowed(
 		pruned: true
 	};
 }
-
