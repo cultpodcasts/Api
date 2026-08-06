@@ -4,7 +4,8 @@ import { Endpoint } from "./Endpoint";
 import { proxyToAzure } from "./proxyToAzure";
 
 export async function getDiscoverySchedule(c: Auth0ActionContext): Promise<Response> {
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
 	return proxyToAzure(c, {
 		permission: "admin",
 		endpoint: Endpoint.discoverySchedule,
@@ -16,7 +17,8 @@ export async function getDiscoverySchedule(c: Auth0ActionContext): Promise<Respo
 }
 
 export async function putDiscoverySchedule(c: Auth0ActionContext): Promise<Response> {
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
 	const data: unknown = await c.req.json();
 	const body = JSON.stringify(data);
 	return proxyToAzure(c, {

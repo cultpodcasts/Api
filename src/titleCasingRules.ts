@@ -5,7 +5,9 @@ import { proxyToAzure } from "./proxyToAzure";
 
 export async function getTitleCasingRulesByLanguage(c: Auth0ActionContext): Promise<Response> {
 	const language = c.req.param("language");
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"] });
+	// Admin mutable config — never let browsers cache GET (promote was lost-updating on stale GETs).
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
 	return proxyToAzure(c, {
 		permission: "admin",
 		endpoint: Endpoint.titleCasingRules,
@@ -20,7 +22,8 @@ export async function getTitleCasingRulesByLanguage(c: Auth0ActionContext): Prom
 
 export async function putTitleCasingRulesByLanguage(c: Auth0ActionContext): Promise<Response> {
 	const language = c.req.param("language");
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
 	const data: unknown = await c.req.json();
 	const body = JSON.stringify(data);
 	return proxyToAzure(c, {
