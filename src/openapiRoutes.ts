@@ -32,7 +32,6 @@ import {
 	discoveryScheduleUpdateRequestSchema,
 	supportedLanguagesResponseSchema,
 	supportedLanguagesUpdateRequestSchema,
-	titleCasingRulesListResponseSchema,
 	languageTitleCasingRulesResponseSchema,
 	languageTitleCasingRulesUpdateRequestSchema,
 	discoverySubmitRequestSchema,
@@ -82,7 +81,7 @@ import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
 import { getSupportedLanguages, putSupportedLanguages } from "./supportedLanguages";
-import { getTitleCasingRules, getTitleCasingRulesByLanguage, putTitleCasingRulesByLanguage } from "./titleCasingRules";
+import { getTitleCasingRulesByLanguage, putTitleCasingRulesByLanguage } from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
@@ -672,19 +671,6 @@ export const PutSupportedLanguagesRoute = createOpenApiRoute(putSupportedLanguag
         responses: {
             200: { description: "Supported languages updated", ...contentJson(supportedLanguagesResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
-export const GetTitleCasingRulesRoute = createOpenApiRoute(getTitleCasingRules, {
-    auth: true,
-    schema: {
-        tags: ["Admin"],
-        summary: "List title casing rules for all languages",
-        responses: {
-            200: { description: "Title casing rules list", ...contentJson(titleCasingRulesListResponseSchema) },
             ...serverErrorResponse,
             ...authResponses
         }

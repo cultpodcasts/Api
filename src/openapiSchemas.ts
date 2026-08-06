@@ -97,10 +97,6 @@ export const languageTitleCasingRulesResponseSchema = z.object({
 	isDefault: z.boolean()
 });
 
-export const titleCasingRulesListResponseSchema = z.object({
-	languages: z.array(languageTitleCasingRulesResponseSchema)
-});
-
 /**
  * PUT /hero-curation — ordered hero episode UUIDs and/or ordered homepage rails.
  * `railSubjects` is a mixed list of pinned subject names and relative day slots

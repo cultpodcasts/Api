@@ -43,7 +43,6 @@ import {
 	PublishPodcastEpisodeRoute,
 	GetDiscoveryScheduleRoute,
 	GetSupportedLanguagesRoute,
-	GetTitleCasingRulesRoute,
 	GetTitleCasingRulesByLanguageRoute,
 	AppendHeroCurationEpisodesRoute,
 	DeleteHeroCurationEpisodesRoute,
@@ -327,7 +326,6 @@ openapi.get('/discovery-schedule', GetDiscoveryScheduleRoute);
 openapi.put('/discovery-schedule', PutDiscoveryScheduleRoute);
 openapi.get('/supported-languages', GetSupportedLanguagesRoute);
 openapi.put('/supported-languages', PutSupportedLanguagesRoute);
-openapi.get('/title-casing-rules', GetTitleCasingRulesRoute);
 openapi.get('/title-casing-rules/:language', GetTitleCasingRulesByLanguageRoute);
 openapi.put('/title-casing-rules/:language', PutTitleCasingRulesByLanguageRoute);
 openapi.get('/hero-curation', GetHeroCurationRoute);
