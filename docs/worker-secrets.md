@@ -18,7 +18,7 @@ Process environment variables with the same key names override file values if se
 
 ## Local Wrangler / Pages vars
 
-- `.dev.vars` — local Worker secrets for `wrangler dev` (gitignored).
+- `.dev.vars` — local Worker secrets for `wrangler dev` (gitignored). Copy keys from `scripts/local-secrets.preview.env.example` (includes `secureDiscoveryScheduleEndpoint`, `secureSupportedLanguagesEndpoint`, `secureTitleCasingRulesEndpoint`, and other Azure Function proxy URLs).
 - `.env` — also gitignored; do not commit.
 
 ## Gitignore

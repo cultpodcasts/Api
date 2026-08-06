@@ -41,12 +41,16 @@ import {
 	PublicGetEpisodeRoute,
 	PublishHomepageRoute,
 	PublishPodcastEpisodeRoute,
-	PublishTermRoute,
 	GetDiscoveryScheduleRoute,
+	GetSupportedLanguagesRoute,
+	GetTitleCasingRulesRoute,
+	GetTitleCasingRulesByLanguageRoute,
 	AppendHeroCurationEpisodesRoute,
 	DeleteHeroCurationEpisodesRoute,
 	GetHeroCurationRoute,
 	PutDiscoveryScheduleRoute,
+	PutSupportedLanguagesRoute,
+	PutTitleCasingRulesByLanguageRoute,
 	PutHeroCurationRoute,
 	PushSubscriptionRoute,
 	RenamePodcastRoute,
@@ -319,9 +323,13 @@ openapi.post('/discovery-curation', SubmitDiscoveryRoute);
 openapi.get('/discovery-info', GetDiscoveryInfoRoute);
 openapi.post('/searchindex/run', RunSearchIndexerRoute);
 openapi.post('/publish/homepage', PublishHomepageRoute);
-openapi.post('/terms', PublishTermRoute);
 openapi.get('/discovery-schedule', GetDiscoveryScheduleRoute);
 openapi.put('/discovery-schedule', PutDiscoveryScheduleRoute);
+openapi.get('/supported-languages', GetSupportedLanguagesRoute);
+openapi.put('/supported-languages', PutSupportedLanguagesRoute);
+openapi.get('/title-casing-rules', GetTitleCasingRulesRoute);
+openapi.get('/title-casing-rules/:language', GetTitleCasingRulesByLanguageRoute);
+openapi.put('/title-casing-rules/:language', PutTitleCasingRulesByLanguageRoute);
 openapi.get('/hero-curation', GetHeroCurationRoute);
 openapi.put('/hero-curation', PutHeroCurationRoute);
 openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);

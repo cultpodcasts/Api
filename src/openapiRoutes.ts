@@ -30,6 +30,11 @@ import {
 	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
+	supportedLanguagesResponseSchema,
+	supportedLanguagesUpdateRequestSchema,
+	titleCasingRulesListResponseSchema,
+	languageTitleCasingRulesResponseSchema,
+	languageTitleCasingRulesUpdateRequestSchema,
 	discoverySubmitRequestSchema,
 	heroCurationResponseSchema,
 	heroCurationUpdateRequestSchema,
@@ -70,14 +75,14 @@ import {
 	subjectDtoSchema,
 	subjectsNameListResponseSchema,
 	submitUrlRequestSchema,
-	submitUrlResponseSchema,
-	termSubmitRequestSchema
+	submitUrlResponseSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
-import { publishTerm } from "./publishTerm";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
+import { getSupportedLanguages, putSupportedLanguages } from "./supportedLanguages";
+import { getTitleCasingRules, getTitleCasingRulesByLanguage, putTitleCasingRulesByLanguage } from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
@@ -617,21 +622,6 @@ export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
     }
 });
 
-export const PublishTermRoute = createOpenApiRoute(publishTerm, {
-    auth: true,
-    schema: {
-        tags: ["Publishing"],
-        summary: "Publish term",
-        request: { body: jsonBody(termSubmitRequestSchema) },
-        responses: {
-            200: { description: "Term published (empty object)" },
-            409: { description: "Conflict" },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
 export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule, {
     auth: true,
     schema: {
@@ -653,6 +643,80 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
         request: { body: jsonBody(discoveryScheduleUpdateRequestSchema) },
         responses: {
             200: { description: "Schedule updated", ...contentJson(discoveryScheduleResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetSupportedLanguagesRoute = createOpenApiRoute(getSupportedLanguages, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Get supported languages config",
+        responses: {
+            200: { description: "Supported languages", ...contentJson(supportedLanguagesResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PutSupportedLanguagesRoute = createOpenApiRoute(putSupportedLanguages, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Update supported languages config",
+        request: { body: jsonBody(supportedLanguagesUpdateRequestSchema) },
+        responses: {
+            200: { description: "Supported languages updated", ...contentJson(supportedLanguagesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetTitleCasingRulesRoute = createOpenApiRoute(getTitleCasingRules, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "List title casing rules for all languages",
+        responses: {
+            200: { description: "Title casing rules list", ...contentJson(titleCasingRulesListResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute(getTitleCasingRulesByLanguage, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Get title casing rules for a language",
+        request: { params: z.object({ language: z.string().min(1) }) },
+        responses: {
+            200: { description: "Title casing rules for language", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            404: { description: "Language rules not found", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PutTitleCasingRulesByLanguageRoute = createOpenApiRoute(putTitleCasingRulesByLanguage, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Upsert title casing rules for a language",
+        request: {
+            params: z.object({ language: z.string().min(1) }),
+            body: jsonBody(languageTitleCasingRulesUpdateRequestSchema)
+        },
+        responses: {
+            200: { description: "Title casing rules updated", ...contentJson(languageTitleCasingRulesResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses

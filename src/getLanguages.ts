@@ -2,13 +2,14 @@ import { stream } from "hono/streaming";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
+import { hasPermission } from "./hasPermission";
 import { LogCollector } from "./LogCollector";
 
 export async function getLanguages(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
-	if (auth0Payload?.permissions && auth0Payload.permissions.includes('curate')) {
+	if (auth0Payload?.permissions && (hasPermission(auth0Payload, 'curate') || hasPermission(auth0Payload, 'admin'))) {
 		let object: R2ObjectBody | null = null;
 		try {
 			object = await c.env.Content.get("languages");

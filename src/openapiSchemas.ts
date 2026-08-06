@@ -63,6 +63,44 @@ export const discoveryScheduleResponseSchema = z.object({
 	}))
 });
 
+/** Api.Dtos.SupportedLanguagesResponse */
+const supportedLanguageSchema = z.object({
+	code: z.string(),
+	name: z.string()
+});
+
+export const supportedLanguagesUpdateRequestSchema = z.object({
+	languages: z.array(supportedLanguageSchema)
+});
+
+export const supportedLanguagesResponseSchema = z.object({
+	languages: z.array(supportedLanguageSchema),
+	isDefault: z.boolean()
+});
+
+/** Api.Dtos.LanguageTitleCasingRulesResponse */
+const knownTermSchema = z.object({
+	literal: z.string(),
+	pattern: z.string(),
+	options: z.string().optional().nullable()
+});
+
+export const languageTitleCasingRulesUpdateRequestSchema = z.object({
+	lowerCaseTerms: z.array(z.string()).optional().nullable(),
+	knownTerms: z.array(knownTermSchema).optional().nullable()
+});
+
+export const languageTitleCasingRulesResponseSchema = z.object({
+	language: z.string(),
+	lowerCaseTerms: z.array(z.string()),
+	knownTerms: z.array(knownTermSchema),
+	isDefault: z.boolean()
+});
+
+export const titleCasingRulesListResponseSchema = z.object({
+	languages: z.array(languageTitleCasingRulesResponseSchema)
+});
+
 /**
  * PUT /hero-curation — ordered hero episode UUIDs and/or ordered homepage rails.
  * `railSubjects` is a mixed list of pinned subject names and relative day slots
@@ -150,10 +188,6 @@ export const languagesResponseSchema = z.record(z.string(), z.string());
 
 /** GET /bookmarks — episode ids for the authenticated user. */
 export const bookmarksListResponseSchema = z.array(z.string().uuid());
-
-export const termSubmitRequestSchema = z.object({
-	term: z.string().min(1)
-});
 
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)
@@ -331,7 +365,6 @@ export const personDtoSchema = z.object({
 export const peopleListResponseSchema = z.array(personDtoSchema);
 
 const episodeGuestMatchResultSchema = z.object({
-	term: z.string(),
 	matches: z.number()
 });
 
@@ -342,7 +375,6 @@ const episodeGuestSuggestionSchema = z.object({
 
 const episodeSubjectMatchSchema = z.object({
 	subject: z.string().optional(),
-	term: z.string().optional(),
 	source: z.string().optional()
 });
 
@@ -536,7 +568,6 @@ export const submitUrlResponseSchema = z.object({
 			guestSuggestions: z.array(z.object({
 				name: z.string(),
 				matchResults: z.array(z.object({
-					term: z.string(),
 					matches: z.number()
 				}))
 			})).optional().nullable()

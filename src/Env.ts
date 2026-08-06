@@ -18,8 +18,9 @@ export type Env = {
 	secureEpisodesOutgoingEndpoint: URL;
 	secureAdminSearchIndexerEndpoint: URL;
 	secureAdminPublishHomepageEndpoint: URL;
-	secureAdminTermsEndpoint: URL;
 	secureDiscoveryScheduleEndpoint: URL;
+	secureSupportedLanguagesEndpoint: URL;
+	secureTitleCasingRulesEndpoint: URL;
 	securePushSubscriptionEndpoint: URL;
 	stagingHostSuffix: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
