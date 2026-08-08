@@ -77,7 +77,6 @@ try {
         'overrideHost'
         'secureAdminPublishHomepageEndpoint'
         'secureAdminSearchIndexerEndpoint'
-        
         'secureDiscoveryCurationEndpoint'
         'secureDiscoveryScheduleEndpoint'
         'secureSupportedLanguagesEndpoint'

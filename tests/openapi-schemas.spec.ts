@@ -169,9 +169,16 @@ describe("openapi Zod schemas", () => {
 			ignored: false,
 			removed: false,
 			urls: { spotify: "https://open.spotify.com/episode/x" },
-			subjects: ["cult"]
+			subjects: ["cult"],
+			matches: [{ subject: "cult", term: "cult", source: "title" }],
+			guestSuggestions: [{
+				person: { id: "550e8400-e29b-41d4-a716-446655440001", name: "Guest" },
+				matchResults: [{ term: "Guest", matches: 2 }]
+			}]
 		});
 		expect(parsed.duration).toBe("01:30:00");
+		expect(parsed.matches?.[0].term).toBe("cult");
+		expect(parsed.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
 	});
 
 	it("accepts outgoing episodes as EpisodeDto array", () => {
@@ -246,11 +253,16 @@ describe("openapi Zod schemas", () => {
 					youtube: true,
 					bbc: false,
 					internetArchive: false,
-					subjects: ["cult"]
+					subjects: ["cult"],
+					guestSuggestions: [{
+						name: "Guest",
+						matchResults: [{ term: "Guest", matches: 1 }]
+					}]
 				}
 			}
 		});
 		expect(parsed.success?.episode).toBe("Created");
+		expect(parsed.success?.episodeDetails?.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
 	});
 
 	it("accepts R2 subjects name list, discovery-info, page details, and search envelope", () => {

@@ -366,6 +366,7 @@ export const personDtoSchema = z.object({
 export const peopleListResponseSchema = z.array(personDtoSchema);
 
 const episodeGuestMatchResultSchema = z.object({
+	term: z.string(),
 	matches: z.number()
 });
 
@@ -376,6 +377,7 @@ const episodeGuestSuggestionSchema = z.object({
 
 const episodeSubjectMatchSchema = z.object({
 	subject: z.string().optional(),
+	term: z.string().optional(),
 	source: z.string().optional()
 });
 
@@ -569,6 +571,7 @@ export const submitUrlResponseSchema = z.object({
 			guestSuggestions: z.array(z.object({
 				name: z.string(),
 				matchResults: z.array(z.object({
+					term: z.string(),
 					matches: z.number()
 				}))
 			})).optional().nullable()
