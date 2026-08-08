@@ -78,6 +78,10 @@ export const supportedLanguagesResponseSchema = z.object({
 	isDefault: z.boolean()
 });
 
+export const neutralCulturesResponseSchema = z.object({
+	cultures: z.array(supportedLanguageSchema)
+});
+
 /** Api.Dtos.LanguageTitleCasingRulesResponse */
 const knownTermSchema = z.object({
 	literal: z.string(),

@@ -16,6 +16,20 @@ export async function getSupportedLanguages(c: Auth0ActionContext): Promise<Resp
 	});
 }
 
+export async function getNeutralCultures(c: Auth0ActionContext): Promise<Response> {
+	AddResponseHeaders(c, { methods: ["GET", "OPTIONS"], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
+	return proxyToAzure(c, {
+		permission: "admin",
+		endpoint: Endpoint.supportedLanguages,
+		method: "GET",
+		pathSuffix: "/cultures",
+		successStatuses: [200],
+		passthroughOtherStatuses: true,
+		logName: "supported-languages-cultures-get"
+	});
+}
+
 export async function putSupportedLanguages(c: Auth0ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"], omitCacheControlHeader: true });
 	c.header("Cache-Control", "no-store");

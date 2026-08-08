@@ -32,6 +32,7 @@ import {
 	discoveryScheduleUpdateRequestSchema,
 	supportedLanguagesResponseSchema,
 	supportedLanguagesUpdateRequestSchema,
+	neutralCulturesResponseSchema,
 	languageTitleCasingRulesResponseSchema,
 	languageTitleCasingRulesUpdateRequestSchema,
 	discoverySubmitRequestSchema,
@@ -80,7 +81,7 @@ import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
-import { getSupportedLanguages, putSupportedLanguages } from "./supportedLanguages";
+import { getSupportedLanguages, getNeutralCultures, putSupportedLanguages } from "./supportedLanguages";
 import { getTitleCasingRulesByLanguage, putTitleCasingRulesByLanguage } from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
@@ -656,6 +657,19 @@ export const GetSupportedLanguagesRoute = createOpenApiRoute(getSupportedLanguag
         summary: "Get supported languages config",
         responses: {
             200: { description: "Supported languages", ...contentJson(supportedLanguagesResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetNeutralCulturesRoute = createOpenApiRoute(getNeutralCultures, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "List .NET neutral culture names/codes for supported-language Add validation",
+        responses: {
+            200: { description: "Neutral cultures", ...contentJson(neutralCulturesResponseSchema) },
             ...serverErrorResponse,
             ...authResponses
         }
