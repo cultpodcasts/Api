@@ -73,6 +73,10 @@ export const supportedLanguagesUpdateRequestSchema = z.object({
 	languages: z.array(supportedLanguageSchema)
 });
 
+export const supportedLanguageAddRequestSchema = z.object({
+	name: z.string().min(1)
+});
+
 export const supportedLanguagesResponseSchema = z.object({
 	languages: z.array(supportedLanguageSchema),
 	isDefault: z.boolean()

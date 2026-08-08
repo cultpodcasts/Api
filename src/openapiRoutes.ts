@@ -32,6 +32,7 @@ import {
 	discoveryScheduleUpdateRequestSchema,
 	supportedLanguagesResponseSchema,
 	supportedLanguagesUpdateRequestSchema,
+	supportedLanguageAddRequestSchema,
 	neutralCulturesResponseSchema,
 	languageTitleCasingRulesResponseSchema,
 	languageTitleCasingRulesUpdateRequestSchema,
@@ -81,7 +82,7 @@ import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
-import { getSupportedLanguages, getNeutralCultures, putSupportedLanguages } from "./supportedLanguages";
+import { getSupportedLanguages, getNeutralCultures, postSupportedLanguages, deleteSupportedLanguages, putSupportedLanguages } from "./supportedLanguages";
 import { getTitleCasingRulesByLanguage, putTitleCasingRulesByLanguage } from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
@@ -676,11 +677,41 @@ export const GetNeutralCulturesRoute = createOpenApiRoute(getNeutralCultures, {
     }
 });
 
+export const PostSupportedLanguagesRoute = createOpenApiRoute(postSupportedLanguages, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Add one supported language by culture name",
+        request: { body: jsonBody(supportedLanguageAddRequestSchema) },
+        responses: {
+            200: { description: "Supported languages after add", ...contentJson(supportedLanguagesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const DeleteSupportedLanguagesRoute = createOpenApiRoute(deleteSupportedLanguages, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Remove one supported language by code",
+        request: { params: z.object({ code: z.string().min(1) }) },
+        responses: {
+            200: { description: "Supported languages after delete", ...contentJson(supportedLanguagesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
 export const PutSupportedLanguagesRoute = createOpenApiRoute(putSupportedLanguages, {
     auth: true,
     schema: {
         tags: ["Admin"],
-        summary: "Update supported languages config",
+        summary: "Replace supported languages config (bulk)",
         request: { body: jsonBody(supportedLanguagesUpdateRequestSchema) },
         responses: {
             200: { description: "Supported languages updated", ...contentJson(supportedLanguagesResponseSchema) },

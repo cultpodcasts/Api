@@ -4,7 +4,7 @@ import { Endpoint } from "./Endpoint";
 import { proxyToAzure } from "./proxyToAzure";
 
 export async function getSupportedLanguages(c: Auth0ActionContext): Promise<Response> {
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"], omitCacheControlHeader: true });
+	AddResponseHeaders(c, { methods: ["GET", "POST", "PUT", "OPTIONS"], omitCacheControlHeader: true });
 	c.header("Cache-Control", "no-store");
 	return proxyToAzure(c, {
 		permission: "admin",
@@ -30,8 +30,39 @@ export async function getNeutralCultures(c: Auth0ActionContext): Promise<Respons
 	});
 }
 
+export async function postSupportedLanguages(c: Auth0ActionContext): Promise<Response> {
+	AddResponseHeaders(c, { methods: ["GET", "POST", "PUT", "OPTIONS"], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
+	const data: unknown = await c.req.json();
+	const body = JSON.stringify(data);
+	return proxyToAzure(c, {
+		permission: "admin",
+		endpoint: Endpoint.supportedLanguages,
+		method: "POST",
+		body,
+		successStatuses: [200],
+		passthroughOtherStatuses: true,
+		logName: "supported-languages-post"
+	});
+}
+
+export async function deleteSupportedLanguages(c: Auth0ActionContext): Promise<Response> {
+	const code = c.req.param("code");
+	AddResponseHeaders(c, { methods: ["DELETE", "OPTIONS"], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
+	return proxyToAzure(c, {
+		permission: "admin",
+		endpoint: Endpoint.supportedLanguages,
+		method: "DELETE",
+		pathSuffix: `/${encodeURIComponent(code)}`,
+		successStatuses: [200],
+		passthroughOtherStatuses: true,
+		logName: "supported-languages-delete"
+	});
+}
+
 export async function putSupportedLanguages(c: Auth0ActionContext): Promise<Response> {
-	AddResponseHeaders(c, { methods: ["GET", "PUT", "OPTIONS"], omitCacheControlHeader: true });
+	AddResponseHeaders(c, { methods: ["GET", "POST", "PUT", "OPTIONS"], omitCacheControlHeader: true });
 	c.header("Cache-Control", "no-store");
 	const data: unknown = await c.req.json();
 	const body = JSON.stringify(data);
