@@ -12,6 +12,7 @@ import { ProfileDurableObjectLegacy } from './ProfileDurableObjectLegacy';
 import { HeroCurationDurableObject } from './HeroCurationDurableObject';
 import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
+import { openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
 import {
 	AddBookmarkRoute,
 	CreatePersonRoute,
@@ -41,12 +42,20 @@ import {
 	PublicGetEpisodeRoute,
 	PublishHomepageRoute,
 	PublishPodcastEpisodeRoute,
-	PublishTermRoute,
 	GetDiscoveryScheduleRoute,
+	GetSupportedLanguagesRoute,
+	GetNeutralCulturesRoute,
+	GetTitleCasingRulesByLanguageRoute,
+	PostTitleCasingRulesLowerCaseTermRoute,
+	DeleteTitleCasingRulesLowerCaseTermRoute,
+	PostTitleCasingRulesKnownTermRoute,
+	DeleteTitleCasingRulesKnownTermRoute,
 	AppendHeroCurationEpisodesRoute,
 	DeleteHeroCurationEpisodesRoute,
 	GetHeroCurationRoute,
 	PutDiscoveryScheduleRoute,
+	PostSupportedLanguagesRoute,
+	DeleteSupportedLanguagesRoute,
 	PutHeroCurationRoute,
 	PushSubscriptionRoute,
 	RenamePodcastRoute,
@@ -151,6 +160,32 @@ app.use('/*', cors(corsOptions))
 app.use('/docs', requireOpenApiAuth);
 app.use('/docs/*', requireOpenApiAuth);
 app.use('/openapi.json', requireOpenApiAuth);
+app.use('/openapi.json', async (c, next) => {
+	await next();
+	if (c.res.status < 200 || c.res.status >= 300) {
+		return;
+	}
+	const environment = resolveApiEnvironment(
+		c.env.apiEnvironment,
+		new URL(c.req.url).hostname
+	);
+	if (environment === 'production') {
+		return;
+	}
+	try {
+		const body = await c.res.json() as {
+			info?: { title?: string; version?: string; description?: string };
+		};
+		const info = openApiInfoForEnvironment(environment, body.info?.version ?? packageJson.version);
+		body.info = { ...body.info, ...info };
+		c.res = new Response(JSON.stringify(body), {
+			status: c.res.status,
+			headers: c.res.headers
+		});
+	} catch {
+		// Leave original openapi.json if rewrite fails.
+	}
+});
 
 app.get('/docs/login', (c) => {
 	const issuer = normalizeIssuer(c.env.auth0Issuer);
@@ -262,7 +297,11 @@ app.get('/docs', (c) => {
 	return c.html(buildDocsPageHtml({
 		auth0Issuer: normalizeIssuer(c.env.auth0Issuer),
 		auth0Audience: trimValue(c.env.auth0Audience),
-		auth0ClientId: trimValue(c.env.auth0ClientId)
+		auth0ClientId: trimValue(c.env.auth0ClientId),
+		apiEnvironment: resolveApiEnvironment(
+			c.env.apiEnvironment,
+			new URL(c.req.url).hostname
+		)
 	}));
 });
 
@@ -319,9 +358,17 @@ openapi.post('/discovery-curation', SubmitDiscoveryRoute);
 openapi.get('/discovery-info', GetDiscoveryInfoRoute);
 openapi.post('/searchindex/run', RunSearchIndexerRoute);
 openapi.post('/publish/homepage', PublishHomepageRoute);
-openapi.post('/terms', PublishTermRoute);
 openapi.get('/discovery-schedule', GetDiscoveryScheduleRoute);
 openapi.put('/discovery-schedule', PutDiscoveryScheduleRoute);
+openapi.get('/supported-languages', GetSupportedLanguagesRoute);
+openapi.get('/supported-languages/cultures', GetNeutralCulturesRoute);
+openapi.post('/supported-languages', PostSupportedLanguagesRoute);
+openapi.delete('/supported-languages/:code', DeleteSupportedLanguagesRoute);
+openapi.get('/title-casing-rules/:language', GetTitleCasingRulesByLanguageRoute);
+openapi.post('/title-casing-rules/:language/lower-case-terms', PostTitleCasingRulesLowerCaseTermRoute);
+openapi.delete('/title-casing-rules/:language/lower-case-terms/:term', DeleteTitleCasingRulesLowerCaseTermRoute);
+openapi.post('/title-casing-rules/:language/known-terms', PostTitleCasingRulesKnownTermRoute);
+openapi.delete('/title-casing-rules/:language/known-terms/:literal', DeleteTitleCasingRulesKnownTermRoute);
 openapi.get('/hero-curation', GetHeroCurationRoute);
 openapi.put('/hero-curation', PutHeroCurationRoute);
 openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);

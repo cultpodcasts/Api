@@ -12,8 +12,9 @@ export enum Endpoint {
     people,
     person,
     publishHomepage,
-    terms,
     pushSubscriptions,
     searchIndexer,
-    discoverySchedule
+    discoverySchedule,
+    supportedLanguages,
+    titleCasingRules
 }

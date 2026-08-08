@@ -18,10 +18,13 @@ export type Env = {
 	secureEpisodesOutgoingEndpoint: URL;
 	secureAdminSearchIndexerEndpoint: URL;
 	secureAdminPublishHomepageEndpoint: URL;
-	secureAdminTermsEndpoint: URL;
 	secureDiscoveryScheduleEndpoint: URL;
+	secureSupportedLanguagesEndpoint: URL;
+	secureTitleCasingRulesEndpoint: URL;
 	securePushSubscriptionEndpoint: URL;
 	stagingHostSuffix: string;
+	/** Non-secret: production | preview | local — drives OpenAPI docs title. */
+	apiEnvironment?: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
 	HERO_CURATION_DURABLE_OBJECT: DurableObjectNamespace<import("./HeroCurationDurableObject").HeroCurationDurableObject>;
 	Content: R2Bucket;

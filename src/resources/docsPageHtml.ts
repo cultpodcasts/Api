@@ -2,6 +2,7 @@ type DocsAuthConfig = {
 	auth0Issuer?: string;
 	auth0Audience?: string;
 	auth0ClientId?: string;
+	apiEnvironment?: "production" | "preview" | "local";
 };
 
 export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
@@ -9,20 +10,59 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 	const auth0Audience = config.auth0Audience ?? '';
 	const auth0ClientId = config.auth0ClientId ?? '';
 	const auth0Enabled = !!(auth0Domain && auth0Audience && auth0ClientId);
+	const apiEnvironment = config.apiEnvironment ?? 'production';
+	const isNonProd = apiEnvironment !== 'production';
+	const pageTitle =
+		apiEnvironment === 'preview'
+			? 'Cult Podcasts API Docs (Preview)'
+			: apiEnvironment === 'local'
+				? 'Cult Podcasts API Docs (Local)'
+				: 'Cult Podcasts API Docs';
+	const bannerLabel =
+		apiEnvironment === 'preview'
+			? 'PREVIEW'
+			: apiEnvironment === 'local'
+				? 'LOCAL'
+				: '';
+	const bannerText =
+		apiEnvironment === 'preview'
+			? 'Staging Worker — not production'
+			: apiEnvironment === 'local'
+				? 'Local Wrangler — not production'
+				: '';
 
 	return `<!doctype html>
 <html>
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Cult Podcasts API Docs</title>
+		<title>${pageTitle}</title>
 		<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
 		<style>
 			html, body { margin: 0; padding: 0; }
 			#swagger-ui { min-height: 100vh; }
+			.env-banner {
+				display: ${isNonProd ? 'flex' : 'none'};
+				align-items: center;
+				gap: 10px;
+				padding: 8px 16px;
+				background: #92400e;
+				color: #fffbeb;
+				font: 600 13px/1.3 system-ui, sans-serif;
+				border-bottom: 1px solid #78350f;
+			}
+			.env-banner .env-pill {
+				display: inline-block;
+				padding: 2px 8px;
+				border-radius: 999px;
+				background: #fbbf24;
+				color: #78350f;
+				font: 700 11px/1.4 system-ui, sans-serif;
+				letter-spacing: 0.04em;
+			}
 			.top-actions {
 				position: fixed;
-				top: 12px;
+				top: ${isNonProd ? '48px' : '12px'};
 				right: 16px;
 				z-index: 10000;
 				display: flex;
@@ -95,6 +135,7 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 		</style>
 	</head>
 	<body>
+		${isNonProd ? `<div class="env-banner" role="status"><span class="env-pill">${bannerLabel}</span><span>${bannerText}</span></div>` : ''}
 		<div class="top-actions">
 			<button id="token-toggle" class="hamburger" type="button" aria-label="Toggle token controls" title="Token controls">☰</button>
 			<a class="logout" href="/docs/logout">Logout</a>

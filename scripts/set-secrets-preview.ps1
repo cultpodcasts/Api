@@ -77,9 +77,10 @@ try {
         'overrideHost'
         'secureAdminPublishHomepageEndpoint'
         'secureAdminSearchIndexerEndpoint'
-        'secureAdminTermsEndpoint'
         'secureDiscoveryCurationEndpoint'
         'secureDiscoveryScheduleEndpoint'
+        'secureSupportedLanguagesEndpoint'
+        'secureTitleCasingRulesEndpoint'
         'secureEpisodeEndpoint'
         'secureEpisodePublishEndpoint'
         'secureEpisodesOutgoingEndpoint'
@@ -96,8 +97,9 @@ try {
 
     $mustBeNonEmpty = @(
         'apihost', 'apikey', 'auth0Audience', 'auth0Issuer',
-        'secureAdminPublishHomepageEndpoint', 'secureAdminSearchIndexerEndpoint', 'secureAdminTermsEndpoint',
+        'secureAdminPublishHomepageEndpoint', 'secureAdminSearchIndexerEndpoint',
         'secureDiscoveryCurationEndpoint', 'secureDiscoveryScheduleEndpoint',
+        'secureSupportedLanguagesEndpoint', 'secureTitleCasingRulesEndpoint',
         'secureEpisodeEndpoint', 'secureEpisodePublishEndpoint', 'secureEpisodesOutgoingEndpoint',
         'securePodcastEndpoint', 'securePodcastIndexEndpoint', 'securePublicEpisodeEndpoint',
         'securePushSubscriptionEndpoint', 'secureSubjectEndpoint', 'securePeopleEndpoint', 'secureSubmitEndpoint',

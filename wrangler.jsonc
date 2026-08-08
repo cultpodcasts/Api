@@ -41,6 +41,9 @@
   "observability": {
     "enabled": true
   },
+  "vars": {
+    "apiEnvironment": "production"
+  },
   "durable_objects": {
     "bindings": [
       {
@@ -83,8 +86,20 @@
     "preview": {
       // Explicit so Workers Builds name-check matches the api-preview service.
       "name": "api-preview",
+      // Keep workers.dev as escape hatch (Bot Fight / debugging).
+      "workers_dev": true,
+      // Custom domain on cultpodcasts.com.
+      "routes": [
+        {
+          "pattern": "api-preview.cultpodcasts.com",
+          "custom_domain": true
+        }
+      ],
       "observability": {
         "enabled": true
+      },
+      "vars": {
+        "apiEnvironment": "preview"
       },
       "r2_buckets": [
         {
@@ -256,6 +271,9 @@
       ]
     },
     "local": {
+      "vars": {
+        "apiEnvironment": "local"
+      },
       "r2_buckets": [
         {
           "binding": "Content",

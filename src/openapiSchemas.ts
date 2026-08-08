@@ -63,6 +63,45 @@ export const discoveryScheduleResponseSchema = z.object({
 	}))
 });
 
+/** Api.Dtos.SupportedLanguagesResponse */
+const supportedLanguageSchema = z.object({
+	code: z.string(),
+	name: z.string()
+});
+
+export const supportedLanguageAddRequestSchema = z.object({
+	name: z.string().min(1)
+});
+
+export const supportedLanguagesResponseSchema = z.object({
+	languages: z.array(supportedLanguageSchema),
+	isDefault: z.boolean()
+});
+
+export const neutralCulturesResponseSchema = z.object({
+	cultures: z.array(supportedLanguageSchema)
+});
+
+/** Api.Dtos.LanguageTitleCasingRulesResponse */
+const knownTermSchema = z.object({
+	literal: z.string(),
+	pattern: z.string(),
+	options: z.string().optional().nullable()
+});
+
+export const titleCasingRulesAddLowerCaseTermRequestSchema = z.object({
+	term: z.string().min(1)
+});
+
+export const titleCasingRulesKnownTermRequestSchema = knownTermSchema;
+
+export const languageTitleCasingRulesResponseSchema = z.object({
+	language: z.string(),
+	lowerCaseTerms: z.array(z.string()),
+	knownTerms: z.array(knownTermSchema),
+	isDefault: z.boolean()
+});
+
 /**
  * PUT /hero-curation — ordered hero episode UUIDs and/or ordered homepage rails.
  * `railSubjects` is a mixed list of pinned subject names and relative day slots
@@ -150,10 +189,6 @@ export const languagesResponseSchema = z.record(z.string(), z.string());
 
 /** GET /bookmarks — episode ids for the authenticated user. */
 export const bookmarksListResponseSchema = z.array(z.string().uuid());
-
-export const termSubmitRequestSchema = z.object({
-	term: z.string().min(1)
-});
 
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)

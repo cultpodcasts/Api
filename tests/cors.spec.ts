@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { AllowedOrigins } from "../src/AllowedOrigins";
+import { corsOptions } from "../src/corsOptions";
 import { getOrigin } from "../src/getOrigin";
+
+describe("CORS allowHeaders", () => {
+	it("allows admin cache-control/pragma and excludes ngsw-bypass", () => {
+		expect(corsOptions.allowHeaders).toEqual(
+			expect.arrayContaining(["content-type", "authorization", "cache-control", "pragma"])
+		);
+		expect(corsOptions.allowHeaders).not.toContain("ngsw-bypass");
+	});
+});
 
 describe("CORS allowlist (getOrigin)", () => {
 	it("keeps an allowlisted origin", () => {

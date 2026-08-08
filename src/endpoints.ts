@@ -43,11 +43,14 @@ export function getEndpoint(endpoint: Endpoint, env: Env): URL {
         case Endpoint.publishHomepage:
             url = new URL(env.secureAdminPublishHomepageEndpoint);
             break;
-        case Endpoint.terms:
-            url = new URL(env.secureAdminTermsEndpoint);
-            break;
         case Endpoint.discoverySchedule:
             url = new URL(env.secureDiscoveryScheduleEndpoint);
+            break;
+        case Endpoint.supportedLanguages:
+            url = new URL(env.secureSupportedLanguagesEndpoint);
+            break;
+        case Endpoint.titleCasingRules:
+            url = new URL(env.secureTitleCasingRulesEndpoint);
             break;
         case Endpoint.pushSubscriptions:
             url = new URL(env.securePushSubscriptionEndpoint);
