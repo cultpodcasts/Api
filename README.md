@@ -43,7 +43,9 @@ Default production deploys use the top-level migration history:
 npm run deploy
 ```
 
-Preview (e.g. `api-preview.<account>.workers.dev`):
+Preview custom domain: **`https://api-preview.cultpodcasts.com`** (Wrangler `env.preview` route with `custom_domain: true`). workers.dev fallback: `api-preview.<account>.workers.dev`.
+
+Preview deploy notes:
 
 ```bash
 npx wrangler deploy --env preview
