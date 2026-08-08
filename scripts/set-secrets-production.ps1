@@ -1,4 +1,4 @@
-# Sets Cloudflare Worker secrets for the production env via wrangler.
+# Sets Cloudflare Worker secrets for the live production Worker ("api") via wrangler.
 #
 # NEVER put real secrets or Azure Function endpoint URLs in this script.
 # Load them from a gitignored local file (preferred) or process env vars.
@@ -21,7 +21,10 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$envName = 'production'
+# Live production traffic hits the top-level Worker named "api" (`npm run deploy`
+# / `wrangler deploy` with no --env). Do NOT use --env production here: that
+# targets a separate api-production service that does not serve api.cultpodcasts.com.
+$wranglerEnvFlag = '--env='
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $secretsFile = Join-Path $PSScriptRoot 'local-secrets.production.env'
 
@@ -111,11 +114,11 @@ try {
         if ($mustBeNonEmpty -contains $name -and [string]::IsNullOrWhiteSpace($value)) {
             throw "Secret '$name' is empty. Fill it in '$secretsFile' before running."
         }
-        Write-Host "Setting $name for '$envName'..."
-        $value | npx wrangler secret put $name --env $envName
+        Write-Host "Setting $name on top-level Worker 'api'..."
+        $value | npx wrangler secret put $name $wranglerEnvFlag
     }
 
-    Write-Host "Done setting secrets for '$envName'."
+    Write-Host "Done setting secrets on top-level Worker 'api'."
 }
 finally {
     Pop-Location

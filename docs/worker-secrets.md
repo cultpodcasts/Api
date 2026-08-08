@@ -2,6 +2,25 @@
 
 Worker secrets (Search API key, Auth0 client id, Azure Function endpoint URLs, etc.) must **never** be committed to git.
 
+## Preview ↔ production parity (required)
+
+New secrets added for preview/staging **must** be mirrored for production. Forgetting this has caused production 500s on release (Aug 2026: supported-languages / title-casing endpoint secrets).
+
+| Requirement | Detail |
+|-------------|--------|
+| Same **key names** | Preview and production `.env.example` files + both `set-secrets-*.ps1` lists |
+| PR documents names | PR body section **`## Config / secrets`** lists every new secret **name** (never values) for preview **and** production |
+| Deploy reads the PR | Before calling a release done, set each named key on both Workers |
+| Live production target | Top-level Worker **`api`** via `.\scripts\set-secrets-production.ps1` (`--env=`). **Not** `--env production` (`api-production`) |
+
+Mechanical check:
+
+```powershell
+pwsh ./scripts/assert-secrets-example-parity.ps1
+```
+
+Agent rule: [`.cursor/rules/preview-production-secrets-parity.mdc`](../.cursor/rules/preview-production-secrets-parity.mdc).
+
 ## Preferred pattern
 
 1. Copy the tracked example file:
@@ -12,7 +31,10 @@ Worker secrets (Search API key, Auth0 client id, Azure Function endpoint URLs, e
    - `.\scripts\set-secrets-preview.ps1` or `scripts\set-secrets-preview.cmd`
    - `.\scripts\set-secrets-production.ps1` or `scripts\set-secrets-production.cmd`
 
-The scripts read `KEY=VALUE` lines and pipe each value to `npx wrangler secret put <KEY> --env <preview|production>`.
+The scripts read `KEY=VALUE` lines and pipe each value to `npx wrangler secret put`:
+
+- Preview → `--env preview` (`api-preview`)
+- Production → top-level Worker `api` (`--env=` / no named env). **Not** `--env production` — that targets a separate `api-production` service that does not serve `api.cultpodcasts.com`.
 
 Process environment variables with the same key names override file values if set.
 
