@@ -12,6 +12,7 @@ import { ProfileDurableObjectLegacy } from './ProfileDurableObjectLegacy';
 import { HeroCurationDurableObject } from './HeroCurationDurableObject';
 import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
+import { openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
 import {
 	AddBookmarkRoute,
 	CreatePersonRoute,
@@ -154,6 +155,32 @@ app.use('/*', cors(corsOptions))
 app.use('/docs', requireOpenApiAuth);
 app.use('/docs/*', requireOpenApiAuth);
 app.use('/openapi.json', requireOpenApiAuth);
+app.use('/openapi.json', async (c, next) => {
+	await next();
+	if (c.res.status < 200 || c.res.status >= 300) {
+		return;
+	}
+	const environment = resolveApiEnvironment(
+		c.env.apiEnvironment,
+		new URL(c.req.url).hostname
+	);
+	if (environment === 'production') {
+		return;
+	}
+	try {
+		const body = await c.res.json() as {
+			info?: { title?: string; version?: string; description?: string };
+		};
+		const info = openApiInfoForEnvironment(environment, body.info?.version ?? packageJson.version);
+		body.info = { ...body.info, ...info };
+		c.res = new Response(JSON.stringify(body), {
+			status: c.res.status,
+			headers: c.res.headers
+		});
+	} catch {
+		// Leave original openapi.json if rewrite fails.
+	}
+});
 
 app.get('/docs/login', (c) => {
 	const issuer = normalizeIssuer(c.env.auth0Issuer);
@@ -265,7 +292,11 @@ app.get('/docs', (c) => {
 	return c.html(buildDocsPageHtml({
 		auth0Issuer: normalizeIssuer(c.env.auth0Issuer),
 		auth0Audience: trimValue(c.env.auth0Audience),
-		auth0ClientId: trimValue(c.env.auth0ClientId)
+		auth0ClientId: trimValue(c.env.auth0ClientId),
+		apiEnvironment: resolveApiEnvironment(
+			c.env.apiEnvironment,
+			new URL(c.req.url).hostname
+		)
 	}));
 });
 

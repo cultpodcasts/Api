@@ -41,6 +41,9 @@
   "observability": {
     "enabled": true
   },
+  "vars": {
+    "apiEnvironment": "production"
+  },
   "durable_objects": {
     "bindings": [
       {
@@ -94,6 +97,9 @@
       ],
       "observability": {
         "enabled": true
+      },
+      "vars": {
+        "apiEnvironment": "preview"
       },
       "r2_buckets": [
         {
@@ -265,6 +271,9 @@
       ]
     },
     "local": {
+      "vars": {
+        "apiEnvironment": "local"
+      },
       "r2_buckets": [
         {
           "binding": "Content",
