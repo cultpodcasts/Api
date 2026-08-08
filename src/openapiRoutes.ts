@@ -31,11 +31,11 @@ import {
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
 	supportedLanguagesResponseSchema,
-	supportedLanguagesUpdateRequestSchema,
 	supportedLanguageAddRequestSchema,
 	neutralCulturesResponseSchema,
 	languageTitleCasingRulesResponseSchema,
-	languageTitleCasingRulesUpdateRequestSchema,
+	titleCasingRulesAddLowerCaseTermRequestSchema,
+	titleCasingRulesKnownTermRequestSchema,
 	discoverySubmitRequestSchema,
 	heroCurationResponseSchema,
 	heroCurationUpdateRequestSchema,
@@ -82,8 +82,14 @@ import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
-import { getSupportedLanguages, getNeutralCultures, postSupportedLanguages, deleteSupportedLanguages, putSupportedLanguages } from "./supportedLanguages";
-import { getTitleCasingRulesByLanguage, putTitleCasingRulesByLanguage } from "./titleCasingRules";
+import { getSupportedLanguages, getNeutralCultures, postSupportedLanguages, deleteSupportedLanguages } from "./supportedLanguages";
+import {
+	getTitleCasingRulesByLanguage,
+	postTitleCasingRulesLowerCaseTerm,
+	deleteTitleCasingRulesLowerCaseTerm,
+	postTitleCasingRulesKnownTerm,
+	deleteTitleCasingRulesKnownTerm
+} from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
@@ -707,21 +713,6 @@ export const DeleteSupportedLanguagesRoute = createOpenApiRoute(deleteSupportedL
     }
 });
 
-export const PutSupportedLanguagesRoute = createOpenApiRoute(putSupportedLanguages, {
-    auth: true,
-    schema: {
-        tags: ["Admin"],
-        summary: "Replace supported languages config (bulk)",
-        request: { body: jsonBody(supportedLanguagesUpdateRequestSchema) },
-        responses: {
-            200: { description: "Supported languages updated", ...contentJson(supportedLanguagesResponseSchema) },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
 export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute(getTitleCasingRulesByLanguage, {
     auth: true,
     schema: {
@@ -737,17 +728,69 @@ export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute(getTitleCas
     }
 });
 
-export const PutTitleCasingRulesByLanguageRoute = createOpenApiRoute(putTitleCasingRulesByLanguage, {
+export const PostTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(postTitleCasingRulesLowerCaseTerm, {
     auth: true,
     schema: {
         tags: ["Admin"],
-        summary: "Upsert title casing rules for a language",
+        summary: "Add one lower-case term for a language",
         request: {
             params: z.object({ language: z.string().min(1) }),
-            body: jsonBody(languageTitleCasingRulesUpdateRequestSchema)
+            body: jsonBody(titleCasingRulesAddLowerCaseTermRequestSchema)
         },
         responses: {
-            200: { description: "Title casing rules updated", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            200: { description: "Title casing rules after add", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(deleteTitleCasingRulesLowerCaseTerm, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Remove one lower-case term for a language",
+        request: {
+            params: z.object({ language: z.string().min(1), term: z.string().min(1) })
+        },
+        responses: {
+            200: { description: "Title casing rules after delete", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostTitleCasingRulesKnownTermRoute = createOpenApiRoute(postTitleCasingRulesKnownTerm, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Add or replace one known term for a language (keyed by literal)",
+        request: {
+            params: z.object({ language: z.string().min(1) }),
+            body: jsonBody(titleCasingRulesKnownTermRequestSchema)
+        },
+        responses: {
+            200: { description: "Title casing rules after upsert", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute(deleteTitleCasingRulesKnownTerm, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Remove one known term for a language by literal",
+        request: {
+            params: z.object({ language: z.string().min(1), literal: z.string().min(1) })
+        },
+        responses: {
+            200: { description: "Title casing rules after delete", ...contentJson(languageTitleCasingRulesResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses

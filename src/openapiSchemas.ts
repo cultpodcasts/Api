@@ -69,10 +69,6 @@ const supportedLanguageSchema = z.object({
 	name: z.string()
 });
 
-export const supportedLanguagesUpdateRequestSchema = z.object({
-	languages: z.array(supportedLanguageSchema)
-});
-
 export const supportedLanguageAddRequestSchema = z.object({
 	name: z.string().min(1)
 });
@@ -93,10 +89,11 @@ const knownTermSchema = z.object({
 	options: z.string().optional().nullable()
 });
 
-export const languageTitleCasingRulesUpdateRequestSchema = z.object({
-	lowerCaseTerms: z.array(z.string()).optional().nullable(),
-	knownTerms: z.array(knownTermSchema).optional().nullable()
+export const titleCasingRulesAddLowerCaseTermRequestSchema = z.object({
+	term: z.string().min(1)
 });
+
+export const titleCasingRulesKnownTermRequestSchema = knownTermSchema;
 
 export const languageTitleCasingRulesResponseSchema = z.object({
 	language: z.string(),

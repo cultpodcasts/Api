@@ -46,14 +46,16 @@ import {
 	GetSupportedLanguagesRoute,
 	GetNeutralCulturesRoute,
 	GetTitleCasingRulesByLanguageRoute,
+	PostTitleCasingRulesLowerCaseTermRoute,
+	DeleteTitleCasingRulesLowerCaseTermRoute,
+	PostTitleCasingRulesKnownTermRoute,
+	DeleteTitleCasingRulesKnownTermRoute,
 	AppendHeroCurationEpisodesRoute,
 	DeleteHeroCurationEpisodesRoute,
 	GetHeroCurationRoute,
 	PutDiscoveryScheduleRoute,
 	PostSupportedLanguagesRoute,
 	DeleteSupportedLanguagesRoute,
-	PutSupportedLanguagesRoute,
-	PutTitleCasingRulesByLanguageRoute,
 	PutHeroCurationRoute,
 	PushSubscriptionRoute,
 	RenamePodcastRoute,
@@ -362,9 +364,11 @@ openapi.get('/supported-languages', GetSupportedLanguagesRoute);
 openapi.get('/supported-languages/cultures', GetNeutralCulturesRoute);
 openapi.post('/supported-languages', PostSupportedLanguagesRoute);
 openapi.delete('/supported-languages/:code', DeleteSupportedLanguagesRoute);
-openapi.put('/supported-languages', PutSupportedLanguagesRoute);
 openapi.get('/title-casing-rules/:language', GetTitleCasingRulesByLanguageRoute);
-openapi.put('/title-casing-rules/:language', PutTitleCasingRulesByLanguageRoute);
+openapi.post('/title-casing-rules/:language/lower-case-terms', PostTitleCasingRulesLowerCaseTermRoute);
+openapi.delete('/title-casing-rules/:language/lower-case-terms/:term', DeleteTitleCasingRulesLowerCaseTermRoute);
+openapi.post('/title-casing-rules/:language/known-terms', PostTitleCasingRulesKnownTermRoute);
+openapi.delete('/title-casing-rules/:language/known-terms/:literal', DeleteTitleCasingRulesKnownTermRoute);
 openapi.get('/hero-curation', GetHeroCurationRoute);
 openapi.put('/hero-curation', PutHeroCurationRoute);
 openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);
