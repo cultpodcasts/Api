@@ -256,7 +256,8 @@ export const episodeChangeRequestSchema = z.object({
 	description: z.string().optional().nullable(),
 	posted: z.boolean().optional().nullable(),
 	tweeted: z.boolean().optional().nullable(),
-	bluesky: z.boolean().optional().nullable(),
+	/** When true, clear Bluesky post state and delete the remote post. Not settable via edit form. */
+	unBluesky: z.boolean().optional().nullable(),
 	ignored: z.boolean().optional().nullable(),
 	removed: z.boolean().optional().nullable(),
 	explicit: z.boolean().optional().nullable(),
