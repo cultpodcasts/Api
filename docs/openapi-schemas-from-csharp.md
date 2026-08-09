@@ -22,7 +22,7 @@ Worker-only (no Functions DTO): bookmarks Durable Object, R2 `subjects` name lis
 ## Workflow
 
 1. **Find the C# type** for the route (handler → DTO / change request).
-2. **Read `[JsonPropertyName("…")]`** — Zod keys must match JSON names, not C# property names (`BlueskyPosted` → `bluesky`, `Language` → `lang`, `Length` → `duration`).
+2. **Read `[JsonPropertyName("…")]`** — Zod keys must match JSON names, not C# property names (`UnBluesky` → `unBluesky`, `Language` → `lang`, `Length` → `duration`). Episode GET `BlueskyPosted` remains JSON `bluesky` on `EpisodeDto`.
 3. **Map types** (table below) into a new `export const …Schema = z.object({ … })` in `src/openapiSchemas.ts`. Cite the C# type in a short JSDoc (`/** Api.Dtos.EpisodeDto */`).
 4. **Wire** the schema in `src/openapiRoutes.ts` on the matching route: success status + error statuses the worker actually forwards (`proxyToAzure` options or handler returns).
 5. **Test** in `tests/openapi-schemas.spec.ts` with a minimal valid fixture (and a reject case for enums if useful).
@@ -94,7 +94,8 @@ Common mismatches to avoid:
 
 ## Example: episode change request
 
-C#: `Cloud/Api/Models/EpisodeChangeRequest.cs` → JSON `bluesky`, `lang`, `urls` (`ServiceUrls`), `images` (`ServiceImageUrls`).
+C#: `Cloud/Api/Models/EpisodeChangeRequest.cs` → JSON `unBluesky`, `lang`, `urls` (`ServiceUrls`), `images` (`ServiceImageUrls`).
+Episode GET still exposes posted state as `bluesky` on `EpisodeDto` — that is not the change-request field.
 
 Worker: `episodeChangeRequestSchema` in `src/openapiSchemas.ts`, used by update-episode routes in `openapiRoutes.ts`.
 

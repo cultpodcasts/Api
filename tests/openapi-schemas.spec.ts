@@ -303,7 +303,7 @@ describe("openapi Zod schemas", () => {
 	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {
 		const parsed = episodeChangeRequestSchema.parse({
 			title: "New title",
-			bluesky: false,
+			unBluesky: true,
 			urls: {
 				spotify: "https://open.spotify.com/episode/x",
 				apple: "",
@@ -312,6 +312,7 @@ describe("openapi Zod schemas", () => {
 			images: { other: "" },
 			guests: ["Alice"]
 		});
+		expect(parsed.unBluesky).toBe(true);
 		expect(parsed.urls?.apple).toBe("");
 		expect(parsed.images?.other).toBe("");
 	});
