@@ -35,6 +35,7 @@ import {
 	neutralCulturesResponseSchema,
 	languageTitleCasingRulesResponseSchema,
 	titleCasingRulesAddLowerCaseTermRequestSchema,
+	titleCasingRulesAddIgnoredSubjectRequestSchema,
 	titleCasingRulesKnownTermRequestSchema,
 	discoverySubmitRequestSchema,
 	heroCurationResponseSchema,
@@ -88,7 +89,9 @@ import {
 	postTitleCasingRulesLowerCaseTerm,
 	deleteTitleCasingRulesLowerCaseTerm,
 	postTitleCasingRulesKnownTerm,
-	deleteTitleCasingRulesKnownTerm
+	deleteTitleCasingRulesKnownTerm,
+	postTitleCasingRulesIgnoredSubject,
+	deleteTitleCasingRulesIgnoredSubject
 } from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
 import { pushSubscription } from "./pushSubscription";
@@ -788,6 +791,41 @@ export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute(deleteTit
         summary: "Remove one known term for a language by literal",
         request: {
             params: z.object({ language: z.string().min(1), literal: z.string().min(1) })
+        },
+        responses: {
+            200: { description: "Title casing rules after delete", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(postTitleCasingRulesIgnoredSubject, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Add one ignored subject for a non-English language",
+        request: {
+            params: z.object({ language: z.string().min(1) }),
+            body: jsonBody(titleCasingRulesAddIgnoredSubjectRequestSchema)
+        },
+        responses: {
+            200: { description: "Title casing rules after add", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(deleteTitleCasingRulesIgnoredSubject, {
+    auth: true,
+    schema: {
+        tags: ["Admin"],
+        summary: "Remove one ignored subject for a non-English language",
+        request: {
+            params: z.object({ language: z.string().min(1), term: z.string().min(1) })
         },
         responses: {
             200: { description: "Title casing rules after delete", ...contentJson(languageTitleCasingRulesResponseSchema) },

@@ -26,6 +26,12 @@ describe("title-casing-rules contract", () => {
 		expect(index).toContain(
 			"openapi.delete('/title-casing-rules/:language/known-terms/:literal', DeleteTitleCasingRulesKnownTermRoute)"
 		);
+		expect(index).toContain(
+			"openapi.post('/title-casing-rules/:language/ignored-subjects', PostTitleCasingRulesIgnoredSubjectRoute)"
+		);
+		expect(index).toContain(
+			"openapi.delete('/title-casing-rules/:language/ignored-subjects/:term', DeleteTitleCasingRulesIgnoredSubjectRoute)"
+		);
 		expect(index).not.toMatch(/openapi\.put\('\/title-casing-rules/);
 		expect(index).not.toMatch(/openapi\.get\('\/title-casing-rules'/);
 		expect(index).not.toContain("'/terms'");
@@ -48,12 +54,20 @@ describe("title-casing-rules contract", () => {
 		const deleteKnown = routes.match(
 			/export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute\(deleteTitleCasingRulesKnownTerm, \{[\s\S]*?\n\}\);/
 		)?.[0];
+		const postIgnored = routes.match(
+			/export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute\(postTitleCasingRulesIgnoredSubject, \{[\s\S]*?\n\}\);/
+		)?.[0];
+		const deleteIgnored = routes.match(
+			/export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute\(deleteTitleCasingRulesIgnoredSubject, \{[\s\S]*?\n\}\);/
+		)?.[0];
 		expect(getBlock).toBeDefined();
 		expect(postLower).toBeDefined();
 		expect(deleteLower).toBeDefined();
 		expect(postKnown).toBeDefined();
 		expect(deleteKnown).toBeDefined();
-		for (const block of [getBlock, postLower, deleteLower, postKnown, deleteKnown]) {
+		expect(postIgnored).toBeDefined();
+		expect(deleteIgnored).toBeDefined();
+		for (const block of [getBlock, postLower, deleteLower, postKnown, deleteKnown, postIgnored, deleteIgnored]) {
 			expect(block).toContain("auth: true");
 		}
 	});
@@ -63,8 +77,8 @@ describe("title-casing-rules contract", () => {
 		expect(src).not.toContain('permission: "curate"');
 		expect(src).toContain("omitCacheControlHeader: true");
 		expect(src).toContain('c.header("Cache-Control", "no-store")');
-		expect(src.match(/permission: "admin"/g)?.length).toBe(5);
-		expect(src.match(/Cache-Control", "no-store"/g)?.length).toBe(5);
+		expect(src.match(/permission: "admin"/g)?.length).toBe(7);
+		expect(src.match(/Cache-Control", "no-store"/g)?.length).toBe(7);
 	});
 
 	it("does not register PUT handlers for title-casing-rules", () => {

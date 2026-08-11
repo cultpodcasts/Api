@@ -50,6 +50,8 @@ import {
 	DeleteTitleCasingRulesLowerCaseTermRoute,
 	PostTitleCasingRulesKnownTermRoute,
 	DeleteTitleCasingRulesKnownTermRoute,
+	PostTitleCasingRulesIgnoredSubjectRoute,
+	DeleteTitleCasingRulesIgnoredSubjectRoute,
 	AppendHeroCurationEpisodesRoute,
 	DeleteHeroCurationEpisodesRoute,
 	GetHeroCurationRoute,
@@ -369,6 +371,8 @@ openapi.post('/title-casing-rules/:language/lower-case-terms', PostTitleCasingRu
 openapi.delete('/title-casing-rules/:language/lower-case-terms/:term', DeleteTitleCasingRulesLowerCaseTermRoute);
 openapi.post('/title-casing-rules/:language/known-terms', PostTitleCasingRulesKnownTermRoute);
 openapi.delete('/title-casing-rules/:language/known-terms/:literal', DeleteTitleCasingRulesKnownTermRoute);
+openapi.post('/title-casing-rules/:language/ignored-subjects', PostTitleCasingRulesIgnoredSubjectRoute);
+openapi.delete('/title-casing-rules/:language/ignored-subjects/:term', DeleteTitleCasingRulesIgnoredSubjectRoute);
 openapi.get('/hero-curation', GetHeroCurationRoute);
 openapi.put('/hero-curation', PutHeroCurationRoute);
 openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);
