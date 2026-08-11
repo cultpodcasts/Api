@@ -89,3 +89,37 @@ export async function deleteTitleCasingRulesKnownTerm(c: Auth0ActionContext): Pr
 		logName: "title-casing-rules-delete-known-term"
 	});
 }
+
+export async function postTitleCasingRulesIgnoredSubject(c: Auth0ActionContext): Promise<Response> {
+	const language = c.req.param("language");
+	AddResponseHeaders(c, { methods: [...adminMethods], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
+	const data: unknown = await c.req.json();
+	const body = JSON.stringify(data);
+	return proxyToAzure(c, {
+		permission: "admin",
+		endpoint: Endpoint.titleCasingRules,
+		method: "POST",
+		pathSuffix: `/${encodeURIComponent(language)}/ignored-subjects`,
+		body,
+		successStatuses: [200],
+		passthroughOtherStatuses: true,
+		logName: "title-casing-rules-post-ignored-subject"
+	});
+}
+
+export async function deleteTitleCasingRulesIgnoredSubject(c: Auth0ActionContext): Promise<Response> {
+	const language = c.req.param("language");
+	const term = c.req.param("term");
+	AddResponseHeaders(c, { methods: [...adminMethods], omitCacheControlHeader: true });
+	c.header("Cache-Control", "no-store");
+	return proxyToAzure(c, {
+		permission: "admin",
+		endpoint: Endpoint.titleCasingRules,
+		method: "DELETE",
+		pathSuffix: `/${encodeURIComponent(language)}/ignored-subjects/${encodeURIComponent(term)}`,
+		successStatuses: [200],
+		passthroughOtherStatuses: true,
+		logName: "title-casing-rules-delete-ignored-subject"
+	});
+}

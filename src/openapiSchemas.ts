@@ -95,10 +95,15 @@ export const titleCasingRulesAddLowerCaseTermRequestSchema = z.object({
 
 export const titleCasingRulesKnownTermRequestSchema = knownTermSchema;
 
+export const titleCasingRulesAddIgnoredSubjectRequestSchema = z.object({
+	term: z.string().min(1)
+});
+
 export const languageTitleCasingRulesResponseSchema = z.object({
 	language: z.string(),
 	lowerCaseTerms: z.array(z.string()),
 	knownTerms: z.array(knownTermSchema),
+	ignoredSubjects: z.array(z.string()).optional(),
 	isDefault: z.boolean()
 });
 
