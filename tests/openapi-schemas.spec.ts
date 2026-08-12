@@ -279,8 +279,10 @@ describe("openapi Zod schemas", () => {
 			title: "Ep | Show",
 			description: "Show",
 			releaseDate: "01/07/2026",
-			duration: "01:00:00"
-		}).title).toContain("Show");
+			duration: "01:00:00",
+			image: "https://i.scdn.co/image/ab6765cover",
+			imageAspect: "square"
+		}).imageAspect).toBe("square");
 		expect(searchResponseSchema.parse({
 			"@odata.count": 1,
 			value: [{
