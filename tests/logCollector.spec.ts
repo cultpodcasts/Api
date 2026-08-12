@@ -48,6 +48,7 @@ describe("LogCollector", () => {
 		});
 
 		expect(payload).toMatchObject({
+			message: "getPeople people.azure_ok success",
 			event: "people.azure_ok",
 			outcome: "success",
 			route: "getPeople",
@@ -57,6 +58,28 @@ describe("LogCollector", () => {
 		});
 		expect(logSpy).toHaveBeenCalledOnce();
 		expect(logSpy).toHaveBeenCalledWith(payload);
+	});
+
+	it("emit always sets message for Workers Logs Message column when omitted", () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const collector = new LogCollector();
+		collector.add({ route: "getBookmarks" });
+		const payload = collector.emit({ event: "bookmarks.ok", outcome: "success" });
+
+		expect(payload.message).toBe("getBookmarks bookmarks.ok success");
+		expect(logSpy.mock.calls[0][0]).toMatchObject({
+			message: "getBookmarks bookmarks.ok success",
+			event: "bookmarks.ok",
+			route: "getBookmarks"
+		});
+	});
+
+	it("emit keeps an explicit message over the derived primary message", () => {
+		const collector = new LogCollector();
+		collector.add({ route: "getBookmarks", message: "custom prose" });
+		expect(collector.emit({ event: "bookmarks.ok", outcome: "success" }).message).toBe(
+			"custom prose"
+		);
 	});
 
 	it("emitError uses console.error once; a second terminal emit is a no-op", () => {
@@ -70,6 +93,7 @@ describe("LogCollector", () => {
 		expect(logSpy).not.toHaveBeenCalled();
 		expect(collector.hasFlushed()).toBe(true);
 		expect(errorSpy.mock.calls[0][0]).toMatchObject({
+			message: "getPeople people.forbidden forbidden",
 			event: "people.forbidden",
 			outcome: "forbidden",
 			route: "getPeople"
@@ -81,5 +105,9 @@ describe("LogCollector", () => {
 		const collector = new LogCollector();
 		collector.emitWarn({ event: "discovery_info.not_found", outcome: "not_found" });
 		expect(warnSpy).toHaveBeenCalledOnce();
+		expect(warnSpy.mock.calls[0][0]).toMatchObject({
+			message: "discovery_info.not_found not_found",
+			event: "discovery_info.not_found"
+		});
 	});
 });

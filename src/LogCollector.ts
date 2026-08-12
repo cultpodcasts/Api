@@ -25,6 +25,10 @@ export class LogCollector implements endpointOperation {
 	private flushedPayload?: endpointLog;
 
 	collectRequest(c: Auth0ActionContext | ActionContext) {
+		const cfRay = c.req.header("cf-ray");
+		if (cfRay) {
+			this.requestId = cfRay;
+		}
 		if (c.req.raw.cf != undefined && c.req.raw.cf) {
 			this.add({
 				clientTrustScoretr: c.req.raw.cf.clientTrustScoretr as string,
@@ -105,8 +109,30 @@ export class LogCollector implements endpointOperation {
 		}
 	}
 
+	/**
+	 * Workers Logs Message column comes from the logged object's `message`
+	 * string. Object-only console.log leaves that column blank.
+	 */
+	primaryMessage(): string {
+		if (this.message && this.message.trim().length > 0) {
+			return this.message;
+		}
+		const parts: string[] = [];
+		if (this.route) {
+			parts.push(this.route);
+		}
+		if (this.event) {
+			parts.push(this.event);
+		}
+		if (this.outcome) {
+			parts.push(this.outcome);
+		}
+		return parts.length > 0 ? parts.join(" ") : "endpoint";
+	}
+
 	toEndpointLog(): endpointLog {
 		const endpointLog: endpointLog = {
+			message: this.primaryMessage(),
 			request: {
 				country: this.country,
 				city: this.city,
@@ -127,8 +153,8 @@ export class LogCollector implements endpointOperation {
 		if (this.route) {
 			endpointLog.route = this.route;
 		}
-		if (this.message) {
-			endpointLog.message = this.message;
+		if (this.requestId) {
+			endpointLog.requestId = this.requestId;
 		}
 		if (this.messages && this.messages.length > 0) {
 			endpointLog.messages = this.messages;
@@ -191,6 +217,7 @@ export class LogCollector implements endpointOperation {
 	outcome?: EndpointLogOutcome;
 	route?: string;
 	message?: string;
+	requestId?: string;
 	status?: number;
 	country?: string;
 	city?: string;
