@@ -11,7 +11,7 @@ export async function getLanguages(c: Auth0ActionContext): Promise<Response> {
 	logCollector.collectRequest(c);
 	logCollector.add({ route: "getLanguages" });
 
-	if (hasPermission(auth0Payload, "curate") || hasPermission(auth0Payload, "admin")) {
+	if (hasPermission(auth0Payload, 'curate') || hasPermission(auth0Payload, 'admin')) {
 		let object: R2ObjectBody | null = null;
 		try {
 			object = await c.env.Content.get("languages");
