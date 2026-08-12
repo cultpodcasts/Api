@@ -10,7 +10,8 @@ New secrets added for preview/staging **must** be mirrored for production. Forge
 |-------------|--------|
 | Same **key names** | Preview and production `.env.example` files + both `set-secrets-*.ps1` lists |
 | PR documents names | PR body section **`## Config / secrets`** lists every new secret **name** (never values) for preview **and** production |
-| Deploy reads the PR | Before calling a release done, set each named key on both Workers |
+| Deploy reads the PR | Before calling a release done / production switchover, set each named key on both Workers |
+| Production switchover | Tick the PR checklist; do not treat “preview works” as production-ready until production keys are confirmed |
 | Live production target | Top-level Worker **`api`** via `.\scripts\set-secrets-production.ps1` (`--env=`). **Not** `--env production` (`api-production`) |
 
 Mechanical check:
