@@ -8,12 +8,13 @@ import { LogCollector } from "./LogCollector";
 import { proxyToAzure } from "./proxyToAzure";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
-	const auth0Payload: Auth0JwtPayload = c.var.auth0('payload');
+	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
+	logCollector.add({ route: "submit" });
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
-	if (auth0Payload?.permissions && auth0Payload.permissions.includes('submit')) {
+	if (auth0Payload?.permissions && auth0Payload.permissions.includes("submit")) {
 		const resp = await proxyToAzure(c, {
 			permission: "submit",
 			endpoint: Endpoint.submit,
@@ -26,23 +27,21 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 			resp.headers.set("X-Origin", "true");
 			return resp;
 		}
-		logCollector.addMessage(`Failed to use secure-submit-endpoint.`);
+		logCollector.add({ event: "submit.azure_failed" });
 	}
-	logCollector.addMessage(`Storing submission in d1.`);
+	logCollector.add({ event: "submit.d1_fallback" });
 	const adapter = new PrismaD1(c.env.apiDB);
 	const prisma = new PrismaClient({ adapter });
 	let url: URL | undefined;
 	let urlParam = data.url;
 	if (urlParam == null) {
-		logCollector.addMessage("Missing url param");
-		console.error(logCollector.toEndpointLog());
+		logCollector.emitError({ event: "submit.missing_url", outcome: "error" });
 		return c.json({ error: "Missing url param." }, 400);
 	}
 	try {
 		url = new URL(urlParam);
 	} catch {
-		logCollector.addMessage(`Invalid url: '${data.url}'.`);
-		console.error(logCollector.toEndpointLog());
+		logCollector.emitError({ event: "submit.invalid_url", outcome: "error" });
 		return c.json({ error: `Invalid url '${data.url}'.` }, 400);
 	}
 	try {
@@ -52,19 +51,14 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 			user_agent: c.req.header("User-Agent") ?? null,
 			country: c.req.header("CF-IPCountry") ?? null
 		};
-		const submission = await prisma.submissions.create({
-			data: record
-		});
-		logCollector.addMessage("Stored url in db.");
+		await prisma.submissions.create({ data: record });
 	} catch (e) {
 		if (e instanceof Prisma.PrismaClientKnownRequestError) {
-			logCollector.addMessage(`PrismaClientKnownRequestError code: '${e.code}', error: '${e}'.`);
-		} else {
-			logCollector.addMessage("Unable to accept");
+			logCollector.add({ message: `PrismaClientKnownRequestError code: '${e.code}'` });
 		}
-		console.error(logCollector.toEndpointLog());
+		logCollector.emitError({ event: "submit.d1_failed", outcome: "error" });
 		return c.json({ error: "Unable to accept" }, 400);
 	}
-	console.log(logCollector.toEndpointLog());
+	logCollector.emit({ event: "submit.d1_ok", outcome: "success" });
 	return c.json({ success: "Submitted" });
 }

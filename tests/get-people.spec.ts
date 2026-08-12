@@ -11,12 +11,15 @@ describe("getPeople", () => {
 		expect(src).not.toMatch(/etag:\s*object\.httpEtag/);
 	});
 
-	it("emits structured Workers Logs events instead of prose messages", () => {
+	it("emits structured Workers Logs events via emit and emitError", () => {
 		const src = readFileSync(resolve(process.cwd(), "src/getPeople.ts"), "utf8");
 		expect(src).toContain('event: "people.r2_hit"');
 		expect(src).toContain('outcome: "success"');
 		expect(src).toContain('route: "getPeople"');
 		expect(src).toContain(".emit(");
+		expect(src).toContain(".emitError(");
+		expect(src).not.toContain('emit("error"');
+		expect(src).not.toContain('emit("log"');
 		expect(src).not.toContain("addMessage(");
 	});
 });

@@ -272,6 +272,7 @@ export const episodeChangeRequestSchema = z.object({
 	images: serviceImageUrlsChangeSchema.optional().nullable(),
 	subjects: z.array(z.string()).optional().nullable(),
 	searchTerms: z.string().optional().nullable(),
+	hashTag: z.string().optional().nullable(),
 	lang: z.string().optional().nullable(),
 	guests: z.array(z.string()).optional().nullable()
 });
@@ -413,6 +414,7 @@ export const episodeDtoSchema = z.object({
 	removedSubjects: z.array(z.string()).optional(),
 	matches: z.array(episodeSubjectMatchSchema).optional(),
 	searchTerms: z.string().optional().nullable(),
+	hashTag: z.string().optional().nullable(),
 	images: serviceImageUrlsSchema.optional().nullable(),
 	guests: z.array(z.string()).optional().nullable(),
 	youTubePodcast: z.boolean().optional(),
@@ -586,10 +588,9 @@ export const submitUrlResponseSchema = z.object({
 	error: z.string().optional().nullable()
 });
 
-/** Delete episode 400 body when social posts block delete. */
+/** Delete episode 400 body when a tweeted episode blocks delete. */
 export const episodeDeleteBlockedSchema = z.object({
 	message: z.string().optional(),
-	posted: z.boolean().optional(),
 	tweeted: z.boolean().optional()
 });
 

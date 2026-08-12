@@ -384,7 +384,7 @@ export const DeleteEpisodeRoute = createOpenApiRoute(deleteEpisode, {
         request: { params: idParam },
         responses: {
             200: { description: "Deleted (empty body)" },
-            400: { description: "Delete blocked (e.g. already posted)", ...contentJson(episodeDeleteBlockedSchema) },
+            400: { description: "Delete blocked when episode is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
             409: { description: "Conflict" },
             ...notFoundResponse,
             ...serverErrorResponse,
@@ -401,7 +401,7 @@ export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode
         request: { params: podcastIdAndEpisodeParam },
         responses: {
             200: { description: "Deleted (empty body)" },
-            400: { description: "Delete blocked (e.g. already posted)", ...contentJson(episodeDeleteBlockedSchema) },
+            400: { description: "Delete blocked when episode is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
             409: { description: "Conflict" },
             ...notFoundResponse,
             ...serverErrorResponse,

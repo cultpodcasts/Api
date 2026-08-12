@@ -74,7 +74,7 @@ export async function proxyToAzure(
 			logCollector.add({ status: resp.status });
 
 			if (successStatuses.includes(resp.status) || forwardStatuses.includes(resp.status)) {
-				logCollector.emit("log", {
+				logCollector.emit({
 					event: "proxy.success",
 					outcome: "success"
 				});
@@ -82,21 +82,21 @@ export async function proxyToAzure(
 			}
 
 			if (opts.passthroughOtherStatuses) {
-				logCollector.emit("log", {
+				logCollector.emit({
 					event: "proxy.passthrough",
 					outcome: "passthrough"
 				});
 				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 			}
 
-			logCollector.emit("error", {
+			logCollector.emitError({
 				event: "proxy.upstream_error",
 				outcome: "error"
 			});
 			return c.json({ error: "Error" }, 500);
 		}
 	} catch {
-		logCollector.emit("error", {
+		logCollector.emitError({
 			event: "proxy.exception",
 			outcome: "error"
 		});
@@ -104,14 +104,14 @@ export async function proxyToAzure(
 	}
 
 	if (!auth0Payload) {
-		logCollector.emit("error", {
+		logCollector.emitError({
 			event: "proxy.unauthorised",
 			outcome: "unauthorised"
 		});
 		return c.json({ error: "Unauthorised" }, 401);
 	}
 
-	logCollector.emit("error", {
+	logCollector.emitError({
 		event: "proxy.forbidden",
 		outcome: "forbidden"
 	});

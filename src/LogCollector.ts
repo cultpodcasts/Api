@@ -5,7 +5,25 @@ import { endpointOperation } from "./endpointOperation";
 
 export type EndpointLogLevel = "log" | "warn" | "error";
 
+/** Filterable fields for structured Workers Logs emits. */
+export type StructuredLogProps = Pick<
+	endpointOperation,
+	"event" | "outcome" | "route" | "status" | "message"
+>;
+
+/**
+ * Per-request log accumulator: gather CF metadata, route fields, and step
+ * messages during the handler, then write **one** structured `endpointLog`
+ * at the end via {@link emit} / {@link emitWarn} / {@link emitError}.
+ *
+ * Intermediate {@link add} / {@link addMessage} never touch `console.*`.
+ * A second terminal emit is a no-op (keeps the first write) so abort handlers
+ * cannot double-log after a successful finish.
+ */
 export class LogCollector implements endpointOperation {
+	private flushed = false;
+	private flushedPayload?: endpointLog;
+
 	collectRequest(c: Auth0ActionContext | ActionContext) {
 		if (c.req.raw.cf != undefined && c.req.raw.cf) {
 			this.add({
@@ -29,7 +47,7 @@ export class LogCollector implements endpointOperation {
 		}
 	}
 
-	/** Prefer {@link emit} with `event` / `outcome` for Workers Logs filters. */
+	/** Append a step for transaction tracing (no console write). */
 	addMessage(message: string) {
 		if (!this.messages) {
 			this.messages = [];
@@ -37,6 +55,11 @@ export class LogCollector implements endpointOperation {
 		this.messages.push(message);
 	}
 
+	/**
+	 * Accumulate structured fields (no console write).
+	 * Replacing `event` pushes the previous event id into {@link messages}
+	 * so failed attempts remain visible in the final log.
+	 */
 	add(props: endpointOperation): void {
 		if (props.hasOwnProperty("country")) {
 			this.country = props.country;
@@ -69,6 +92,9 @@ export class LogCollector implements endpointOperation {
 			this.status = props.status;
 		}
 		if (props.hasOwnProperty("event")) {
+			if (this.event && props.event && this.event !== props.event) {
+				this.addMessage(this.event);
+			}
 			this.event = props.event;
 		}
 		if (props.hasOwnProperty("outcome")) {
@@ -114,17 +140,43 @@ export class LogCollector implements endpointOperation {
 	}
 
 	/**
-	 * Emit a structured Workers Logs object. Top-level `event` / `outcome` / `route`
-	 * are filterable in the dashboard; prefer these over prose in `messages`.
+	 * Terminal success/info write (`console.log`). Call once at end of request.
 	 */
-	emit(
-		level: EndpointLogLevel,
-		props?: Pick<endpointOperation, "event" | "outcome" | "route" | "status" | "message">
-	): endpointLog {
+	emit(props?: StructuredLogProps): endpointLog {
+		return this.flush("log", props);
+	}
+
+	/** Terminal warning write (`console.warn`). Call once at end of request. */
+	emitWarn(props?: StructuredLogProps): endpointLog {
+		return this.flush("warn", props);
+	}
+
+	/**
+	 * Terminal error write (`console.error`). Prefer this over level string
+	 * literals. Call once at end of request.
+	 */
+	emitError(props?: StructuredLogProps): endpointLog {
+		return this.flush("error", props);
+	}
+
+	/**
+	 * Whether a terminal emit has already written to the console.
+	 * Useful for stream abort handlers that must not double-log.
+	 */
+	hasFlushed(): boolean {
+		return this.flushed;
+	}
+
+	private flush(level: EndpointLogLevel, props?: StructuredLogProps): endpointLog {
+		if (this.flushed) {
+			return this.flushedPayload ?? this.toEndpointLog();
+		}
 		if (props) {
 			this.add(props);
 		}
 		const payload = this.toEndpointLog();
+		this.flushed = true;
+		this.flushedPayload = payload;
 		if (level === "error") {
 			console.error(payload);
 		} else if (level === "warn") {

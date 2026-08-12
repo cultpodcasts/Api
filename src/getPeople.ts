@@ -25,19 +25,24 @@ export async function getPeople(c: Auth0ActionContext): Promise<Response> {
 		if (object !== null) {
 			AddResponseHeaders(c, { omitCacheControlHeader: true, methods: ["GET", "OPTIONS"] });
 			c.header("Cache-Control", "no-store");
-			logCollector.emit("log", {
-				event: "people.r2_hit",
-				outcome: "success"
-			});
+			logCollector.addMessage("people.r2_body");
 
-			return stream(c, async (stream) => {
-				stream.onAbort(() => {
-					logCollector.emit("error", {
-						event: "people.stream_aborted",
-						outcome: "aborted"
-					});
+			return stream(c, async (s) => {
+				s.onAbort(() => {
+					if (!logCollector.hasFlushed()) {
+						logCollector.emitError({
+							event: "people.stream_aborted",
+							outcome: "aborted"
+						});
+					}
 				});
-				await stream.pipe(object.body);
+				await s.pipe(object.body);
+				if (!logCollector.hasFlushed()) {
+					logCollector.emit({
+						event: "people.r2_hit",
+						outcome: "success"
+					});
+				}
 			});
 		}
 
@@ -50,7 +55,7 @@ export async function getPeople(c: Auth0ActionContext): Promise<Response> {
 			logCollector.add({ status: resp.status });
 
 			if (resp.status === 200) {
-				logCollector.emit("log", {
+				logCollector.emit({
 					event: "people.azure_ok",
 					outcome: "success"
 				});
@@ -64,7 +69,7 @@ export async function getPeople(c: Auth0ActionContext): Promise<Response> {
 			logCollector.add({ event: "people.azure_error" });
 		}
 
-		logCollector.emit("error", {
+		logCollector.emitError({
 			event: "people.not_found",
 			outcome: "not_found"
 		});
@@ -72,14 +77,14 @@ export async function getPeople(c: Auth0ActionContext): Promise<Response> {
 	}
 
 	if (!auth0Payload) {
-		logCollector.emit("error", {
+		logCollector.emitError({
 			event: "people.unauthorised",
 			outcome: "unauthorised"
 		});
 		return c.json({ error: "Unauthorised" }, 401);
 	}
 
-	logCollector.emit("error", {
+	logCollector.emitError({
 		event: "people.forbidden",
 		outcome: "forbidden"
 	});
