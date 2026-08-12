@@ -40,7 +40,8 @@ export async function getPeople(c: Auth0ActionContext): Promise<Response> {
 
 		if (object !== null) {
 
-			AddResponseHeaders(c, { etag: object.httpEtag, methods: ["GET", "OPTIONS"] });
+			AddResponseHeaders(c, { omitCacheControlHeader: true, methods: ["GET", "OPTIONS"] });
+			c.header("Cache-Control", "no-store");
 
 			logCollector.addMessage("Successfully obtained people data.");
 
@@ -85,6 +86,7 @@ export async function getPeople(c: Auth0ActionContext): Promise<Response> {
 				console.log(logCollector.toEndpointLog());
 
 				AddResponseHeaders(c, { omitCacheControlHeader: true, methods: ["GET", "OPTIONS"] });
+				c.header("Cache-Control", "no-store");
 
 				return c.newResponse(resp.body);
 
