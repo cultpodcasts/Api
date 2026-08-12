@@ -10,4 +10,13 @@ describe("getPeople", () => {
 		expect(src.match(/Cache-Control", "no-store"/g)?.length).toBe(2);
 		expect(src).not.toMatch(/etag:\s*object\.httpEtag/);
 	});
+
+	it("emits structured Workers Logs events instead of prose messages", () => {
+		const src = readFileSync(resolve(process.cwd(), "src/getPeople.ts"), "utf8");
+		expect(src).toContain('event: "people.r2_hit"');
+		expect(src).toContain('outcome: "success"');
+		expect(src).toContain('route: "getPeople"');
+		expect(src).toContain(".emit(");
+		expect(src).not.toContain("addMessage(");
+	});
 });
