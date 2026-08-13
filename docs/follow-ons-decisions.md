@@ -8,7 +8,7 @@ Short decision notes for Wave 2+ code-quality items that need an explicit choice
 
 **Current state:** `analytics_engine_datasets` with binding `Analytics` is declared in `wrangler.jsonc` (default + `local` / `preview` / `production` envs). `Env.Analytics: AnalyticsEngineDataset` is typed in `src/Env.ts`. **No** `writeDataPoint` or other runtime usage exists under `src/`.
 
-**Observability already enabled:** `wrangler.jsonc` sets `"observability": { "enabled": true }`, which covers Workers Logs / tracing for production debugging without a custom Analytics Engine dataset.
+**Observability already enabled:** `wrangler.jsonc` sets `"observability": { "enabled": true, "logs": { "invocation_logs": false } }` (top-level + `env.preview`). Custom `LogCollector` / `searchLogCollector` console emits still persist; CF built-in Method/URL/status and DO RPC invocation rows are off so Observability is not duplicated.
 
 **Recommendation: drop the binding (do not add usage yet).**
 
