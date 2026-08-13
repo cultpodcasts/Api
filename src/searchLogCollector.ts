@@ -205,7 +205,13 @@ export class searchLogCollector implements searchOperation {
 		} else if (this.episodeId) {
 			parts.push(this.episodeId);
 		}
-		if (this.error) {
+		if (this.leech) {
+			parts.push("leech");
+		} else if (this.missingSearch) {
+			parts.push("missing_search");
+		} else if (this.unrecognisedSearchFilter) {
+			parts.push("unrecognised_filter");
+		} else if (this.error) {
 			parts.push("error");
 		} else if (this.results != null) {
 			parts.push(`${this.results}`);

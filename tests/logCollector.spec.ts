@@ -82,6 +82,19 @@ describe("LogCollector", () => {
 		);
 	});
 
+	it("addMessage breadcrumbs do not override primaryMessage from route/event/outcome", () => {
+		const collector = new LogCollector();
+		collector.add({ route: "addBookmark" });
+		collector.addMessage("result= 1");
+		const payload = collector.emit({ event: "bookmark.add_ok", outcome: "success" });
+		expect(payload.message).toBe("addBookmark bookmark.add_ok success");
+		expect(payload.messages).toEqual(["result= 1"]);
+	});
+
+	it("primaryMessage falls back to endpoint when no route/event/outcome", () => {
+		expect(new LogCollector().primaryMessage()).toBe("endpoint");
+	});
+
 	it("emitError uses console.error once; a second terminal emit is a no-op", () => {
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});

@@ -17,7 +17,7 @@ export async function deleteBookmark(c: Auth0ActionContext): Promise<Response> {
 			let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
 			let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
 			let result: deleteBookmarkResponse = await stub.deleteBookmark(auth0Payload.sub, episodeId);
-			logCollector.add({ message: `result= ${result}` });
+			logCollector.addMessage(`result= ${result}`);
 			if (result == deleteBookmarkResponse.deleted) {
 				logCollector.emit({ event: "bookmark.delete_ok", outcome: "success" });
 				return c.json({ message: "Success" });

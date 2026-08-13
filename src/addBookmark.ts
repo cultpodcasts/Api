@@ -17,7 +17,7 @@ export async function addBookmark(c: Auth0ActionContext): Promise<Response> {
 			let id: DurableObjectId = c.env.PROFILE_DURABLE_OBJECT.idFromName(auth0Payload.sub);
 			let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
 			let result: addBookmarkResponse = await stub.addBookmark(auth0Payload.sub, episodeId);
-			logCollector.add({ message: `result= ${result}` });
+			logCollector.addMessage(`result= ${result}`);
 			if (result == addBookmarkResponse.created) {
 				logCollector.emit({ event: "bookmark.add_ok", outcome: "success" });
 				return c.json({ message: "Success" });

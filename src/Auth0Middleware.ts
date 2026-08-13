@@ -9,24 +9,23 @@ export const Auth0Middleware = createMiddleware<AppContext>(async (c: Context<Ap
 	const authorization = c.req.header("Authorization");
 	const bearer = "Bearer ";
 	const logCollector = new LogCollector();
+	logCollector.collectRequest(c);
 	logCollector.add({ route: "Auth0Middleware" });
 	if (!c.env.auth0Issuer || !c.env.auth0Audience) {
 		logCollector.emitError({ event: "auth0.not_configured", outcome: "error" });
-	} else {
-		c.set("auth0", (_payload) => { });
-		if (authorization && authorization.startsWith(bearer)) {
-			const token = authorization.slice(bearer.length);
-			const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
-			if (result.valid) {
-				c.set("auth0", (_payload) => result.payload as Auth0JwtPayload);
-			} else {
-				logCollector.emitError({ event: "auth0.jwt_invalid", outcome: "unauthorised" });
-			}
-		} else {
-			logCollector.emitError({ event: "auth0.no_bearer", outcome: "unauthorised" });
-		}
-		await next();
-		return;
+		return new Response("Configure error (1)", { status: 500 });
 	}
-	return new Response("Configure error (1)", { status: 500 });
+	c.set("auth0", (_payload) => { });
+	if (authorization && authorization.startsWith(bearer)) {
+		const token = authorization.slice(bearer.length);
+		const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
+		if (result.valid) {
+			c.set("auth0", (_payload) => result.payload as Auth0JwtPayload);
+		} else {
+			logCollector.emitError({ event: "auth0.jwt_invalid", outcome: "unauthorised" });
+		}
+	} else {
+		logCollector.emitError({ event: "auth0.no_bearer", outcome: "unauthorised" });
+	}
+	await next();
 });

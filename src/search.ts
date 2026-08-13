@@ -48,6 +48,13 @@ export async function search(c: ActionContext): Promise<Response> {
 					searchLog.emit();
 				}
 				return c.json(body, 200);
+			})
+			.catch(() => {
+				if (!searchLog.hasFlushed()) {
+					searchLog.addMessage("bad_json");
+					searchLog.emitError({ message: "search bad_json error" });
+				}
+				return c.json({ error: "Bad request" }, 400);
 			});
 	} else {
 		return createLeachResponse(c, searchLog);

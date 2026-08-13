@@ -14,12 +14,16 @@ import { heroCurationStub } from "./HeroCurationDurableObject";
 function requireCurate(c: Auth0ActionContext, logCollector: LogCollector): Response | null {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
 	if (!auth0Payload) {
-		logCollector.add({ message: `Hero curation authz 401: missing or invalid Auth0 payload. ${formatCurateAuthzClaims(null)}` });
+		logCollector.addMessage(
+			`Hero curation authz 401: missing or invalid Auth0 payload. ${formatCurateAuthzClaims(null)}`
+		);
 		logCollector.emitError({ event: "hero_curation.unauthorised", outcome: "unauthorised" });
 		return c.json({ error: "Unauthorised" }, 401);
 	}
 	if (!hasPermission(auth0Payload, "curate")) {
-		logCollector.add({ message: `Hero curation authz 403: missing curate. ${formatCurateAuthzClaims(auth0Payload)}` });
+		logCollector.addMessage(
+			`Hero curation authz 403: missing curate. ${formatCurateAuthzClaims(auth0Payload)}`
+		);
 		logCollector.emitError({ event: "hero_curation.forbidden", outcome: "forbidden" });
 		return c.json({ error: "Forbidden" }, 403);
 	}
@@ -130,7 +134,9 @@ export async function appendHeroCurationEpisodes(c: Auth0ActionContext): Promise
 	try {
 		const requested = parsed.data.episodeIds;
 		const state = await heroCurationStub(c.env).appendEpisodes(requested);
-		logCollector.add({ message: `Hero auto-promote: ${requested.length} requested, ${state.episodeIds.length} total` });
+		logCollector.addMessage(
+			`Hero auto-promote: ${requested.length} requested, ${state.episodeIds.length} total`
+		);
 		logCollector.emit({ event: "hero_curation.append_ok", outcome: "success" });
 		return c.json(state, 200);
 	} catch {
@@ -167,7 +173,9 @@ export async function deleteHeroCurationEpisodes(c: Auth0ActionContext): Promise
 	try {
 		const requested = parsed.data.episodeIds;
 		const state = await heroCurationStub(c.env).removeEpisodes(requested);
-		logCollector.add({ message: `Hero demote: ${requested.length} requested, ${state.episodeIds.length} total` });
+		logCollector.addMessage(
+			`Hero demote: ${requested.length} requested, ${state.episodeIds.length} total`
+		);
 		logCollector.emit({ event: "hero_curation.delete_ok", outcome: "success" });
 		return c.json(state, 200);
 	} catch {

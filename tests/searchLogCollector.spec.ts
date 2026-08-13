@@ -72,7 +72,7 @@ describe("searchLogCollector", () => {
 		expect(infoSpy).not.toHaveBeenCalled();
 		expect(collector.hasFlushed()).toBe(true);
 		expect(errorSpy.mock.calls[0][0]).toMatchObject({
-			message: "search error",
+			message: "search missing_search",
 			errors: { unrecognisedSearchFilter: true, missingSearch: true }
 		});
 	});
@@ -83,9 +83,29 @@ describe("searchLogCollector", () => {
 		const payload = collector.emitWarn({ leech: true });
 		expect(warnSpy).toHaveBeenCalledOnce();
 		expect(payload).toMatchObject({
-			message: "search error",
+			message: "search leech",
 			errors: { leech: true }
 		});
+	});
+
+	it("primaryMessage distinguishes missing search and unrecognised filter", () => {
+		const missing = new searchLogCollector();
+		missing.add({ missingSearch: true, unrecognisedSearchFilter: true });
+		expect(missing.primaryMessage()).toBe("search missing_search");
+
+		const badFilter = new searchLogCollector();
+		badFilter.add({ unrecognisedSearchFilter: true, filter: "weird" });
+		expect(badFilter.primaryMessage()).toBe("search unrecognised_filter");
+	});
+
+	it("emitError with explicit message wins for bad_json paths", () => {
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const collector = new searchLogCollector();
+		collector.addMessage("bad_json");
+		const payload = collector.emitError({ message: "search bad_json error" });
+		expect(payload.message).toBe("search bad_json error");
+		expect(payload.messages).toEqual(["bad_json"]);
+		expect(errorSpy).toHaveBeenCalledOnce();
 	});
 
 	it("default emit level is info not log", () => {

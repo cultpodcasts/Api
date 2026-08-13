@@ -54,7 +54,7 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 		await prisma.submissions.create({ data: record });
 	} catch (e) {
 		if (e instanceof Prisma.PrismaClientKnownRequestError) {
-			logCollector.add({ message: `PrismaClientKnownRequestError code: '${e.code}'` });
+			logCollector.addMessage(`PrismaClientKnownRequestError code: '${e.code}'`);
 		}
 		logCollector.emitError({ event: "submit.d1_failed", outcome: "error" });
 		return c.json({ error: "Unable to accept" }, 400);
