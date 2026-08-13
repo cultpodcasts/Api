@@ -13,4 +13,6 @@ export interface ShortnerRecord {
     youtubeId?: string;
     /** YouTube / BBC iPlayer / Internet Archive → wide; Spotify/Apple/BBC Sounds → square. */
     imageAspect?: EpisodeShareImageAspect;
+    /** Comma-separated platforms for OG card chips (new KV writes only; never rewrite existing). */
+    platforms?: string;
 }

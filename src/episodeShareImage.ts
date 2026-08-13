@@ -187,8 +187,17 @@ export function shareImageFromStorage(stored: {
 	};
 }
 
-/** Logo drawn onto episode art for OG cards (production site asset). */
+/** Logo URL legacy constant — site icon fallback when no share art. */
 export const DEFAULT_OG_LOGO_URL = "https://cultpodcasts.com/assets/sq-image.png";
+
+export type OgCardMeta = {
+	title?: string;
+	podcast?: string;
+	duration?: string;
+	date?: string;
+	/** Comma-separated: youtube,spotify,apple,bbc */
+	platforms?: string;
+};
 
 const ALLOWED_SHARE_IMAGE_HOST_SUFFIXES = [
 	"i.ytimg.com",
@@ -213,17 +222,33 @@ export function parseOgImageAspect(value: string | undefined | null): EpisodeSha
 }
 
 /**
- * Page-details `image` for crawlers: Api Worker URL that overlays the logo via CF Images.
- * Falls back to the raw source if the Worker cannot transform (handled at /og-image).
+ * Page-details `image` for crawlers: Api Worker URL that composes the OG card
+ * (art + brand type + meta + platforms). Falls back to the raw source if render fails.
  */
 export function buildBrandedOgImageUrl(
 	apiRequestUrl: string,
 	sourceImageAbsoluteUrl: string,
-	aspect: EpisodeShareImageAspect = "square"
+	aspect: EpisodeShareImageAspect = "square",
+	meta?: OgCardMeta
 ): string {
 	const origin = new URL(apiRequestUrl).origin;
 	const url = new URL("/og-image", origin);
 	url.searchParams.set("u", sourceImageAbsoluteUrl);
 	url.searchParams.set("a", aspect);
+	if (meta?.title) {
+		url.searchParams.set("t", meta.title);
+	}
+	if (meta?.podcast) {
+		url.searchParams.set("p", meta.podcast);
+	}
+	if (meta?.duration) {
+		url.searchParams.set("d", meta.duration);
+	}
+	if (meta?.date) {
+		url.searchParams.set("r", meta.date);
+	}
+	if (meta?.platforms) {
+		url.searchParams.set("pl", meta.platforms);
+	}
 	return url.toString();
 }

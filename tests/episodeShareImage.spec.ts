@@ -149,15 +149,52 @@ describe("toShareImageStorage / shareImageFromStorage", () => {
 });
 
 describe("buildBrandedOgImageUrl / allowlist", () => {
-	it("builds Api /og-image URL with source and aspect query params", () => {
+	it("builds Api /og-image URL with source, aspect, and card meta query params", () => {
 		const branded = buildBrandedOgImageUrl(
 			"https://api.cultpodcasts.com/pagedetails/Show/abc",
 			"https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg",
-			"wide"
+			"wide",
+			{
+				title: "Sample Episode",
+				podcast: "Sample Show",
+				duration: "1:24:00",
+				date: "12/03/2026",
+				platforms: "youtube,spotify"
+			}
 		);
-		expect(branded).toBe(
-			"https://api.cultpodcasts.com/og-image?u=https%3A%2F%2Fi.ytimg.com%2Fvi%2Fgriffinsong42%2Fhqdefault.jpg&a=wide"
+		const url = new URL(branded);
+		expect(url.origin + url.pathname).toBe("https://api.cultpodcasts.com/og-image");
+		expect(url.searchParams.get("u")).toBe(
+			"https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg"
 		);
+		expect(url.searchParams.get("a")).toBe("wide");
+		expect(url.searchParams.get("t")).toBe("Sample Episode");
+		expect(url.searchParams.get("p")).toBe("Sample Show");
+		expect(url.searchParams.get("d")).toBe("1:24:00");
+		expect(url.searchParams.get("r")).toBe("12/03/2026");
+		expect(url.searchParams.get("pl")).toBe("youtube,spotify");
+	});
+
+	it("includes podcast, duration, and date for square aspect the same as wide", () => {
+		const branded = buildBrandedOgImageUrl(
+			"https://api.cultpodcasts.com/pagedetails/Show/abc",
+			"https://i.scdn.co/image/ab67616d0000b273abcdef0123456789abcdef01",
+			"square",
+			{
+				title: "Square Episode",
+				podcast: "Square Show",
+				duration: "42:00",
+				date: "30/07/2026",
+				platforms: "spotify,apple"
+			}
+		);
+		const url = new URL(branded);
+		expect(url.searchParams.get("a")).toBe("square");
+		expect(url.searchParams.get("t")).toBe("Square Episode");
+		expect(url.searchParams.get("p")).toBe("Square Show");
+		expect(url.searchParams.get("d")).toBe("42:00");
+		expect(url.searchParams.get("r")).toBe("30/07/2026");
+		expect(url.searchParams.get("pl")).toBe("spotify,apple");
 	});
 
 	it("allows known episode-art hosts and rejects others", () => {

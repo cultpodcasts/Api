@@ -4,6 +4,11 @@
   "account_id": "bae3f835f19899c6eee1ec48f2d658cf",
   "main": "src/index.ts",
   "compatibility_date": "2024-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "rules": [
+    { "type": "Data", "globs": ["**/*.woff", "**/*.ttf"], "fallthrough": true },
+    { "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallthrough": true }
+  ],
   "r2_buckets": [
     {
       "binding": "Content",
@@ -46,6 +51,9 @@
   },
   "vars": {
     "apiEnvironment": "production"
+  },
+  "images": {
+    "binding": "IMAGES"
   },
   "durable_objects": {
     "bindings": [
@@ -106,6 +114,9 @@
       },
       "vars": {
         "apiEnvironment": "preview"
+      },
+      "images": {
+        "binding": "IMAGES"
       },
       "r2_buckets": [
         {

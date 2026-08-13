@@ -10,17 +10,32 @@ import {
 	shareImageFromStorage,
 	toShareImageStorage
 } from "./episodeShareImage";
+import { inferOgPlatforms, serializeOgPlatforms } from "./ogCardPlatforms";
 
 /**
  * Page-details for SSR / OG tags.
  * - Existing shortener KV: never rewrite; use image for og:image only if already on the record.
  * - Missing KV: fall back to search, create the record (incl. search-index image encoding), then use it.
- * - When an image exists, `image` is the Api `/og-image` Worker URL (CF logo overlay + Free-tier fallback).
+ * - When an image exists, `image` is the Api `/og-image` composed-card URL.
  */
 function pageDetailsFromKv(podcastName: string, meta: ShortnerRecord, requestUrl: string): IPageDetails {
 	const share = shareImageFromStorage(meta);
+	const platforms =
+		meta.platforms ||
+		serializeOgPlatforms(
+			inferOgPlatforms({
+				youtubeId: meta.youtubeId,
+				image: meta.image
+			})
+		);
 	const image = share?.image
-		? buildBrandedOgImageUrl(requestUrl, share.image, share.imageAspect)
+		? buildBrandedOgImageUrl(requestUrl, share.image, share.imageAspect, {
+				title: meta.episodeTitle,
+				podcast: podcastName,
+				duration: meta.duration,
+				date: meta.releaseDate,
+				platforms: platforms || undefined
+			})
 		: undefined;
 	return {
 		description: podcastName,
@@ -98,13 +113,24 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
 			const dateComponents = (episode.release as string).split("T")[0].split("-");
 			const releaseDate = `${dateComponents[2]}/${dateComponents[1]}/${dateComponents[0]}`;
 			const storage = toShareImageStorage(episode);
+			const platforms = serializeOgPlatforms(
+				inferOgPlatforms({
+					youtube: episode.youtube,
+					youtubeId: episode.youtubeId ?? storage?.youtubeId,
+					spotify: episode.spotify,
+					apple: episode.apple,
+					bbc: episode.bbc,
+					image: storage?.image
+				})
+			);
 			const shortnerRecord: ShortnerRecord = {
 				episodeTitle: episode.episodeTitle,
 				releaseDate: releaseDate,
 				duration: episode.duration,
 				image: storage?.image,
 				youtubeId: storage?.youtubeId,
-				imageAspect: storage?.imageAspect
+				imageAspect: storage?.imageAspect,
+				platforms: platforms || undefined
 			};
 			logCollector.addMessage(
 				"Found item-in-search; creating new shortener KV (incl. share image when available)."
