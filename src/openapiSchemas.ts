@@ -614,7 +614,7 @@ export const pageDetailsResponseSchema = z.object({
 	duration: z.string().optional(),
 	/** Api `/og-image` URL (Satori composed card) when share art exists; crawlers may fall back to source. */
 	image: z.string().url().optional(),
-	/** wide (YouTube / BBC iPlayer / Internet Archive) → summary_large_image; square (Spotify/Apple/BBC Sounds) → summary. */
+	/** Canvas aspect for `/og-image` (wide vs square art). Website uses `summary_large_image` for both when episode art is shown. */
 	imageAspect: z.enum(["wide", "square"]).optional()
 });
 

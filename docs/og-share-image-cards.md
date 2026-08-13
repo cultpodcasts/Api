@@ -9,9 +9,10 @@ card** that embeds episode art and brand type.
 - Make shared short URLs (`s.cultpodcasts.com`) and episode pages read as Cult Podcasts,
   not anonymous art with a stock icon.
 - Keep crawlers working when render fails (307 to the source art URL).
-- Support two Twitter card modes already encoded as `imageAspect`:
-  - **wide** → `summary_large_image` (YouTube / BBC iPlayer / Internet Archive)
-  - **square** → `summary` (Spotify / Apple / BBC Sounds)
+- Support two `/og-image` canvas sizes via `imageAspect` (website always uses
+  `twitter:card=summary_large_image` when episode art is shown):
+  - **wide** (YouTube / BBC iPlayer / Internet Archive)
+  - **square** (Spotify / Apple / BBC Sounds)
 
 ## Non-goals
 
@@ -46,10 +47,10 @@ changes canvas size and type scale.
 | Left | Episode art sized to the **source aspect ratio**, fitted inside a max box — never cropped; no amber border |
 | Right | brand → episode name → podcast name → duration · date → **icon-only** platform row (packed, vertically centred) |
 
-| Aspect | Canvas | Art max box | Twitter card |
-|--------|--------|-------------|--------------|
+| Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
+|--------|--------|-------------|---------------------------------------|
 | `a=wide` | 1200×630 | 740×574 | `summary_large_image` |
-| `a=square` | 800×418 | 360×378 | `summary` |
+| `a=square` | 800×418 | 360×378 | `summary_large_image` |
 
 Displayed art width/height = source pixels scaled to fit the max box (`min` of both axes). Copy is packed top-to-bottom (icons under meta) and centred in the text column — no large void from `space-between`. Same composition for both aspects.
 

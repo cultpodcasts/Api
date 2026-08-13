@@ -4,9 +4,10 @@
  * KV shortener metadata stores that encoding + youtubeId; page-details expands to an absolute
  * HTTPS URL for og:image / twitter:image.
  *
- * Aspect for twitter:card:
- * - YouTube / BBC iPlayer / Internet Archive → wide (summary_large_image)
- * - Spotify / Apple / BBC Sounds → square (summary)
+ * Aspect for `/og-image` canvas (website always uses twitter:card summary_large_image
+ * when episode art is shown; site-icon fallback stays summary):
+ * - YouTube / BBC iPlayer / Internet Archive → wide
+ * - Spotify / Apple / BBC Sounds → square
  */
 
 const youtubeQualityByCode: Record<string, string> = {
