@@ -66,6 +66,37 @@ Both Workers use build command `./build.sh` and the same repo (`cultpodcasts/Api
 
 Dashboard: [api Builds](https://dash.cloudflare.com/bae3f835f19899c6eee1ec48f2d658cf/workers/services/view/api/production/settings) · [api-preview Builds](https://dash.cloudflare.com/bae3f835f19899c6eee1ec48f2d658cf/workers/services/view/api-preview/production/settings).
 
+## OG share-image cards
+
+Composed Cult Podcasts OG/Twitter cards (`GET /og-image`). Design: [docs/og-share-image-cards.md](docs/og-share-image-cards.md).
+
+### Local visual check
+
+1. Start the Worker:
+
+```bash
+npm run start
+```
+
+2. In another terminal, fetch sample wide + square PNGs (opens them):
+
+```bash
+npm run og:preview
+```
+
+Outputs land in `.tmp/og-preview/`. Against deployed preview:
+
+```bash
+npm run og:preview:preview
+```
+
+Tweak query params by editing `scripts/og-card-preview.ps1` or hit the URL directly, e.g.:
+
+`https://127.0.0.1:8787/og-image?u=…&a=square&t=…&pl=spotify,apple`
+
+(Local HTTPS uses the repo cert — the preview script passes `curl -k`.)
+
+
 ## Hero auto-promote (Azure M2M)
 
 Azure Functions append hero episodes via Auth0 M2M → `POST /hero-curation/episodes`. Committed defaults use **`https://api.cultpodcasts.com`**. Free-plan Bot Fight Mode can challenge M2M against the custom domain; production may temporarily use the Worker **workers.dev** host via Key Vault secret **`Api-Endpoint`** / Azure `api__Endpoint` only — **never commit a personal workers.dev URL**. Long-term: Pro WAF skip for Bearer on `/hero-curation`. Public browsers stay on the custom domain.

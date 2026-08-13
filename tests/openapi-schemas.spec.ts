@@ -7,6 +7,7 @@ import {
 	discoverySubmitRequestSchema,
 	discoverySubmitResponseSchema,
 	episodeChangeRequestSchema,
+	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
 	episodeListResponseSchema,
 	episodePublishRequestSchema,
@@ -170,6 +171,7 @@ describe("openapi Zod schemas", () => {
 			removed: false,
 			urls: { spotify: "https://open.spotify.com/episode/x" },
 			subjects: ["cult"],
+			hashTag: "#ScenarioTag",
 			matches: [{ subject: "cult", term: "cult", source: "title" }],
 			guestSuggestions: [{
 				person: { id: "550e8400-e29b-41d4-a716-446655440001", name: "Guest" },
@@ -177,6 +179,7 @@ describe("openapi Zod schemas", () => {
 			}]
 		});
 		expect(parsed.duration).toBe("01:30:00");
+		expect(parsed.hashTag).toBe("#ScenarioTag");
 		expect(parsed.matches?.[0].term).toBe("cult");
 		expect(parsed.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
 	});
@@ -276,8 +279,10 @@ describe("openapi Zod schemas", () => {
 			title: "Ep | Show",
 			description: "Show",
 			releaseDate: "01/07/2026",
-			duration: "01:00:00"
-		}).title).toContain("Show");
+			duration: "01:00:00",
+			image: "https://i.scdn.co/image/ab6765cover",
+			imageAspect: "square"
+		}).imageAspect).toBe("square");
 		expect(searchResponseSchema.parse({
 			"@odata.count": 1,
 			value: [{
@@ -300,10 +305,25 @@ describe("openapi Zod schemas", () => {
 		}).blueskyPost).toBe(true);
 	});
 
+	
+	it("accepts tweeted-only episodeDeleteBlockedSchema without posted", () => {
+		const parsed = episodeDeleteBlockedSchema.parse({
+			message: "Cannot delete a tweeted episode",
+			tweeted: true
+		});
+		expect(parsed.tweeted).toBe(true);
+		expect(parsed).not.toHaveProperty("posted");
+		expect(() => episodeDeleteBlockedSchema.parse({ posted: true, tweeted: true })).not.toThrow();
+		const stripped = episodeDeleteBlockedSchema.parse({ posted: true, tweeted: true });
+		expect(stripped.tweeted).toBe(true);
+		expect((stripped as { posted?: boolean }).posted).toBeUndefined();
+	});
+
 	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {
 		const parsed = episodeChangeRequestSchema.parse({
 			title: "New title",
 			unBluesky: true,
+			hashTag: "#Scenario",
 			urls: {
 				spotify: "https://open.spotify.com/episode/x",
 				apple: "",
@@ -313,6 +333,7 @@ describe("openapi Zod schemas", () => {
 			guests: ["Alice"]
 		});
 		expect(parsed.unBluesky).toBe(true);
+		expect(parsed.hashTag).toBe("#Scenario");
 		expect(parsed.urls?.apple).toBe("");
 		expect(parsed.images?.other).toBe("");
 	});

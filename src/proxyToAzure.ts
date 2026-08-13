@@ -36,6 +36,7 @@ export async function proxyToAzure(
 	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
+	logCollector.add({ route: opts.logName });
 
 	const successStatuses = opts.successStatuses ?? [200];
 	const forwardStatuses = opts.forwardStatuses ?? [];
@@ -73,34 +74,46 @@ export async function proxyToAzure(
 			logCollector.add({ status: resp.status });
 
 			if (successStatuses.includes(resp.status) || forwardStatuses.includes(resp.status)) {
-				logCollector.addMessage(`Successfully used ${opts.logName}.`);
-				console.log(logCollector.toEndpointLog());
+				logCollector.emit({
+					event: "proxy.success",
+					outcome: "success"
+				});
 				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 			}
 
 			if (opts.passthroughOtherStatuses) {
-				logCollector.addMessage(`Passthrough from ${opts.logName}.`);
-				console.log(logCollector.toEndpointLog());
+				logCollector.emit({
+					event: "proxy.passthrough",
+					outcome: "passthrough"
+				});
 				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 			}
 
-			logCollector.addMessage(`Failed to use ${opts.logName}.`);
-			console.error(logCollector.toEndpointLog());
+			logCollector.emitError({
+				event: "proxy.upstream_error",
+				outcome: "error"
+			});
 			return c.json({ error: "Error" }, 500);
 		}
 	} catch {
-		logCollector.addMessage(`Error in ${opts.logName}.`);
-		console.error(logCollector.toEndpointLog());
+		logCollector.emitError({
+			event: "proxy.exception",
+			outcome: "error"
+		});
 		return c.json({ error: "An error occurred" }, 500);
 	}
 
 	if (!auth0Payload) {
-		logCollector.addMessage(`Unauthorised to use ${opts.logName}.`);
-		console.error(logCollector.toEndpointLog());
+		logCollector.emitError({
+			event: "proxy.unauthorised",
+			outcome: "unauthorised"
+		});
 		return c.json({ error: "Unauthorised" }, 401);
 	}
 
-	logCollector.addMessage(`Forbidden to use ${opts.logName}.`);
-	console.error(logCollector.toEndpointLog());
+	logCollector.emitError({
+		event: "proxy.forbidden",
+		outcome: "forbidden"
+	});
 	return c.json({ error: "Forbidden" }, 403);
 }

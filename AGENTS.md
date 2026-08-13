@@ -2,6 +2,14 @@
 
 Cloudflare Worker gateway (`api` / `api-preview`) in front of Azure Functions (`api-infra`).
 
+## No deploys (HARD)
+
+**Never** run `wrangler deploy` / `npm run deploy` (preview or production) unless the user
+explicitly names that exact deploy in the current conversation. Git push to a PR branch is OK
+when asked; do not treat “enable” / “ship” / feature flips as deploy approval.
+
+- Rule: [`.cursor/rules/no-api-website-deploys.mdc`](.cursor/rules/no-api-website-deploys.mdc)
+
 ## Preview ↔ production secrets (HARD)
 
 Any new Worker secret for preview/staging **must** also be planned for production.

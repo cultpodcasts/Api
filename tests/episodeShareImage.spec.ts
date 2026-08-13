@@ -1,0 +1,206 @@
+import { describe, expect, it } from "vitest";
+import {
+	expandSearchImage,
+	resolveEpisodeShareImage,
+	shareImageFromStorage,
+	toShareImageStorage,
+	buildBrandedOgImageUrl,
+	isAllowedShareImageSourceHost
+} from "../src/episodeShareImage";
+
+describe("expandSearchImage (search-index encoding)", () => {
+	it("expands Spotify / Apple / YouTube tokens", () => {
+		expect(expandSearchImage("sab6765ferngully00cover", undefined))
+			.toBe("https://i.scdn.co/image/ab6765ferngully00cover");
+		expect(expandSearchImage("a3Music/draymoor/600x600bb.jpg", undefined))
+			.toBe("https://is3-ssl.mzstatic.com/image/thumb/Music/draymoor/600x600bb.jpg");
+		expect(expandSearchImage("yx", "griffinsong42"))
+			.toBe("https://i.ytimg.com/vi/griffinsong42/maxresdefault.jpg");
+	});
+
+	it("passes through absolute URLs unchanged", () => {
+		expect(expandSearchImage("https://feeds.example/art.jpg", undefined))
+			.toBe("https://feeds.example/art.jpg");
+	});
+});
+
+describe("resolveEpisodeShareImage", () => {
+	it("expands Spotify cover tokens to absolute square art", () => {
+		const share = resolveEpisodeShareImage({ image: "sab6765ferngully00cover" });
+		expect(share).toEqual({
+			image: "https://i.scdn.co/image/ab6765ferngully00cover",
+			imageAspect: "square"
+		});
+	});
+
+	it("expands Apple cover tokens to absolute square art", () => {
+		const share = resolveEpisodeShareImage({ image: "a3Music/draymoor/600x600bb.jpg" });
+		expect(share).toEqual({
+			image: "https://is3-ssl.mzstatic.com/image/thumb/Music/draymoor/600x600bb.jpg",
+			imageAspect: "square"
+		});
+	});
+
+	it("prefers YouTube hqdefault when youtubeId is set (wide card)", () => {
+		const share = resolveEpisodeShareImage({
+			image: "sab6765cover",
+			youtubeId: "griffinsong42"
+		});
+		expect(share).toEqual({
+			image: "https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg",
+			imageAspect: "wide"
+		});
+	});
+
+	it("expands compacted YouTube quality tokens with youtubeId", () => {
+		const share = resolveEpisodeShareImage({ image: "yh", youtubeId: "griffinsong42" });
+		expect(share).toEqual({
+			image: "https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg",
+			imageAspect: "wide"
+		});
+	});
+
+	it("passes through absolute YouTube URLs as wide", () => {
+		const share = resolveEpisodeShareImage({
+			image: "https://i.ytimg.com/vi/abc/hqdefault.jpg"
+		});
+		expect(share?.imageAspect).toBe("wide");
+		expect(share?.image).toContain("i.ytimg.com");
+	});
+
+	it("returns undefined when nothing is resolvable", () => {
+		expect(resolveEpisodeShareImage({})).toBeUndefined();
+		expect(resolveEpisodeShareImage({ image: "yx" })).toBeUndefined();
+	});
+
+	it("treats BBC iPlayer episodes as wide even with square cover art", () => {
+		const share = resolveEpisodeShareImage({
+			image: "sab6765cover",
+			bbc: "https://www.bbc.co.uk/iplayer/episode/p0example"
+		});
+		expect(share).toEqual({
+			image: "https://i.scdn.co/image/ab6765cover",
+			imageAspect: "wide"
+		});
+	});
+
+	it("treats BBC Sounds episodes as square", () => {
+		const share = resolveEpisodeShareImage({
+			image: "sab6765cover",
+			bbc: "https://www.bbc.co.uk/sounds/play/p0example"
+		});
+		expect(share).toEqual({
+			image: "https://i.scdn.co/image/ab6765cover",
+			imageAspect: "square"
+		});
+	});
+
+	it("treats Internet Archive episodes as wide even with square cover art", () => {
+		const share = resolveEpisodeShareImage({
+			image: "a3Music/draymoor/600x600bb.jpg",
+			internetArchive: "https://archive.org/details/example"
+		});
+		expect(share).toEqual({
+			image: "https://is3-ssl.mzstatic.com/image/thumb/Music/draymoor/600x600bb.jpg",
+			imageAspect: "wide"
+		});
+	});
+});
+
+describe("toShareImageStorage / shareImageFromStorage", () => {
+	it("stores search-index tokens and expands them back for page-details", () => {
+		const stored = toShareImageStorage({
+			image: "yx",
+			youtubeId: "griffinsong42"
+		});
+		expect(stored).toEqual({
+			image: "yx",
+			youtubeId: "griffinsong42",
+			imageAspect: "wide"
+		});
+		expect(shareImageFromStorage(stored!)).toEqual({
+			image: "https://i.ytimg.com/vi/griffinsong42/maxresdefault.jpg",
+			imageAspect: "wide"
+		});
+	});
+
+	it("stores Spotify tokens as-is for square episodes", () => {
+		const stored = toShareImageStorage({ image: "sab6765cover" });
+		expect(stored?.image).toBe("sab6765cover");
+		expect(shareImageFromStorage(stored!)?.image)
+			.toBe("https://i.scdn.co/image/ab6765cover");
+	});
+
+	it("stores absolute YouTube URL when index image is Spotify but youtubeId forces a frame", () => {
+		// Display prefers YT; search image stays Spotify — storage keeps the search token,
+		// expand path uses youtubeId → hqdefault for the absolute share URL.
+		const stored = toShareImageStorage({
+			image: "sab6765cover",
+			youtubeId: "griffinsong42"
+		});
+		expect(stored).toEqual({
+			image: "sab6765cover",
+			youtubeId: "griffinsong42",
+			imageAspect: "wide"
+		});
+		expect(shareImageFromStorage(stored!)?.image)
+			.toBe("https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg");
+	});
+});
+
+describe("buildBrandedOgImageUrl / allowlist", () => {
+	it("builds Api /og-image URL with source, aspect, and card meta query params", () => {
+		const branded = buildBrandedOgImageUrl(
+			"https://api.cultpodcasts.com/pagedetails/Show/abc",
+			"https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg",
+			"wide",
+			{
+				title: "Sample Episode",
+				podcast: "Sample Show",
+				duration: "1:24:00",
+				date: "12/03/2026",
+				platforms: "youtube,spotify"
+			}
+		);
+		const url = new URL(branded);
+		expect(url.origin + url.pathname).toBe("https://api.cultpodcasts.com/og-image");
+		expect(url.searchParams.get("u")).toBe(
+			"https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg"
+		);
+		expect(url.searchParams.get("a")).toBe("wide");
+		expect(url.searchParams.get("t")).toBe("Sample Episode");
+		expect(url.searchParams.get("p")).toBe("Sample Show");
+		expect(url.searchParams.get("d")).toBe("1:24:00");
+		expect(url.searchParams.get("r")).toBe("12/03/2026");
+		expect(url.searchParams.get("pl")).toBe("youtube,spotify");
+	});
+
+	it("includes podcast, duration, and date for square aspect the same as wide", () => {
+		const branded = buildBrandedOgImageUrl(
+			"https://api.cultpodcasts.com/pagedetails/Show/abc",
+			"https://i.scdn.co/image/ab67616d0000b273abcdef0123456789abcdef01",
+			"square",
+			{
+				title: "Square Episode",
+				podcast: "Square Show",
+				duration: "42:00",
+				date: "30/07/2026",
+				platforms: "spotify,apple"
+			}
+		);
+		const url = new URL(branded);
+		expect(url.searchParams.get("a")).toBe("square");
+		expect(url.searchParams.get("t")).toBe("Square Episode");
+		expect(url.searchParams.get("p")).toBe("Square Show");
+		expect(url.searchParams.get("d")).toBe("42:00");
+		expect(url.searchParams.get("r")).toBe("30/07/2026");
+		expect(url.searchParams.get("pl")).toBe("spotify,apple");
+	});
+
+	it("allows known episode-art hosts and rejects others", () => {
+		expect(isAllowedShareImageSourceHost("i.ytimg.com")).toBe(true);
+		expect(isAllowedShareImageSourceHost("i.scdn.co")).toBe(true);
+		expect(isAllowedShareImageSourceHost("is3-ssl.mzstatic.com")).toBe(true);
+		expect(isAllowedShareImageSourceHost("evil.example")).toBe(false);
+	});
+});

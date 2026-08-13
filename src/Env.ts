@@ -31,5 +31,23 @@ export type Env = {
 	Data: R2Bucket;
 	apiDB: D1Database;
 	Analytics: AnalyticsEngineDataset;
-	overrideHost: string | undefined | null
+	overrideHost: string | undefined | null;
+	/** Cloudflare Images binding (optional; OG card no longer requires it). */
+	IMAGES?: ImageBinding;
 };
+
+/** Minimal Images binding surface used by /og-image. */
+export interface ImageBinding {
+	input(
+		stream: ReadableStream<Uint8Array> | ArrayBuffer | Uint8Array
+	): ImageTransformer;
+}
+
+export interface ImageTransformer {
+	transform(options: Record<string, unknown>): ImageTransformer;
+	draw(
+		image: ImageTransformer | ReadableStream<Uint8Array> | ArrayBuffer | Uint8Array,
+		options?: Record<string, unknown>
+	): ImageTransformer;
+	output(options: Record<string, unknown>): Promise<{ response(): Response }>;
+}

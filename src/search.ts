@@ -29,15 +29,14 @@ export async function search(c: ActionContext): Promise<Response> {
 				});
 				searchLog.add({ searchStatus: response.status });
 				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-				searchLog.add({ searchStatus: response.status });
 				if (response.status != 200) {
-					console.error(searchLog.toSearchLog());
+					searchLog.emitError();
 					return c.json(response.body, 400);
 				}
 				let body: any = await response.json();
 				body["@odata.context"] = null;
 				if (searchLog.error) {
-					console.error(searchLog.toSearchLog());
+					searchLog.emitError();
 				} else {
 					if ((searchLog.mode == searchMode.shortnerFallback ||
 						searchLog.mode == searchMode.episode) &&
@@ -46,9 +45,16 @@ export async function search(c: ActionContext): Promise<Response> {
 					} else {
 						searchLog.add({ results: body.value?.length });
 					}
-					console.log(searchLog.toSearchLog());
+					searchLog.emit();
 				}
 				return c.json(body, 200);
+			})
+			.catch(() => {
+				if (!searchLog.hasFlushed()) {
+					searchLog.addMessage("bad_json");
+					searchLog.emitError({ message: "search bad_json error" });
+				}
+				return c.json({ error: "Bad request" }, 400);
 			});
 	} else {
 		return createLeachResponse(c, searchLog);
@@ -94,7 +100,6 @@ function createLeachResponse(c: ActionContext, searchLog: searchLogCollector) {
 		}]
 	};
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-	searchLog.add({ leech: true });
-	console.warn(searchLog.toSearchLog());
+	searchLog.emitWarn({ leech: true });
 	return c.json(leechResponse, 200);
 }
