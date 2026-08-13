@@ -13,13 +13,13 @@ describe("LogCollector", () => {
 	});
 
 	it("add and addMessage accumulate without writing to console", () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const collector = new LogCollector();
 		collector.add({ route: "getPeople" });
 		collector.addMessage("step-one");
 		collector.add({ event: "people.r2_error" });
-		expect(logSpy).not.toHaveBeenCalled();
+		expect(infoSpy).not.toHaveBeenCalled();
 		expect(errorSpy).not.toHaveBeenCalled();
 		expect(collector.toEndpointLog().messages).toEqual(["step-one"]);
 	});
@@ -34,8 +34,8 @@ describe("LogCollector", () => {
 		});
 	});
 
-	it("emit writes one structured log via console.log including traced messages", () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+	it("emit writes one structured log via console.info including traced messages", () => {
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 		const collector = new LogCollector();
 		collector.add({ route: "getPeople", asn: "1" });
 		collector.add({ event: "people.r2_error" });
@@ -56,18 +56,18 @@ describe("LogCollector", () => {
 			messages: ["azure attempted", "people.r2_error"],
 			request: { asn: "1" }
 		});
-		expect(logSpy).toHaveBeenCalledOnce();
-		expect(logSpy).toHaveBeenCalledWith(payload);
+		expect(infoSpy).toHaveBeenCalledOnce();
+		expect(infoSpy).toHaveBeenCalledWith(payload);
 	});
 
 	it("emit always sets message for Workers Logs Message column when omitted", () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 		const collector = new LogCollector();
 		collector.add({ route: "getBookmarks" });
 		const payload = collector.emit({ event: "bookmarks.ok", outcome: "success" });
 
 		expect(payload.message).toBe("getBookmarks bookmarks.ok success");
-		expect(logSpy.mock.calls[0][0]).toMatchObject({
+		expect(infoSpy.mock.calls[0][0]).toMatchObject({
 			message: "getBookmarks bookmarks.ok success",
 			event: "bookmarks.ok",
 			route: "getBookmarks"
@@ -84,13 +84,13 @@ describe("LogCollector", () => {
 
 	it("emitError uses console.error once; a second terminal emit is a no-op", () => {
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 		const collector = new LogCollector();
 		collector.emitError({ event: "people.forbidden", outcome: "forbidden", route: "getPeople" });
 		collector.emit({ event: "people.r2_hit", outcome: "success" });
 
 		expect(errorSpy).toHaveBeenCalledOnce();
-		expect(logSpy).not.toHaveBeenCalled();
+		expect(infoSpy).not.toHaveBeenCalled();
 		expect(collector.hasFlushed()).toBe(true);
 		expect(errorSpy.mock.calls[0][0]).toMatchObject({
 			message: "getPeople people.forbidden forbidden",
@@ -109,5 +109,13 @@ describe("LogCollector", () => {
 			message: "discovery_info.not_found not_found",
 			event: "discovery_info.not_found"
 		});
+	});
+
+	it("default emit level is info not log", () => {
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		new LogCollector().emit({ route: "getPeople", event: "people.ok", outcome: "success" });
+		expect(infoSpy).toHaveBeenCalledOnce();
+		expect(logSpy).not.toHaveBeenCalled();
 	});
 });

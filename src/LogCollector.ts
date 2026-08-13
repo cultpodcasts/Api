@@ -3,7 +3,7 @@ import { Auth0ActionContext } from "./Auth0ActionContext";
 import { endpointLog, EndpointLogOutcome } from "./endpointLog";
 import { endpointOperation } from "./endpointOperation";
 
-export type EndpointLogLevel = "log" | "warn" | "error";
+export type EndpointLogLevel = "info" | "warn" | "error";
 
 /** Filterable fields for structured Workers Logs emits. */
 export type StructuredLogProps = Pick<
@@ -19,6 +19,9 @@ export type StructuredLogProps = Pick<
  * Intermediate {@link add} / {@link addMessage} never touch `console.*`.
  * A second terminal emit is a no-op (keeps the first write) so abort handlers
  * cannot double-log after a successful finish.
+ *
+ * Default/success level is `console.info` so Cloudflare Observability Level
+ * shows `info` (not blank from `console.log`).
  */
 export class LogCollector implements endpointOperation {
 	private flushed = false;
@@ -111,7 +114,7 @@ export class LogCollector implements endpointOperation {
 
 	/**
 	 * Workers Logs Message column comes from the logged object's `message`
-	 * string. Object-only console.log leaves that column blank.
+	 * string. Object-only console.info leaves that column blank.
 	 */
 	primaryMessage(): string {
 		if (this.message && this.message.trim().length > 0) {
@@ -166,10 +169,10 @@ export class LogCollector implements endpointOperation {
 	}
 
 	/**
-	 * Terminal success/info write (`console.log`). Call once at end of request.
+	 * Terminal success/info write (`console.info`). Call once at end of request.
 	 */
 	emit(props?: StructuredLogProps): endpointLog {
-		return this.flush("log", props);
+		return this.flush("info", props);
 	}
 
 	/** Terminal warning write (`console.warn`). Call once at end of request. */
@@ -208,7 +211,7 @@ export class LogCollector implements endpointOperation {
 		} else if (level === "warn") {
 			console.warn(payload);
 		} else {
-			console.log(payload);
+			console.info(payload);
 		}
 		return payload;
 	}
