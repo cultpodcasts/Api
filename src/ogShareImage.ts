@@ -322,7 +322,7 @@ function cardHtml(input: {
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;min-height:${input.artHeight}px;${textPad}">
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;align-items:flex-start;min-width:0;height:${input.artHeight}px;${textPad}">
       ${titleHtml}
     </div>
   </div>
