@@ -1,3 +1,6 @@
+/** Figtree-safe hyphen (en dash). ASCII '-' can make Satori swap the whole title face. */
+export const OG_TITLE_HYPHEN = "\u2013";
+
 /** Longest whitespace-separated token length (URLs / compounds drive overflow risk). */
 export function longestTokenLength(text: string): number {
 	const tokens = text.trim().split(/\s+/).filter(Boolean);
@@ -83,7 +86,8 @@ export function layoutOgTitle(opts: {
 				return;
 			}
 			const take = Math.max(1, room - 1);
-			append(`${rest.slice(0, take)}-`);
+			// Figtree subset includes U+2013; ASCII '-' can make Satori pick another face.
+			append(`${rest.slice(0, take)}${OG_TITLE_HYPHEN}`);
 			flush();
 			rest = rest.slice(take);
 		}
@@ -116,7 +120,7 @@ export function layoutOgTitle(opts: {
 
 	if (overflow && lines.length > 0) {
 		let last = lines[lines.length - 1];
-		if (last.endsWith("-")) {
+		if (last.endsWith("-") || last.endsWith(OG_TITLE_HYPHEN)) {
 			last = last.slice(0, -1);
 		}
 		const maxChars = Math.max(2, Math.floor(maxW / glyph));

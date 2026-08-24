@@ -454,10 +454,10 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 			width: scale.width,
 			height: scale.height,
 			fonts: [
-				{ name: "Instrument Serif", data: instrumentSerifRegular, weight: 400, style: "normal" },
-				{ name: "Instrument Serif", data: instrumentSerifItalic, weight: 400, style: "italic" },
+				{ name: "Figtree", data: figtreeSemiBold, weight: 600, style: "normal" },
 				{ name: "Figtree", data: figtreeRegular, weight: 400, style: "normal" },
-				{ name: "Figtree", data: figtreeSemiBold, weight: 600, style: "normal" }
+				{ name: "Instrument Serif", data: instrumentSerifRegular, weight: 400, style: "normal" },
+				{ name: "Instrument Serif", data: instrumentSerifItalic, weight: 400, style: "italic" }
 			],
 			headers: {
 				"Cache-Control": "public, max-age=86400"

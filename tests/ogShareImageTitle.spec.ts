@@ -4,6 +4,7 @@ import {
 	fitOgWrappedText,
 	layoutOgTitle,
 	longestTokenLength,
+	OG_TITLE_HYPHEN,
 	ogTitleCharBudget,
 	truncateOgText
 } from "../src/ogShareImageText";
@@ -67,10 +68,12 @@ describe("layoutOgTitle", () => {
 		});
 		expect(lines.length).toBeGreaterThanOrEqual(2);
 		expect(lines.length).toBeLessThanOrEqual(3);
-		expect(lines.slice(0, -1).every((line) => line.endsWith("-"))).toBe(true);
-		expect(lines[lines.length - 1].endsWith("-")).toBe(false);
-		expect(lines[0].replace("-", "").length).toBeGreaterThanOrEqual(9);
-		expect(lines.join("").replaceAll("-", "")).toBe("Boroughboundaryreconsideration");
+		expect(lines.slice(0, -1).every((line) => line.endsWith(OG_TITLE_HYPHEN))).toBe(true);
+		expect(lines[lines.length - 1].endsWith(OG_TITLE_HYPHEN)).toBe(false);
+		expect(lines[0].replace(OG_TITLE_HYPHEN, "").length).toBeGreaterThanOrEqual(9);
+		expect(lines.join("").replaceAll(OG_TITLE_HYPHEN, "").replaceAll("-", "")).toBe(
+			"Boroughboundaryreconsideration"
+		);
 	});
 
 	it("ellipsizes when hyphenation would exceed maxLines", () => {
