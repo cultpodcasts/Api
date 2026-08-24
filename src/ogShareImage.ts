@@ -38,7 +38,7 @@ const CARD_SCALE = {
 		artMaxWidth: 720,
 		artMaxHeight: 500,
 		artRadius: 12,
-		iconGap: 14,
+		iconGap: 10,
 		iconRadius: 10,
 		/** Single-line brand; font > logo so Instrument Serif caps meet logo diameter. */
 		brandSize: 80,
@@ -60,7 +60,7 @@ const CARD_SCALE = {
 		iconsMarginTop: 0,
 		chromePadX: 40,
 		chromePadY: 14,
-		icon: 36,
+		icon: 32,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
 		titleMaxLines: 4,
@@ -285,15 +285,16 @@ function cardHtml(input: {
   </div>`;
 		} else if (input.wideLayout === "columns") {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:stretch;min-height:0;padding:2px ${padX}px 6px ${s.artPad}px;">
-    ${leftStack}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:space-between;min-width:0;overflow:hidden;${textPad}">
-      <div style="display:flex;flex-direction:column;">
-        ${titleHtml}
-        ${podcastHtml}
-      </div>
-      ${rowMetaHtml}
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:2px ${padX}px 2px ${s.artPad}px;">
+    ${artImg}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;${textPad}">
+      ${titleHtml}
+      ${podcastHtml}
     </div>
+  </div>
+  <div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;height:${s.icon}px;padding:0 ${padX}px 4px ${s.artPad}px;">
+    <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;height:${s.icon}px;">${chips}</div>
+    <div style="display:flex;flex-grow:1;align-items:center;height:${s.icon}px;${textPad}">${rowMetaHtml}</div>
   </div>`;
 		} else {
 			bodyAndFooter = `
