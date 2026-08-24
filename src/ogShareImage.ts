@@ -219,12 +219,12 @@ function wideBrandBarHtml(
 function titleLineRowHtml(line: string, fontSize: number): string {
 	const hyphenated = line.endsWith("-");
 	const text = hyphenated ? line.slice(0, -1) : line;
-	const hyphenW = Math.max(16, Math.round(fontSize * 0.32));
-	const hyphenH = Math.max(6, Math.round(fontSize * 0.1));
+	const hyphenW = Math.max(18, Math.round(fontSize * 0.36));
+	const hyphenH = Math.max(7, Math.round(fontSize * 0.12));
 	const hyphen = hyphenated
-		? `<div style="display:flex;width:${hyphenW}px;height:${hyphenH}px;background:${WHITE};margin:0 0 ${Math.round(fontSize * 0.2)}px 6px;flex-shrink:0;"></div>`
+		? `<div style="display:flex;width:${hyphenW}px;height:${hyphenH}px;background:${WHITE};margin:0 0 ${Math.round(fontSize * 0.08)}px 8px;flex-shrink:0;"></div>`
 		: "";
-	return `<div style="display:flex;flex-direction:row;flex-shrink:0;width:100%;align-items:flex-end;">
+	return `<div style="display:flex;flex-direction:row;flex-shrink:0;width:100%;align-items:center;">
     <div style="display:flex;font-family:Figtree;font-weight:600;">${escapeHtml(text)}</div>
     ${hyphen}
   </div>`;
