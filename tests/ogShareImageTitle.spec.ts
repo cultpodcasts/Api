@@ -4,7 +4,9 @@ import {
 	fitOgWrappedText,
 	layoutOgTitle,
 	longestTokenLength,
+	OG_TITLE_ELLIPSIS,
 	OG_TITLE_HYPHEN,
+	OG_WIDE_TITLE_PX,
 	ogTitleCharBudget,
 	truncateOgText
 } from "../src/ogShareImageText";
@@ -51,7 +53,7 @@ describe("countOgWrappedLines", () => {
 			countOgWrappedLines({
 				text: "Boroughboundaryreconsideration",
 				columnWidth: 364,
-				fontSize: 62,
+				fontSize: OG_WIDE_TITLE_PX,
 				maxLines: 5
 			})
 		).toBeGreaterThanOrEqual(2);
@@ -63,15 +65,15 @@ describe("layoutOgTitle", () => {
 		const { lines } = layoutOgTitle({
 			text: "Boroughboundaryreconsideration",
 			columnWidth: 364,
-			fontSize: 62,
+			fontSize: OG_WIDE_TITLE_PX,
 			maxLines: 5
 		});
 		expect(lines.length).toBeGreaterThanOrEqual(2);
-		expect(lines.length).toBeLessThanOrEqual(3);
+		expect(lines.length).toBeLessThanOrEqual(4);
 		expect(lines.slice(0, -1).every((line) => line.endsWith(OG_TITLE_HYPHEN))).toBe(true);
 		expect(lines[lines.length - 1].endsWith(OG_TITLE_HYPHEN)).toBe(false);
-		expect(lines[0].replace(OG_TITLE_HYPHEN, "").length).toBeGreaterThanOrEqual(9);
-		expect(lines.join("").replaceAll(OG_TITLE_HYPHEN, "").replaceAll("-", "")).toBe(
+		expect(lines[0].replaceAll(OG_TITLE_HYPHEN, "").length).toBeGreaterThanOrEqual(8);
+		expect(lines.join("").replaceAll(OG_TITLE_HYPHEN, "")).toBe(
 			"Boroughboundaryreconsideration"
 		);
 	});
@@ -80,11 +82,29 @@ describe("layoutOgTitle", () => {
 		const { lines } = layoutOgTitle({
 			text: "Briefly Briefly Briefly Briefly UncharacteristicallyLong",
 			columnWidth: 364,
-			fontSize: 62,
+			fontSize: OG_WIDE_TITLE_PX,
 			maxLines: 5
 		});
 		expect(lines.length).toBe(5);
-		expect(lines[lines.length - 1].endsWith("…")).toBe(true);
+		expect(lines[lines.length - 1].endsWith(OG_TITLE_ELLIPSIS)).toBe(true);
+	});
+
+	it("uses the same wide title size for a long word and a long sentence", () => {
+		expect(OG_WIDE_TITLE_PX).toBe(72);
+		const longWord = layoutOgTitle({
+			text: "Boroughboundaryreconsideration",
+			columnWidth: 364,
+			fontSize: OG_WIDE_TITLE_PX,
+			maxLines: 5
+		});
+		const longSentence = layoutOgTitle({
+			text: "Weekly briefing on why the fringe keeps winning every obscure borough race tonight after midnight",
+			columnWidth: 364,
+			fontSize: OG_WIDE_TITLE_PX,
+			maxLines: 5
+		});
+		expect(longWord.lines.length).toBeGreaterThan(1);
+		expect(longSentence.lines.length).toBeGreaterThan(1);
 	});
 });
 

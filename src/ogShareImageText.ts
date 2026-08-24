@@ -1,5 +1,13 @@
-/** Figtree-safe hyphen (en dash). ASCII '-' can make Satori swap the whole title face. */
-export const OG_TITLE_HYPHEN = "\u2013";
+/**
+ * ASCII hyphen-minus and three dots only. Punctuation outside Figtree’s
+ * basic set can make Satori paint the whole title in Instrument Serif
+ * (different face and optical size than a normal Figtree title).
+ */
+export const OG_TITLE_HYPHEN = "-";
+export const OG_TITLE_ELLIPSIS = "...";
+
+/** Wide-card episode titles always use this px so hyphenated and wrapped titles match. */
+export const OG_WIDE_TITLE_PX = 72;
 
 /** Longest whitespace-separated token length (URLs / compounds drive overflow risk). */
 export function longestTokenLength(text: string): number {
@@ -86,7 +94,6 @@ export function layoutOgTitle(opts: {
 				return;
 			}
 			const take = Math.max(1, room - 1);
-			// Figtree subset includes U+2013; ASCII '-' can make Satori pick another face.
 			append(`${rest.slice(0, take)}${OG_TITLE_HYPHEN}`);
 			flush();
 			rest = rest.slice(take);
@@ -120,15 +127,15 @@ export function layoutOgTitle(opts: {
 
 	if (overflow && lines.length > 0) {
 		let last = lines[lines.length - 1];
-		if (last.endsWith("-") || last.endsWith(OG_TITLE_HYPHEN)) {
-			last = last.slice(0, -1);
+		if (last.endsWith(OG_TITLE_HYPHEN)) {
+			last = last.slice(0, -OG_TITLE_HYPHEN.length);
 		}
 		const maxChars = Math.max(2, Math.floor(maxW / glyph));
-		if (last.length + 1 > maxChars) {
-			last = last.slice(0, Math.max(1, maxChars - 1));
+		if (last.length + OG_TITLE_ELLIPSIS.length > maxChars) {
+			last = last.slice(0, Math.max(1, maxChars - OG_TITLE_ELLIPSIS.length));
 		}
-		if (!last.endsWith("…")) {
-			lines[lines.length - 1] = `${last}…`;
+		if (!last.endsWith(OG_TITLE_ELLIPSIS)) {
+			lines[lines.length - 1] = `${last}${OG_TITLE_ELLIPSIS}`;
 		}
 	}
 

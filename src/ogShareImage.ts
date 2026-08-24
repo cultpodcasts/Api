@@ -10,7 +10,8 @@ import { fitArtWithin, readImageSize } from "./ogArtSize";
 import {
 	fitOgWrappedText,
 	layoutOgTitle,
-	longestTokenLength
+	longestTokenLength,
+	OG_WIDE_TITLE_PX
 } from "./ogShareImageText";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
@@ -50,8 +51,8 @@ const CARD_SCALE = {
 		brandMarginBottom: 4,
 		brandLogo: 88,
 		brandGap: 16,
-		titleLarge: 72,
-		titleSmall: 62,
+		titleLarge: OG_WIDE_TITLE_PX,
+		titleSmall: OG_WIDE_TITLE_PX,
 		titleThreshold: 90,
 		/** Soften type when any single token is this long (unspaced compounds / URLs). */
 		longWordThreshold: 22,
@@ -120,8 +121,13 @@ function escapeHtml(value: string): string {
 
 function titleFontSize(
 	title: string,
+	aspect: CardAspect,
 	s: (typeof CARD_SCALE)[CardAspect]
 ): number {
+	// Wide cards: one size for every title (hyphenated long-word and wrapped).
+	if (aspect === "wide") {
+		return OG_WIDE_TITLE_PX;
+	}
 	if (title.length > s.titleThreshold || longestTokenLength(title) >= s.longWordThreshold) {
 		return s.titleSmall;
 	}
@@ -228,7 +234,7 @@ function titleBlockHtml(
 	extraStyle = ""
 ): string {
 	const text = escapeHtml(lines.join("\n"));
-	return `<div style="display:flex;flex-direction:column;white-space:pre;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${fontSize}px;line-height:${lineHeight};${extraStyle}">${text}</div>`;
+	return `<div style="display:flex;flex-direction:column;white-space:pre;color:${WHITE};font-family:Figtree;font-weight:600;font-style:normal;letter-spacing:0;font-size:${fontSize}px;line-height:${lineHeight};${extraStyle}">${text}</div>`;
 }
 
 /**
@@ -248,7 +254,7 @@ function cardHtml(input: {
 	wideLayout: WideLayoutId;
 }): string {
 	const s = CARD_SCALE[input.aspect];
-	const titleSize = titleFontSize(input.title, s);
+	const titleSize = titleFontSize(input.title, input.aspect, s);
 	const titleColumnWidth =
 		input.aspect === "wide" && input.wideLayout === "columns"
 			? columnsTitleContentWidth(input.artWidth)
