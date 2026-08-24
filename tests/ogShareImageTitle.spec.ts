@@ -53,7 +53,7 @@ describe("countOgWrappedLines", () => {
 				fontSize: 62,
 				maxLines: 5
 			})
-		).toBeGreaterThanOrEqual(3);
+		).toBeGreaterThanOrEqual(2);
 	});
 });
 
@@ -65,9 +65,11 @@ describe("layoutOgTitle", () => {
 			fontSize: 62,
 			maxLines: 5
 		});
-		expect(lines.length).toBeGreaterThanOrEqual(3);
+		expect(lines.length).toBeGreaterThanOrEqual(2);
+		expect(lines.length).toBeLessThanOrEqual(3);
 		expect(lines.slice(0, -1).every((line) => line.endsWith("-"))).toBe(true);
 		expect(lines[lines.length - 1].endsWith("-")).toBe(false);
+		expect(lines[0].replace("-", "").length).toBeGreaterThanOrEqual(11);
 		expect(lines.join("").replaceAll("-", "")).toBe("Boroughboundaryreconsideration");
 	});
 

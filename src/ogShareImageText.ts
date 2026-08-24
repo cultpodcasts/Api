@@ -17,12 +17,15 @@ export function layoutOgTitle(opts: {
 	fontSize: number;
 	maxLines: number;
 	charWidthFactor?: number;
+	hyphenCharWidthFactor?: number;
 }): { lines: string[] } {
 	const words = opts.text.trim().split(/\s+/).filter(Boolean);
 	if (words.length === 0) {
 		return { lines: [""] };
 	}
 	const glyph = opts.fontSize * (opts.charWidthFactor ?? 0.56);
+	/** Instrument Serif (used for hyphenated titles) is narrower than Figtree 0.56. */
+	const hyphenGlyph = opts.fontSize * (opts.hyphenCharWidthFactor ?? 0.43);
 	const space = opts.fontSize * 0.22;
 	const maxW = opts.columnWidth;
 	const maxLines = Math.max(1, opts.maxLines);
@@ -58,6 +61,11 @@ export function layoutOgTitle(opts: {
 		}
 	};
 
+	const hyphenRoomChars = (): number => {
+		const roomPx = current ? maxW - currentW - space : maxW;
+		return Math.max(0, Math.floor(roomPx / hyphenGlyph));
+	};
+
 	const appendHyphenated = (word: string): void => {
 		let rest = word;
 		while (rest.length > 0) {
@@ -65,11 +73,11 @@ export function layoutOgTitle(opts: {
 				overflow = true;
 				return;
 			}
-			if (roomChars() < 2 && current) {
+			if (hyphenRoomChars() < 2 && current) {
 				flush();
 				continue;
 			}
-			const room = roomChars();
+			const room = hyphenRoomChars();
 			if (rest.length <= room) {
 				append(rest);
 				return;
