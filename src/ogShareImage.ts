@@ -215,6 +215,21 @@ function wideBrandBarHtml(
   </div>`;
 }
 
+/** One laid-out title line. The hyphen is a painted bar so it cannot disappear if the font lacks U+002D. */
+function titleLineRowHtml(line: string, fontSize: number): string {
+	const hyphenated = line.endsWith("-");
+	const text = hyphenated ? line.slice(0, -1) : line;
+	const hyphenW = Math.max(16, Math.round(fontSize * 0.32));
+	const hyphenH = Math.max(6, Math.round(fontSize * 0.1));
+	const hyphen = hyphenated
+		? `<div style="display:flex;width:${hyphenW}px;height:${hyphenH}px;background:${WHITE};margin:0 0 ${Math.round(fontSize * 0.2)}px 6px;flex-shrink:0;"></div>`
+		: "";
+	return `<div style="display:flex;flex-direction:row;flex-shrink:0;width:100%;align-items:flex-end;">
+    <div style="display:flex;font-family:Figtree;font-weight:600;">${escapeHtml(text)}</div>
+    ${hyphen}
+  </div>`;
+}
+
 /**
  * Wide cards: centred site mark on top (tight to the art). `wl=` picks chrome.
  * Square cards keep a compact right stack with larger meta type.
@@ -245,9 +260,7 @@ function cardHtml(input: {
 	});
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
-	const titleRows = titleLayout.lines
-		.map((line) => `<div style="display:flex;">${escapeHtml(line)}</div>`)
-		.join("");
+	const titleRows = titleLayout.lines.map((line) => titleLineRowHtml(line, titleSize)).join("");
 	const titleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;">${titleRows}</div>`;
 	const showNameFit = fitOgWrappedText({
 		text: input.podcast, // pragma: allowlist secret
@@ -326,11 +339,12 @@ function cardHtml(input: {
 				titleSize * s.titleLineHeight * titleLayout.lines.length
 			);
 			const titlePadTop = Math.max(0, Math.floor((input.artHeight - titleBlockHeight) / 2));
-			const columnsTitleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};">${titleRows}</div>`;
+			const columnsTitleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;flex-shrink:0;height:${titleBlockHeight}px;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};">${titleRows}</div>`;
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
-    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;justify-content:flex-start;min-width:0;padding:${titlePadTop}px ${s.textPaddingX}px 0 ${textPadLeft}px;">
+    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+      <div style="display:flex;width:100%;height:${titlePadTop}px;flex-shrink:0;"></div>
       ${columnsTitleHtml}
     </div>
   </div>
