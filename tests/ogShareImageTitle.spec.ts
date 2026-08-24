@@ -6,6 +6,7 @@ import {
 	longestTokenLength,
 	OG_TITLE_ELLIPSIS,
 	OG_TITLE_HYPHEN,
+	OG_SQUARE_TITLE_PX,
 	OG_WIDE_TITLE_PX,
 	ogTitleCharBudget,
 	truncateOgText
@@ -91,6 +92,8 @@ describe("layoutOgTitle", () => {
 
 	it("uses the same wide title size for a long word and a long sentence", () => {
 		expect(OG_WIDE_TITLE_PX).toBe(72);
+		expect(OG_SQUARE_TITLE_PX).toBe(48);
+		expect(OG_SQUARE_TITLE_PX).toBe(Math.round((OG_WIDE_TITLE_PX * 800) / 1200));
 		const longWord = layoutOgTitle({
 			text: "Boroughboundaryreconsideration",
 			columnWidth: 364,

@@ -37,8 +37,55 @@ show name              51 min  24 Aug 2026
                        [ yt  spotify  apple ]   ← same left edge as the title
 ```
 
-**Square** keeps a compact right column (brand, title, podcast, duration, date,
-icons) with the same larger date/duration type.
+**Square** (Spotify / Apple 1:1 art) uses the **same columns chrome** as wide,
+scaled by canvas width `800/1200`. See the style guide below.
+
+## Wide style guide (source of truth)
+
+Extrapolated from `CARD_SCALE.wide` + the default `wl=columns` path in
+`src/ogShareImage.ts`. Square must follow these relationships; it must not
+change these tokens.
+
+| Token | Wide value | Role |
+|-------|------------|------|
+| Canvas | 1200×630 | Twitter/OG large image |
+| Background | `#0b0d12` | Ink |
+| Brand typeface | Instrument Serif Regular | `CULT PODCASTS` only | <!-- pragma: allowlist secret -->
+| Brand colour | `#f5c056` | Amber |
+| Brand size | 96px, letter-spacing 0.4, line-height 0.85 | Caps meet logo |
+| Site logo | 88×88 | Left of brand wordmark |
+| Brand gap | 16px | Logo ↔ wordmark |
+| Brand bar | Horizontally centred; pad 12×40, extra 12px under | Top of card |
+| Title / show / meta typeface | Figtree Semibold 600 | Never fall back to Instrument Serif |
+| Title size | **72px** (one size for every title) | Hyphenated and wrapped match |
+| Title line-height | 1.1 | Explicit `\n` lines |
+| Title max lines | 5 | Then ASCII `...` |
+| Title colour | `#ffffff` | |
+| Title vertical align | Whole title block middle-aligned to **art height** (`margin-top` pad) | Satori ignores flex center |
+| Show name | Figtree 600, 48px (min 32), max 2 lines, under the art | Width = art width | <!-- pragma: allowlist secret -->
+| Show colour | `#f0f2f5` | |
+| Meta | Figtree 600, 28px, `51 min · 24 Aug 2026` | Colour `#e8ebf0` |
+| Platform icons | 32×32, gap 10 | Under meta, left-aligned with title |
+| Art max box | 700×440, radius 12 | Source aspect, no crop |
+| Art left pad | 28 | Flush-left, no frame |
+| Title column pads | 32 left (`gap+24`), 36 right, 40 chrome X | |
+| Footer pad | 8 top, 12 bottom, 40 right, 28 left | Show name \| meta+icons |
+
+**Layout (columns):**
+
+```
+            [logo 88] CULT PODCASTS 96            ← centred <!-- pragma: allowlist secret -->
+
+[ art ]               title 72 (v-centred to art)
+
+show 48               51 min · date 28 <!-- pragma: allowlist secret -->
+                      [icons 32]
+```
+
+Full token tables, faces, and alignment rules:
+[`docs/og-share-image-style-guide.md`](og-share-image-style-guide.md).
+**Square application** (do not edit wide): multiply linear tokens by `800/1200`
+(title 48, logo 59, brand 64, icons 21, art max 467×293, canvas 800×418).
 
 | Zone (wide) | Content |
 |-------------|---------|
@@ -59,7 +106,7 @@ Preview-only `wl=` wide variants (page-details does not send this; default is `c
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
 | `a=wide` | 1200×630 | 700×440 | `summary_large_image` |
-| `a=square` | 800×418 | 360×378 | `summary_large_image` |
+| `a=square` | 800×418 | 467×293 | `summary_large_image` |
 
 ## Query contract
 
@@ -89,7 +136,7 @@ GET /og-image
 | Type | **Instrument Serif** (brand) + **Figtree Semibold** (title / podcast / meta); site logo mark inline with brand | Matches website display/UI fonts |
 | Colour | Ink `#0b0d12`, amber brand `#f5c056`, secondary/meta `#f0f2f5` / `#e8ebf0` | High contrast on dark card |
 | Platform icons | Copied from website assets / `apple-podcasts-svg` (Apple purple person + arcs; Spotify Material green; YouTube play; BBC Sounds bars) | Must match site marks at chip size |
-| Long titles | Soft wrap; smaller type when long **or** any token ≥22 chars (wide); tokens wider than the column **hyphenate** at the column width; leftover copy after 5 lines (wide) / 3 (square) gets `…` | Soft-wrap-only overflow hid the ellipsis and sat long tokens high |
+| Long titles | One title size per canvas (72 wide / 48 square); tokens wider than the column **hyphenate**; leftover after 5 lines gets `...` | Soft-wrap-only overflow hid the ellipsis and sat long tokens high |
 | Failure | 307 → source `u` (+ `X-Og-Error` on preview/debug) | Crawlers still get an image |
 
 Do **not** use bare `@resvg/resvg-wasm` / Satori without module-bundled Yoga on Workers — that yields `Wasm code generation disallowed by embedder`.

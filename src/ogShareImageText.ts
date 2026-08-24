@@ -9,6 +9,9 @@ export const OG_TITLE_ELLIPSIS = "...";
 /** Wide-card episode titles always use this px so hyphenated and wrapped titles match. */
 export const OG_WIDE_TITLE_PX = 72;
 
+/** Square-card title: wide 72px scaled by canvas width (800/1200). */
+export const OG_SQUARE_TITLE_PX = 48;
+
 /** Longest whitespace-separated token length (URLs / compounds drive overflow risk). */
 export function longestTokenLength(text: string): number {
 	const tokens = text.trim().split(/\s+/).filter(Boolean);

@@ -10,9 +10,17 @@ import { fitArtWithin, readImageSize } from "./ogArtSize";
 import {
 	fitOgWrappedText,
 	layoutOgTitle,
-	longestTokenLength,
+	OG_SQUARE_TITLE_PX,
 	OG_WIDE_TITLE_PX
 } from "./ogShareImageText";
+import {
+	OG_SQUARE_STYLE,
+	OG_STYLE_COLORS,
+	OG_STYLE_FACES,
+	OG_WIDE_STYLE,
+	ogTitleFontSize,
+	ogTitlePadTop
+} from "./ogShareImageStyle";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
 import { parseWideLayout, type WideLayoutId } from "./ogWideLayout";
@@ -21,92 +29,98 @@ import instrumentSerifItalic from "./fonts/InstrumentSerif-Italic.woff";
 import figtreeRegular from "./fonts/Figtree-Regular.woff";
 import figtreeSemiBold from "./fonts/Figtree-SemiBold.woff";
 
-const INK = "#0b0d12";
-const AMBER = "#f5c056";
-const TEXT_SECONDARY = "#f0f2f5";
-const TEXT_META = "#e8ebf0";
-const WHITE = "#ffffff";
+const INK = OG_STYLE_COLORS.ink;
+const AMBER = OG_STYLE_COLORS.amber;
+const TEXT_SECONDARY = OG_STYLE_COLORS.showName;
+const TEXT_META = OG_STYLE_COLORS.meta;
+const WHITE = OG_STYLE_COLORS.title;
 
 type CardAspect = "wide" | "square";
 
 /** Flush-left art (no frame) + packed text column — same layout for both aspects. */
 const CARD_SCALE = {
 	wide: {
-		width: 1200,
-		height: 630,
+		width: OG_WIDE_STYLE.canvasWidth,
+		height: OG_WIDE_STYLE.canvasHeight,
 		/** Outer pad around the text column only; art bleeds to the left edge. */
-		textPaddingX: 36,
-		textPaddingY: 40,
-		artPad: 28,
-		gap: 8,
+		textPaddingX: OG_WIDE_STYLE.textPaddingX,
+		textPaddingY: OG_WIDE_STYLE.textPaddingY,
+		artPad: OG_WIDE_STYLE.artPad,
+		gap: OG_WIDE_STYLE.gap,
 		/** Max box for episode art; displayed size keeps the source aspect ratio. */
-		artMaxWidth: 700,
-		artMaxHeight: 440,
-		artRadius: 12,
-		iconGap: 10,
-		iconRadius: 10,
+		artMaxWidth: OG_WIDE_STYLE.artMaxWidth,
+		artMaxHeight: OG_WIDE_STYLE.artMaxHeight,
+		artRadius: OG_WIDE_STYLE.artRadius,
+		iconGap: OG_WIDE_STYLE.iconGap,
+		iconRadius: OG_WIDE_STYLE.iconRadius,
 		/** Single-line brand; font > logo so Instrument Serif caps meet logo diameter. */
-		brandSize: 96,
-		brandLetterSpacing: 0.4,
-		brandMarginBottom: 4,
-		brandLogo: 88,
-		brandGap: 16,
+		brandSize: OG_WIDE_STYLE.brandSize,
+		brandLetterSpacing: OG_WIDE_STYLE.brandLetterSpacing,
+		brandMarginBottom: OG_WIDE_STYLE.brandMarginBottom,
+		brandLogo: OG_WIDE_STYLE.brandLogo,
+		brandGap: OG_WIDE_STYLE.brandGap,
 		titleLarge: OG_WIDE_TITLE_PX,
 		titleSmall: OG_WIDE_TITLE_PX,
 		titleThreshold: 90,
 		/** Soften type when any single token is this long (unspaced compounds / URLs). */
 		longWordThreshold: 22,
-		titleLineHeight: 1.1,
-		titleMarginBottom: 12,
-		podcastSize: 48, // pragma: allowlist secret
-		podcastSizeMin: 32, // pragma: allowlist secret
-		podcastMaxLines: 2, // pragma: allowlist secret
-		podcastMarginBottom: 0, // pragma: allowlist secret
-		metaSize: 28,
+		titleLineHeight: OG_WIDE_STYLE.titleLineHeight,
+		titleMarginBottom: OG_WIDE_STYLE.titleMarginBottom,
+		podcastSize: OG_WIDE_STYLE.podcastSize, // pragma: allowlist secret
+		podcastSizeMin: OG_WIDE_STYLE.podcastSizeMin, // pragma: allowlist secret
+		podcastMaxLines: OG_WIDE_STYLE.podcastMaxLines, // pragma: allowlist secret
+		podcastMarginBottom: OG_WIDE_STYLE.podcastMarginBottom, // pragma: allowlist secret
+		metaSize: OG_WIDE_STYLE.metaSize,
 		metaLetterSpacing: 0,
 		iconsMarginTop: 0,
-		chromePadX: 40,
-		chromePadY: 12,
-		icon: 32,
+		chromePadX: OG_WIDE_STYLE.chromePadX,
+		chromePadY: OG_WIDE_STYLE.chromePadY,
+		icon: OG_WIDE_STYLE.icon,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
-		titleMaxLines: 5,
+		titleMaxLines: OG_WIDE_STYLE.titleMaxLines,
 		podcastMax: 80 // pragma: allowlist secret
 	},
+	/**
+	 * Square canvas (Spotify / Apple art). Chrome is the wide columns style guide
+	 * scaled by 800/1200 (see docs/og-share-image-cards.md). Do not change `wide`.
+	 */
 	square: {
-		width: 800,
-		height: 418,
-		textPaddingX: 28,
-		textPaddingY: 28,
-		artPad: 20,
-		gap: 4,
-		artMaxWidth: 360,
-		artMaxHeight: 378,
-		artRadius: 10,
-		icon: 36,
-		iconGap: 8,
-		iconRadius: 8,
-		brandSize: 44,
-		brandLetterSpacing: 0.3,
-		brandMarginBottom: 10,
-		brandLogo: 32,
-		brandGap: 10,
-		titleLarge: 34,
-		titleSmall: 28,
-		titleThreshold: 40,
-		longWordThreshold: 14,
-		titleLineHeight: 1.14,
-		titleMarginBottom: 8,
-		podcastSize: 20, // pragma: allowlist secret
-		podcastSizeMin: 15, // pragma: allowlist secret
-		podcastMaxLines: 2, // pragma: allowlist secret
-		podcastMarginBottom: 6, // pragma: allowlist secret
-		metaSize: 22,
+		width: OG_SQUARE_STYLE.canvasWidth,
+		height: OG_SQUARE_STYLE.canvasHeight,
+		textPaddingX: OG_SQUARE_STYLE.textPaddingX,
+		textPaddingY: OG_SQUARE_STYLE.textPaddingY,
+		artPad: OG_SQUARE_STYLE.artPad,
+		gap: OG_SQUARE_STYLE.gap,
+		artMaxWidth: OG_SQUARE_STYLE.artMaxWidth,
+		artMaxHeight: OG_SQUARE_STYLE.artMaxHeight,
+		artRadius: OG_SQUARE_STYLE.artRadius,
+		iconGap: OG_SQUARE_STYLE.iconGap,
+		iconRadius: OG_SQUARE_STYLE.iconRadius,
+		brandSize: OG_SQUARE_STYLE.brandSize,
+		brandLetterSpacing: OG_SQUARE_STYLE.brandLetterSpacing,
+		brandMarginBottom: OG_SQUARE_STYLE.brandMarginBottom,
+		brandLogo: OG_SQUARE_STYLE.brandLogo,
+		brandGap: OG_SQUARE_STYLE.brandGap,
+		titleLarge: OG_SQUARE_TITLE_PX,
+		titleSmall: OG_SQUARE_TITLE_PX,
+		titleThreshold: 90,
+		longWordThreshold: 22,
+		titleLineHeight: OG_SQUARE_STYLE.titleLineHeight,
+		titleMarginBottom: OG_SQUARE_STYLE.titleMarginBottom,
+		podcastSize: OG_SQUARE_STYLE.podcastSize, // pragma: allowlist secret
+		podcastSizeMin: OG_SQUARE_STYLE.podcastSizeMin, // pragma: allowlist secret
+		podcastMaxLines: OG_SQUARE_STYLE.podcastMaxLines, // pragma: allowlist secret
+		podcastMarginBottom: OG_SQUARE_STYLE.podcastMarginBottom, // pragma: allowlist secret
+		metaSize: OG_SQUARE_STYLE.metaSize,
 		metaLetterSpacing: 0,
-		iconsMarginTop: 20,
-		titleMax: 110,
-		titleMaxLines: 3,
-		podcastMax: 48 // pragma: allowlist secret
+		iconsMarginTop: 0,
+		chromePadX: OG_SQUARE_STYLE.chromePadX,
+		chromePadY: OG_SQUARE_STYLE.chromePadY,
+		icon: OG_SQUARE_STYLE.icon,
+		titleMax: 140,
+		titleMaxLines: OG_SQUARE_STYLE.titleMaxLines,
+		podcastMax: 80 // pragma: allowlist secret
 	}
 } as const;
 
@@ -119,19 +133,8 @@ function escapeHtml(value: string): string {
 		.replaceAll("'", "&#39;");
 }
 
-function titleFontSize(
-	title: string,
-	aspect: CardAspect,
-	s: (typeof CARD_SCALE)[CardAspect]
-): number {
-	// Wide cards: one size for every title (hyphenated long-word and wrapped).
-	if (aspect === "wide") {
-		return OG_WIDE_TITLE_PX;
-	}
-	if (title.length > s.titleThreshold || longestTokenLength(title) >= s.longWordThreshold) {
-		return s.titleSmall;
-	}
-	return s.titleLarge;
+function titleFontSize(_title: string, aspect: CardAspect): number {
+	return ogTitleFontSize(aspect);
 }
 
 /** Content width of the text column (art flush-left; padding on the copy side only). */
@@ -143,7 +146,14 @@ function textColumnContentWidth(aspect: CardAspect, artWidth: number): number {
 /** Title column on the default wide layout, including the body row's right pad. */
 function columnsTitleContentWidth(artWidth: number): number {
 	const s = CARD_SCALE.wide;
-	const textPadLeft = s.gap + 24;
+	const textPadLeft = s.gap + OG_WIDE_STYLE.titleColumnPadLeftExtra;
+	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
+}
+
+/** Title column on the square card (wide columns chrome, scaled). */
+function squareColumnsTitleContentWidth(artWidth: number): number {
+	const s = CARD_SCALE.square;
+	const textPadLeft = s.gap + OG_SQUARE_STYLE.titleColumnPadLeftExtra;
 	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
 }
 
@@ -160,7 +170,7 @@ function defaultArtSize(aspect: CardAspect): { width: number; height: number } {
 	if (aspect === "wide") {
 		return fitArtWithin(16, 9, s.artMaxWidth, s.artMaxHeight);
 	}
-	return { width: s.artMaxWidth, height: s.artMaxHeight };
+	return fitArtWithin(1, 1, s.artMaxWidth, s.artMaxHeight);
 }
 
 async function imageBytesToDataUrl(bytes: ArrayBuffer, contentType: string): Promise<string> {
@@ -189,13 +199,6 @@ function platformChipsHtml(platforms: OgPlatform[], size: number, gap: number, _
 }
 
 
-function brandBarHtml(s: (typeof CARD_SCALE)[CardAspect], logo: string): string {
-	return `<div style="display:flex;flex-direction:row;align-items:center;gap:${s.brandGap}px;margin-bottom:${s.brandMarginBottom}px;flex-shrink:0;">
-      <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
-      <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
-    </div>`;
-}
-
 function metaPartsHtml(duration: string, date: string, size: number, row: boolean): string {
 	const parts = [duration, date].filter((part) => part.length > 0);
 	if (parts.length === 0) {
@@ -204,10 +207,10 @@ function metaPartsHtml(duration: string, date: string, size: number, row: boolea
 	return parts
 		.map(
 			(part, i) =>
-				`<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${size}px;line-height:1.2;${row ? "" : i > 0 ? "margin-top:6px;" : ""}word-break:break-word;">${escapeHtml(part)}</div>`
+				`<div style="display:flex;color:${TEXT_META};font-family:${OG_STYLE_FACES.ui};font-weight:${OG_STYLE_FACES.titleWeight};font-size:${size}px;line-height:1.2;${row ? "" : i > 0 ? "margin-top:6px;" : ""}word-break:break-word;">${escapeHtml(part)}</div>`
 		)
 		.join(row && parts.length === 2
-			? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${size}px;line-height:1.2;">·</div>`
+			? `<div style="display:flex;color:${TEXT_META};font-family:${OG_STYLE_FACES.ui};font-weight:${OG_STYLE_FACES.titleWeight};font-size:${size}px;line-height:1.2;">·</div>`
 			: "");
 }
 
@@ -215,9 +218,9 @@ function wideBrandBarHtml(
 	s: (typeof CARD_SCALE)["wide"],
 	logo: string
 ): string {
-	return `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${s.chromePadY}px ${s.chromePadX}px 12px ${s.chromePadX}px;">
+	return `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${s.chromePadY}px ${s.chromePadX}px ${OG_WIDE_STYLE.brandBarExtraBottom}px ${s.chromePadX}px;">
     <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
-    <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
+    <div style="display:flex;color:${AMBER};font-family:'${OG_STYLE_FACES.brand}';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:${OG_WIDE_STYLE.brandLineHeight};white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
   </div>`;
 }
 
@@ -234,12 +237,12 @@ function titleBlockHtml(
 	extraStyle = ""
 ): string {
 	const text = escapeHtml(lines.join("\n"));
-	return `<div style="display:flex;flex-direction:column;white-space:pre;color:${WHITE};font-family:Figtree;font-weight:600;font-style:normal;letter-spacing:0;font-size:${fontSize}px;line-height:${lineHeight};${extraStyle}">${text}</div>`;
+	return `<div style="display:flex;flex-direction:column;white-space:pre;color:${WHITE};font-family:${OG_STYLE_FACES.ui};font-weight:${OG_STYLE_FACES.titleWeight};font-style:normal;letter-spacing:0;font-size:${fontSize}px;line-height:${lineHeight};${extraStyle}">${text}</div>`;
 }
 
 /**
  * Wide cards: centred site mark on top (tight to the art). `wl=` picks chrome.
- * Square cards keep a compact right stack with larger meta type.
+ * Square cards use the same columns chrome, scaled (see style guide in docs).
  */
 function cardHtml(input: {
 	aspect: CardAspect;
@@ -254,11 +257,13 @@ function cardHtml(input: {
 	wideLayout: WideLayoutId;
 }): string {
 	const s = CARD_SCALE[input.aspect];
-	const titleSize = titleFontSize(input.title, input.aspect, s);
+	const titleSize = titleFontSize(input.title, input.aspect);
 	const titleColumnWidth =
 		input.aspect === "wide" && input.wideLayout === "columns"
 			? columnsTitleContentWidth(input.artWidth)
-			: textColumnContentWidth(input.aspect, input.artWidth);
+			: input.aspect === "square"
+				? squareColumnsTitleContentWidth(input.artWidth)
+				: textColumnContentWidth(input.aspect, input.artWidth);
 	const titleLayout = layoutOgTitle({
 		text: input.title,
 		columnWidth: titleColumnWidth,
@@ -272,32 +277,26 @@ function cardHtml(input: {
 	const showNameFit = fitOgWrappedText({
 		text: input.podcast, // pragma: allowlist secret
 		columnWidth:
-			input.aspect === "wide"
+			input.aspect === "wide" || input.aspect === "square"
 				? input.artWidth
 				: textColumnContentWidth(input.aspect, input.artWidth),
 		sizes: [s.podcastSize, Math.round((s.podcastSize + s.podcastSizeMin) / 2), s.podcastSizeMin], // pragma: allowlist secret
 		maxLines: s.podcastMaxLines // pragma: allowlist secret
 	});
-	const showNameLineHeight = 1.15;
+	const showNameLineHeight = OG_WIDE_STYLE.podcastLineHeight;
 	const showNameMaxHeight = Math.ceil(showNameFit.fontSize * showNameLineHeight * s.podcastMaxLines);
 	const podcastHtml = showNameFit.text // pragma: allowlist secret
-		? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${showNameFit.fontSize}px;line-height:${showNameLineHeight};margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${showNameMaxHeight}px;overflow:hidden;">${escapeHtml(showNameFit.text)}</div>` // pragma: allowlist secret
-		: "";
-	const durationHtml = input.duration
-		? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;line-height:1.25;word-break:break-word;">${escapeHtml(input.duration)}</div>`
-		: "";
-	const dateHtml = input.date
-		? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;line-height:1.25;margin-top:6px;word-break:break-word;">${escapeHtml(input.date)}</div>`
+		? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:${OG_STYLE_FACES.ui};font-weight:${OG_STYLE_FACES.titleWeight};font-size:${showNameFit.fontSize}px;line-height:${showNameLineHeight};margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${showNameMaxHeight}px;overflow:hidden;">${escapeHtml(showNameFit.text)}</div>` // pragma: allowlist secret
 		: "";
 
 	if (input.aspect === "wide") {
 		const padX = s.chromePadX;
 		const padY = s.chromePadY;
-		const textPadLeft = s.gap + 24;
+		const textPadLeft = s.gap + OG_WIDE_STYLE.titleColumnPadLeftExtra;
 		const rowMeta = metaPartsHtml(input.duration, input.date, s.metaSize, true);
 		const stackMeta = metaPartsHtml(input.duration, input.date, s.metaSize, false);
 		const rowMetaHtml = rowMeta
-			? `<div style="display:flex;flex-direction:row;align-items:center;gap:16px;flex-shrink:0;">${rowMeta}</div>`
+			? `<div style="display:flex;flex-direction:row;align-items:center;gap:${OG_WIDE_STYLE.metaRowGap}px;flex-shrink:0;">${rowMeta}</div>`
 			: "";
 		const artImg = `<img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />`;
 		const leftStack = `<div style="display:flex;flex-direction:column;flex-shrink:0;align-items:flex-start;gap:4px;">
@@ -329,7 +328,7 @@ function cardHtml(input: {
 		} else if (input.wideLayout === "columns") {
 			const footerMeta =
 				rowMetaHtml || chips
-					? `<div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;">
+					? `<div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:${OG_WIDE_STYLE.footerMetaGap}px;">
       ${rowMetaHtml}
       ${chips}
     </div>`
@@ -337,13 +336,13 @@ function cardHtml(input: {
 			const showName = podcastHtml; // pragma: allowlist secret
 			const showFooter =
 				showName || footerMeta
-					? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:8px ${padX}px ${padY}px ${s.artPad}px;">
+					? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:${OG_WIDE_STYLE.footerPadTop}px ${padX}px ${padY}px ${s.artPad}px;">
     <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;">${showName}</div>
     <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
   </div>`
 					: "";
 			const titleBlockHeight = titleLineBox * titleLayout.lines.length;
-			const titlePadTop = Math.max(0, Math.floor((input.artHeight - titleBlockHeight) / 2));
+			const titlePadTop = ogTitlePadTop(input.artHeight, titleLineBox, titleLayout.lines.length);
 			const columnsTitleHtml = titleBlockHtml(
 				titleLayout.lines,
 				titleSize,
@@ -351,7 +350,7 @@ function cardHtml(input: {
 				`flex-shrink:0;margin-top:${titlePadTop}px;height:${titleBlockHeight}px;`
 			);
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px ${OG_WIDE_STYLE.bodyPadBottom}px ${s.artPad}px;">
     ${artImg}
     <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
       ${columnsTitleHtml}
@@ -374,25 +373,59 @@ function cardHtml(input: {
 	}`;
 		}
 		return `
-<div style="display:flex;flex-direction:column;width:${s.width}px;height:${s.height}px;background:${INK};font-family:Figtree;">
-  ${wideBrandBarHtml(s, logo)}
+<div style="display:flex;flex-direction:column;width:${s.width}px;height:${s.height}px;background:${INK};font-family:${OG_STYLE_FACES.ui};">
+  ${wideBrandBarHtml(CARD_SCALE.wide, logo)}
   ${bodyAndFooter}
 </div>`;
 	}
 
+	const sq = CARD_SCALE.square;
+	const padX = sq.chromePadX;
+	const padY = sq.chromePadY;
+	const textPadLeft = sq.gap + OG_SQUARE_STYLE.titleColumnPadLeftExtra;
+	const rowMeta = metaPartsHtml(input.duration, input.date, sq.metaSize, true);
+	const rowMetaHtml = rowMeta
+		? `<div style="display:flex;flex-direction:row;align-items:center;gap:${OG_SQUARE_STYLE.metaRowGap}px;flex-shrink:0;">${rowMeta}</div>`
+		: "";
+	const artImg = `<img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${sq.artRadius}px;flex-shrink:0;" />`;
+	const textPad = `padding:0 ${sq.textPaddingX}px 0 ${textPadLeft}px;`;
+	const footerMeta =
+		rowMetaHtml || chips
+			? `<div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:${OG_SQUARE_STYLE.footerMetaGap}px;">
+      ${rowMetaHtml}
+      ${chips}
+    </div>`
+			: "";
+	const showName = podcastHtml; // pragma: allowlist secret
+	const showFooter =
+		showName || footerMeta
+			? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}px ${padX}px ${padY}px ${sq.artPad}px;">
+    <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;">${showName}</div>
+    <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
+  </div>`
+			: "";
+	const titleBlockHeight = titleLineBox * titleLayout.lines.length;
+	const titlePadTop = ogTitlePadTop(input.artHeight, titleLineBox, titleLayout.lines.length);
+	const columnsTitleHtml = titleBlockHtml(
+		titleLayout.lines,
+		titleSize,
+		sq.titleLineHeight,
+		`flex-shrink:0;margin-top:${titlePadTop}px;height:${titleBlockHeight}px;`
+	);
+	const squareBrand = `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${sq.brandGap}px;flex-shrink:0;padding:${sq.chromePadY}px ${sq.chromePadX}px ${OG_SQUARE_STYLE.brandBarExtraBottom}px ${sq.chromePadX}px;">
+    <img src="${logo}" width="${sq.brandLogo}" height="${sq.brandLogo}" style="width:${sq.brandLogo}px;height:${sq.brandLogo}px;flex-shrink:0;" />
+    <div style="display:flex;color:${AMBER};font-family:'${OG_STYLE_FACES.brand}';font-size:${sq.brandSize}px;letter-spacing:${sq.brandLetterSpacing}px;line-height:${OG_SQUARE_STYLE.brandLineHeight};white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
+  </div>`;
 	return `
-<div style="display:flex;flex-direction:row;width:${s.width}px;height:${s.height}px;background:${INK};font-family:Figtree;align-items:center;">
-  <div style="display:flex;flex-shrink:0;padding:${s.artPad}px 0 ${s.artPad}px ${s.artPad}px;">
-    <img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />
+<div style="display:flex;flex-direction:column;width:${sq.width}px;height:${sq.height}px;background:${INK};font-family:${OG_STYLE_FACES.ui};">
+  ${squareBrand}
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px ${OG_SQUARE_STYLE.bodyPadBottom}px ${sq.artPad}px;">
+    ${artImg}
+    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;padding:0 ${sq.textPaddingX}px 0 ${textPadLeft}px;">
+      ${columnsTitleHtml}
+    </div>
   </div>
-  <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:${s.textPaddingY}px ${s.textPaddingX}px ${s.textPaddingY}px ${s.gap + 20}px;">
-    ${brandBarHtml(s, logo)}
-    ${titleHtml}
-    ${podcastHtml}
-    ${durationHtml}
-    ${dateHtml}
-    ${chips ? `<div style="display:flex;margin-top:${s.iconsMarginTop}px;flex-shrink:0;">${chips}</div>` : ""}
-  </div>
+  ${showFooter}
 </div>`;
 }
 
