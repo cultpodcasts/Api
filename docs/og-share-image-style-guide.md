@@ -48,10 +48,19 @@ show 48                51 min · date 28
                        [icons 32]
 ```
 
-## Square application (`800×418`)
+## Episode image height (standard)
 
-Canvas stays **800×418** (not `630 × 2/3`). Every other linear token is
-`Math.round(wide × 800/1200)`:
+Episode art uses a **fixed max height**: the current wide box
+(`OG_WIDE_STYLE.artMaxHeight` = **440**). Square must not shrink art to fit a
+shorter canvas. Square 1:1 art is **440×440**; canvas **height grows**
+(`squareCanvasHeight` = brand + 440 + footer).
+
+## Square application
+
+Canvas **width** stays **800** (not `1200 × 2/3`). Canvas **height** is
+`squareCanvasHeight()` (brand + fixed 440 art + footer), not a fixed 418.
+Every other linear token (type, pads, icons, radius) is
+`Math.round(wide × 800/1200)` unless noted:
 
 | Token | Square |
 |-------|--------|
@@ -59,7 +68,7 @@ Canvas stays **800×418** (not `630 × 2/3`). Every other linear token is
 | Site logo | 59×59 |
 | Brand size | 64px |
 | Icons | 21×21, gap 7 |
-| Art max box / radius | 467×293 scaled, **height reduced** so the footer fits (`squareArtMaxHeight`) / 8 |
+| Art max box / radius | **440×440** (height = wide 440 standard) / 8 |
 | Art pad | 19 |
 | Chrome pad | 27×8 |
 | Show name | **48px (min 32)**, same as wide — scaled 32/21 was too small; **one line**, width = footer minus meta stack |
@@ -67,9 +76,8 @@ Canvas stays **800×418** (not `630 × 2/3`). Every other linear token is
 | Title max lines | 5 (same rule) |
 | Faces / colours / columns / v-align | Same as wide |
 
-Two show-name rows at 32px are taller than the leftover under 1:1 art on a 418px
-canvas, so square does **not** use two podcast-name lines. The name grows
-sideways into the space freed by stacking meta.
+Square does **not** use two podcast-name lines. The name grows sideways into
+the space freed by stacking meta.
 
 ## Vertical alignment
 

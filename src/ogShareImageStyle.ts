@@ -62,18 +62,18 @@ export function scaleWidePx(widePx: number): number {
 }
 
 /**
- * Square canvas stays 800×418 (existing OG size). All other linear tokens are
- * wide × 800/1200. Canvas height is not 630×2/3 (420).
+ * Episode art height is fixed: the current wide max (`OG_WIDE_STYLE.artMaxHeight`).
+ * Square canvas width stays 800; height grows to fit that art plus chrome.
+ * Other linear tokens (type, pads, icons) stay wide × 800/1200 unless noted.
  */
 export const OG_SQUARE_STYLE = {
 	canvasWidth: 800,
-	canvasHeight: 418,
 	textPaddingX: scaleWidePx(OG_WIDE_STYLE.textPaddingX),
 	textPaddingY: scaleWidePx(OG_WIDE_STYLE.textPaddingY),
 	artPad: scaleWidePx(OG_WIDE_STYLE.artPad),
 	gap: scaleWidePx(OG_WIDE_STYLE.gap),
-	artMaxWidth: scaleWidePx(OG_WIDE_STYLE.artMaxWidth),
-	artMaxHeight: scaleWidePx(OG_WIDE_STYLE.artMaxHeight),
+	artMaxWidth: OG_WIDE_STYLE.artMaxHeight,
+	artMaxHeight: OG_WIDE_STYLE.artMaxHeight,
 	artRadius: scaleWidePx(OG_WIDE_STYLE.artRadius),
 	iconGap: scaleWidePx(OG_WIDE_STYLE.iconGap),
 	iconRadius: scaleWidePx(OG_WIDE_STYLE.iconRadius),
@@ -92,8 +92,7 @@ export const OG_SQUARE_STYLE = {
 	/** Same as wide — 800/1200 scale (32 / 21) reads too small next to a 48px title. */
 	podcastSize: OG_WIDE_STYLE.podcastSize, // pragma: allowlist secret
 	podcastSizeMin: OG_WIDE_STYLE.podcastSizeMin, // pragma: allowlist secret
-	/** Two lines at 32px do not fit under 1:1 art on 418px canvas; footer uses one line. */
-	podcastMaxLines: 2, // pragma: allowlist secret
+	podcastMaxLines: 1, // pragma: allowlist secret
 	podcastLineHeight: OG_WIDE_STYLE.podcastLineHeight, // pragma: allowlist secret
 	podcastMarginBottom: OG_WIDE_STYLE.podcastMarginBottom, // pragma: allowlist secret
 	metaSize: scaleWidePx(OG_WIDE_STYLE.metaSize),
@@ -112,10 +111,10 @@ export function squareStackedMetaHeight(): number {
 	return s.metaSize + s.footerMetaGap + s.metaSize + s.footerMetaGap + s.icon;
 }
 
-/** Two show-name lines at the full square size — taller than the canvas leftover under 293px art. */
+/** Two show-name lines at the full square size (layout uses one line). */
 export function squareTwoLineShowNameHeight(): number {
 	const s = OG_SQUARE_STYLE;
-	return Math.ceil(s.podcastSize * s.podcastLineHeight * s.podcastMaxLines); // pragma: allowlist secret
+	return Math.ceil(s.podcastSize * s.podcastLineHeight * 2); // pragma: allowlist secret
 }
 
 export function squareBrandBarHeight(): number {
@@ -124,17 +123,23 @@ export function squareBrandBarHeight(): number {
 	return s.chromePadY + mark + s.brandBarExtraBottom;
 }
 
-/**
- * Square 1:1 art must leave a footer tall enough for the stacked meta column.
- * Two full-size show-name rows do not fit that leftover; show name is one line
- * and uses the width the meta column no longer occupies.
- */
+/** Episode-art height standard — same as wide (`artMaxHeight` 440). */
 export function squareArtMaxHeight(): number {
+	return OG_WIDE_STYLE.artMaxHeight;
+}
+
+export function squareFooterHeight(): number {
 	const s = OG_SQUARE_STYLE;
-	const footer = s.footerPadTop + squareStackedMetaHeight() + s.chromePadY;
-	return Math.max(
-		1,
-		s.canvasHeight - squareBrandBarHeight() - s.bodyPadBottom - footer
+	return s.footerPadTop + squareStackedMetaHeight() + s.chromePadY;
+}
+
+/** Square canvas height = brand + fixed art height + footer (do not shrink art). */
+export function squareCanvasHeight(): number {
+	return (
+		squareBrandBarHeight() +
+		squareArtMaxHeight() +
+		OG_SQUARE_STYLE.bodyPadBottom +
+		squareFooterHeight()
 	);
 }
 

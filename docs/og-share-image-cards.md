@@ -85,7 +85,9 @@ show 48               51 min · date 28 <!-- pragma: allowlist secret -->
 Full token tables, faces, and alignment rules:
 [`docs/og-share-image-style-guide.md`](og-share-image-style-guide.md).
 **Square application** (do not edit wide): multiply linear tokens by `800/1200`
-(title 48, logo 59, brand 64, icons 21, art max 467×293, canvas 800×418).
+(title 48, logo 59, brand 64, icons 21). Episode-image **height is fixed at the
+wide standard (440)** — square 1:1 art is 440×440; canvas width 800, height
+`squareCanvasHeight()` (do not shrink art to 418).
 
 | Zone (wide) | Content |
 |-------------|---------|
@@ -106,7 +108,7 @@ Preview-only `wl=` wide variants (page-details does not send this; default is `c
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
 | `a=wide` | 1200×630 | 700×440 | `summary_large_image` |
-| `a=square` | 800×418 | 467×293 | `summary_large_image` |
+| `a=square` | 800×`squareCanvasHeight()` | 440×440 (height = wide 440) | `summary_large_image` |
 
 ## Query contract
 

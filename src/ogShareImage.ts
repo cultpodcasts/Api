@@ -21,6 +21,7 @@ import {
 	ogTitleFontSize,
 	ogTitlePadTop,
 	squareArtMaxHeight,
+	squareCanvasHeight,
 	squareShowNameContentWidth
 } from "./ogShareImageStyle";
 import { brandLogoDataUrl } from "./ogBrandLogo";
@@ -85,11 +86,12 @@ const CARD_SCALE = {
 	},
 	/**
 	 * Square canvas (Spotify / Apple art). Chrome is the wide columns style guide
-	 * scaled by 800/1200 (see docs/og-share-image-cards.md). Do not change `wide`.
+	 * scaled by 800/1200 (see docs/og-share-image-cards.md). Episode art height is
+	 * the wide standard (440); canvas height grows to fit. Do not change `wide`.
 	 */
 	square: {
 		width: OG_SQUARE_STYLE.canvasWidth,
-		height: OG_SQUARE_STYLE.canvasHeight,
+		height: squareCanvasHeight(),
 		textPaddingX: OG_SQUARE_STYLE.textPaddingX,
 		textPaddingY: OG_SQUARE_STYLE.textPaddingY,
 		artPad: OG_SQUARE_STYLE.artPad,

@@ -11,6 +11,7 @@ import {
 	ogTitlePadTop,
 	scaleWidePx,
 	squareArtMaxHeight,
+	squareCanvasHeight,
 	squareShowNameContentWidth,
 	squareStackedMetaHeight,
 	squareTwoLineShowNameHeight
@@ -30,6 +31,8 @@ describe("OG style guide tokens", () => {
 		expect(styleDoc).toContain("88");
 		expect(styleDoc).toContain("ogTitlePadTop");
 		expect(styleDoc).toContain("800 / 1200");
+		expect(styleDoc).toContain("fixed max height");
+		expect(styleDoc).toContain("440");
 		expect(OG_SQUARE_FROM_WIDE_SCALE).toBe(800 / 1200);
 	});
 
@@ -68,7 +71,6 @@ describe("OG style guide tokens", () => {
 
 	it("derives every square linear token from wide × 800/1200", () => {
 		expect(OG_SQUARE_STYLE.canvasWidth).toBe(800);
-		expect(OG_SQUARE_STYLE.canvasHeight).toBe(418);
 		expect(OG_SQUARE_STYLE.titleSize).toBe(OG_SQUARE_TITLE_PX);
 		expect(OG_SQUARE_STYLE.titleSize).toBe(scaleWidePx(OG_WIDE_STYLE.titleSize));
 		expect(OG_SQUARE_STYLE.brandLogo).toBe(scaleWidePx(OG_WIDE_STYLE.brandLogo));
@@ -76,9 +78,12 @@ describe("OG style guide tokens", () => {
 		expect(OG_SQUARE_STYLE.brandGap).toBe(scaleWidePx(OG_WIDE_STYLE.brandGap));
 		expect(OG_SQUARE_STYLE.icon).toBe(scaleWidePx(OG_WIDE_STYLE.icon));
 		expect(OG_SQUARE_STYLE.iconGap).toBe(scaleWidePx(OG_WIDE_STYLE.iconGap));
-		expect(OG_SQUARE_STYLE.artMaxWidth).toBe(scaleWidePx(OG_WIDE_STYLE.artMaxWidth));
-		expect(OG_SQUARE_STYLE.artMaxHeight).toBe(scaleWidePx(OG_WIDE_STYLE.artMaxHeight));
-		expect(squareArtMaxHeight()).toBeLessThan(OG_SQUARE_STYLE.artMaxHeight);
+		expect(OG_SQUARE_STYLE.artMaxWidth).toBe(OG_WIDE_STYLE.artMaxHeight);
+		expect(OG_SQUARE_STYLE.artMaxHeight).toBe(OG_WIDE_STYLE.artMaxHeight);
+		expect(squareArtMaxHeight()).toBe(OG_WIDE_STYLE.artMaxHeight);
+		expect(squareArtMaxHeight()).toBe(440);
+		expect(squareCanvasHeight()).toBeGreaterThan(OG_WIDE_STYLE.artMaxHeight);
+		expect(impl).toContain("squareCanvasHeight()");
 		expect(OG_SQUARE_STYLE.artRadius).toBe(scaleWidePx(OG_WIDE_STYLE.artRadius));
 		expect(OG_SQUARE_STYLE.artPad).toBe(scaleWidePx(OG_WIDE_STYLE.artPad));
 		expect(OG_SQUARE_STYLE.metaSize).toBe(scaleWidePx(OG_WIDE_STYLE.metaSize));
@@ -137,7 +142,8 @@ describe("OG implementation meets the style guide", () => {
 		expect(OG_SQUARE_STYLE.podcastSize).toBe(OG_WIDE_STYLE.podcastSize); // pragma: allowlist secret
 	});
 
-	it("cannot fit two square show-name rows under 1:1 art, so the name is one line and wider", () => {
+	it("keeps square show name to one line next to stacked meta", () => {
+		expect(OG_SQUARE_STYLE.podcastMaxLines).toBe(1); // pragma: allowlist secret
 		expect(squareTwoLineShowNameHeight()).toBeGreaterThan(squareStackedMetaHeight());
 		expect(squareShowNameContentWidth()).toBeGreaterThan(squareArtMaxHeight());
 		expect(impl).toContain("squareShowNameContentWidth");
