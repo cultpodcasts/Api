@@ -53,7 +53,7 @@ const CARD_SCALE = {
 		longWordThreshold: 16,
 		titleLineHeight: 1.14,
 		titleMarginBottom: 14,
-		podcastSize: 40, // pragma: allowlist secret
+		podcastSize: 48, // pragma: allowlist secret
 		podcastMarginBottom: 0, // pragma: allowlist secret
 		metaSize: 32,
 		metaLetterSpacing: 0,
@@ -256,50 +256,50 @@ function cardHtml(input: {
 		const rowMetaHtml = rowMeta
 			? `<div style="display:flex;flex-direction:row;align-items:center;gap:16px;flex-shrink:0;">${rowMeta}</div>`
 			: "";
-		const artBlock = `<div style="display:flex;flex-shrink:0;align-items:center;">
-      <img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />
+		const artImg = `<img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />`;
+		const leftStack = `<div style="display:flex;flex-direction:column;flex-shrink:0;align-items:flex-start;gap:6px;">
+      ${artImg}
+      ${chips}
     </div>`;
+		const textPad = `padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;`;
 		let bodyAndFooter: string;
 		if (input.wideLayout === "stack") {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
-    ${artBlock}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
+    ${leftStack}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;${textPad}">
       ${titleHtml}
       ${podcastHtml}
-      ${stackMeta ? `<div style="display:flex;flex-direction:column;margin-top:16px;">${stackMeta}</div>` : ""}
+      ${stackMeta ? `<div style="display:flex;flex-direction:column;margin-top:18px;">${stackMeta}</div>` : ""}
     </div>
-  </div>
-  ${chips ? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">${chips}</div>` : ""}`;
+  </div>`;
 		} else if (input.wideLayout === "inline") {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
-    ${artBlock}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
+    ${leftStack}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;${textPad}">
       ${titleHtml}
       ${podcastHtml}
-      ${rowMetaHtml ? `<div style="display:flex;margin-top:16px;">${rowMetaHtml}</div>` : ""}
+      ${rowMetaHtml ? `<div style="display:flex;margin-top:18px;">${rowMetaHtml}</div>` : ""}
     </div>
-  </div>
-  ${chips ? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">${chips}</div>` : ""}`;
+  </div>`;
 		} else if (input.wideLayout === "columns") {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
-    ${artBlock}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
-      ${titleHtml}
-      ${podcastHtml}
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:stretch;min-height:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
+    ${leftStack}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:space-between;min-width:0;overflow:hidden;${textPad}">
+      <div style="display:flex;flex-direction:column;">
+        ${titleHtml}
+        ${podcastHtml}
+      </div>
+      ${rowMetaHtml}
     </div>
-  </div>
-  <div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
-    <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;">${chips}</div>
-    <div style="display:flex;flex-grow:1;align-items:center;min-width:0;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">${rowMetaHtml}</div>
   </div>`;
 		} else {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
-    ${artBlock}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px 2px ${s.artPad}px;">
+    ${artImg}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;${textPad}">
       ${titleHtml}
       ${podcastHtml}
     </div>
