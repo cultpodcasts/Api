@@ -18,12 +18,19 @@ describe("formatOgReleaseDate", () => {
 });
 
 describe("formatOgDuration", () => {
-	it("drops a leading zero hour from TimeSpan strings", () => {
-		expect(formatOgDuration("00:51:28")).toBe("51:28");
-		expect(formatOgDuration("00:51:28.0000000")).toBe("51:28");
+	it("renders sub-hour TimeSpans as minutes only", () => {
+		expect(formatOgDuration("00:51:28")).toBe("51 min");
+		expect(formatOgDuration("00:51:28.0000000")).toBe("51 min");
 	});
 
-	it("keeps hours when the episode is an hour or longer", () => {
-		expect(formatOgDuration("01:05:00")).toBe("1:05:00");
+	it("renders hour-plus runtimes as hours and minutes", () => {
+		expect(formatOgDuration("01:05:00")).toBe("1h 5m");
+		expect(formatOgDuration("01:00:00")).toBe("1h");
+		expect(formatOgDuration("02:30:20")).toBe("2h 30m");
+	});
+
+	it("leaves already-compact durations unchanged", () => {
+		expect(formatOgDuration("51 min")).toBe("51 min");
+		expect(formatOgDuration("1h 24m")).toBe("1h 24m");
 	});
 });

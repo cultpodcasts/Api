@@ -33,7 +33,7 @@ everything into a centred right stack:
 
 [ episode art ]  episode name         ← title gets the full right column
 
-show name              51:28  24 Aug 2026
+show name              51 min  24 Aug 2026
                        [ yt  spotify  apple ]
 ```
 
@@ -44,7 +44,7 @@ icons) with the same larger date/duration type.
 |-------------|---------|
 | Top | Site logo + `CULT PODCASTS`, horizontally centred | <!-- pragma: allowlist secret -->
 | Left | Episode art sized to the **source aspect ratio**, fitted inside a max box — never cropped |
-| Right | episode name → podcast name |
+| Right | episode title (show name is in the footer) |
 | Bottom | show name left; duration/date + icons stacked on the right of the same row |
 
 Preview-only `wl=` wide variants (page-details does not send this; default is `columns`):
@@ -54,7 +54,7 @@ Preview-only `wl=` wide variants (page-details does not send this; default is `c
 | `footer` | Icons left, duration + date far right on one row |
 | `columns` | Icons under the art; duration + date under the title column |
 | `stack` | Duration + date under the podcast name; icons tight under the art |
-| `inline` | `51:28 · 24 Aug 2026` under the podcast name; icons tight under the art |
+| `inline` | `51 min · 24 Aug 2026` under the show name; icons tight under the art |
 
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
@@ -69,11 +69,11 @@ GET /og-image
   &a=wide|square          # default square
   &t=<episode title>
   &p=<podcast name>
-  &d=<duration>
+  &d=<duration>           # `51 min` / `1h` / `1h 5m`
   &r=<release date>       # display string (`24 Aug 2026`)
   &pl=youtube,spotify,apple,bbc
-  &cv=8                   # layout revision (cache key)
-  &wl=footer|columns|stack|inline  # wide chrome preview; default footer
+  &cv=9                   # layout revision (cache key)
+  &wl=footer|columns|stack|inline  # wide chrome preview; default columns
 ```
 
 - `u` must be `https` and an allowlisted host (`episodeShareImage.isAllowedShareImageSourceHost`).
@@ -108,7 +108,7 @@ sequenceDiagram
   alt KV hit with image
     Api->>KV: get metadata
     Api->>Search: episode by id (platforms only; KV unchanged)
-    Api-->>Web: image = /og-image?...pl=live,cv=8
+    Api-->>Web: image = /og-image?...pl=live,cv=9
   else KV miss
     Api->>Search: episode by id
     Api->>KV: put (image + platforms on create only)

@@ -30,30 +30,49 @@ export function formatOgReleaseDate(raw?: string): string | undefined {
 	return value;
 }
 
+function formatMinutesHours(totalMinutes: number): string {
+	const minutes = Math.max(0, Math.round(totalMinutes));
+	const hours = Math.floor(minutes / 60);
+	const remain = minutes % 60;
+	if (hours === 0) {
+		return `${remain} min`;
+	}
+	if (remain === 0) {
+		return `${hours}h`;
+	}
+	return `${hours}h ${remain}m`;
+}
+
 /**
- * Clock-style duration: drop TimeSpan fractions and a leading zero hour (`00:51:28` → `51:28`).
+ * Card duration: minutes only (`00:51:28` → `51 min`).
+ * Hour-plus runtimes use `1h` / `1h 5m`.
  */
 export function formatOgDuration(raw?: string): string | undefined {
 	const value = raw?.trim();
 	if (!value) {
 		return undefined;
 	}
+	if (/^\d+h( \d+m)?$/.test(value) || /^\d+ min$/.test(value)) {
+		return value;
+	}
 	const core = value.split(".")[0];
 	const parts = core.split(":");
 	if (parts.length === 3) {
 		const hours = Number(parts[0]);
-		const minutes = parts[1];
-		const seconds = parts[2];
-		if (!Number.isFinite(hours) || minutes === undefined || seconds === undefined) {
+		const minutes = Number(parts[1]);
+		const seconds = Number(parts[2]);
+		if (![hours, minutes, seconds].every((n) => Number.isFinite(n))) {
 			return core;
 		}
-		if (hours === 0) {
-			return `${Number(minutes)}:${seconds}`;
-		}
-		return `${hours}:${minutes}:${seconds}`;
+		return formatMinutesHours(hours * 60 + minutes + seconds / 60);
 	}
 	if (parts.length === 2) {
-		return `${Number(parts[0])}:${parts[1]}`;
+		const minutes = Number(parts[0]);
+		const seconds = Number(parts[1]);
+		if (![minutes, seconds].every((n) => Number.isFinite(n))) {
+			return core;
+		}
+		return formatMinutesHours(minutes + seconds / 60);
 	}
 	return core;
 }
