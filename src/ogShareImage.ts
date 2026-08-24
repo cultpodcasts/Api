@@ -236,7 +236,7 @@ function cardHtml(input: {
 	const titleMaxHeight = Math.ceil(titleSize * s.titleLineHeight * s.titleMaxLines);
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
-	const titleHtml = `<div style="display:flex;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;">${escapeHtml(input.title)}</div>`;
+	const titleHtml = `<div style="display:flex;justify-content:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;text-align:left;">${escapeHtml(input.title)}</div>`;
 	const podcastHtml = input.podcast // pragma: allowlist secret
 		? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.2;margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div>` // pragma: allowlist secret
 		: "";
@@ -284,9 +284,9 @@ function cardHtml(input: {
     </div>
   </div>`;
 		} else if (input.wideLayout === "columns") {
-			const footerRight =
+			const footerMeta =
 				rowMetaHtml || chips
-					? `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;flex-shrink:0;gap:8px;">
+					? `<div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;">
       ${rowMetaHtml}
       ${chips}
     </div>`
@@ -295,16 +295,16 @@ function cardHtml(input: {
 				? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.15;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div>` // pragma: allowlist secret
 				: "";
 			const showFooter =
-				showName || footerRight
-					? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:8px ${padX}px ${padY}px ${padX}px;">
-    ${showName}
-    ${footerRight}
+				showName || footerMeta
+					? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:8px ${padX}px ${padY}px ${s.artPad}px;">
+    <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;">${showName}</div>
+    <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
   </div>`
 					: "";
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;${textPad}">
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start;min-width:0;${textPad}">
       ${titleHtml}
     </div>
   </div>
