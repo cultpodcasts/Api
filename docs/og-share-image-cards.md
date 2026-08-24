@@ -72,7 +72,6 @@ GET /og-image
   &d=<duration>           # `51 min` / `1h` / `1h 5m`
   &r=<release date>       # display string (`24 Aug 2026`)
   &pl=youtube,spotify,apple,bbc
-  &cv=2                   # layout revision vs last shipped branded URL (not a per-commit counter)
   &wl=footer|columns|stack|inline  # wide chrome preview; default columns
 ```
 
@@ -80,7 +79,7 @@ GET /og-image
 - `p`, `d`, and `r` apply to **both** aspects (omitted from the card when empty).
 - `pl` is optional; chips omitted when empty.
 - Page-details builds this URL via `buildBrandedOgImageUrl` when share art exists.
-- Existing shortener KV is **never rewritten**. Platform chips are resolved from **live search** (`spotifyId` / `appleId` / `youtubeId`) on each page-details request so an image created when only YouTube existed still shows Spotify/Apple once those ids are in the index. `cv` plus the updated `pl` / `r` query values bust the `/og-image` HTTP cache.
+- Existing shortener KV is **never rewritten**. Platform chips are resolved from **live search** (`spotifyId` / `appleId` / `youtubeId`) on each page-details request so an image created when only YouTube existed still shows Spotify/Apple once those ids are in the index. Already-cached `/og-image` responses may stay stale; new URLs (new `pl` / `r` / title) render with current chrome.
 
 ## Rendering stack
 
@@ -108,7 +107,7 @@ sequenceDiagram
   alt KV hit with image
     Api->>KV: get metadata
     Api->>Search: episode by id (platforms only; KV unchanged)
-    Api-->>Web: image = /og-image?...pl=live,cv=2
+    Api-->>Web: image = /og-image?...pl=live
   else KV miss
     Api->>Search: episode by id
     Api->>KV: put (image + platforms on create only)
