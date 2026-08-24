@@ -9,7 +9,11 @@ import {
 	OG_WIDE_STYLE,
 	ogTitleFontSize,
 	ogTitlePadTop,
-	scaleWidePx
+	scaleWidePx,
+	squareArtMaxHeight,
+	squareShowNameContentWidth,
+	squareStackedMetaHeight,
+	squareTwoLineShowNameHeight
 } from "../src/ogShareImageStyle";
 import { OG_SQUARE_TITLE_PX, OG_WIDE_TITLE_PX } from "../src/ogShareImageText";
 
@@ -74,6 +78,7 @@ describe("OG style guide tokens", () => {
 		expect(OG_SQUARE_STYLE.iconGap).toBe(scaleWidePx(OG_WIDE_STYLE.iconGap));
 		expect(OG_SQUARE_STYLE.artMaxWidth).toBe(scaleWidePx(OG_WIDE_STYLE.artMaxWidth));
 		expect(OG_SQUARE_STYLE.artMaxHeight).toBe(scaleWidePx(OG_WIDE_STYLE.artMaxHeight));
+		expect(squareArtMaxHeight()).toBeLessThan(OG_SQUARE_STYLE.artMaxHeight);
 		expect(OG_SQUARE_STYLE.artRadius).toBe(scaleWidePx(OG_WIDE_STYLE.artRadius));
 		expect(OG_SQUARE_STYLE.artPad).toBe(scaleWidePx(OG_WIDE_STYLE.artPad));
 		expect(OG_SQUARE_STYLE.metaSize).toBe(scaleWidePx(OG_WIDE_STYLE.metaSize));
@@ -124,6 +129,15 @@ describe("OG implementation meets the style guide", () => {
 		const fonts = impl.match(/fonts:\s*\[[\s\S]*?\]/)?.[0];
 		expect(fonts).toBeDefined();
 		expect(fonts?.indexOf("Figtree")).toBeLessThan(fonts?.indexOf("Instrument Serif") ?? -1);
+	});
+
+	it("cannot fit two square show-name rows under 1:1 art, so the name is one line and wider", () => {
+		expect(squareTwoLineShowNameHeight()).toBeGreaterThan(squareStackedMetaHeight());
+		expect(squareShowNameContentWidth()).toBeGreaterThan(squareArtMaxHeight());
+		expect(impl).toContain("squareShowNameContentWidth");
+		expect(impl).toContain("align-items:flex-end");
+		expect(impl).toContain("justify-content:space-between");
+		expect(impl).toContain("squareArtMaxHeight");
 	});
 
 	it("applies the same columns chrome and title pad on square as on wide", () => {

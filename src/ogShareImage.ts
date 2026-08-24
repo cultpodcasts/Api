@@ -19,7 +19,9 @@ import {
 	OG_STYLE_FACES,
 	OG_WIDE_STYLE,
 	ogTitleFontSize,
-	ogTitlePadTop
+	ogTitlePadTop,
+	squareArtMaxHeight,
+	squareShowNameContentWidth
 } from "./ogShareImageStyle";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
@@ -93,7 +95,7 @@ const CARD_SCALE = {
 		artPad: OG_SQUARE_STYLE.artPad,
 		gap: OG_SQUARE_STYLE.gap,
 		artMaxWidth: OG_SQUARE_STYLE.artMaxWidth,
-		artMaxHeight: OG_SQUARE_STYLE.artMaxHeight,
+		artMaxHeight: squareArtMaxHeight(),
 		artRadius: OG_SQUARE_STYLE.artRadius,
 		iconGap: OG_SQUARE_STYLE.iconGap,
 		iconRadius: OG_SQUARE_STYLE.iconRadius,
@@ -110,7 +112,7 @@ const CARD_SCALE = {
 		titleMarginBottom: OG_SQUARE_STYLE.titleMarginBottom,
 		podcastSize: OG_SQUARE_STYLE.podcastSize, // pragma: allowlist secret
 		podcastSizeMin: OG_SQUARE_STYLE.podcastSizeMin, // pragma: allowlist secret
-		podcastMaxLines: OG_SQUARE_STYLE.podcastMaxLines, // pragma: allowlist secret
+		podcastMaxLines: 1, // pragma: allowlist secret
 		podcastMarginBottom: OG_SQUARE_STYLE.podcastMarginBottom, // pragma: allowlist secret
 		metaSize: OG_SQUARE_STYLE.metaSize,
 		metaLetterSpacing: 0,
@@ -277,9 +279,11 @@ function cardHtml(input: {
 	const showNameFit = fitOgWrappedText({
 		text: input.podcast, // pragma: allowlist secret
 		columnWidth:
-			input.aspect === "wide" || input.aspect === "square"
+			input.aspect === "wide"
 				? input.artWidth
-				: textColumnContentWidth(input.aspect, input.artWidth),
+				: input.aspect === "square"
+					? squareShowNameContentWidth()
+					: textColumnContentWidth(input.aspect, input.artWidth),
 		sizes: [s.podcastSize, Math.round((s.podcastSize + s.podcastSizeMin) / 2), s.podcastSizeMin], // pragma: allowlist secret
 		maxLines: s.podcastMaxLines // pragma: allowlist secret
 	});
@@ -383,25 +387,21 @@ function cardHtml(input: {
 	const padX = sq.chromePadX;
 	const padY = sq.chromePadY;
 	const textPadLeft = sq.gap + OG_SQUARE_STYLE.titleColumnPadLeftExtra;
-	const rowMeta = metaPartsHtml(input.duration, input.date, sq.metaSize, true);
-	const rowMetaHtml = rowMeta
-		? `<div style="display:flex;flex-direction:row;align-items:center;gap:${OG_SQUARE_STYLE.metaRowGap}px;flex-shrink:0;">${rowMeta}</div>`
-		: "";
+	const stackMeta = metaPartsHtml(input.duration, input.date, sq.metaSize, false);
 	const artImg = `<img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${sq.artRadius}px;flex-shrink:0;" />`;
-	const textPad = `padding:0 ${sq.textPaddingX}px 0 ${textPadLeft}px;`;
 	const footerMeta =
-		rowMetaHtml || chips
-			? `<div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:${OG_SQUARE_STYLE.footerMetaGap}px;">
-      ${rowMetaHtml}
+		stackMeta || chips
+			? `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;gap:${OG_SQUARE_STYLE.footerMetaGap}px;flex-shrink:0;">
+      ${stackMeta}
       ${chips}
     </div>`
 			: "";
 	const showName = podcastHtml; // pragma: allowlist secret
 	const showFooter =
 		showName || footerMeta
-			? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}px ${padX}px ${padY}px ${sq.artPad}px;">
-    <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;">${showName}</div>
-    <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
+			? `<div style="display:flex;flex-direction:row;align-items:flex-end;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}px ${padX}px ${padY}px ${sq.artPad}px;">
+    <div style="display:flex;flex-grow:1;min-width:0;margin-right:16px;align-items:flex-end;">${showName}</div>
+    ${footerMeta}
   </div>`
 			: "";
 	const titleBlockHeight = titleLineBox * titleLayout.lines.length;

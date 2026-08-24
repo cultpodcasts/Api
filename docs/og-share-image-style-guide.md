@@ -59,13 +59,17 @@ Canvas stays **800×418** (not `630 × 2/3`). Every other linear token is
 | Site logo | 59×59 |
 | Brand size | 64px |
 | Icons | 21×21, gap 7 |
-| Art max box / radius | 467×293 / 8 |
+| Art max box / radius | 467×293 scaled, **height reduced** so the footer fits (`squareArtMaxHeight`) / 8 |
 | Art pad | 19 |
 | Chrome pad | 27×8 |
-| Show name | 32px (min 21) |
-| Meta | 19px |
+| Show name | 32px (min 21), **one line**, width = footer minus meta stack |
+| Meta | 19px, **stacked** duration / date / icons, bottom-right |
 | Title max lines | 5 (same rule) |
 | Faces / colours / columns / v-align | Same as wide |
+
+Two show-name rows at 32px are taller than the leftover under 1:1 art on a 418px
+canvas, so square does **not** use two podcast-name lines. The name grows
+sideways into the space freed by stacking meta.
 
 ## Vertical alignment
 

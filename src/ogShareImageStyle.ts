@@ -91,7 +91,8 @@ export const OG_SQUARE_STYLE = {
 	titleColumnPadLeftExtra: scaleWidePx(OG_WIDE_STYLE.titleColumnPadLeftExtra),
 	podcastSize: scaleWidePx(OG_WIDE_STYLE.podcastSize), // pragma: allowlist secret
 	podcastSizeMin: scaleWidePx(OG_WIDE_STYLE.podcastSizeMin), // pragma: allowlist secret
-	podcastMaxLines: OG_WIDE_STYLE.podcastMaxLines, // pragma: allowlist secret
+	/** Two lines at 32px do not fit under 1:1 art on 418px canvas; footer uses one line. */
+	podcastMaxLines: 2, // pragma: allowlist secret
 	podcastLineHeight: OG_WIDE_STYLE.podcastLineHeight, // pragma: allowlist secret
 	podcastMarginBottom: OG_WIDE_STYLE.podcastMarginBottom, // pragma: allowlist secret
 	metaSize: scaleWidePx(OG_WIDE_STYLE.metaSize),
@@ -103,6 +104,48 @@ export const OG_SQUARE_STYLE = {
 	footerMetaGap: scaleWidePx(OG_WIDE_STYLE.footerMetaGap),
 	bodyPadBottom: scaleWidePx(OG_WIDE_STYLE.bodyPadBottom)
 } as const;
+
+/** Duration + date + icons, each on its own row (square footer, bottom-right). */
+export function squareStackedMetaHeight(): number {
+	const s = OG_SQUARE_STYLE;
+	return s.metaSize + s.footerMetaGap + s.metaSize + s.footerMetaGap + s.icon;
+}
+
+/** Two show-name lines at the full square size — taller than the canvas leftover under 293px art. */
+export function squareTwoLineShowNameHeight(): number {
+	const s = OG_SQUARE_STYLE;
+	return Math.ceil(s.podcastSize * s.podcastLineHeight * s.podcastMaxLines); // pragma: allowlist secret
+}
+
+export function squareBrandBarHeight(): number {
+	const s = OG_SQUARE_STYLE;
+	const mark = Math.max(s.brandLogo, Math.round(s.brandSize * s.brandLineHeight));
+	return s.chromePadY + mark + s.brandBarExtraBottom;
+}
+
+/**
+ * Square 1:1 art must leave a footer tall enough for the stacked meta column.
+ * Two full-size show-name rows do not fit that leftover; show name is one line
+ * and uses the width the meta column no longer occupies.
+ */
+export function squareArtMaxHeight(): number {
+	const s = OG_SQUARE_STYLE;
+	const footer = s.footerPadTop + squareStackedMetaHeight() + s.chromePadY;
+	return Math.max(
+		1,
+		s.canvasHeight - squareBrandBarHeight() - s.bodyPadBottom - footer
+	);
+}
+
+/** Show-name column: full footer minus the bottom-right meta stack. */
+export function squareShowNameContentWidth(): number {
+	const s = OG_SQUARE_STYLE;
+	const metaCol = Math.max(
+		s.icon * 3 + s.iconGap * 2,
+		Math.ceil(s.metaSize * 0.62 * 12)
+	);
+	return Math.max(80, s.canvasWidth - s.artPad - s.chromePadX - metaCol - 16);
+}
 
 export function ogTitleFontSize(aspect: "wide" | "square"): number {
 	return aspect === "wide" ? OG_WIDE_STYLE.titleSize : OG_SQUARE_STYLE.titleSize;
