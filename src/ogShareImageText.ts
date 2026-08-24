@@ -23,6 +23,36 @@ export function ogTitleCharBudget(opts: {
 	return Math.max(16, perLine * opts.maxLines - 4);
 }
 
+/**
+ * Shrink type through `sizes` (largest first) so `text` fits in maxLines.
+ * Truncate only after the smallest size still overflows.
+ */
+export function fitOgWrappedText(opts: {
+	text: string;
+	columnWidth: number;
+	sizes: readonly number[];
+	maxLines: number;
+}): { text: string; fontSize: number } {
+	const raw = opts.text.trim();
+	const sizes = opts.sizes.length > 0 ? opts.sizes : [16];
+	let lastBudget = 16;
+	for (const fontSize of sizes) {
+		const budget = ogTitleCharBudget({
+			columnWidth: opts.columnWidth,
+			fontSize,
+			maxLines: opts.maxLines
+		});
+		lastBudget = budget;
+		if (raw.length <= budget) {
+			return { text: raw, fontSize };
+		}
+	}
+	return {
+		text: truncateOgText(raw, lastBudget),
+		fontSize: sizes[sizes.length - 1] ?? 16
+	};
+}
+
 /** Hard cap for OG copy — prefers a word boundary so ellipsis does not split mid-token. */
 export function truncateOgText(text: string, max: number): string {
 	const t = text.trim();

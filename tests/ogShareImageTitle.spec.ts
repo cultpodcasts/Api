@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { longestTokenLength, ogTitleCharBudget, truncateOgText } from "../src/ogShareImageText";
+import {
+	fitOgWrappedText,
+	longestTokenLength,
+	ogTitleCharBudget,
+	truncateOgText
+} from "../src/ogShareImageText";
 
 describe("longestTokenLength", () => {
 	it("returns 0 for blank input", () => {
@@ -25,6 +30,50 @@ describe("ogTitleCharBudget", () => {
 		});
 		expect(budget).toBeGreaterThanOrEqual(60);
 		expect(budget).toBeLessThanOrEqual(100);
+	});
+});
+
+describe("fitOgWrappedText", () => {
+	it("keeps short copy at the largest size", () => {
+		const fit = fitOgWrappedText({
+			text: "Sample Show Name",
+			columnWidth: 700,
+			sizes: [48, 40, 32],
+			maxLines: 2
+		});
+		expect(fit.fontSize).toBe(48);
+		expect(fit.text).toBe("Sample Show Name");
+	});
+
+	it("shrinks type before truncating so two lines can hold more", () => {
+		const long = "Weekly Briefing on Borough Politics";
+		const large = ogTitleCharBudget({ columnWidth: 360, fontSize: 48, maxLines: 2 });
+		const small = ogTitleCharBudget({ columnWidth: 360, fontSize: 32, maxLines: 2 });
+		expect(long.length).toBeGreaterThan(large);
+		expect(long.length).toBeLessThanOrEqual(small);
+		const fit = fitOgWrappedText({
+			text: long,
+			columnWidth: 360,
+			sizes: [48, 40, 32],
+			maxLines: 2
+		});
+		expect(fit.fontSize).toBeLessThan(48);
+		expect(fit.text).toBe(long);
+		expect(fit.text.endsWith("…")).toBe(false);
+	});
+
+	it("truncates only after the smallest two-line size still overflows", () => {
+		const long =
+			"Why the fringe keeps winning elections in every obscure borough across the map this decade and what that means tonight";
+		const fit = fitOgWrappedText({
+			text: long,
+			columnWidth: 360,
+			sizes: [48, 40, 32],
+			maxLines: 2
+		});
+		expect(fit.fontSize).toBe(32);
+		expect(fit.text.endsWith("…")).toBe(true);
+		expect(fit.text.length).toBeLessThan(long.length);
 	});
 });
 

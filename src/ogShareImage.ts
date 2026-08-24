@@ -7,7 +7,12 @@ import {
 } from "./episodeShareImage";
 import { parseOgPlatforms, platformIconDataUrl, type OgPlatform } from "./ogCardPlatforms";
 import { fitArtWithin, readImageSize } from "./ogArtSize";
-import { longestTokenLength, ogTitleCharBudget, truncateOgText } from "./ogShareImageText";
+import {
+	fitOgWrappedText,
+	longestTokenLength,
+	ogTitleCharBudget,
+	truncateOgText
+} from "./ogShareImageText";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
 import { parseWideLayout, type WideLayoutId } from "./ogWideLayout";
@@ -54,6 +59,8 @@ const CARD_SCALE = {
 		titleLineHeight: 1.1,
 		titleMarginBottom: 12,
 		podcastSize: 48, // pragma: allowlist secret
+		podcastSizeMin: 32, // pragma: allowlist secret
+		podcastMaxLines: 2, // pragma: allowlist secret
 		podcastMarginBottom: 0, // pragma: allowlist secret
 		metaSize: 28,
 		metaLetterSpacing: 0,
@@ -91,6 +98,8 @@ const CARD_SCALE = {
 		titleLineHeight: 1.14,
 		titleMarginBottom: 8,
 		podcastSize: 20, // pragma: allowlist secret
+		podcastSizeMin: 15, // pragma: allowlist secret
+		podcastMaxLines: 2, // pragma: allowlist secret
 		podcastMarginBottom: 6, // pragma: allowlist secret
 		metaSize: 22,
 		metaLetterSpacing: 0,
@@ -237,8 +246,19 @@ function cardHtml(input: {
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
 	const titleHtml = `<div style="display:flex;justify-content:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;text-align:left;">${escapeHtml(input.title)}</div>`;
-	const podcastHtml = input.podcast // pragma: allowlist secret
-		? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.2;margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div>` // pragma: allowlist secret
+	const showNameFit = fitOgWrappedText({
+		text: input.podcast, // pragma: allowlist secret
+		columnWidth:
+			input.aspect === "wide"
+				? input.artWidth
+				: textColumnContentWidth(input.aspect, input.artWidth),
+		sizes: [s.podcastSize, Math.round((s.podcastSize + s.podcastSizeMin) / 2), s.podcastSizeMin], // pragma: allowlist secret
+		maxLines: s.podcastMaxLines // pragma: allowlist secret
+	});
+	const showNameLineHeight = 1.15;
+	const showNameMaxHeight = Math.ceil(showNameFit.fontSize * showNameLineHeight * s.podcastMaxLines);
+	const podcastHtml = showNameFit.text // pragma: allowlist secret
+		? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${showNameFit.fontSize}px;line-height:${showNameLineHeight};margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${showNameMaxHeight}px;overflow:hidden;">${escapeHtml(showNameFit.text)}</div>` // pragma: allowlist secret
 		: "";
 	const durationHtml = input.duration
 		? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;line-height:1.25;word-break:break-word;">${escapeHtml(input.duration)}</div>`
@@ -291,9 +311,7 @@ function cardHtml(input: {
       ${chips}
     </div>`
 					: "";
-			const showName = input.podcast // pragma: allowlist secret
-				? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.15;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div>` // pragma: allowlist secret
-				: "";
+			const showName = podcastHtml; // pragma: allowlist secret
 			const showFooter =
 				showName || footerMeta
 					? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:8px ${padX}px ${padY}px ${s.artPad}px;">
@@ -375,7 +393,7 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 	const aspect = parseOgImageAspect(c.req.query("a"));
 	const scale = CARD_SCALE[aspect];
 	const rawTitle = c.req.query("t")?.trim() || "Episode";
-	const podcast = truncateOgText(c.req.query("p")?.trim() || "", scale.podcastMax); // pragma: allowlist secret
+	const podcast = c.req.query("p")?.trim() || ""; // pragma: allowlist secret
 	const duration = formattedDuration(c.req.query("d"));
 	const date = formattedDate(c.req.query("r"));
 	const platforms = parseOgPlatforms(c.req.query("pl"));
