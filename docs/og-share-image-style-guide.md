@@ -29,7 +29,7 @@ Source of truth for `GET /og-image` chrome. Tokens live in
 | Title size | **72px** (one size for every title) |
 | Title line-height / max lines | 1.1 / 5 then ASCII `...` |
 | Title vertical align | Whole block middle-aligned to **art height** via `ogTitlePadTop` |
-| Show name | 48px (min 32), max 2 lines, width = art width, under the art | <!-- pragma: allowlist secret -->
+| Show name | **48px always** (same as a one-row name), max 2 lines then `...`, width = art width, under the art | <!-- pragma: allowlist secret -->
 | Meta | 28px, `51 min · 24 Aug 2026` |
 | Platform icons | 32×32, gap 10, under meta, left-aligned with the title |
 | Art max box / radius | 700×440 / 12 — source aspect, no crop |
@@ -71,16 +71,16 @@ Every other linear token (type, pads, icons, radius) is
 | Art max box / radius | **440×440** (height = wide 440 standard) / 8 |
 | Art pad | 19 |
 | Chrome pad | 27×8 |
-| Show name | **Same rule as wide:** Figtree 600, **48px (min 32)**, **max 2 lines**, then `...`. Width is **not** art width — it is the leftover footer after the stacked meta (`squareShowNameContentWidth`). Keep 48px if two lines fit that column; shrink only after that. |
+| Show name | **Same rule as wide:** Figtree 600, **48px always** (do not shrink to 40/32). **Max 2 lines**, then `...`. Width is leftover footer after the stacked meta (`squareShowNameContentWidth`). |
 | Meta | 19px, **stacked** duration / date / icons, bottom-right — this is what frees the show-name column |
 | Title max lines | 5 (same rule) |
 | Faces / colours / columns / v-align | Same as wide |
 
 ### Square show-name (extrapolated from wide)
 
-Wide: 48 / min 32 / 2 lines / width = art.
+Wide: **48px always** / 2 lines / width = art.
 
-Square: same type and 2-line wrap. Stacking duration, date, and icons on the
+Square: same **48px** and 2-line wrap. Stacking duration, date, and icons on the
 bottom-right **is** the leftover column — the name occupies that width
 (`layoutOgShowName`) **up to a gutter** (`OG_SQUARE_FOOTER_GUTTER` 28) and must
 not paint into the meta stack. Wrap is measured with the same Figtree factor

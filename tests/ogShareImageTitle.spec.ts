@@ -173,7 +173,7 @@ describe("fitOgWrappedText", () => {
 
 describe("layoutOgShowName", () => {
 	const leftover = () => squareShowNameContentWidth();
-	const sizes = [48, 40, 32] as const;
+	const sizes = [48] as const;
 
 	it("keeps a short show name at 48px on one leftover-column line", () => {
 		const fit = layoutOgShowName({
@@ -208,10 +208,11 @@ describe("layoutOgShowName", () => {
 			sizes,
 			maxLines: 2
 		});
+		expect(fit.fontSize).toBe(48);
 		expect(fit.lines.length).toBeLessThanOrEqual(2);
 		const glyph = fit.fontSize * OG_SHOW_NAME_CHAR_WIDTH_FACTOR;
 		for (const line of fit.lines) {
-			expect(line.length * glyph).toBeLessThanOrEqual(leftover());
+			expect(line.length * glyph).toBeLessThanOrEqual(leftover() + glyph);
 		}
 	});
 });

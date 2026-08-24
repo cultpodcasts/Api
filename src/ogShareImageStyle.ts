@@ -89,7 +89,7 @@ export const OG_SQUARE_STYLE = {
 	titleMarginBottom: scaleWidePx(OG_WIDE_STYLE.titleMarginBottom),
 	titleMaxLines: OG_WIDE_STYLE.titleMaxLines,
 	titleColumnPadLeftExtra: scaleWidePx(OG_WIDE_STYLE.titleColumnPadLeftExtra),
-	/** Same as wide (48 / min 32 / 2 lines). Square width is leftover footer, not art. */
+	/** Same as wide: 48px always, 2 lines, then ellipsis. Width is leftover footer, not art. */
 	podcastSize: OG_WIDE_STYLE.podcastSize, // pragma: allowlist secret
 	podcastSizeMin: OG_WIDE_STYLE.podcastSizeMin, // pragma: allowlist secret
 	podcastMaxLines: OG_WIDE_STYLE.podcastMaxLines, // pragma: allowlist secret

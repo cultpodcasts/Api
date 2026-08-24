@@ -286,7 +286,7 @@ function cardHtml(input: {
 			input.aspect === "wide"
 				? input.artWidth
 				: textColumnContentWidth(input.aspect, input.artWidth),
-		sizes: [s.podcastSize, Math.round((s.podcastSize + s.podcastSizeMin) / 2), s.podcastSizeMin], // pragma: allowlist secret
+		sizes: [s.podcastSize], // pragma: allowlist secret
 		maxLines: s.podcastMaxLines // pragma: allowlist secret
 	});
 	const showNameLineHeight = OG_WIDE_STYLE.podcastLineHeight;
@@ -402,7 +402,7 @@ function cardHtml(input: {
 	const showNameLayout = layoutOgShowName({
 		text: input.podcast, // pragma: allowlist secret
 		columnWidth: showNameWidth,
-		sizes: [sq.podcastSize, Math.round((sq.podcastSize + sq.podcastSizeMin) / 2), sq.podcastSizeMin], // pragma: allowlist secret
+		sizes: [sq.podcastSize], // pragma: allowlist secret
 		maxLines: sq.podcastMaxLines // pragma: allowlist secret
 	});
 	const showNameLineBox = Math.ceil(showNameLayout.fontSize * OG_WIDE_STYLE.podcastLineHeight);

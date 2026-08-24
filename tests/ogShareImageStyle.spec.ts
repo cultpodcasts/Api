@@ -140,8 +140,10 @@ describe("OG implementation meets the style guide", () => {
 
 	it("keeps square show-name type at the wide size", () => {
 		expect(OG_SQUARE_STYLE.podcastSize).toBe(48); // pragma: allowlist secret
-		expect(OG_SQUARE_STYLE.podcastSizeMin).toBe(32); // pragma: allowlist secret
 		expect(OG_SQUARE_STYLE.podcastSize).toBe(OG_WIDE_STYLE.podcastSize); // pragma: allowlist secret
+		expect(impl).toContain("sizes: [s.podcastSize]"); // pragma: allowlist secret
+		expect(impl).toContain("sizes: [sq.podcastSize]"); // pragma: allowlist secret
+		expect(impl).not.toContain("podcastSizeMin) / 2)"); // pragma: allowlist secret
 	});
 
 	it("applies the wide show-name rule to the leftover square footer column", () => {

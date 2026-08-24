@@ -87,8 +87,8 @@ Full token tables, faces, and alignment rules:
 **Square application** (do not edit wide): multiply linear tokens by `800/1200`
 (title 48, logo 59, brand 64, icons 21). Episode-image **height is fixed at the
 wide standard (440)** — square 1:1 art is 440×440; canvas width 800, height
-`squareCanvasHeight()` (do not shrink art to 418). Show name keeps the **wide
-rule** (48 / min 32 / 2 lines) across the leftover footer next to stacked meta.
+`squareCanvasHeight()` (do not shrink art to 418). Show name is **48px always**
+(2 lines, then `...`) across the leftover footer next to stacked meta.
 
 | Zone (wide) | Content |
 |-------------|---------|
