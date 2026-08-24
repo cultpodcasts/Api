@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	countOgWrappedLines,
 	fitOgWrappedText,
+	layoutOgTitle,
 	longestTokenLength,
 	ogTitleCharBudget,
 	truncateOgText
@@ -42,6 +43,43 @@ describe("countOgWrappedLines", () => {
 				maxLines: 5
 			})
 		).toBe(1);
+	});
+
+	it("counts hyphenated lines for a token wider than the column", () => {
+		expect(
+			countOgWrappedLines({
+				text: "Boroughboundaryreconsideration",
+				columnWidth: 364,
+				fontSize: 62,
+				maxLines: 5
+			})
+		).toBeGreaterThanOrEqual(3);
+	});
+});
+
+describe("layoutOgTitle", () => {
+	it("hyphenates a token that does not fit the column", () => {
+		const { lines } = layoutOgTitle({
+			text: "Boroughboundaryreconsideration",
+			columnWidth: 364,
+			fontSize: 62,
+			maxLines: 5
+		});
+		expect(lines.length).toBeGreaterThanOrEqual(3);
+		expect(lines.slice(0, -1).every((line) => line.endsWith("-"))).toBe(true);
+		expect(lines[lines.length - 1].endsWith("-")).toBe(false);
+		expect(lines.join("").replaceAll("-", "")).toBe("Boroughboundaryreconsideration");
+	});
+
+	it("ellipsizes when hyphenation would exceed maxLines", () => {
+		const { lines } = layoutOgTitle({
+			text: "Briefly Briefly Briefly Briefly UncharacteristicallyLong",
+			columnWidth: 364,
+			fontSize: 62,
+			maxLines: 5
+		});
+		expect(lines.length).toBe(5);
+		expect(lines[lines.length - 1].endsWith("…")).toBe(true);
 	});
 });
 

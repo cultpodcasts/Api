@@ -8,14 +8,124 @@ export function longestTokenLength(text: string): number {
 }
 
 /**
- * Char budget so a hard-truncated title (with ellipsis) fits in maxLines.
- * Figtree Semibold average glyph width ≈ 0.52×fontSize; slack keeps `…` on the last line
- * when Satori wraps slightly tighter than the heuristic.
+ * Wrap a title into at most maxLines. Tokens wider than the column are split
+ * with a trailing hyphen (no dictionary); leftover copy on the last line gets `…`.
  */
+export function layoutOgTitle(opts: {
+	text: string;
+	columnWidth: number;
+	fontSize: number;
+	maxLines: number;
+	charWidthFactor?: number;
+}): { lines: string[] } {
+	const words = opts.text.trim().split(/\s+/).filter(Boolean);
+	if (words.length === 0) {
+		return { lines: [""] };
+	}
+	const glyph = opts.fontSize * (opts.charWidthFactor ?? 0.56);
+	const space = opts.fontSize * 0.22;
+	const maxW = opts.columnWidth;
+	const maxLines = Math.max(1, opts.maxLines);
+	const lines: string[] = [];
+	let current = "";
+	let currentW = 0;
+	let overflow = false;
+
+	const flush = (): void => {
+		if (current) {
+			lines.push(current);
+			current = "";
+			currentW = 0;
+		}
+	};
+
+	const roomChars = (): number => {
+		const roomPx = current ? maxW - currentW - space : maxW;
+		return Math.max(0, Math.floor(roomPx / glyph));
+	};
+
+	const append = (token: string): void => {
+		const tokenW = token.length * glyph;
+		if (current && currentW + space + tokenW > maxW) {
+			flush();
+		}
+		if (current) {
+			current = `${current} ${token}`;
+			currentW += space + tokenW;
+		} else {
+			current = token;
+			currentW = tokenW;
+		}
+	};
+
+	const appendHyphenated = (word: string): void => {
+		let rest = word;
+		while (rest.length > 0) {
+			if (lines.length >= maxLines) {
+				overflow = true;
+				return;
+			}
+			if (roomChars() < 2 && current) {
+				flush();
+				continue;
+			}
+			const room = roomChars();
+			if (rest.length <= room) {
+				append(rest);
+				return;
+			}
+			const take = Math.max(1, room - 1);
+			append(`${rest.slice(0, take)}-`);
+			flush();
+			rest = rest.slice(take);
+		}
+	};
+
+	for (const word of words) {
+		if (lines.length >= maxLines) {
+			overflow = true;
+			break;
+		}
+		if (word.length * glyph <= maxW) {
+			if (current && currentW + space + word.length * glyph > maxW) {
+				flush();
+				if (lines.length >= maxLines) {
+					overflow = true;
+					break;
+				}
+			}
+			append(word);
+		} else {
+			appendHyphenated(word);
+		}
+	}
+	flush();
+
+	if (lines.length > maxLines) {
+		lines.length = maxLines;
+		overflow = true;
+	}
+
+	if (overflow && lines.length > 0) {
+		let last = lines[lines.length - 1];
+		if (last.endsWith("-")) {
+			last = last.slice(0, -1);
+		}
+		const maxChars = Math.max(2, Math.floor(maxW / glyph));
+		if (last.length + 1 > maxChars) {
+			last = last.slice(0, Math.max(1, maxChars - 1));
+		}
+		if (!last.endsWith("…")) {
+			lines[lines.length - 1] = `${last}…`;
+		}
+	}
+
+	return { lines: lines.length > 0 ? lines : [""] };
+}
+
 /**
  * Greedy word-wrap line count for Figtree Semibold titles.
- * Uses a slightly wide glyph so we do not under-count wraps (which leaves
- * two-line titles flush with the top of the art).
+ * Long tokens count as every hyphenated line they occupy.
  */
 export function countOgWrappedLines(opts: {
 	text: string;
@@ -24,27 +134,7 @@ export function countOgWrappedLines(opts: {
 	maxLines: number;
 	charWidthFactor?: number;
 }): number {
-	const words = opts.text.trim().split(/\s+/).filter(Boolean);
-	if (words.length === 0) {
-		return 1;
-	}
-	const glyph = opts.fontSize * (opts.charWidthFactor ?? 0.56);
-	const space = opts.fontSize * 0.22;
-	const lines: number[] = [0];
-	for (const word of words) {
-		const width = Math.max(glyph, word.length * glyph);
-		const current = lines[lines.length - 1];
-		const next = current === 0 ? width : current + space + width;
-		if (next > opts.columnWidth && current > 0) {
-			if (lines.length >= opts.maxLines) {
-				break;
-			}
-			lines.push(width);
-		} else {
-			lines[lines.length - 1] = next;
-		}
-	}
-	return Math.max(1, Math.min(opts.maxLines, lines.length));
+	return Math.max(1, layoutOgTitle(opts).lines.length);
 }
 
 export function ogTitleCharBudget(opts: {

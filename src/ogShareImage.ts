@@ -8,11 +8,9 @@ import {
 import { parseOgPlatforms, platformIconDataUrl, type OgPlatform } from "./ogCardPlatforms";
 import { fitArtWithin, readImageSize } from "./ogArtSize";
 import {
-	countOgWrappedLines,
 	fitOgWrappedText,
-	longestTokenLength,
-	ogTitleCharBudget,
-	truncateOgText
+	layoutOgTitle,
+	longestTokenLength
 } from "./ogShareImageText";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
@@ -143,21 +141,6 @@ function columnsTitleContentWidth(artWidth: number): number {
 	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
 }
 
-/** Truncate so the ellipsis lands within titleMaxLines (not clipped by max-height). */
-function truncateTitleForCard(aspect: CardAspect, rawTitle: string, artWidth: number): string {
-	const s = CARD_SCALE[aspect];
-	const fontSize = titleFontSize(rawTitle, s);
-	const budget = Math.min(
-		s.titleMax,
-		ogTitleCharBudget({
-			columnWidth: textColumnContentWidth(aspect, artWidth),
-			fontSize,
-			maxLines: s.titleMaxLines
-		})
-	);
-	return truncateOgText(rawTitle, budget);
-}
-
 function formattedDuration(raw?: string): string {
 	return formatOgDuration(raw) ?? "";
 }
@@ -250,10 +233,22 @@ function cardHtml(input: {
 }): string {
 	const s = CARD_SCALE[input.aspect];
 	const titleSize = titleFontSize(input.title, s);
-	const titleMaxHeight = Math.ceil(titleSize * s.titleLineHeight * s.titleMaxLines);
+	const titleColumnWidth =
+		input.aspect === "wide" && input.wideLayout === "columns"
+			? columnsTitleContentWidth(input.artWidth)
+			: textColumnContentWidth(input.aspect, input.artWidth);
+	const titleLayout = layoutOgTitle({
+		text: input.title,
+		columnWidth: titleColumnWidth,
+		fontSize: titleSize,
+		maxLines: s.titleMaxLines
+	});
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
-	const titleHtml = `<div style="display:flex;justify-content:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;text-align:left;">${escapeHtml(input.title)}</div>`;
+	const titleRows = titleLayout.lines
+		.map((line) => `<div style="display:flex;">${escapeHtml(line)}</div>`)
+		.join("");
+	const titleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;">${titleRows}</div>`;
 	const showNameFit = fitOgWrappedText({
 		text: input.podcast, // pragma: allowlist secret
 		columnWidth:
@@ -327,17 +322,11 @@ function cardHtml(input: {
     <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
   </div>`
 					: "";
-			// Satori ignores justify-content / flex spacers here. Pad from a
-			// word-wrap line count so two-line titles sit on the art midline.
-			const titleLines = countOgWrappedLines({
-				text: input.title,
-				columnWidth: columnsTitleContentWidth(input.artWidth),
-				fontSize: titleSize,
-				maxLines: s.titleMaxLines
-			});
-			const titleBlockHeight = Math.ceil(titleSize * s.titleLineHeight * titleLines);
+			const titleBlockHeight = Math.ceil(
+				titleSize * s.titleLineHeight * titleLayout.lines.length
+			);
 			const titlePadTop = Math.max(0, Math.floor((input.artHeight - titleBlockHeight) / 2));
-			const columnsTitleHtml = `<div style="display:flex;justify-content:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;text-align:left;">${escapeHtml(input.title)}</div>`;
+			const columnsTitleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};">${titleRows}</div>`;
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
@@ -431,14 +420,12 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 		const artSize = native
 			? fitArtWithin(native.width, native.height, scale.artMaxWidth, scale.artMaxHeight)
 			: defaultArtSize(aspect);
-		const title = truncateTitleForCard(aspect, rawTitle, artSize.width);
-
 		const html = cardHtml({
 			aspect,
 			artDataUrl,
 			artWidth: artSize.width,
 			artHeight: artSize.height,
-			title,
+			title: rawTitle,
 			podcast, // pragma: allowlist secret
 			duration,
 			date,
