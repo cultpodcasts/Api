@@ -29,7 +29,7 @@ Source of truth for `GET /og-image` chrome. Tokens live in
 | Title size | **72px** (one size for every title) |
 | Title line-height / max lines | 1.1 / 5 then ASCII `...` |
 | Title vertical align | Whole block middle-aligned to **art height** via `ogTitlePadTop` |
-| Show name | **48px always** (same as a one-row name), max 2 lines then `...`, width = art width, under the art | <!-- pragma: allowlist secret -->
+| Show name | **48px always**, max 2 lines then `...`, width = art width, under the art. **1 or 2 rows:** vertically centred with the right footer column (duration · date + icons). | <!-- pragma: allowlist secret -->
 | Meta | 28px, `51 min · 24 Aug 2026` |
 | Platform icons | 32×32, gap 10, under meta, left-aligned with the title |
 | Art max box / radius | 700×440 / 12 — source aspect, no crop |
@@ -85,11 +85,27 @@ bottom-right **is** the leftover column — the name occupies that width
 (`layoutOgShowName`) **up to a gutter** (`OG_SQUARE_FOOTER_GUTTER` 28) and must
 not paint into the meta stack. Wrap is measured with the same Figtree factor
 as titles (0.56). Footer height is `max(stacked meta, two 48px show-name lines)`.
+**1 or 2 rows:** vertically centred with the stacked meta column (same as wide).
 
 ## Vertical alignment
+
+### Episode title (wide and square)
 
 Satori does not honour `justify-content: center` on the title column. Compute:
 
 `titlePadTop = max(0, floor((artHeight − lineBox × lineCount) / 2))`
 
 and set that as `margin-top` on the title block. Same formula on wide and square.
+
+### Podcast name in the footer (wide is the reference)
+
+The footer row is as tall as the **taller** column (show name vs meta+icons).
+Both columns use `align-items: center`.
+
+| Rows | Alignment |
+|------|-----------|
+| 1 | Show name is vertically centred on the meta+icons block |
+| 2 | Show name and meta+icons are vertically centred on each other |
+
+Square uses the same rule against the stacked duration / date / icons. Do **not**
+bottom-align a one-row name to the icons.

@@ -154,12 +154,27 @@ describe("OG implementation meets the style guide", () => {
 		expect(impl).toContain("layoutOgShowName");
 		expect(impl).toContain("squareShowNameContentWidth");
 		expect(impl).toContain("OG_SQUARE_FOOTER_GUTTER");
-		expect(impl).toContain("align-items:flex-end");
 		expect(impl).toContain("justify-content:space-between");
 		expect(impl).toContain("squareArtMaxHeight");
 		expect(styleDoc).toContain("leftover footer");
 		expect(styleDoc).toContain("max 2 lines");
 		expect(styleDoc).toContain("not paint into the meta stack");
+	});
+
+	it("centres 1- and 2-row show names on the footer meta column like wide", () => {
+		expect(styleDoc).toContain("Podcast name in the footer");
+		expect(styleDoc).toContain("vertically centred on the meta+icons block");
+		expect(styleDoc).toContain("Do **not**");
+		const wideFooter = impl.match(
+			/wideLayout === "columns"[\s\S]*?align-items:center;flex-shrink:0;padding:\$\{OG_WIDE_STYLE\.footerPadTop\}/
+		)?.[0];
+		expect(wideFooter).toBeDefined();
+		expect(impl).toContain(
+			"flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}"
+		);
+		expect(impl).not.toContain(
+			"flex-direction:row;align-items:flex-end;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}"
+		);
 	});
 
 	it("keeps square show name and stacked meta in separate footer columns", () => {

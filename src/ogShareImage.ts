@@ -393,7 +393,7 @@ function cardHtml(input: {
 	const artImg = `<img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${sq.artRadius}px;flex-shrink:0;" />`;
 	const footerMeta =
 		stackMeta || chips
-			? `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;gap:${OG_SQUARE_STYLE.footerMetaGap}px;flex-shrink:0;">
+			? `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:${OG_SQUARE_STYLE.footerMetaGap}px;flex-shrink:0;">
       ${stackMeta}
       ${chips}
     </div>`
@@ -416,8 +416,8 @@ function cardHtml(input: {
 		: "";
 	const showFooter =
 		showName || footerMeta
-			? `<div style="display:flex;flex-direction:row;align-items:flex-end;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}px ${padX}px ${padY}px ${sq.artPad}px;">
-    <div style="display:flex;width:${showNameWidth}px;flex-shrink:0;margin-right:${OG_SQUARE_FOOTER_GUTTER}px;align-items:flex-end;overflow:hidden;">${showName}</div>
+			? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}px ${padX}px ${padY}px ${sq.artPad}px;">
+    <div style="display:flex;width:${showNameWidth}px;flex-shrink:0;margin-right:${OG_SQUARE_FOOTER_GUTTER}px;align-items:center;overflow:hidden;">${showName}</div>
     ${footerMeta}
   </div>`
 			: "";
