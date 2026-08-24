@@ -217,9 +217,9 @@ function wideBrandBarHtml(
 
 /**
  * Satori flattens nested title flex items into one wrapping run (hyphens vanish,
- * the raw word reflows). One text node with \\n keeps both breaks and hyphens.
- * Titles always use Figtree Semibold; Instrument Serif is fallback for U+002D
- * (the Figtree subset has no hyphen).
+ * the raw word reflows). One Figtree text node with \\n keeps breaks and hyphens.
+ * Do not list Instrument Serif as a fallback — Satori then paints the whole title
+ * in the serif face (different look and optical size).
  */
 function titleBlockHtml(
 	lines: readonly string[],
@@ -228,7 +228,7 @@ function titleBlockHtml(
 	extraStyle = ""
 ): string {
 	const text = escapeHtml(lines.join("\n"));
-	return `<div style="display:flex;flex-direction:column;white-space:pre;color:${WHITE};font-family:Figtree,'Instrument Serif';font-weight:600;font-size:${fontSize}px;line-height:${lineHeight};${extraStyle}">${text}</div>`;
+	return `<div style="display:flex;flex-direction:column;white-space:pre;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${fontSize}px;line-height:${lineHeight};${extraStyle}">${text}</div>`;
 }
 
 /**
