@@ -53,7 +53,7 @@ const CARD_SCALE = {
 		longWordThreshold: 22,
 		titleLineHeight: 1.1,
 		titleMarginBottom: 12,
-		podcastSize: 44, // pragma: allowlist secret
+		podcastSize: 52, // pragma: allowlist secret
 		podcastMarginBottom: 0, // pragma: allowlist secret
 		metaSize: 28,
 		metaLetterSpacing: 0,
@@ -288,15 +288,20 @@ function cardHtml(input: {
 				chips || rowMetaHtml
 					? `<div style="display:flex;flex-direction:row;align-items:center;gap:20px;flex-shrink:0;margin-top:16px;">${chips}${rowMetaHtml}</div>`
 					: "";
+			const showFooter = input.podcast // pragma: allowlist secret
+				? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;flex-shrink:0;padding:8px ${padX}px ${padY}px ${padX}px;">
+    <div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.15;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div> <!-- pragma: allowlist secret -->
+  </div>`
+				: "";
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:4px ${padX}px ${padY}px ${s.artPad}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
     ${artImg}
     <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;${textPad}">
       ${titleHtml}
-      ${podcastHtml}
       ${iconMetaRow}
     </div>
-  </div>`;
+  </div>
+  ${showFooter}`;
 		} else {
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px 2px ${s.artPad}px;">
