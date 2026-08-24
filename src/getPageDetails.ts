@@ -112,8 +112,6 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
 	logCollector.add({ route: "getPageDetails" });
-	const isSsr = c.req.query("ssr") == "true";
-	logCollector.addMessage(`ssr=${isSsr}`);
 	AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
 
 	const episodeId = c.req.param("episodeId");
