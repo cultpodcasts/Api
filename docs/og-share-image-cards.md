@@ -29,13 +29,12 @@ and chrome.
 everything into a centred right stack:
 
 ```
-CULT PODCASTS                         ← top bar // pragma: allowlist secret
+            CULT PODCASTS             ← centred, taller, tight to the art // pragma: allowlist secret
 
 [ episode art ]  episode name
-                 podcast name
-                 duration             ← larger type, not uppercase ISO
-                 24 Aug 2026
-[ yt  spotify  apple ]                ← bottom bar
+                 podcast name         ← larger type
+
+[ yt  spotify  apple ]     51:28  24 Aug 2026
 ```
 
 **Square** keeps a compact right column (brand, title, podcast, duration, date,
@@ -43,14 +42,14 @@ icons) with the same larger date/duration type.
 
 | Zone (wide) | Content |
 |-------------|---------|
-| Top | Site logo + `CULT PODCASTS` | <!-- pragma: allowlist secret -->
+| Top | Site logo + `CULT PODCASTS`, horizontally centred | <!-- pragma: allowlist secret -->
 | Left | Episode art sized to the **source aspect ratio**, fitted inside a max box — never cropped |
-| Right | episode name → podcast name → **duration** → **published date** (`24 Aug 2026`) |
-| Bottom | icon-only platform row |
+| Right | episode name → podcast name |
+| Bottom | platform icons left; duration + published date (`24 Aug 2026`) on the right |
 
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
-| `a=wide` | 1200×630 | 700×440 | `summary_large_image` |
+| `a=wide` | 1200×630 | 720×500 | `summary_large_image` |
 | `a=square` | 800×418 | 360×378 | `summary_large_image` |
 
 ## Query contract
@@ -64,7 +63,7 @@ GET /og-image
   &d=<duration>
   &r=<release date>       # display string (`24 Aug 2026`)
   &pl=youtube,spotify,apple,bbc
-  &cv=2                   # layout revision (cache key)
+  &cv=3                   # layout revision (cache key)
 ```
 
 - `u` must be `https` and an allowlisted host (`episodeShareImage.isAllowedShareImageSourceHost`).
@@ -99,7 +98,7 @@ sequenceDiagram
   alt KV hit with image
     Api->>KV: get metadata
     Api->>Search: episode by id (platforms only; KV unchanged)
-    Api-->>Web: image = /og-image?...pl=live,cv=2
+    Api-->>Web: image = /og-image?...pl=live,cv=3
   else KV miss
     Api->>Search: episode by id
     Api->>KV: put (image + platforms on create only)

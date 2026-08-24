@@ -34,31 +34,31 @@ const CARD_SCALE = {
 		artPad: 28,
 		gap: 8,
 		/** Max box for episode art; displayed size keeps the source aspect ratio. */
-		artMaxWidth: 700,
-		artMaxHeight: 440,
+		artMaxWidth: 720,
+		artMaxHeight: 500,
 		artRadius: 12,
 		iconGap: 14,
 		iconRadius: 10,
 		/** Single-line brand; font > logo so Instrument Serif caps meet logo diameter. */
-		brandSize: 48,
+		brandSize: 64,
 		brandLetterSpacing: 0.4,
-		brandMarginBottom: 14,
-		brandLogo: 44,
-		brandGap: 12,
+		brandMarginBottom: 4,
+		brandLogo: 58,
+		brandGap: 14,
 		titleLarge: 52,
 		titleSmall: 40,
 		titleThreshold: 48,
 		/** Soften type when any single token is this long (unspaced compounds / URLs). */
 		longWordThreshold: 16,
 		titleLineHeight: 1.14,
-		titleMarginBottom: 12,
-		podcastSize: 26, // pragma: allowlist secret
-		podcastMarginBottom: 10, // pragma: allowlist secret
+		titleMarginBottom: 14,
+		podcastSize: 40, // pragma: allowlist secret
+		podcastMarginBottom: 0, // pragma: allowlist secret
 		metaSize: 32,
 		metaLetterSpacing: 0,
 		iconsMarginTop: 0,
 		chromePadX: 40,
-		chromePadY: 24,
+		chromePadY: 8,
 		icon: 52,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
@@ -190,8 +190,8 @@ function brandBarHtml(s: (typeof CARD_SCALE)[CardAspect], logo: string): string 
 }
 
 /**
- * Wide cards: site name across the top, service icons along the bottom,
- * right column for title / duration / published-at (uses the empty column).
+ * Wide cards: centred site mark on top (tight to the art), title + podcast
+ * name in the right column, bottom row = service icons + duration/date.
  * Square cards keep a compact right stack with larger meta type.
  */
 function cardHtml(input: {
@@ -222,31 +222,38 @@ function cardHtml(input: {
 		: "";
 
 	if (input.aspect === "wide") {
-		const padX = 40;
-		const padY = 24;
-		const iconSize = s.icon;
+		const padX = s.chromePadX;
+		const padY = s.chromePadY;
+		const footerMeta = [input.duration, input.date]
+			.filter((part) => part.length > 0)
+			.map(
+				(part) =>
+					`<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;line-height:1.2;word-break:break-word;">${escapeHtml(part)}</div>`
+			)
+			.join("");
+		const footerMetaHtml = footerMeta
+			? `<div style="display:flex;flex-direction:row;align-items:center;gap:28px;flex-shrink:0;">${footerMeta}</div>`
+			: "";
+		const footerHtml =
+			chips || footerMetaHtml
+				? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:4px ${padX}px ${padY}px ${padX}px;">${chips}${footerMetaHtml}</div>`
+				: "";
 		return `
 <div style="display:flex;flex-direction:column;width:${s.width}px;height:${s.height}px;background:${INK};font-family:Figtree;">
-  <div style="display:flex;flex-direction:row;align-items:center;gap:${s.brandGap}px;flex-shrink:0;padding:${padY}px ${padX}px 0 ${padX}px;">
+  <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${padY}px ${padX}px 2px ${padX}px;">
     <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
     <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
   </div>
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:stretch;min-height:0;padding:12px ${padX}px 12px ${s.artPad}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
     <div style="display:flex;flex-shrink:0;align-items:center;">
       <img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />
     </div>
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:space-between;min-width:0;overflow:hidden;padding:8px ${s.textPaddingX}px 8px ${s.gap + 24}px;">
-      <div style="display:flex;flex-direction:column;">
-        ${titleHtml}
-        ${podcastHtml}
-      </div>
-      <div style="display:flex;flex-direction:column;flex-shrink:0;margin-top:16px;">
-        ${durationHtml}
-        ${dateHtml}
-      </div>
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${s.gap + 24}px;">
+      ${titleHtml}
+      ${podcastHtml}
     </div>
   </div>
-  ${chips ? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:0 ${padX}px ${padY}px ${padX}px;">${chips}</div>` : ""}
+  ${footerHtml}
 </div>`;
 	}
 
