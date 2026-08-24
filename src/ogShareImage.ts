@@ -41,26 +41,26 @@ const CARD_SCALE = {
 		iconGap: 14,
 		iconRadius: 10,
 		/** Single-line brand; font > logo so Instrument Serif caps meet logo diameter. */
-		brandSize: 64,
+		brandSize: 80,
 		brandLetterSpacing: 0.4,
 		brandMarginBottom: 4,
-		brandLogo: 58,
-		brandGap: 14,
-		titleLarge: 52,
-		titleSmall: 40,
-		titleThreshold: 48,
+		brandLogo: 72,
+		brandGap: 16,
+		titleLarge: 68,
+		titleSmall: 58,
+		titleThreshold: 90,
 		/** Soften type when any single token is this long (unspaced compounds / URLs). */
-		longWordThreshold: 16,
-		titleLineHeight: 1.14,
-		titleMarginBottom: 14,
+		longWordThreshold: 22,
+		titleLineHeight: 1.1,
+		titleMarginBottom: 16,
 		podcastSize: 48, // pragma: allowlist secret
 		podcastMarginBottom: 0, // pragma: allowlist secret
-		metaSize: 32,
+		metaSize: 28,
 		metaLetterSpacing: 0,
 		iconsMarginTop: 0,
 		chromePadX: 40,
-		chromePadY: 8,
-		icon: 52,
+		chromePadY: 14,
+		icon: 36,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
 		titleMaxLines: 4,
@@ -209,7 +209,7 @@ function wideBrandBarHtml(
 	s: (typeof CARD_SCALE)["wide"],
 	logo: string
 ): string {
-	return `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${s.chromePadY}px ${s.chromePadX}px 2px ${s.chromePadX}px;">
+	return `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${s.chromePadY}px ${s.chromePadX}px 6px ${s.chromePadX}px;">
     <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
     <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
   </div>`;
@@ -257,7 +257,7 @@ function cardHtml(input: {
 			? `<div style="display:flex;flex-direction:row;align-items:center;gap:16px;flex-shrink:0;">${rowMeta}</div>`
 			: "";
 		const artImg = `<img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />`;
-		const leftStack = `<div style="display:flex;flex-direction:column;flex-shrink:0;align-items:flex-start;gap:6px;">
+		const leftStack = `<div style="display:flex;flex-direction:column;flex-shrink:0;align-items:flex-start;gap:4px;">
       ${artImg}
       ${chips}
     </div>`;
@@ -265,7 +265,7 @@ function cardHtml(input: {
 		let bodyAndFooter: string;
 		if (input.wideLayout === "stack") {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px 6px ${s.artPad}px;">
     ${leftStack}
     <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;${textPad}">
       ${titleHtml}
@@ -275,7 +275,7 @@ function cardHtml(input: {
   </div>`;
 		} else if (input.wideLayout === "inline") {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:2px ${padX}px 6px ${s.artPad}px;">
     ${leftStack}
     <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;${textPad}">
       ${titleHtml}
@@ -285,7 +285,7 @@ function cardHtml(input: {
   </div>`;
 		} else if (input.wideLayout === "columns") {
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:stretch;min-height:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:stretch;min-height:0;padding:2px ${padX}px 6px ${s.artPad}px;">
     ${leftStack}
     <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:space-between;min-width:0;overflow:hidden;${textPad}">
       <div style="display:flex;flex-direction:column;">
@@ -306,7 +306,7 @@ function cardHtml(input: {
   </div>
   ${
 		chips || rowMetaHtml
-			? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:2px ${padX}px ${padY}px ${padX}px;">${chips}${rowMetaHtml}</div>`
+			? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:2px ${padX}px 6px ${padX}px;">${chips}${rowMetaHtml}</div>`
 			: ""
 	}`;
 		}

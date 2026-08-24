@@ -173,7 +173,7 @@ describe("buildBrandedOgImageUrl / allowlist", () => {
 		expect(url.searchParams.get("d")).toBe("1:24:00");
 		expect(url.searchParams.get("r")).toBe("12/03/2026");
 		expect(url.searchParams.get("pl")).toBe("youtube,spotify");
-		expect(url.searchParams.get("cv")).toBe("3");
+		expect(url.searchParams.get("cv")).toBe("4");
 	});
 
 	it("includes podcast, duration, and date for square aspect the same as wide", () => {
@@ -196,7 +196,7 @@ describe("buildBrandedOgImageUrl / allowlist", () => {
 		expect(url.searchParams.get("d")).toBe("42:00");
 		expect(url.searchParams.get("r")).toBe("30/07/2026");
 		expect(url.searchParams.get("pl")).toBe("spotify,apple");
-		expect(url.searchParams.get("cv")).toBe("3");
+		expect(url.searchParams.get("cv")).toBe("4");
 	});
 
 	it("allows known episode-art hosts and rejects others", () => {

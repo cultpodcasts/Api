@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parseWideLayout } from "../src/ogWideLayout";
 
 describe("parseWideLayout", () => {
-	it("defaults unknown values to footer", () => {
-		expect(parseWideLayout(undefined)).toBe("footer");
-		expect(parseWideLayout("")).toBe("footer");
-		expect(parseWideLayout("nope")).toBe("footer");
+	it("defaults unknown values to columns", () => {
+		expect(parseWideLayout(undefined)).toBe("columns");
+		expect(parseWideLayout("")).toBe("columns");
+		expect(parseWideLayout("nope")).toBe("columns");
 	});
 
 	it("accepts the preview wide-layout ids", () => {
