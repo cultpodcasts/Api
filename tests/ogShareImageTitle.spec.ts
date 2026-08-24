@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	countOgWrappedLines,
 	fitOgWrappedText,
 	longestTokenLength,
 	ogTitleCharBudget,
@@ -17,6 +18,30 @@ describe("longestTokenLength", () => {
 		expect(
 			longestTokenLength("The Supercalifragilisticexpialidocious conspiracy")
 		).toBe("Supercalifragilisticexpialidocious".length);
+	});
+});
+
+describe("countOgWrappedLines", () => {
+	it("counts a two-word wrap in the wide title column", () => {
+		expect(
+			countOgWrappedLines({
+				text: "Cult Soul Mates",
+				columnWidth: 364,
+				fontSize: 72,
+				maxLines: 5
+			})
+		).toBe(2);
+	});
+
+	it("keeps a short single token on one line", () => {
+		expect(
+			countOgWrappedLines({
+				text: "Mates",
+				columnWidth: 364,
+				fontSize: 72,
+				maxLines: 5
+			})
+		).toBe(1);
 	});
 });
 

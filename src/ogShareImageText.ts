@@ -12,6 +12,41 @@ export function longestTokenLength(text: string): number {
  * Figtree Semibold average glyph width ≈ 0.52×fontSize; slack keeps `…` on the last line
  * when Satori wraps slightly tighter than the heuristic.
  */
+/**
+ * Greedy word-wrap line count for Figtree Semibold titles.
+ * Uses a slightly wide glyph so we do not under-count wraps (which leaves
+ * two-line titles flush with the top of the art).
+ */
+export function countOgWrappedLines(opts: {
+	text: string;
+	columnWidth: number;
+	fontSize: number;
+	maxLines: number;
+	charWidthFactor?: number;
+}): number {
+	const words = opts.text.trim().split(/\s+/).filter(Boolean);
+	if (words.length === 0) {
+		return 1;
+	}
+	const glyph = opts.fontSize * (opts.charWidthFactor ?? 0.56);
+	const space = opts.fontSize * 0.22;
+	const lines: number[] = [0];
+	for (const word of words) {
+		const width = Math.max(glyph, word.length * glyph);
+		const current = lines[lines.length - 1];
+		const next = current === 0 ? width : current + space + width;
+		if (next > opts.columnWidth && current > 0) {
+			if (lines.length >= opts.maxLines) {
+				break;
+			}
+			lines.push(width);
+		} else {
+			lines[lines.length - 1] = next;
+		}
+	}
+	return Math.max(1, Math.min(opts.maxLines, lines.length));
+}
+
 export function ogTitleCharBudget(opts: {
 	columnWidth: number;
 	fontSize: number;

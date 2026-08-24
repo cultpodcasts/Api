@@ -8,6 +8,7 @@ import {
 import { parseOgPlatforms, platformIconDataUrl, type OgPlatform } from "./ogCardPlatforms";
 import { fitArtWithin, readImageSize } from "./ogArtSize";
 import {
+	countOgWrappedLines,
 	fitOgWrappedText,
 	longestTokenLength,
 	ogTitleCharBudget,
@@ -133,6 +134,13 @@ function titleFontSize(
 function textColumnContentWidth(aspect: CardAspect, artWidth: number): number {
 	const s = CARD_SCALE[aspect];
 	return s.width - s.artPad - artWidth - (s.gap + 20) - s.textPaddingX;
+}
+
+/** Title column on the default wide layout, including the body row's right pad. */
+function columnsTitleContentWidth(artWidth: number): number {
+	const s = CARD_SCALE.wide;
+	const textPadLeft = s.gap + 24;
+	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
 }
 
 /** Truncate so the ellipsis lands within titleMaxLines (not clipped by max-height). */
@@ -319,17 +327,22 @@ function cardHtml(input: {
     <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
   </div>`
 					: "";
-			// Satori ignores justify-content:center here. Equal flex spacers in a
-			// column locked to the art height middle-align 1–2 line titles.
+			// Satori ignores justify-content / flex spacers here. Pad from a
+			// word-wrap line count so two-line titles sit on the art midline.
+			const titleLines = countOgWrappedLines({
+				text: input.title,
+				columnWidth: columnsTitleContentWidth(input.artWidth),
+				fontSize: titleSize,
+				maxLines: s.titleMaxLines
+			});
+			const titleBlockHeight = Math.ceil(titleSize * s.titleLineHeight * titleLines);
+			const titlePadTop = Math.max(0, Math.floor((input.artHeight - titleBlockHeight) / 2));
 			const columnsTitleHtml = `<div style="display:flex;justify-content:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;text-align:left;">${escapeHtml(input.title)}</div>`;
-			const titleSpacer = `<div style="display:flex;flex-grow:1;flex-shrink:1;min-height:0;"></div>`;
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
-    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
-      ${titleSpacer}
+    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;justify-content:flex-start;min-width:0;padding:${titlePadTop}px ${s.textPaddingX}px 0 ${textPadLeft}px;">
       ${columnsTitleHtml}
-      ${titleSpacer}
     </div>
   </div>
   ${showFooter}`;
