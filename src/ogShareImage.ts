@@ -35,35 +35,35 @@ const CARD_SCALE = {
 		artPad: 28,
 		gap: 8,
 		/** Max box for episode art; displayed size keeps the source aspect ratio. */
-		artMaxWidth: 720,
-		artMaxHeight: 500,
+		artMaxWidth: 700,
+		artMaxHeight: 440,
 		artRadius: 12,
 		iconGap: 10,
 		iconRadius: 10,
 		/** Single-line brand; font > logo so Instrument Serif caps meet logo diameter. */
-		brandSize: 80,
+		brandSize: 96,
 		brandLetterSpacing: 0.4,
 		brandMarginBottom: 4,
-		brandLogo: 72,
+		brandLogo: 88,
 		brandGap: 16,
-		titleLarge: 64,
-		titleSmall: 54,
+		titleLarge: 72,
+		titleSmall: 62,
 		titleThreshold: 90,
 		/** Soften type when any single token is this long (unspaced compounds / URLs). */
 		longWordThreshold: 22,
 		titleLineHeight: 1.1,
 		titleMarginBottom: 12,
-		podcastSize: 52, // pragma: allowlist secret
+		podcastSize: 48, // pragma: allowlist secret
 		podcastMarginBottom: 0, // pragma: allowlist secret
 		metaSize: 28,
 		metaLetterSpacing: 0,
 		iconsMarginTop: 0,
 		chromePadX: 40,
-		chromePadY: 10,
+		chromePadY: 12,
 		icon: 32,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
-		titleMaxLines: 3,
+		titleMaxLines: 4,
 		podcastMax: 80 // pragma: allowlist secret
 	},
 	square: {
@@ -284,21 +284,28 @@ function cardHtml(input: {
     </div>
   </div>`;
 		} else if (input.wideLayout === "columns") {
-			const iconMetaRow =
-				chips || rowMetaHtml
-					? `<div style="display:flex;flex-direction:row;align-items:center;gap:20px;flex-shrink:0;margin-top:16px;">${chips}${rowMetaHtml}</div>`
+			const footerRight =
+				rowMetaHtml || chips
+					? `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;flex-shrink:0;gap:8px;">
+      ${rowMetaHtml}
+      ${chips}
+    </div>`
 					: "";
-			const showFooter = input.podcast // pragma: allowlist secret
-				? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;flex-shrink:0;padding:8px ${padX}px ${padY}px ${padX}px;">
-    <div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.15;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div> <!-- pragma: allowlist secret -->
-  </div>`
+			const showName = input.podcast // pragma: allowlist secret
+				? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.15;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div>` // pragma: allowlist secret
 				: "";
+			const showFooter =
+				showName || footerRight
+					? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:8px ${padX}px ${padY}px ${padX}px;">
+    ${showName}
+    ${footerRight}
+  </div>`
+					: "";
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
     ${artImg}
     <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;${textPad}">
       ${titleHtml}
-      ${iconMetaRow}
     </div>
   </div>
   ${showFooter}`;
