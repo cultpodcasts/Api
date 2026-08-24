@@ -135,16 +135,6 @@ function textColumnContentWidth(aspect: CardAspect, artWidth: number): number {
 	return s.width - s.artPad - artWidth - (s.gap + 20) - s.textPaddingX;
 }
 
-function estimateWrappedLineCount(
-	text: string,
-	columnWidth: number,
-	fontSize: number,
-	maxLines: number
-): number {
-	const perLine = Math.max(8, Math.floor(columnWidth / (fontSize * 0.52)));
-	return Math.min(maxLines, Math.max(1, Math.ceil(text.length / perLine)));
-}
-
 /** Truncate so the ellipsis lands within titleMaxLines (not clipped by max-height). */
 function truncateTitleForCard(aspect: CardAspect, rawTitle: string, artWidth: number): string {
 	const s = CARD_SCALE[aspect];
@@ -329,21 +319,17 @@ function cardHtml(input: {
     <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
   </div>`
 					: "";
-			// Satori ignores justify-content:center on this column; pad from the art height instead.
-			const titleLines = estimateWrappedLineCount(
-				input.title,
-				textColumnContentWidth("wide", input.artWidth),
-				titleSize,
-				s.titleMaxLines
-			);
-			const titleBlockHeight =
-				Math.ceil(titleSize * s.titleLineHeight * titleLines) + s.titleMarginBottom;
-			const titlePadTop = Math.max(0, Math.floor((input.artHeight - titleBlockHeight) / 2));
+			// Satori ignores justify-content:center here. Equal flex spacers in a
+			// column locked to the art height middle-align 1–2 line titles.
+			const columnsTitleHtml = `<div style="display:flex;justify-content:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;text-align:left;">${escapeHtml(input.title)}</div>`;
+			const titleSpacer = `<div style="display:flex;flex-grow:1;flex-shrink:1;min-height:0;"></div>`;
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start;min-width:0;padding:${titlePadTop}px ${s.textPaddingX}px 0 ${textPadLeft}px;">
-      ${titleHtml}
+    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+      ${titleSpacer}
+      ${columnsTitleHtml}
+      ${titleSpacer}
     </div>
   </div>
   ${showFooter}`;
