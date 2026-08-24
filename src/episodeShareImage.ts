@@ -237,7 +237,7 @@ export function buildBrandedOgImageUrl(
 	url.searchParams.set("u", sourceImageAbsoluteUrl);
 	url.searchParams.set("a", aspect);
 	/** Layout revision — changes the cache key when card chrome changes. */
-	url.searchParams.set("cv", "12");
+	url.searchParams.set("cv", "13");
 	if (meta?.title) {
 		url.searchParams.set("t", meta.title);
 	}

@@ -72,7 +72,7 @@ GET /og-image
   &d=<duration>           # `51 min` / `1h` / `1h 5m`
   &r=<release date>       # display string (`24 Aug 2026`)
   &pl=youtube,spotify,apple,bbc
-  &cv=12                  # layout revision (cache key)
+  &cv=13                  # layout revision (cache key)
   &wl=footer|columns|stack|inline  # wide chrome preview; default columns
 ```
 
@@ -90,7 +90,7 @@ GET /og-image
 | Type | **Instrument Serif** (brand) + **Figtree Semibold** (title / podcast / meta); site logo mark inline with brand | Matches website display/UI fonts |
 | Colour | Ink `#0b0d12`, amber brand `#f5c056`, secondary/meta `#f0f2f5` / `#e8ebf0` | High contrast on dark card |
 | Platform icons | Copied from website assets / `apple-podcasts-svg` (Apple purple person + arcs; Spotify Material green; YouTube play; BBC Sounds bars) | Must match site marks at chip size |
-| Long titles | Soft wrap; smaller type when long **or** any token ≥14–16 chars; hard truncate to a **line budget** from text-column width (≈3–4 lines) on a word boundary so `…` stays on the last visible line | Char-only caps can overflow the line clamp and hide the ellipsis |
+| Long titles | Soft wrap; smaller type when long **or** any token ≥14–16 chars; hard truncate to a **line budget** from text-column width (wide ≈5 lines) on a word boundary so `…` stays on the last visible line | Char-only caps can overflow the line clamp and hide the ellipsis |
 | Failure | 307 → source `u` (+ `X-Og-Error` on preview/debug) | Crawlers still get an image |
 
 Do **not** use bare `@resvg/resvg-wasm` / Satori without module-bundled Yoga on Workers — that yields `Wasm code generation disallowed by embedder`.
@@ -108,7 +108,7 @@ sequenceDiagram
   alt KV hit with image
     Api->>KV: get metadata
     Api->>Search: episode by id (platforms only; KV unchanged)
-    Api-->>Web: image = /og-image?...pl=live,cv=12
+    Api-->>Web: image = /og-image?...pl=live,cv=13
   else KV miss
     Api->>Search: episode by id
     Api->>KV: put (image + platforms on create only)

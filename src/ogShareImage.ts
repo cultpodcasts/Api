@@ -70,7 +70,7 @@ const CARD_SCALE = {
 		icon: 32,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
-		titleMaxLines: 4,
+		titleMaxLines: 5,
 		podcastMax: 80 // pragma: allowlist secret
 	},
 	square: {
