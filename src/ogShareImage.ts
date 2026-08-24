@@ -10,6 +10,7 @@ import { fitArtWithin, readImageSize } from "./ogArtSize";
 import { longestTokenLength, ogTitleCharBudget, truncateOgText } from "./ogShareImageText";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
+import { parseWideLayout, type WideLayoutId } from "./ogWideLayout";
 import instrumentSerifRegular from "./fonts/InstrumentSerif-Regular.woff";
 import instrumentSerifItalic from "./fonts/InstrumentSerif-Italic.woff";
 import figtreeRegular from "./fonts/Figtree-Regular.woff";
@@ -189,9 +190,33 @@ function brandBarHtml(s: (typeof CARD_SCALE)[CardAspect], logo: string): string 
     </div>`;
 }
 
+function metaPartsHtml(duration: string, date: string, size: number, row: boolean): string {
+	const parts = [duration, date].filter((part) => part.length > 0);
+	if (parts.length === 0) {
+		return "";
+	}
+	return parts
+		.map(
+			(part, i) =>
+				`<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${size}px;line-height:1.2;${row ? "" : i > 0 ? "margin-top:6px;" : ""}word-break:break-word;">${escapeHtml(part)}</div>`
+		)
+		.join(row && parts.length === 2
+			? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${size}px;line-height:1.2;">·</div>`
+			: "");
+}
+
+function wideBrandBarHtml(
+	s: (typeof CARD_SCALE)["wide"],
+	logo: string
+): string {
+	return `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${s.chromePadY}px ${s.chromePadX}px 2px ${s.chromePadX}px;">
+    <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
+    <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
+  </div>`;
+}
+
 /**
- * Wide cards: centred site mark on top (tight to the art), title + podcast
- * name in the right column, bottom row = service icons + duration/date.
+ * Wide cards: centred site mark on top (tight to the art). `wl=` picks chrome.
  * Square cards keep a compact right stack with larger meta type.
  */
 function cardHtml(input: {
@@ -204,6 +229,7 @@ function cardHtml(input: {
 	duration: string;
 	date: string;
 	platforms: OgPlatform[];
+	wideLayout: WideLayoutId;
 }): string {
 	const s = CARD_SCALE[input.aspect];
 	const titleSize = titleFontSize(input.title, s);
@@ -224,36 +250,70 @@ function cardHtml(input: {
 	if (input.aspect === "wide") {
 		const padX = s.chromePadX;
 		const padY = s.chromePadY;
-		const footerMeta = [input.duration, input.date]
-			.filter((part) => part.length > 0)
-			.map(
-				(part) =>
-					`<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;line-height:1.2;word-break:break-word;">${escapeHtml(part)}</div>`
-			)
-			.join("");
-		const footerMetaHtml = footerMeta
-			? `<div style="display:flex;flex-direction:row;align-items:center;gap:28px;flex-shrink:0;">${footerMeta}</div>`
+		const textPadLeft = s.gap + 24;
+		const rowMeta = metaPartsHtml(input.duration, input.date, s.metaSize, true);
+		const stackMeta = metaPartsHtml(input.duration, input.date, s.metaSize, false);
+		const rowMetaHtml = rowMeta
+			? `<div style="display:flex;flex-direction:row;align-items:center;gap:16px;flex-shrink:0;">${rowMeta}</div>`
 			: "";
-		const footerHtml =
-			chips || footerMetaHtml
-				? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:4px ${padX}px ${padY}px ${padX}px;">${chips}${footerMetaHtml}</div>`
-				: "";
-		return `
-<div style="display:flex;flex-direction:column;width:${s.width}px;height:${s.height}px;background:${INK};font-family:Figtree;">
-  <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${padY}px ${padX}px 2px ${padX}px;">
-    <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
-    <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
-  </div>
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
-    <div style="display:flex;flex-shrink:0;align-items:center;">
+		const artBlock = `<div style="display:flex;flex-shrink:0;align-items:center;">
       <img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />
+    </div>`;
+		let bodyAndFooter: string;
+		if (input.wideLayout === "stack") {
+			bodyAndFooter = `
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
+    ${artBlock}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+      ${titleHtml}
+      ${podcastHtml}
+      ${stackMeta ? `<div style="display:flex;flex-direction:column;margin-top:16px;">${stackMeta}</div>` : ""}
     </div>
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${s.gap + 24}px;">
+  </div>
+  ${chips ? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">${chips}</div>` : ""}`;
+		} else if (input.wideLayout === "inline") {
+			bodyAndFooter = `
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
+    ${artBlock}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+      ${titleHtml}
+      ${podcastHtml}
+      ${rowMetaHtml ? `<div style="display:flex;margin-top:16px;">${rowMetaHtml}</div>` : ""}
+    </div>
+  </div>
+  ${chips ? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">${chips}</div>` : ""}`;
+		} else if (input.wideLayout === "columns") {
+			bodyAndFooter = `
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
+    ${artBlock}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
       ${titleHtml}
       ${podcastHtml}
     </div>
   </div>
-  ${footerHtml}
+  <div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:2px ${padX}px ${padY}px ${s.artPad}px;">
+    <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;">${chips}</div>
+    <div style="display:flex;flex-grow:1;align-items:center;min-width:0;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">${rowMetaHtml}</div>
+  </div>`;
+		} else {
+			bodyAndFooter = `
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:4px ${padX}px 4px ${s.artPad}px;">
+    ${artBlock}
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
+      ${titleHtml}
+      ${podcastHtml}
+    </div>
+  </div>
+  ${
+		chips || rowMetaHtml
+			? `<div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:2px ${padX}px ${padY}px ${padX}px;">${chips}${rowMetaHtml}</div>`
+			: ""
+	}`;
+		}
+		return `
+<div style="display:flex;flex-direction:column;width:${s.width}px;height:${s.height}px;background:${INK};font-family:Figtree;">
+  ${wideBrandBarHtml(s, logo)}
+  ${bodyAndFooter}
 </div>`;
 	}
 
@@ -275,7 +335,7 @@ function cardHtml(input: {
 
 /**
  * Composed OG card via workers-og (Satori + properly module-bundled Wasm).
- * GET /og-image?u=&a=wide|square&t=&p=&d=&r=&pl=youtube,spotify,apple,bbc
+ * GET /og-image?u=&a=wide|square&t=&p=&d=&r=&pl=youtube,spotify,apple,bbc&wl=footer|columns|stack|inline
  */
 export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Response> {
 	const sourceParam = c.req.query("u");
@@ -305,6 +365,7 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 	const duration = formattedDuration(c.req.query("d"));
 	const date = formattedDate(c.req.query("r"));
 	const platforms = parseOgPlatforms(c.req.query("pl"));
+	const wideLayout = parseWideLayout(c.req.query("wl"));
 
 	try {
 		const sourceResponse = await fetch(sourceUrl.toString());
@@ -330,7 +391,8 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 			podcast, // pragma: allowlist secret
 			duration,
 			date,
-			platforms
+			platforms,
+			wideLayout
 		});
 
 		return new ImageResponse(html, {

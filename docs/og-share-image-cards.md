@@ -45,7 +45,16 @@ icons) with the same larger date/duration type.
 | Top | Site logo + `CULT PODCASTS`, horizontally centred | <!-- pragma: allowlist secret -->
 | Left | Episode art sized to the **source aspect ratio**, fitted inside a max box — never cropped |
 | Right | episode name → podcast name |
-| Bottom | platform icons left; duration + published date (`24 Aug 2026`) on the right |
+| Bottom | default `wl=footer`: platform icons left; duration + date on the far right |
+
+Preview-only `wl=` wide variants (page-details does not send this; default is `footer`):
+
+| `wl` | Bottom / meta |
+|------|----------------|
+| `footer` | Icons left, duration + date far right on one row |
+| `columns` | Icons under the art; duration + date under the title column |
+| `stack` | Duration + date under the podcast name; icons tight under the art |
+| `inline` | `51:28 · 24 Aug 2026` under the podcast name; icons tight under the art |
 
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
@@ -64,6 +73,7 @@ GET /og-image
   &r=<release date>       # display string (`24 Aug 2026`)
   &pl=youtube,spotify,apple,bbc
   &cv=3                   # layout revision (cache key)
+  &wl=footer|columns|stack|inline  # wide chrome preview; default footer
 ```
 
 - `u` must be `https` and an allowlisted host (`episodeShareImage.isAllowedShareImageSourceHost`).
