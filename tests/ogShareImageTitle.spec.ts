@@ -69,7 +69,7 @@ describe("layoutOgTitle", () => {
 		expect(lines.length).toBeLessThanOrEqual(3);
 		expect(lines.slice(0, -1).every((line) => line.endsWith("-"))).toBe(true);
 		expect(lines[lines.length - 1].endsWith("-")).toBe(false);
-		expect(lines[0].replace("-", "").length).toBeGreaterThanOrEqual(11);
+		expect(lines[0].replace("-", "").length).toBeGreaterThanOrEqual(9);
 		expect(lines.join("").replaceAll("-", "")).toBe("Boroughboundaryreconsideration");
 	});
 

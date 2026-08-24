@@ -24,8 +24,8 @@ export function layoutOgTitle(opts: {
 		return { lines: [""] };
 	}
 	const glyph = opts.fontSize * (opts.charWidthFactor ?? 0.56);
-	/** Instrument Serif (used for hyphenated titles) is narrower than Figtree 0.56. */
-	const hyphenGlyph = opts.fontSize * (opts.hyphenCharWidthFactor ?? 0.43);
+	/** Slightly tighter than wrap 0.56 so hyphenated lines fill the Figtree column. */
+	const hyphenGlyph = opts.fontSize * (opts.hyphenCharWidthFactor ?? 0.5);
 	const space = opts.fontSize * 0.22;
 	const maxW = opts.columnWidth;
 	const maxLines = Math.max(1, opts.maxLines);
