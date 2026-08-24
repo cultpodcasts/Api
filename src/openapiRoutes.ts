@@ -14,6 +14,7 @@ import { getFlairs } from "./getFlairs";
 import { getLanguages } from "./getLanguages";
 import { getOutgoing } from "./getOutgoing";
 import { getPageDetails } from "./getPageDetails";
+import { getOgShareImage } from "./ogShareImage";
 import { getPersonByName } from "./getPersonByName";
 import { getPodcastByName } from "./getPodcastByName";
 import { getPodcastByNameAndEpisodeId } from "./getPodcastByNameAndEpisodeId";
@@ -60,6 +61,7 @@ import {
 	jsonBody,
 	languagesResponseSchema,
 	messageResponseSchema,
+	ogImageQuerySchema,
 	pageDetailsResponseSchema,
 	peopleListResponseSchema,
 	personChangeRequestSchema,
@@ -930,6 +932,33 @@ export const GetPageDetailsRoute = createOpenApiRoute(getPageDetails, {
         summary: "Get page details by podcast and episode",
         request: { params: podcastAndEpisodeParam },
         responses: { 200: { description: "Page details", ...contentJson(pageDetailsResponseSchema) } }
+    }
+});
+
+export const GetOgShareImageRoute = createOpenApiRoute(getOgShareImage, {
+    schema: {
+        tags: ["Public"],
+        summary: "Composed OG / Twitter share card",
+        description:
+            "Public PNG used as `og:image` / `twitter:image` (same URL as page-details `image`). " +
+            "Successful 200s are stored in Workers Cache for 7 days (`X-Og-Cache: HIT|MISS`). " +
+            "Source-fetch or compose failure returns 307 to `u`. No auth.",
+        request: { query: ogImageQuerySchema },
+        responses: {
+            200: {
+                description: "Composed card PNG. Header `X-Og-Cache`: HIT or MISS.",
+                content: {
+                    "image/png": {
+                        schema: {
+                            type: "string",
+                            format: "binary"
+                        }
+                    }
+                }
+            },
+            400: { description: "Missing or invalid `u`, non-https, or source host not allowlisted" },
+            307: { description: "Fallback redirect; `Location` is the source art URL (`u`)" }
+        }
     }
 });
 
