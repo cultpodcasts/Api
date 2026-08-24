@@ -89,8 +89,9 @@ export const OG_SQUARE_STYLE = {
 	titleMarginBottom: scaleWidePx(OG_WIDE_STYLE.titleMarginBottom),
 	titleMaxLines: OG_WIDE_STYLE.titleMaxLines,
 	titleColumnPadLeftExtra: scaleWidePx(OG_WIDE_STYLE.titleColumnPadLeftExtra),
-	podcastSize: scaleWidePx(OG_WIDE_STYLE.podcastSize), // pragma: allowlist secret
-	podcastSizeMin: scaleWidePx(OG_WIDE_STYLE.podcastSizeMin), // pragma: allowlist secret
+	/** Same as wide — 800/1200 scale (32 / 21) reads too small next to a 48px title. */
+	podcastSize: OG_WIDE_STYLE.podcastSize, // pragma: allowlist secret
+	podcastSizeMin: OG_WIDE_STYLE.podcastSizeMin, // pragma: allowlist secret
 	/** Two lines at 32px do not fit under 1:1 art on 418px canvas; footer uses one line. */
 	podcastMaxLines: 2, // pragma: allowlist secret
 	podcastLineHeight: OG_WIDE_STYLE.podcastLineHeight, // pragma: allowlist secret

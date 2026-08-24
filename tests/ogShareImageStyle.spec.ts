@@ -82,8 +82,8 @@ describe("OG style guide tokens", () => {
 		expect(OG_SQUARE_STYLE.artRadius).toBe(scaleWidePx(OG_WIDE_STYLE.artRadius));
 		expect(OG_SQUARE_STYLE.artPad).toBe(scaleWidePx(OG_WIDE_STYLE.artPad));
 		expect(OG_SQUARE_STYLE.metaSize).toBe(scaleWidePx(OG_WIDE_STYLE.metaSize));
-		expect(OG_SQUARE_STYLE.podcastSize).toBe(scaleWidePx(OG_WIDE_STYLE.podcastSize)); // pragma: allowlist secret
-		expect(OG_SQUARE_STYLE.podcastSizeMin).toBe(scaleWidePx(OG_WIDE_STYLE.podcastSizeMin)); // pragma: allowlist secret
+		expect(OG_SQUARE_STYLE.podcastSize).toBe(OG_WIDE_STYLE.podcastSize); // pragma: allowlist secret
+		expect(OG_SQUARE_STYLE.podcastSizeMin).toBe(OG_WIDE_STYLE.podcastSizeMin); // pragma: allowlist secret
 		expect(OG_SQUARE_STYLE.chromePadX).toBe(scaleWidePx(OG_WIDE_STYLE.chromePadX));
 		expect(OG_SQUARE_STYLE.chromePadY).toBe(scaleWidePx(OG_WIDE_STYLE.chromePadY));
 		expect(OG_SQUARE_STYLE.titleMaxLines).toBe(OG_WIDE_STYLE.titleMaxLines);
@@ -129,6 +129,12 @@ describe("OG implementation meets the style guide", () => {
 		const fonts = impl.match(/fonts:\s*\[[\s\S]*?\]/)?.[0];
 		expect(fonts).toBeDefined();
 		expect(fonts?.indexOf("Figtree")).toBeLessThan(fonts?.indexOf("Instrument Serif") ?? -1);
+	});
+
+	it("keeps square show-name type at the wide size", () => {
+		expect(OG_SQUARE_STYLE.podcastSize).toBe(48); // pragma: allowlist secret
+		expect(OG_SQUARE_STYLE.podcastSizeMin).toBe(32); // pragma: allowlist secret
+		expect(OG_SQUARE_STYLE.podcastSize).toBe(OG_WIDE_STYLE.podcastSize); // pragma: allowlist secret
 	});
 
 	it("cannot fit two square show-name rows under 1:1 art, so the name is one line and wider", () => {

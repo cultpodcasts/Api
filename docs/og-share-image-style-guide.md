@@ -62,7 +62,7 @@ Canvas stays **800×418** (not `630 × 2/3`). Every other linear token is
 | Art max box / radius | 467×293 scaled, **height reduced** so the footer fits (`squareArtMaxHeight`) / 8 |
 | Art pad | 19 |
 | Chrome pad | 27×8 |
-| Show name | 32px (min 21), **one line**, width = footer minus meta stack |
+| Show name | **48px (min 32)**, same as wide — scaled 32/21 was too small; **one line**, width = footer minus meta stack |
 | Meta | 19px, **stacked** duration / date / icons, bottom-right |
 | Title max lines | 5 (same rule) |
 | Faces / colours / columns / v-align | Same as wide |
