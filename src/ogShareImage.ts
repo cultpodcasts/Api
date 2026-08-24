@@ -215,17 +215,22 @@ function wideBrandBarHtml(
   </div>`;
 }
 
-/** One laid-out title line. Figtree is subsetted (no U+002D); hyphen is Instrument Serif text. */
-function titleLineRowHtml(line: string, fontSize: number, lineBox: number): string {
-	const hyphenated = line.endsWith("-");
-	const text = hyphenated ? line.slice(0, -1) : line;
-	const hyphen = hyphenated
-		? `<div style="display:flex;font-family:'Instrument Serif';font-weight:400;font-size:${fontSize}px;line-height:1;padding-left:2px;">-</div>`
-		: "";
-	return `<div style="display:flex;flex-direction:row;flex-shrink:0;width:100%;height:${lineBox}px;align-items:center;">
-    <div style="display:flex;font-family:Figtree;font-weight:600;">${escapeHtml(text)}</div>
-    ${hyphen}
-  </div>`;
+/**
+ * Satori flattens nested title flex items into one wrapping run (hyphens vanish,
+ * the raw word reflows). One text node with \\n keeps both breaks and hyphens.
+ * Instrument Serif has U+002D; the Figtree subset does not.
+ */
+function titleBlockHtml(
+	lines: readonly string[],
+	fontSize: number,
+	lineHeight: number,
+	extraStyle = ""
+): string {
+	const text = escapeHtml(lines.join("\n"));
+	const hyphenated = lines.some((line) => line.includes("-"));
+	const family = hyphenated ? "Instrument Serif" : "Figtree";
+	const weight = hyphenated ? 400 : 600;
+	return `<div style="display:flex;flex-direction:column;white-space:pre;color:${WHITE};font-family:'${family}';font-weight:${weight};font-size:${fontSize}px;line-height:${lineHeight};${extraStyle}">${text}</div>`;
 }
 
 /**
@@ -259,10 +264,7 @@ function cardHtml(input: {
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
 	const titleLineBox = Math.ceil(titleSize * s.titleLineHeight);
-	const titleRows = titleLayout.lines
-		.map((line) => titleLineRowHtml(line, titleSize, titleLineBox))
-		.join("");
-	const titleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;">${titleRows}</div>`;
+	const titleHtml = titleBlockHtml(titleLayout.lines, titleSize, s.titleLineHeight, `margin-bottom:${s.titleMarginBottom}px;`);
 	const showNameFit = fitOgWrappedText({
 		text: input.podcast, // pragma: allowlist secret
 		columnWidth:
@@ -338,7 +340,12 @@ function cardHtml(input: {
 					: "";
 			const titleBlockHeight = titleLineBox * titleLayout.lines.length;
 			const titlePadTop = Math.max(0, Math.floor((input.artHeight - titleBlockHeight) / 2));
-			const columnsTitleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;flex-shrink:0;margin-top:${titlePadTop}px;height:${titleBlockHeight}px;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};">${titleRows}</div>`;
+			const columnsTitleHtml = titleBlockHtml(
+				titleLayout.lines,
+				titleSize,
+				s.titleLineHeight,
+				`flex-shrink:0;margin-top:${titlePadTop}px;height:${titleBlockHeight}px;`
+			);
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
