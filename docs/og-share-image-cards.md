@@ -130,7 +130,8 @@ GET /og-image
 - `p`, `d`, and `r` apply to **both** aspects (omitted from the card when empty).
 - `pl` is optional; chips omitted when empty.
 - Page-details builds this URL via `buildBrandedOgImageUrl` when share art exists.
-- Existing shortener KV is **never rewritten**. Platform chips are resolved from **live search** (`spotifyId` / `appleId` / `youtubeId`) on each page-details request so an image created when only YouTube existed still shows Spotify/Apple once those ids are in the index. Already-cached `/og-image` responses may stay stale; new URLs (new `pl` / `r` / title) render with current chrome.
+- Existing shortener KV is **never rewritten**. Platform chips are resolved from **live search** (`spotifyId` / `appleId` / `youtubeId`) on each page-details request so an image created when only YouTube existed still shows Spotify/Apple once those ids are in the index.
+- **When a card is composed:** first `GET /og-image` for that exact query. The PNG is stored in **Workers Cache** (`caches.default`, 7-day `max-age`). Repeats of the same URL do not run Satori. 4xx and 307 fallbacks are not cached. No R2 and no Cloudflare Images store. New query strings (`pl` / title / date / art) compose once.
 
 ## Rendering stack
 

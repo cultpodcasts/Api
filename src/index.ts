@@ -387,7 +387,7 @@ openapi.get('/bookmarks', GetBookmarksRoute);
 openapi.get('/public/episode/:id', PublicGetEpisodeRoute);
 openapi.get('/languages', GetLanguagesRoute);
 
-// Branded OG image (CF Images overlay). Public — crawlers fetch directly.
+// Branded OG image (Satori compose; Workers Cache on 200). Public — crawlers fetch directly.
 app.get('/og-image', getOgShareImage);
 
 export default {
