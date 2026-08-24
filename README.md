@@ -68,7 +68,7 @@ Dashboard: [api Builds](https://dash.cloudflare.com/bae3f835f19899c6eee1ec48f2d6
 
 ## OG share-image cards
 
-Composed Cult Podcasts OG/Twitter cards (`GET /og-image`). Design: [docs/og-share-image-cards.md](docs/og-share-image-cards.md).
+Composed Cult Podcasts OG/Twitter cards (`GET /og-image`). Satori on first GET of a URL; Workers Cache (7 days) after that. Design: [docs/og-share-image-cards.md](docs/og-share-image-cards.md). <!-- pragma: allowlist secret -->
 
 ### Local visual check
 

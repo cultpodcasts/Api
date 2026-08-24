@@ -18,6 +18,7 @@ import {
 	heroCurationUpdateRequestSchema,
 	homepageResponseSchema,
 	languagesResponseSchema,
+	ogImageQuerySchema,
 	pageDetailsResponseSchema,
 	podcastChangeRequestSchema,
 	podcastRenameRequestSchema,
@@ -283,6 +284,15 @@ describe("openapi Zod schemas", () => {
 			image: "https://i.scdn.co/image/ab6765cover",
 			imageAspect: "square"
 		}).imageAspect).toBe("square");
+		expect(ogImageQuerySchema.parse({
+			u: "https://i.ytimg.com/vi/sample/hqdefault.jpg",
+			a: "wide",
+			t: "Episode title",
+			p: "Show name",
+			d: "51 min",
+			r: "24 Aug 2026",
+			pl: "youtube,spotify,apple"
+		}).a).toBe("wide");
 		expect(searchResponseSchema.parse({
 			"@odata.count": 1,
 			value: [{

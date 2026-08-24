@@ -27,6 +27,7 @@ import {
 	GetFlairsRoute,
 	GetLanguagesRoute,
 	GetOutgoingRoute,
+	GetOgShareImageRoute,
 	GetPageDetailsRoute,
 	GetPersonByNameRoute,
 	GetPodcastByNameAndEpisodeIdRoute,
@@ -73,7 +74,6 @@ import {
 	UpdateSubjectRoute
 } from './openapiRoutes';
 import packageJson from '../package.json';
-import { getOgShareImage } from './ogShareImage';
 
 const app = new Hono<{ Bindings: Env }>();
 const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
@@ -381,14 +381,12 @@ openapi.delete('/hero-curation/episodes', DeleteHeroCurationEpisodesRoute);
 openapi.post('/podcast/name/:name', RenamePodcastRoute);
 openapi.post('/pushsubscription', PushSubscriptionRoute);
 openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);
+openapi.get('/og-image', GetOgShareImageRoute);
 openapi.post('/bookmark/:episodeId', AddBookmarkRoute);
 openapi.delete('/bookmark/:episodeId', DeleteBookmarkRoute);
 openapi.get('/bookmarks', GetBookmarksRoute);
 openapi.get('/public/episode/:id', PublicGetEpisodeRoute);
 openapi.get('/languages', GetLanguagesRoute);
-
-// Branded OG image (CF Images overlay). Public — crawlers fetch directly.
-app.get('/og-image', getOgShareImage);
 
 export default {
 	fetch: app.fetch,

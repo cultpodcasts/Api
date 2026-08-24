@@ -618,6 +618,21 @@ export const pageDetailsResponseSchema = z.object({
 	imageAspect: z.enum(["wide", "square"]).optional()
 });
 
+/** Query string for `GET /og-image` (page-details `image` / og:image). */
+export const ogImageQuerySchema = z.object({
+	u: z.string().url().describe("HTTPS episode art URL (allowlisted host)"),
+	a: z.enum(["wide", "square"]).optional().describe("Canvas aspect; omitted defaults to square"),
+	t: z.string().optional().describe("Episode title"),
+	p: z.string().optional().describe("Show name"), // pragma: allowlist secret
+	d: z.string().optional().describe("Duration display (`51 min` / `1h 24m`)"),
+	r: z.string().optional().describe("Release date display (`24 Aug 2026`)"),
+	pl: z.string().optional().describe("Platform chips, comma-separated (`youtube,spotify,apple,bbc`)"),
+	wl: z
+		.enum(["footer", "columns", "stack", "inline"])
+		.optional()
+		.describe("Wide chrome preview only; page-details omits this (default columns)")
+});
+
 /**
  * Azure Search hit — EpisodeSearchRecord camelCase fields returned to clients
  * (hidden search-term fields omitted).

@@ -52,9 +52,6 @@
   "vars": {
     "apiEnvironment": "production"
   },
-  "images": {
-    "binding": "IMAGES"
-  },
   "durable_objects": {
     "bindings": [
       {
@@ -114,9 +111,6 @@
       },
       "vars": {
         "apiEnvironment": "preview"
-      },
-      "images": {
-        "binding": "IMAGES"
       },
       "r2_buckets": [
         {

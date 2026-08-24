@@ -39,29 +39,67 @@ export function serializeOgPlatforms(platforms: OgPlatform[]): string {
 	return PLATFORM_ORDER.filter((p) => platforms.includes(p)).join(",");
 }
 
-/** Infer platforms from search / KV fields without rewriting records. */
-export function inferOgPlatforms(fields: {
+export type OgPlatformSource = {
 	youtube?: string | null;
 	youtubeId?: string | null;
+	youTubeId?: string | null;
 	spotify?: string | null;
+	spotifyId?: string | null;
 	apple?: string | null;
+	appleId?: string | null;
 	bbc?: string | null;
 	image?: string | null;
-}): OgPlatform[] {
+};
+
+function present(value?: string | null): boolean {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function compactedImageToken(prefix: "s" | "a", image?: string | null): boolean {
+	return !!image && image.startsWith(prefix) && image.length > 1 && !image.startsWith("http");
+}
+
+/** Infer platforms from search / KV fields without rewriting records. */
+export function inferOgPlatforms(fields: OgPlatformSource): OgPlatform[] {
 	const out: OgPlatform[] = [];
-	if (fields.youtube || fields.youtubeId) {
+	if (present(fields.youtube) || present(fields.youtubeId) || present(fields.youTubeId)) {
 		out.push("youtube");
 	}
-	if (fields.spotify || (fields.image?.startsWith("s") && fields.image.length > 1 && !fields.image.startsWith("http"))) {
+	if (present(fields.spotify) || present(fields.spotifyId) || compactedImageToken("s", fields.image)) {
 		out.push("spotify");
 	}
-	if (fields.apple || (fields.image?.startsWith("a") && fields.image.length > 1 && !fields.image.startsWith("http"))) {
+	if (present(fields.apple) || present(fields.appleId) || compactedImageToken("a", fields.image)) {
 		out.push("apple");
 	}
-	if (fields.bbc) {
+	if (present(fields.bbc)) {
 		out.push("bbc");
 	}
 	return PLATFORM_ORDER.filter((p) => out.includes(p));
+}
+
+/**
+ * Platforms for the OG `pl` query. Live search wins over frozen KV `platforms`
+ * (shortener metadata is never rewritten after create).
+ */
+export function resolveOgPlatformsForCard(
+	stored: { platforms?: string; youtubeId?: string; image?: string },
+	search?: OgPlatformSource | null
+): string {
+	if (search) {
+		const live = serializeOgPlatforms(inferOgPlatforms(search));
+		if (live) {
+			return live;
+		}
+	}
+	if (stored.platforms) {
+		return stored.platforms;
+	}
+	return serializeOgPlatforms(
+		inferOgPlatforms({
+			youtubeId: stored.youtubeId,
+			image: stored.image
+		})
+	);
 }
 
 export function platformIconDataUrl(platform: OgPlatform): string {
