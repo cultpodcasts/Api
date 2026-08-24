@@ -9,6 +9,7 @@ import { parseOgPlatforms, platformIconDataUrl, type OgPlatform } from "./ogCard
 import { fitArtWithin, readImageSize } from "./ogArtSize";
 import { longestTokenLength, ogTitleCharBudget, truncateOgText } from "./ogShareImageText";
 import { brandLogoDataUrl } from "./ogBrandLogo";
+import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
 import instrumentSerifRegular from "./fonts/InstrumentSerif-Regular.woff";
 import instrumentSerifItalic from "./fonts/InstrumentSerif-Italic.woff";
 import figtreeRegular from "./fonts/Figtree-Regular.woff";
@@ -33,34 +34,36 @@ const CARD_SCALE = {
 		artPad: 28,
 		gap: 8,
 		/** Max box for episode art; displayed size keeps the source aspect ratio. */
-		artMaxWidth: 680,
-		artMaxHeight: 574,
+		artMaxWidth: 700,
+		artMaxHeight: 440,
 		artRadius: 12,
-		icon: 44,
-		iconGap: 10,
+		iconGap: 14,
 		iconRadius: 10,
 		/** Single-line brand; font > logo so Instrument Serif caps meet logo diameter. */
-		brandSize: 60,
+		brandSize: 48,
 		brandLetterSpacing: 0.4,
 		brandMarginBottom: 14,
 		brandLogo: 44,
 		brandGap: 12,
-		titleLarge: 50,
-		titleSmall: 38,
+		titleLarge: 52,
+		titleSmall: 40,
 		titleThreshold: 48,
 		/** Soften type when any single token is this long (unspaced compounds / URLs). */
 		longWordThreshold: 16,
 		titleLineHeight: 1.14,
 		titleMarginBottom: 12,
-		podcastSize: 24,
-		podcastMarginBottom: 8,
-		metaSize: 20,
-		metaLetterSpacing: 0.8,
-		iconsMarginTop: 28,
+		podcastSize: 26, // pragma: allowlist secret
+		podcastMarginBottom: 10, // pragma: allowlist secret
+		metaSize: 32,
+		metaLetterSpacing: 0,
+		iconsMarginTop: 0,
+		chromePadX: 40,
+		chromePadY: 24,
+		icon: 52,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
 		titleMaxLines: 4,
-		podcastMax: 56
+		podcastMax: 56 // pragma: allowlist secret
 	},
 	square: {
 		width: 800,
@@ -86,14 +89,14 @@ const CARD_SCALE = {
 		longWordThreshold: 14,
 		titleLineHeight: 1.14,
 		titleMarginBottom: 8,
-		podcastSize: 20,
-		podcastMarginBottom: 6,
-		metaSize: 16,
-		metaLetterSpacing: 0.5,
+		podcastSize: 20, // pragma: allowlist secret
+		podcastMarginBottom: 6, // pragma: allowlist secret
+		metaSize: 22,
+		metaLetterSpacing: 0,
 		iconsMarginTop: 20,
 		titleMax: 110,
 		titleMaxLines: 3,
-		podcastMax: 48
+		podcastMax: 48 // pragma: allowlist secret
 	}
 } as const;
 
@@ -137,8 +140,12 @@ function truncateTitleForCard(aspect: CardAspect, rawTitle: string, artWidth: nu
 	return truncateOgText(rawTitle, budget);
 }
 
-function metaLine(duration?: string, date?: string): string {
-	return [duration?.trim(), date?.trim()].filter(Boolean).join("  ·  ").toUpperCase();
+function formattedDuration(raw?: string): string {
+	return formatOgDuration(raw) ?? "";
+}
+
+function formattedDate(raw?: string): string {
+	return formatOgReleaseDate(raw) ?? "";
 }
 
 function defaultArtSize(aspect: CardAspect): { width: number; height: number } {
@@ -174,9 +181,18 @@ function platformChipsHtml(platforms: OgPlatform[], size: number, gap: number, _
 	return `<div style="display:flex;flex-direction:row;gap:${gap}px;align-items:center;">${chips}</div>`;
 }
 
+
+function brandBarHtml(s: (typeof CARD_SCALE)[CardAspect], logo: string): string {
+	return `<div style="display:flex;flex-direction:row;align-items:center;gap:${s.brandGap}px;margin-bottom:${s.brandMarginBottom}px;flex-shrink:0;">
+      <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
+      <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
+    </div>`;
+}
+
 /**
- * Shared OG card: flush-left art (no frame) | packed copy + platform icons.
- * Text stacks top→bottom; icons follow meta (no vertical void from space-between).
+ * Wide cards: site name across the top, service icons along the bottom,
+ * right column for title / duration / published-at (uses the empty column).
+ * Square cards keep a compact right stack with larger meta type.
  */
 function cardHtml(input: {
 	aspect: CardAspect;
@@ -184,8 +200,9 @@ function cardHtml(input: {
 	artWidth: number;
 	artHeight: number;
 	title: string;
-	podcast: string;
-	meta: string;
+	podcast: string; // pragma: allowlist secret
+	duration: string;
+	date: string;
 	platforms: OgPlatform[];
 }): string {
 	const s = CARD_SCALE[input.aspect];
@@ -193,19 +210,57 @@ function cardHtml(input: {
 	const titleMaxHeight = Math.ceil(titleSize * s.titleLineHeight * s.titleMaxLines);
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
+	const titleHtml = `<div style="display:flex;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;">${escapeHtml(input.title)}</div>`;
+	const podcastHtml = input.podcast // pragma: allowlist secret
+		? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.2;margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div>` // pragma: allowlist secret
+		: "";
+	const durationHtml = input.duration
+		? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;line-height:1.25;word-break:break-word;">${escapeHtml(input.duration)}</div>`
+		: "";
+	const dateHtml = input.date
+		? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;line-height:1.25;margin-top:6px;word-break:break-word;">${escapeHtml(input.date)}</div>`
+		: "";
+
+	if (input.aspect === "wide") {
+		const padX = 40;
+		const padY = 24;
+		const iconSize = s.icon;
+		return `
+<div style="display:flex;flex-direction:column;width:${s.width}px;height:${s.height}px;background:${INK};font-family:Figtree;">
+  <div style="display:flex;flex-direction:row;align-items:center;gap:${s.brandGap}px;flex-shrink:0;padding:${padY}px ${padX}px 0 ${padX}px;">
+    <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
+    <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
+  </div>
+  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:stretch;min-height:0;padding:12px ${padX}px 12px ${s.artPad}px;">
+    <div style="display:flex;flex-shrink:0;align-items:center;">
+      <img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />
+    </div>
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:space-between;min-width:0;overflow:hidden;padding:8px ${s.textPaddingX}px 8px ${s.gap + 24}px;">
+      <div style="display:flex;flex-direction:column;">
+        ${titleHtml}
+        ${podcastHtml}
+      </div>
+      <div style="display:flex;flex-direction:column;flex-shrink:0;margin-top:16px;">
+        ${durationHtml}
+        ${dateHtml}
+      </div>
+    </div>
+  </div>
+  ${chips ? `<div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:0 ${padX}px ${padY}px ${padX}px;">${chips}</div>` : ""}
+</div>`;
+	}
+
 	return `
 <div style="display:flex;flex-direction:row;width:${s.width}px;height:${s.height}px;background:${INK};font-family:Figtree;align-items:center;">
   <div style="display:flex;flex-shrink:0;padding:${s.artPad}px 0 ${s.artPad}px ${s.artPad}px;">
     <img src="${input.artDataUrl}" width="${input.artWidth}" height="${input.artHeight}" style="width:${input.artWidth}px;height:${input.artHeight}px;border-radius:${s.artRadius}px;flex-shrink:0;" />
   </div>
   <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;padding:${s.textPaddingY}px ${s.textPaddingX}px ${s.textPaddingY}px ${s.gap + 20}px;">
-    <div style="display:flex;flex-direction:row;align-items:center;gap:${s.brandGap}px;margin-bottom:${s.brandMarginBottom}px;flex-shrink:0;">
-      <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
-      <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div>
-    </div>
-    <div style="display:flex;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${titleMaxHeight}px;overflow:hidden;">${escapeHtml(input.title)}</div>
-    ${input.podcast ? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:Figtree;font-weight:600;font-size:${s.podcastSize}px;line-height:1.2;margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(input.podcast)}</div>` : ""}
-    ${input.meta ? `<div style="display:flex;color:${TEXT_META};font-family:Figtree;font-weight:600;font-size:${s.metaSize}px;letter-spacing:${s.metaLetterSpacing}px;line-height:1.2;word-break:break-word;">${escapeHtml(input.meta)}</div>` : ""}
+    ${brandBarHtml(s, logo)}
+    ${titleHtml}
+    ${podcastHtml}
+    ${durationHtml}
+    ${dateHtml}
     ${chips ? `<div style="display:flex;margin-top:${s.iconsMarginTop}px;flex-shrink:0;">${chips}</div>` : ""}
   </div>
 </div>`;
@@ -239,11 +294,10 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 	const aspect = parseOgImageAspect(c.req.query("a"));
 	const scale = CARD_SCALE[aspect];
 	const rawTitle = c.req.query("t")?.trim() || "Episode";
-	const podcast = truncateOgText(c.req.query("p")?.trim() || "", scale.podcastMax);
-	const duration = c.req.query("d")?.trim() || undefined;
-	const date = c.req.query("r")?.trim() || undefined;
+	const podcast = truncateOgText(c.req.query("p")?.trim() || "", scale.podcastMax); // pragma: allowlist secret
+	const duration = formattedDuration(c.req.query("d"));
+	const date = formattedDate(c.req.query("r"));
 	const platforms = parseOgPlatforms(c.req.query("pl"));
-	const meta = metaLine(duration, date);
 
 	try {
 		const sourceResponse = await fetch(sourceUrl.toString());
@@ -266,8 +320,9 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 			artWidth: artSize.width,
 			artHeight: artSize.height,
 			title,
-			podcast,
-			meta,
+			podcast, // pragma: allowlist secret
+			duration,
+			date,
 			platforms
 		});
 

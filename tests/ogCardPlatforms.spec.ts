@@ -3,6 +3,7 @@ import {
 	inferOgPlatforms,
 	parseOgPlatforms,
 	platformIconDataUrl,
+	resolveOgPlatformsForCard,
 	serializeOgPlatforms
 } from "../src/ogCardPlatforms";
 
@@ -16,7 +17,7 @@ describe("ogCardPlatforms", () => {
 		expect(serializeOgPlatforms(["bbc", "youtube"])).toBe("youtube,bbc");
 	});
 
-	it("infers platforms from search-shaped fields", () => {
+	it("infers platforms from search-shaped URL fields", () => {
 		expect(
 			inferOgPlatforms({
 				youtubeId: "abc",
@@ -25,6 +26,30 @@ describe("ogCardPlatforms", () => {
 				bbc: "https://www.bbc.co.uk/sounds/play/1"
 			})
 		).toEqual(["youtube", "spotify", "bbc"]);
+	});
+
+	it("infers Spotify and Apple from search index ids, not only URLs", () => {
+		expect(
+			inferOgPlatforms({
+				youtubeId: "abc",
+				spotifyId: "spotifyEpisodeId",
+				appleId: "1234567890",
+				bbc: null
+			})
+		).toEqual(["youtube", "spotify", "apple"]);
+	});
+
+	it("prefers live search platforms over frozen KV platforms", () => {
+		expect(
+			resolveOgPlatformsForCard(
+				{ platforms: "youtube", youtubeId: "abc", image: "yh" },
+				{
+					youtubeId: "abc",
+					spotifyId: "spotifyEpisodeId",
+					appleId: "1234567890"
+				}
+			)
+		).toBe("youtube,spotify,apple");
 	});
 
 	it("exposes icon data URLs without listen/watch labels", () => {

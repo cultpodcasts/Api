@@ -22,37 +22,36 @@ card** that embeds episode art and brand type.
 
 ## Shared layout
 
-Wide and square use the **same content and the same spatial layout**. Aspect only
-changes canvas size and type scale.
+Wide and square share the same **content**. Aspect changes canvas size, type scale,
+and chrome.
 
-| Content |
-|---------|
-| Episode art (no frame — soft corner radius only) |
-| Podcast service icons (icon-only row) |
-| Site logo + `CULT PODCASTS` (Instrument Serif, amber) |
-| Episode name (title) |
-| Podcast name |
-| Duration · date |
+**Wide** (YouTube 16:9 and similar) uses the empty column instead of packing
+everything into a centred right stack:
 
 ```
-[ episode art ]  CULT PODCASTS
-                 episode name
+CULT PODCASTS                         ← top bar // pragma: allowlist secret
+
+[ episode art ]  episode name
                  podcast name
-                 duration · date
-                 service icons
+                 duration             ← larger type, not uppercase ISO
+                 24 Aug 2026
+[ yt  spotify  apple ]                ← bottom bar
 ```
 
-| Zone | Content |
-|------|---------|
-| Left | Episode art sized to the **source aspect ratio**, fitted inside a max box — never cropped; no amber border |
-| Right | brand → episode name → podcast name → duration · date → **icon-only** platform row (packed, vertically centred) |
+**Square** keeps a compact right column (brand, title, podcast, duration, date,
+icons) with the same larger date/duration type.
+
+| Zone (wide) | Content |
+|-------------|---------|
+| Top | Site logo + `CULT PODCASTS` | <!-- pragma: allowlist secret -->
+| Left | Episode art sized to the **source aspect ratio**, fitted inside a max box — never cropped |
+| Right | episode name → podcast name → **duration** → **published date** (`24 Aug 2026`) |
+| Bottom | icon-only platform row |
 
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
-| `a=wide` | 1200×630 | 740×574 | `summary_large_image` |
+| `a=wide` | 1200×630 | 700×440 | `summary_large_image` |
 | `a=square` | 800×418 | 360×378 | `summary_large_image` |
-
-Displayed art width/height = source pixels scaled to fit the max box (`min` of both axes). Copy is packed top-to-bottom (icons under meta) and centred in the text column — no large void from `space-between`. Same composition for both aspects.
 
 ## Query contract
 
@@ -63,14 +62,16 @@ GET /og-image
   &t=<episode title>
   &p=<podcast name>
   &d=<duration>
-  &r=<release date>       # display string from page-details
+  &r=<release date>       # display string (`24 Aug 2026`)
   &pl=youtube,spotify,apple,bbc
+  &cv=2                   # layout revision (cache key)
 ```
 
 - `u` must be `https` and an allowlisted host (`episodeShareImage.isAllowedShareImageSourceHost`).
 - `p`, `d`, and `r` apply to **both** aspects (omitted from the card when empty).
 - `pl` is optional; chips omitted when empty.
 - Page-details builds this URL via `buildBrandedOgImageUrl` when share art exists.
+- Existing shortener KV is **never rewritten**. Platform chips are resolved from **live search** (`spotifyId` / `appleId` / `youtubeId`) on each page-details request so an image created when only YouTube existed still shows Spotify/Apple once those ids are in the index. `cv` plus the updated `pl` / `r` query values bust the `/og-image` HTTP cache.
 
 ## Rendering stack
 
@@ -97,7 +98,8 @@ sequenceDiagram
   Web->>Api: GET /page-details/...
   alt KV hit with image
     Api->>KV: get metadata
-    Api-->>Web: image = /og-image?...
+    Api->>Search: episode by id (platforms only; KV unchanged)
+    Api-->>Web: image = /og-image?...pl=live,cv=2
   else KV miss
     Api->>Search: episode by id
     Api->>KV: put (image + platforms on create only)

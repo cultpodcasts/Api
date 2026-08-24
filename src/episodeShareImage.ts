@@ -236,6 +236,8 @@ export function buildBrandedOgImageUrl(
 	const url = new URL("/og-image", origin);
 	url.searchParams.set("u", sourceImageAbsoluteUrl);
 	url.searchParams.set("a", aspect);
+	/** Layout revision — changes the cache key when card chrome changes. */
+	url.searchParams.set("cv", "2");
 	if (meta?.title) {
 		url.searchParams.set("t", meta.title);
 	}
