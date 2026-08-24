@@ -215,16 +215,14 @@ function wideBrandBarHtml(
   </div>`;
 }
 
-/** One laid-out title line. The hyphen is a painted bar so it cannot disappear if the font lacks U+002D. */
-function titleLineRowHtml(line: string, fontSize: number): string {
+/** One laid-out title line. Figtree is subsetted (no U+002D); hyphen is Instrument Serif text. */
+function titleLineRowHtml(line: string, fontSize: number, lineBox: number): string {
 	const hyphenated = line.endsWith("-");
 	const text = hyphenated ? line.slice(0, -1) : line;
-	const hyphenW = Math.max(18, Math.round(fontSize * 0.36));
-	const hyphenH = Math.max(7, Math.round(fontSize * 0.12));
 	const hyphen = hyphenated
-		? `<div style="display:flex;width:${hyphenW}px;height:${hyphenH}px;background:${WHITE};margin:0 0 ${Math.round(fontSize * 0.08)}px 8px;flex-shrink:0;"></div>`
+		? `<div style="display:flex;font-family:'Instrument Serif';font-weight:400;font-size:${fontSize}px;line-height:1;padding-left:2px;">-</div>`
 		: "";
-	return `<div style="display:flex;flex-direction:row;flex-shrink:0;width:100%;align-items:center;">
+	return `<div style="display:flex;flex-direction:row;flex-shrink:0;width:100%;height:${lineBox}px;align-items:center;">
     <div style="display:flex;font-family:Figtree;font-weight:600;">${escapeHtml(text)}</div>
     ${hyphen}
   </div>`;
@@ -260,7 +258,10 @@ function cardHtml(input: {
 	});
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
-	const titleRows = titleLayout.lines.map((line) => titleLineRowHtml(line, titleSize)).join("");
+	const titleLineBox = Math.ceil(titleSize * s.titleLineHeight);
+	const titleRows = titleLayout.lines
+		.map((line) => titleLineRowHtml(line, titleSize, titleLineBox))
+		.join("");
 	const titleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};margin-bottom:${s.titleMarginBottom}px;">${titleRows}</div>`;
 	const showNameFit = fitOgWrappedText({
 		text: input.podcast, // pragma: allowlist secret
@@ -335,16 +336,13 @@ function cardHtml(input: {
     <div style="display:flex;flex-grow:1;align-items:center;min-width:0;${textPad}">${footerMeta}</div>
   </div>`
 					: "";
-			const titleBlockHeight = Math.ceil(
-				titleSize * s.titleLineHeight * titleLayout.lines.length
-			);
+			const titleBlockHeight = titleLineBox * titleLayout.lines.length;
 			const titlePadTop = Math.max(0, Math.floor((input.artHeight - titleBlockHeight) / 2));
-			const columnsTitleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;flex-shrink:0;height:${titleBlockHeight}px;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};">${titleRows}</div>`;
+			const columnsTitleHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start;flex-shrink:0;margin-top:${titlePadTop}px;height:${titleBlockHeight}px;color:${WHITE};font-family:Figtree;font-weight:600;font-size:${titleSize}px;line-height:${s.titleLineHeight};">${titleRows}</div>`;
 			bodyAndFooter = `
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px 4px ${s.artPad}px;">
     ${artImg}
     <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;padding:0 ${s.textPaddingX}px 0 ${textPadLeft}px;">
-      <div style="display:flex;width:100%;height:${titlePadTop}px;flex-shrink:0;"></div>
       ${columnsTitleHtml}
     </div>
   </div>
