@@ -142,14 +142,18 @@ describe("OG implementation meets the style guide", () => {
 		expect(OG_SQUARE_STYLE.podcastSize).toBe(OG_WIDE_STYLE.podcastSize); // pragma: allowlist secret
 	});
 
-	it("keeps square show name to one line next to stacked meta", () => {
-		expect(OG_SQUARE_STYLE.podcastMaxLines).toBe(1); // pragma: allowlist secret
+	it("applies the wide show-name rule to the leftover square footer column", () => {
+		expect(OG_SQUARE_STYLE.podcastMaxLines).toBe(OG_WIDE_STYLE.podcastMaxLines); // pragma: allowlist secret
+		expect(OG_SQUARE_STYLE.podcastMaxLines).toBe(2); // pragma: allowlist secret
 		expect(squareTwoLineShowNameHeight()).toBeGreaterThan(squareStackedMetaHeight());
 		expect(squareShowNameContentWidth()).toBeGreaterThan(squareArtMaxHeight());
+		expect(impl).toContain("layoutOgShowName");
 		expect(impl).toContain("squareShowNameContentWidth");
 		expect(impl).toContain("align-items:flex-end");
 		expect(impl).toContain("justify-content:space-between");
 		expect(impl).toContain("squareArtMaxHeight");
+		expect(styleDoc).toContain("leftover footer");
+		expect(styleDoc).toContain("max 2 lines");
 	});
 
 	it("applies the same columns chrome and title pad on square as on wide", () => {

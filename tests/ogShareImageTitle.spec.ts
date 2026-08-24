@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	countOgWrappedLines,
 	fitOgWrappedText,
+	layoutOgShowName,
 	layoutOgTitle,
 	longestTokenLength,
 	OG_TITLE_ELLIPSIS,
@@ -11,6 +12,7 @@ import {
 	ogTitleCharBudget,
 	truncateOgText
 } from "../src/ogShareImageText";
+import { squareShowNameContentWidth } from "../src/ogShareImageStyle";
 
 describe("longestTokenLength", () => {
 	it("returns 0 for blank input", () => {
@@ -165,6 +167,22 @@ describe("fitOgWrappedText", () => {
 		expect(fit.fontSize).toBe(32);
 		expect(fit.text.endsWith("…")).toBe(true);
 		expect(fit.text.length).toBeLessThan(long.length);
+	});
+});
+
+describe("layoutOgShowName", () => {
+	it("keeps a long show name at 48px across two leftover-column lines", () => {
+		const name = "The Late Night Borough Politics Weekly Briefing Club";
+		const fit = layoutOgShowName({
+			text: name,
+			columnWidth: squareShowNameContentWidth(),
+			sizes: [48, 40, 32],
+			maxLines: 2
+		});
+		expect(fit.fontSize).toBe(48);
+		expect(fit.lines.length).toBe(2);
+		expect(fit.lines.join(" ")).not.toContain("...");
+		expect(fit.lines.join(" ").replaceAll("-", "")).toContain("Briefing");
 	});
 });
 

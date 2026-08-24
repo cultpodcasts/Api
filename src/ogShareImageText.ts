@@ -12,6 +12,13 @@ export const OG_WIDE_TITLE_PX = 72;
 /** Square-card title: wide 72px scaled by canvas width (800/1200). */
 export const OG_SQUARE_TITLE_PX = 48;
 
+/**
+ * Show-name wrap is mixed-case words, not title compounds. Tighter than
+ * `layoutOgTitle` 0.56 so a leftover square footer column is actually used
+ * at 48px before shrinking.
+ */
+export const OG_SHOW_NAME_CHAR_WIDTH_FACTOR = 0.42;
+
 /** Longest whitespace-separated token length (URLs / compounds drive overflow risk). */
 export function longestTokenLength(text: string): number {
 	const tokens = text.trim().split(/\s+/).filter(Boolean);
@@ -174,6 +181,36 @@ export function ogTitleCharBudget(opts: {
  * Shrink type through `sizes` (largest first) so `text` fits in maxLines.
  * Truncate only after the smallest size still overflows.
  */
+/**
+ * Wide show-name rule applied to a column: keep 48px if two lines fit,
+ * then step down sizes, then ellipsis. Used for square leftover width.
+ */
+export function layoutOgShowName(opts: {
+	text: string;
+	columnWidth: number;
+	sizes: readonly number[];
+	maxLines: number;
+}): { lines: string[]; fontSize: number } {
+	const sizes = opts.sizes.length > 0 ? opts.sizes : [48];
+	let last = { lines: [""], fontSize: sizes[sizes.length - 1] ?? 48 };
+	for (const fontSize of sizes) {
+		const laid = layoutOgTitle({
+			text: opts.text,
+			columnWidth: opts.columnWidth,
+			fontSize,
+			maxLines: opts.maxLines,
+			charWidthFactor: OG_SHOW_NAME_CHAR_WIDTH_FACTOR,
+			hyphenCharWidthFactor: 0.38
+		});
+		last = { lines: laid.lines, fontSize };
+		const clipped = laid.lines.some((line) => line.endsWith(OG_TITLE_ELLIPSIS));
+		if (!clipped) {
+			return last;
+		}
+	}
+	return last;
+}
+
 export function fitOgWrappedText(opts: {
 	text: string;
 	columnWidth: number;

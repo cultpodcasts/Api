@@ -71,13 +71,19 @@ Every other linear token (type, pads, icons, radius) is
 | Art max box / radius | **440×440** (height = wide 440 standard) / 8 |
 | Art pad | 19 |
 | Chrome pad | 27×8 |
-| Show name | **48px (min 32)**, same as wide — scaled 32/21 was too small; **one line**, width = footer minus meta stack |
-| Meta | 19px, **stacked** duration / date / icons, bottom-right |
+| Show name | **Same rule as wide:** Figtree 600, **48px (min 32)**, **max 2 lines**, then `...`. Width is **not** art width — it is the leftover footer after the stacked meta (`squareShowNameContentWidth`). Keep 48px if two lines fit that column; shrink only after that. |
+| Meta | 19px, **stacked** duration / date / icons, bottom-right — this is what frees the show-name column |
 | Title max lines | 5 (same rule) |
 | Faces / colours / columns / v-align | Same as wide |
 
-Square does **not** use two podcast-name lines. The name grows sideways into
-the space freed by stacking meta.
+### Square show-name (extrapolated from wide)
+
+Wide: 48 / min 32 / 2 lines / width = art.
+
+Square: same type and 2-line wrap. Stacking duration, date, and icons on the
+bottom-right **is** the leftover column — the name must occupy that width
+(`layoutOgShowName`), not sit in a one-line sliver under the art. Footer
+height is `max(stacked meta, two 48px show-name lines)`.
 
 ## Vertical alignment
 

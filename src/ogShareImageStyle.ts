@@ -89,10 +89,10 @@ export const OG_SQUARE_STYLE = {
 	titleMarginBottom: scaleWidePx(OG_WIDE_STYLE.titleMarginBottom),
 	titleMaxLines: OG_WIDE_STYLE.titleMaxLines,
 	titleColumnPadLeftExtra: scaleWidePx(OG_WIDE_STYLE.titleColumnPadLeftExtra),
-	/** Same as wide — 800/1200 scale (32 / 21) reads too small next to a 48px title. */
+	/** Same as wide (48 / min 32 / 2 lines). Square width is leftover footer, not art. */
 	podcastSize: OG_WIDE_STYLE.podcastSize, // pragma: allowlist secret
 	podcastSizeMin: OG_WIDE_STYLE.podcastSizeMin, // pragma: allowlist secret
-	podcastMaxLines: 1, // pragma: allowlist secret
+	podcastMaxLines: OG_WIDE_STYLE.podcastMaxLines, // pragma: allowlist secret
 	podcastLineHeight: OG_WIDE_STYLE.podcastLineHeight, // pragma: allowlist secret
 	podcastMarginBottom: OG_WIDE_STYLE.podcastMarginBottom, // pragma: allowlist secret
 	metaSize: scaleWidePx(OG_WIDE_STYLE.metaSize),
@@ -111,10 +111,10 @@ export function squareStackedMetaHeight(): number {
 	return s.metaSize + s.footerMetaGap + s.metaSize + s.footerMetaGap + s.icon;
 }
 
-/** Two show-name lines at the full square size (layout uses one line). */
+/** Two show-name lines at the full square size (same max as wide). */
 export function squareTwoLineShowNameHeight(): number {
 	const s = OG_SQUARE_STYLE;
-	return Math.ceil(s.podcastSize * s.podcastLineHeight * 2); // pragma: allowlist secret
+	return Math.ceil(s.podcastSize * s.podcastLineHeight * s.podcastMaxLines); // pragma: allowlist secret
 }
 
 export function squareBrandBarHeight(): number {
@@ -130,7 +130,11 @@ export function squareArtMaxHeight(): number {
 
 export function squareFooterHeight(): number {
 	const s = OG_SQUARE_STYLE;
-	return s.footerPadTop + squareStackedMetaHeight() + s.chromePadY;
+	return (
+		s.footerPadTop +
+		Math.max(squareStackedMetaHeight(), squareTwoLineShowNameHeight()) +
+		s.chromePadY
+	);
 }
 
 /** Square canvas height = brand + fixed art height + footer (do not shrink art). */

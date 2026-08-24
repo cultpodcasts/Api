@@ -9,6 +9,7 @@ import { parseOgPlatforms, platformIconDataUrl, type OgPlatform } from "./ogCard
 import { fitArtWithin, readImageSize } from "./ogArtSize";
 import {
 	fitOgWrappedText,
+	layoutOgShowName,
 	layoutOgTitle,
 	OG_SQUARE_TITLE_PX,
 	OG_WIDE_TITLE_PX
@@ -114,7 +115,7 @@ const CARD_SCALE = {
 		titleMarginBottom: OG_SQUARE_STYLE.titleMarginBottom,
 		podcastSize: OG_SQUARE_STYLE.podcastSize, // pragma: allowlist secret
 		podcastSizeMin: OG_SQUARE_STYLE.podcastSizeMin, // pragma: allowlist secret
-		podcastMaxLines: 1, // pragma: allowlist secret
+		podcastMaxLines: OG_SQUARE_STYLE.podcastMaxLines, // pragma: allowlist secret
 		podcastMarginBottom: OG_SQUARE_STYLE.podcastMarginBottom, // pragma: allowlist secret
 		metaSize: OG_SQUARE_STYLE.metaSize,
 		metaLetterSpacing: 0,
@@ -283,9 +284,7 @@ function cardHtml(input: {
 		columnWidth:
 			input.aspect === "wide"
 				? input.artWidth
-				: input.aspect === "square"
-					? squareShowNameContentWidth()
-					: textColumnContentWidth(input.aspect, input.artWidth),
+				: textColumnContentWidth(input.aspect, input.artWidth),
 		sizes: [s.podcastSize, Math.round((s.podcastSize + s.podcastSizeMin) / 2), s.podcastSizeMin], // pragma: allowlist secret
 		maxLines: s.podcastMaxLines // pragma: allowlist secret
 	});
@@ -398,11 +397,26 @@ function cardHtml(input: {
       ${chips}
     </div>`
 			: "";
-	const showName = podcastHtml; // pragma: allowlist secret
+	const showNameWidth = squareShowNameContentWidth();
+	const showNameLayout = layoutOgShowName({
+		text: input.podcast, // pragma: allowlist secret
+		columnWidth: showNameWidth,
+		sizes: [sq.podcastSize, Math.round((sq.podcastSize + sq.podcastSizeMin) / 2), sq.podcastSizeMin], // pragma: allowlist secret
+		maxLines: sq.podcastMaxLines // pragma: allowlist secret
+	});
+	const showNameLineBox = Math.ceil(showNameLayout.fontSize * OG_WIDE_STYLE.podcastLineHeight);
+	const showName = input.podcast.trim() // pragma: allowlist secret
+		? titleBlockHtml(
+				showNameLayout.lines,
+				showNameLayout.fontSize,
+				OG_WIDE_STYLE.podcastLineHeight,
+				`color:${TEXT_SECONDARY};width:${showNameWidth}px;flex-shrink:0;height:${showNameLineBox * showNameLayout.lines.length}px;`
+			)
+		: "";
 	const showFooter =
 		showName || footerMeta
 			? `<div style="display:flex;flex-direction:row;align-items:flex-end;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}px ${padX}px ${padY}px ${sq.artPad}px;">
-    <div style="display:flex;flex-grow:1;min-width:0;margin-right:16px;align-items:flex-end;">${showName}</div>
+    <div style="display:flex;width:${showNameWidth}px;flex-shrink:0;margin-right:16px;align-items:flex-end;">${showName}</div>
     ${footerMeta}
   </div>`
 			: "";
