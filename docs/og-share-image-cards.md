@@ -45,7 +45,7 @@ icons) with the same larger date/duration type.
 | Top | Site logo + `CULT PODCASTS`, horizontally centred | <!-- pragma: allowlist secret -->
 | Left | Episode art sized to the **source aspect ratio**, fitted inside a max box — never cropped |
 | Right | episode name → podcast name |
-| Bottom | default `wl=columns`: icons under the art; duration + date under the title column |
+| Bottom | none — icons + duration/date sit in the text column, vertically centred with the title |
 
 Preview-only `wl=` wide variants (page-details does not send this; default is `columns`):
 
@@ -72,7 +72,7 @@ GET /og-image
   &d=<duration>
   &r=<release date>       # display string (`24 Aug 2026`)
   &pl=youtube,spotify,apple,bbc
-  &cv=5                   # layout revision (cache key)
+  &cv=6                   # layout revision (cache key)
   &wl=footer|columns|stack|inline  # wide chrome preview; default footer
 ```
 
@@ -108,7 +108,7 @@ sequenceDiagram
   alt KV hit with image
     Api->>KV: get metadata
     Api->>Search: episode by id (platforms only; KV unchanged)
-    Api-->>Web: image = /og-image?...pl=live,cv=5
+    Api-->>Web: image = /og-image?...pl=live,cv=6
   else KV miss
     Api->>Search: episode by id
     Api->>KV: put (image + platforms on create only)

@@ -46,25 +46,25 @@ const CARD_SCALE = {
 		brandMarginBottom: 4,
 		brandLogo: 72,
 		brandGap: 16,
-		titleLarge: 68,
-		titleSmall: 58,
+		titleLarge: 64,
+		titleSmall: 54,
 		titleThreshold: 90,
 		/** Soften type when any single token is this long (unspaced compounds / URLs). */
 		longWordThreshold: 22,
 		titleLineHeight: 1.1,
-		titleMarginBottom: 16,
-		podcastSize: 48, // pragma: allowlist secret
+		titleMarginBottom: 12,
+		podcastSize: 44, // pragma: allowlist secret
 		podcastMarginBottom: 0, // pragma: allowlist secret
 		metaSize: 28,
 		metaLetterSpacing: 0,
 		iconsMarginTop: 0,
 		chromePadX: 40,
-		chromePadY: 14,
+		chromePadY: 10,
 		icon: 32,
 		/** Ceiling; effective cap is line-budgeted from text column width (ellipsis stays visible). */
 		titleMax: 140,
-		titleMaxLines: 4,
-		podcastMax: 56 // pragma: allowlist secret
+		titleMaxLines: 3,
+		podcastMax: 80 // pragma: allowlist secret
 	},
 	square: {
 		width: 800,
@@ -209,7 +209,7 @@ function wideBrandBarHtml(
 	s: (typeof CARD_SCALE)["wide"],
 	logo: string
 ): string {
-	return `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${s.chromePadY}px ${s.chromePadX}px 6px ${s.chromePadX}px;">
+	return `<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${s.brandGap}px;flex-shrink:0;padding:${s.chromePadY}px ${s.chromePadX}px 0 ${s.chromePadX}px;">
     <img src="${logo}" width="${s.brandLogo}" height="${s.brandLogo}" style="width:${s.brandLogo}px;height:${s.brandLogo}px;flex-shrink:0;" />
     <div style="display:flex;color:${AMBER};font-family:'Instrument Serif';font-size:${s.brandSize}px;letter-spacing:${s.brandLetterSpacing}px;line-height:0.85;white-space:nowrap;">CULT PODCASTS</div> <!-- pragma: allowlist secret -->
   </div>`;
@@ -284,17 +284,18 @@ function cardHtml(input: {
     </div>
   </div>`;
 		} else if (input.wideLayout === "columns") {
+			const iconMetaRow =
+				chips || rowMetaHtml
+					? `<div style="display:flex;flex-direction:row;align-items:center;gap:20px;flex-shrink:0;margin-top:16px;">${chips}${rowMetaHtml}</div>`
+					: "";
 			bodyAndFooter = `
-  <div style="display:flex;flex-direction:row;flex-grow:1;align-items:center;min-height:0;padding:2px ${padX}px 2px ${s.artPad}px;">
+  <div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;padding:4px ${padX}px ${padY}px ${s.artPad}px;">
     ${artImg}
-    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;overflow:hidden;${textPad}">
+    <div style="display:flex;flex-direction:column;flex-grow:1;justify-content:center;min-width:0;${textPad}">
       ${titleHtml}
       ${podcastHtml}
+      ${iconMetaRow}
     </div>
-  </div>
-  <div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;height:${s.icon}px;padding:0 ${padX}px 4px ${s.artPad}px;">
-    <div style="display:flex;width:${input.artWidth}px;flex-shrink:0;align-items:center;height:${s.icon}px;">${chips}</div>
-    <div style="display:flex;flex-grow:1;align-items:center;height:${s.icon}px;${textPad}">${rowMetaHtml}</div>
   </div>`;
 		} else {
 			bodyAndFooter = `
