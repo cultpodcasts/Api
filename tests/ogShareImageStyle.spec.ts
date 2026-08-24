@@ -10,10 +10,12 @@ import {
 	ogTitleFontSize,
 	ogTitlePadTop,
 	scaleWidePx,
+	OG_SQUARE_FOOTER_GUTTER,
 	squareArtMaxHeight,
 	squareCanvasHeight,
 	squareShowNameContentWidth,
 	squareStackedMetaHeight,
+	squareStackedMetaWidth,
 	squareTwoLineShowNameHeight
 } from "../src/ogShareImageStyle";
 import { OG_SQUARE_TITLE_PX, OG_WIDE_TITLE_PX } from "../src/ogShareImageText";
@@ -149,11 +151,24 @@ describe("OG implementation meets the style guide", () => {
 		expect(squareShowNameContentWidth()).toBeGreaterThan(squareArtMaxHeight());
 		expect(impl).toContain("layoutOgShowName");
 		expect(impl).toContain("squareShowNameContentWidth");
+		expect(impl).toContain("OG_SQUARE_FOOTER_GUTTER");
 		expect(impl).toContain("align-items:flex-end");
 		expect(impl).toContain("justify-content:space-between");
 		expect(impl).toContain("squareArtMaxHeight");
 		expect(styleDoc).toContain("leftover footer");
 		expect(styleDoc).toContain("max 2 lines");
+		expect(styleDoc).toContain("not paint into the meta stack");
+	});
+
+	it("keeps square show name and stacked meta in separate footer columns", () => {
+		const used =
+			OG_SQUARE_STYLE.artPad +
+			squareShowNameContentWidth() +
+			OG_SQUARE_FOOTER_GUTTER +
+			squareStackedMetaWidth() +
+			OG_SQUARE_STYLE.chromePadX;
+		expect(used).toBeLessThanOrEqual(OG_SQUARE_STYLE.canvasWidth);
+		expect(OG_SQUARE_FOOTER_GUTTER).toBeGreaterThanOrEqual(24);
 	});
 
 	it("applies the same columns chrome and title pad on square as on wide", () => {

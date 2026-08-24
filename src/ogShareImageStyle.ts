@@ -147,14 +147,24 @@ export function squareCanvasHeight(): number {
 	);
 }
 
-/** Show-name column: full footer minus the bottom-right meta stack. */
+/** Gap between leftover show-name column and stacked duration / date / icons. */
+export const OG_SQUARE_FOOTER_GUTTER = 28;
+
+/** Right-column reservation: icons row or a 12-glyph date line, whichever is wider. */
+export function squareStackedMetaWidth(): number {
+	const s = OG_SQUARE_STYLE;
+	const iconRow = s.icon * 3 + s.iconGap * 2;
+	const dateLine = Math.ceil(s.metaSize * 0.62 * 12);
+	return Math.max(iconRow, dateLine);
+}
+
+/** Show-name column: footer minus pads, gutter, and the reserved right column. */
 export function squareShowNameContentWidth(): number {
 	const s = OG_SQUARE_STYLE;
-	const metaCol = Math.max(
-		s.icon * 3 + s.iconGap * 2,
-		Math.ceil(s.metaSize * 0.62 * 12)
+	return Math.max(
+		80,
+		s.canvasWidth - s.artPad - s.chromePadX - squareStackedMetaWidth() - OG_SQUARE_FOOTER_GUTTER
 	);
-	return Math.max(80, s.canvasWidth - s.artPad - s.chromePadX - metaCol - 16);
 }
 
 export function ogTitleFontSize(aspect: "wide" | "square"): number {

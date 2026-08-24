@@ -13,11 +13,10 @@ export const OG_WIDE_TITLE_PX = 72;
 export const OG_SQUARE_TITLE_PX = 48;
 
 /**
- * Show-name wrap is mixed-case words, not title compounds. Tighter than
- * `layoutOgTitle` 0.56 so a leftover square footer column is actually used
- * at 48px before shrinking.
+ * Same Figtree width as titles. A tighter factor (0.42) filled the leftover
+ * column but painted over the stacked meta.
  */
-export const OG_SHOW_NAME_CHAR_WIDTH_FACTOR = 0.42;
+export const OG_SHOW_NAME_CHAR_WIDTH_FACTOR = 0.56;
 
 /** Longest whitespace-separated token length (URLs / compounds drive overflow risk). */
 export function longestTokenLength(text: string): number {
@@ -200,7 +199,7 @@ export function layoutOgShowName(opts: {
 			fontSize,
 			maxLines: opts.maxLines,
 			charWidthFactor: OG_SHOW_NAME_CHAR_WIDTH_FACTOR,
-			hyphenCharWidthFactor: 0.38
+			hyphenCharWidthFactor: 0.5
 		});
 		last = { lines: laid.lines, fontSize };
 		const clipped = laid.lines.some((line) => line.endsWith(OG_TITLE_ELLIPSIS));

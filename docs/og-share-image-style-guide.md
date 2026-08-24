@@ -81,9 +81,10 @@ Every other linear token (type, pads, icons, radius) is
 Wide: 48 / min 32 / 2 lines / width = art.
 
 Square: same type and 2-line wrap. Stacking duration, date, and icons on the
-bottom-right **is** the leftover column — the name must occupy that width
-(`layoutOgShowName`), not sit in a one-line sliver under the art. Footer
-height is `max(stacked meta, two 48px show-name lines)`.
+bottom-right **is** the leftover column — the name occupies that width
+(`layoutOgShowName`) **up to a gutter** (`OG_SQUARE_FOOTER_GUTTER` 28) and must
+not paint into the meta stack. Wrap is measured with the same Figtree factor
+as titles (0.56). Footer height is `max(stacked meta, two 48px show-name lines)`.
 
 ## Vertical alignment
 

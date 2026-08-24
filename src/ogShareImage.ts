@@ -21,6 +21,7 @@ import {
 	OG_WIDE_STYLE,
 	ogTitleFontSize,
 	ogTitlePadTop,
+	OG_SQUARE_FOOTER_GUTTER,
 	squareArtMaxHeight,
 	squareCanvasHeight,
 	squareShowNameContentWidth
@@ -410,13 +411,13 @@ function cardHtml(input: {
 				showNameLayout.lines,
 				showNameLayout.fontSize,
 				OG_WIDE_STYLE.podcastLineHeight,
-				`color:${TEXT_SECONDARY};width:${showNameWidth}px;flex-shrink:0;height:${showNameLineBox * showNameLayout.lines.length}px;`
+				`color:${TEXT_SECONDARY};width:${showNameWidth}px;flex-shrink:0;max-width:${showNameWidth}px;height:${showNameLineBox * showNameLayout.lines.length}px;overflow:hidden;`
 			)
 		: "";
 	const showFooter =
 		showName || footerMeta
 			? `<div style="display:flex;flex-direction:row;align-items:flex-end;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}px ${padX}px ${padY}px ${sq.artPad}px;">
-    <div style="display:flex;width:${showNameWidth}px;flex-shrink:0;margin-right:16px;align-items:flex-end;">${showName}</div>
+    <div style="display:flex;width:${showNameWidth}px;flex-shrink:0;margin-right:${OG_SQUARE_FOOTER_GUTTER}px;align-items:flex-end;overflow:hidden;">${showName}</div>
     ${footerMeta}
   </div>`
 			: "";

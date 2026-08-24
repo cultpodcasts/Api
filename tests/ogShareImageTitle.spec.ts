@@ -7,6 +7,7 @@ import {
 	longestTokenLength,
 	OG_TITLE_ELLIPSIS,
 	OG_TITLE_HYPHEN,
+	OG_SHOW_NAME_CHAR_WIDTH_FACTOR,
 	OG_SQUARE_TITLE_PX,
 	OG_WIDE_TITLE_PX,
 	ogTitleCharBudget,
@@ -171,18 +172,47 @@ describe("fitOgWrappedText", () => {
 });
 
 describe("layoutOgShowName", () => {
-	it("keeps a long show name at 48px across two leftover-column lines", () => {
-		const name = "The Late Night Borough Politics Weekly Briefing Club";
+	const leftover = () => squareShowNameContentWidth();
+	const sizes = [48, 40, 32] as const;
+
+	it("keeps a short show name at 48px on one leftover-column line", () => {
 		const fit = layoutOgShowName({
-			text: name,
-			columnWidth: squareShowNameContentWidth(),
-			sizes: [48, 40, 32],
+			text: "Cult Weekly",
+			columnWidth: leftover(),
+			sizes,
 			maxLines: 2
 		});
 		expect(fit.fontSize).toBe(48);
-		expect(fit.lines.length).toBe(2);
-		expect(fit.lines.join(" ")).not.toContain("...");
-		expect(fit.lines.join(" ").replaceAll("-", "")).toContain("Briefing");
+		expect(fit.lines).toEqual(["Cult Weekly"]);
+	});
+
+	it("keeps a medium show name at 48px without hitting the meta column", () => {
+		const fit = layoutOgShowName({
+			text: "Obscure Politics Weekly",
+			columnWidth: leftover(),
+			sizes,
+			maxLines: 2
+		});
+		expect(fit.fontSize).toBe(48);
+		const glyph = 48 * OG_SHOW_NAME_CHAR_WIDTH_FACTOR;
+		for (const line of fit.lines) {
+			expect(line.length * glyph).toBeLessThanOrEqual(leftover());
+		}
+	});
+
+	it("wraps a long show name inside the leftover column so it cannot overlap meta", () => {
+		const name = "The Late Night Borough Politics Weekly Briefing Club";
+		const fit = layoutOgShowName({
+			text: name,
+			columnWidth: leftover(),
+			sizes,
+			maxLines: 2
+		});
+		expect(fit.lines.length).toBeLessThanOrEqual(2);
+		const glyph = fit.fontSize * OG_SHOW_NAME_CHAR_WIDTH_FACTOR;
+		for (const line of fit.lines) {
+			expect(line.length * glyph).toBeLessThanOrEqual(leftover());
+		}
 	});
 });
 
