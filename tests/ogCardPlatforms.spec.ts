@@ -17,6 +17,14 @@ describe("ogCardPlatforms", () => {
 		expect(serializeOgPlatforms(["bbc", "youtube"])).toBe("youtube,bbc");
 	});
 
+	it("infers BBC from compact svc bbcSounds token when bbc field is empty", () => {
+		expect(
+			inferOgPlatforms({
+				svc: "bbcSounds:p0example"
+			})
+		).toEqual(["bbc"]);
+	});
+
 	it("infers platforms from search-shaped URL fields", () => {
 		expect(
 			inferOgPlatforms({

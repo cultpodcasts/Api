@@ -40,7 +40,8 @@ function searchHitToPlatformSource(episode: Record<string, unknown>): OgPlatform
 		apple: str("apple"),
 		appleId: str("appleId"),
 		bbc: str("bbc"),
-		image: str("image")
+		image: str("image"),
+		svc: str("svc")
 	};
 }
 
