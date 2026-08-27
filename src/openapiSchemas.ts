@@ -696,6 +696,12 @@ export const homepageEpisodeSchema = z.object({
 	releaseDayDisplay: z.string().optional(),
 	ids: episodeIdsSchema.optional().nullable(),
 	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
+	/** Leftover named URL slots until the feed object is republished. */
+	spotify: z.string().url().optional().nullable(),
+	apple: z.string().url().optional().nullable(),
+	youtube: z.string().url().optional().nullable(),
+	bbc: z.string().url().optional().nullable(),
+	internetArchive: z.string().url().optional().nullable(),
 	subjects: z.array(z.string()).optional().nullable(),
 	image: z.string().url().optional().nullable(),
 	/** IETF language tag; omitted/absent for English. */
