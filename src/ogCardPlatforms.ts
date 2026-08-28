@@ -1,3 +1,5 @@
+import { expandSearchServices } from "./searchServices";
+
 export type OgPlatform = "youtube" | "spotify" | "apple" | "bbc";
 
 const PLATFORM_ORDER: OgPlatform[] = ["youtube", "spotify", "apple", "bbc"];
@@ -49,6 +51,7 @@ export type OgPlatformSource = {
 	appleId?: string | null;
 	bbc?: string | null;
 	image?: string | null;
+	svc?: string | null;
 };
 
 function present(value?: string | null): boolean {
@@ -71,7 +74,8 @@ export function inferOgPlatforms(fields: OgPlatformSource): OgPlatform[] {
 	if (present(fields.apple) || present(fields.appleId) || compactedImageToken("a", fields.image)) {
 		out.push("apple");
 	}
-	if (present(fields.bbc)) {
+	if (present(fields.bbc) ||
+		expandSearchServices(fields.svc).some((s) => s.key === "bbcSounds" || s.key === "bbcIplayer")) {
 		out.push("bbc");
 	}
 	return PLATFORM_ORDER.filter((p) => out.includes(p));

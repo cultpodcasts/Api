@@ -335,6 +335,8 @@ describe("openapi Zod schemas", () => {
 			unBluesky: true,
 			hashTag: "#Scenario",
 			urls: {
+				ids: { spotify: "x" },
+				services: { spotify: { url: "https://open.spotify.com/episode/x" } },
 				spotify: "https://open.spotify.com/episode/x",
 				apple: "",
 				youtube: null

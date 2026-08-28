@@ -1,3 +1,4 @@
+// pragma: allowlist secret
 import { z } from "zod";
 
 /**
@@ -228,6 +229,20 @@ export const serviceImageUrlsSchema = z.object({
 /** @deprecated Prefer serviceImageUrlsSchema */
 export const episodeImagesSchema = serviceImageUrlsSchema;
 
+export const episodeServiceLinkSchema = z.object({ // pragma: allowlist secret
+	url: z.string().url().optional().nullable(),
+	image: z.string().url().optional().nullable()
+});
+
+export const episodeServicesSchema = z.record(z.string(), episodeServiceLinkSchema); // pragma: allowlist secret
+
+/** Nested platform ids — presence of Spotify / Apple / YouTube, not a named URL slot. */
+export const episodeIdsSchema = z.object({
+	spotify: z.string().optional().nullable(),
+	apple: z.number().optional().nullable(),
+	youtube: z.string().optional().nullable()
+});
+
 /**
  * Patch URI: absolute URL, empty string (Angular clears with ''), or null.
  * Mirrors System.Uri? JSON on EpisodeChangeRequest.urls / images.
@@ -270,6 +285,7 @@ export const episodeChangeRequestSchema = z.object({
 	duration: z.string().optional().nullable(),
 	urls: serviceUrlsChangeSchema.optional().nullable(),
 	images: serviceImageUrlsChangeSchema.optional().nullable(),
+	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
 	subjects: z.array(z.string()).optional().nullable(),
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
@@ -409,6 +425,7 @@ export const episodeDtoSchema = z.object({
 	spotifyId: z.string().optional(),
 	appleId: z.number().optional().nullable(),
 	youTubeId: z.string().optional(),
+	ids: episodeIdsSchema.optional().nullable(),
 	urls: serviceUrlsSchema,
 	subjects: z.array(z.string()),
 	removedSubjects: z.array(z.string()).optional(),
@@ -416,6 +433,7 @@ export const episodeDtoSchema = z.object({
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
 	images: serviceImageUrlsSchema.optional().nullable(),
+	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
 	guests: z.array(z.string()).optional().nullable(),
 	youTubePodcast: z.boolean().optional(),
 	spotifyPodcast: z.boolean().optional(),
@@ -439,7 +457,8 @@ export const publicEpisodeDtoSchema = z.object({
 	duration: z.string(),
 	explicit: z.boolean(),
 	subjects: z.array(z.string()),
-	urls: serviceUrlsSchema,
+	ids: episodeIdsSchema.optional().nullable(),
+	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
 	image: z.string().url().optional().nullable()
 });
 
@@ -675,6 +694,9 @@ export const homepageEpisodeSchema = z.object({
 	duration: z.string(),
 	release: z.string(),
 	releaseDayDisplay: z.string().optional(),
+	ids: episodeIdsSchema.optional().nullable(),
+	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
+	/** Leftover named URL slots until the feed object is republished. */
 	spotify: z.string().url().optional().nullable(),
 	apple: z.string().url().optional().nullable(),
 	youtube: z.string().url().optional().nullable(),
