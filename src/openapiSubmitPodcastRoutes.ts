@@ -65,6 +65,11 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 				description: "Url must be an absolute http or https URL",
 				...contentJson(errorSchema)
 			},
+			404: {
+				description:
+					"Azure GET /api/SubmitUrl not found (api-infra before SubmitUrl lookup). Not a Cosmos miss.",
+				...contentJson(errorSchema)
+			},
 			...serverErrorResponse,
 			...authResponses
 		}

@@ -49,20 +49,49 @@ export const submitUrlLookupQuerySchema = z.object({
 	url: z.string()
 });
 
+/** Azure UrlMembershipLookupKinds / website SubmitUrlLookupKind. */
+export const submitUrlLookupKindSchema = z.enum([
+	"podcast-service",
+	"streaming",
+	"unrecognised"
+]);
+
 /**
- * GET /submit/lookup 200 — Cosmos URL membership.
- * Unique known series: known true + podcastId/podcastName.
- * Unknown: known false + kind.
- * Ambiguous stored URL: known false, ambiguous true, podcastIds (not 409).
+ * GET /submit/lookup 200 — Cosmos URL membership (passthrough of Azure SubmitUrlLookupResponse).
+ * Three arms match website SubmitUrlLookupResponse:
+ * unique known / unknown (kind required) / ambiguous (not 409).
  */
-export const submitUrlLookupResponseSchema = z.object({
-	known: z.boolean(),
-	kind: z.enum(["podcast-service", "streaming", "unrecognised"]).optional(),
-	podcastId: z.string().uuid().optional(),
-	podcastName: z.string().optional(),
-	ambiguous: z.boolean().optional(),
-	podcastIds: z.array(z.string().uuid()).optional()
-});
+export const submitUrlLookupKnownSchema = z
+	.object({
+		known: z.literal(true),
+		podcastId: z.string().uuid(),
+		podcastName: z.string(),
+		kind: submitUrlLookupKindSchema.optional()
+	})
+	.strict();
+
+export const submitUrlLookupUnknownSchema = z
+	.object({
+		known: z.literal(false),
+		kind: submitUrlLookupKindSchema,
+		ambiguous: z.literal(false).optional()
+	})
+	.strict();
+
+export const submitUrlLookupAmbiguousSchema = z
+	.object({
+		known: z.literal(false),
+		ambiguous: z.literal(true),
+		podcastIds: z.array(z.string().uuid()).min(1),
+		kind: submitUrlLookupKindSchema.optional()
+	})
+	.strict();
+
+export const submitUrlLookupResponseSchema = z.union([
+	submitUrlLookupAmbiguousSchema,
+	submitUrlLookupKnownSchema,
+	submitUrlLookupUnknownSchema
+]);
 
 export const discoverySubmitRequestSchema = z.object({
 	ids: z.array(z.string().uuid()),

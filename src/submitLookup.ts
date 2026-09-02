@@ -14,7 +14,7 @@ export async function submitLookup(c: Auth0ActionContext): Promise<Response> {
 		method: "GET",
 		appendRequestSearch: true,
 		successStatuses: [200],
-		forwardStatuses: [400],
+		forwardStatuses: [400, 404],
 		logName: "secure-submit-lookup-endpoint"
 	});
 }

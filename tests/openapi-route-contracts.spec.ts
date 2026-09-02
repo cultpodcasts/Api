@@ -5,7 +5,11 @@ import {
 	SubmitLookupRoute,
 	SubmitRoute
 } from "../src/openapiSubmitPodcastRoutes";
-import { submitUrlLookupQuerySchema, submitUrlRequestSchema } from "../src/openapiSchemas";
+import {
+	submitUrlLookupQuerySchema,
+	submitUrlLookupResponseSchema,
+	submitUrlRequestSchema
+} from "../src/openapiSchemas";
 
 describe("OpenAPI route contracts", () => {
 	it("shares one 409 UUID-array object across submit and GET podcast-by-name", () => {
@@ -47,5 +51,42 @@ describe("OpenAPI route contracts", () => {
 		expect(SubmitLookupRoute.openApiSchema.responses?.[400]?.description).toMatch(
 			/absolute http or https URL/i
 		);
+		expect(SubmitLookupRoute.openApiSchema.responses?.[404]?.description).toMatch(
+			/api-infra before SubmitUrl lookup/i
+		);
+		const lookup200 = SubmitLookupRoute.openApiSchema.responses?.[200] as
+			| { content?: { "application/json"?: { schema?: unknown } } }
+			| undefined;
+		expect(lookup200?.content?.["application/json"]?.schema).toBe(submitUrlLookupResponseSchema);
+		expect(
+			submitUrlLookupResponseSchema.parse({
+				known: true,
+				podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+				podcastName: "Stored Show Name",
+				kind: "podcast-service"
+			}).known
+		).toBe(true);
+		expect(
+			submitUrlLookupResponseSchema.parse({ known: false, kind: "streaming" })
+		).toEqual({ known: false, kind: "streaming" });
+		expect(
+			submitUrlLookupResponseSchema.parse({
+				known: false,
+				ambiguous: true,
+				podcastIds: [
+					"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+					"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+				]
+			}).ambiguous
+		).toBe(true);
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({
+				known: true,
+				ambiguous: true,
+				podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+				podcastName: "Stored Show Name"
+			})
+		).toThrow();
+		expect(() => submitUrlLookupResponseSchema.parse({ known: false })).toThrow();
 	});
 });
