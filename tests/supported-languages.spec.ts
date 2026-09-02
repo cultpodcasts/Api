@@ -1,60 +1,77 @@
-import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as supportedLanguageHandlers from "../src/supportedLanguages";
+import {
+	deleteSupportedLanguages,
+	getNeutralCultures,
+	getSupportedLanguages,
+	postSupportedLanguages
+} from "../src/supportedLanguages";
+import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
-/**
- * Source-contract checks for /supported-languages (admin GET/POST/DELETE + cultures).
- */
-describe("supported-languages contract", () => {
-	const src = readFileSync(resolve(process.cwd(), "src/supportedLanguages.ts"), "utf8");
-	const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-	const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
+const azureList = { languages: [{ code: "en", name: "English" }] };
 
-	it("registers GET/POST/DELETE and cultures routes; no PUT or /terms", () => {
-		expect(index).toContain("openapi.get('/supported-languages', GetSupportedLanguagesRoute)");
-		expect(index).toContain("openapi.get('/supported-languages/cultures', GetNeutralCulturesRoute)");
-		expect(index).toContain("openapi.post('/supported-languages', PostSupportedLanguagesRoute)");
-		expect(index).toContain("openapi.delete('/supported-languages/:code', DeleteSupportedLanguagesRoute)");
-		expect(index).not.toMatch(/openapi\.put\('\/supported-languages/);
-		expect(index).not.toContain("'/terms'");
-		expect(index).not.toContain('"/terms"');
+describe("supported-languages", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
 	});
 
-	it("route factories require Auth0 middleware", () => {
-		const getBlock = routes.match(
-			/export const GetSupportedLanguagesRoute = createOpenApiRoute\(getSupportedLanguages, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const culturesBlock = routes.match(
-			/export const GetNeutralCulturesRoute = createOpenApiRoute\(getNeutralCultures, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const postBlock = routes.match(
-			/export const PostSupportedLanguagesRoute = createOpenApiRoute\(postSupportedLanguages, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const deleteBlock = routes.match(
-			/export const DeleteSupportedLanguagesRoute = createOpenApiRoute\(deleteSupportedLanguages, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		expect(getBlock).toBeDefined();
-		expect(culturesBlock).toBeDefined();
-		expect(postBlock).toBeDefined();
-		expect(deleteBlock).toBeDefined();
-		expect(getBlock).toContain("auth: true");
-		expect(culturesBlock).toContain("auth: true");
-		expect(postBlock).toContain("auth: true");
-		expect(deleteBlock).toContain("auth: true");
+	it("does not export PUT handlers", () => {
+		expect(Object.keys(supportedLanguageHandlers).filter((k) => /^put/i.test(k))).toEqual([]);
 	});
 
-	it("handlers require admin permission and no-store cache headers", () => {
-		expect(src).toContain('permission: "admin"');
-		expect(src).not.toContain('permission: "curate"');
-		expect(src).toContain("omitCacheControlHeader: true");
-		expect(src).toContain('c.header("Cache-Control", "no-store")');
-		expect(src.match(/permission: "admin"/g)?.length).toBe(4);
-		expect(src.match(/Cache-Control", "no-store"/g)?.length).toBe(4);
+	it("requires admin; curate is 403 and missing auth is 401", async () => {
+		const unauth = appWithAuthPayload("/supported-languages", "get", getSupportedLanguages, null);
+		const curate = appWithPermissions("/supported-languages", "get", getSupportedLanguages, ["curate"]);
+
+		expect((await unauth.request("/supported-languages", { method: "GET" }, testEnv())).status).toBe(401);
+		expect(
+			(
+				await curate.request("/supported-languages", { method: "GET", headers: authJsonHeaders }, testEnv())
+			).status
+		).toBe(403);
 	});
 
-	it("does not register PUT handlers for supported-languages", () => {
-		expect(src).not.toMatch(/\bputSupportedLanguages\b/i);
-		expect(src).not.toContain('method: "PUT"');
-		expect(routes).not.toMatch(/PutSupportedLanguages/);
+	it("admin GET/POST/DELETE and cultures proxy to Azure with Cache-Control no-store", async () => {
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(azureList), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const getApp = appWithPermissions("/supported-languages", "get", getSupportedLanguages, ["admin"]);
+		const culturesApp = appWithPermissions(
+			"/supported-languages/cultures",
+			"get",
+			getNeutralCultures,
+			["admin"]
+		);
+		const postApp = appWithPermissions("/supported-languages", "post", postSupportedLanguages, ["admin"]);
+		const deleteApp = appWithPermissions(
+			"/supported-languages/:code",
+			"delete",
+			deleteSupportedLanguages,
+			["admin"]
+		);
+
+		const env = testEnv();
+		const responses = [
+			await getApp.request("/supported-languages", { method: "GET", headers: authJsonHeaders }, env),
+			await culturesApp.request(
+				"/supported-languages/cultures",
+				{ method: "GET", headers: authJsonHeaders },
+				env
+			),
+			await postApp.request(
+				"/supported-languages",
+				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ name: "French" }) },
+				env
+			),
+			await deleteApp.request("/supported-languages/fr", { method: "DELETE", headers: authJsonHeaders }, env)
+		];
+
+		for (const resp of responses) {
+			expect(resp.status).toBe(200);
+			expect(resp.headers.get("Cache-Control")).toBe("no-store");
+			expect(await resp.json()).toEqual(azureList);
+		}
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 	});
 });
