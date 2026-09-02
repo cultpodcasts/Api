@@ -311,6 +311,7 @@ export const SubmitRoute = createOpenApiRoute(submit, {
         request: { body: jsonBody(submitUrlRequestSchema) },
         responses: {
             200: { description: "Submission accepted", ...contentJson(submitUrlResponseSchema) },
+            409: { description: "Ambiguous podcast name", ...contentJson(z.array(z.string().uuid())) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
