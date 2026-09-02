@@ -1,6 +1,21 @@
-import { OpenAPIRoute, OpenAPIRouteSchema, contentJson } from "chanfana";
+import { contentJson } from "chanfana";
 import { z } from "zod";
-import { Auth0Middleware } from "./Auth0Middleware";
+import {
+	authResponses,
+	createOpenApiRoute,
+	episodeIdParam,
+	idParam,
+	nameParam,
+	notFoundResponse,
+	podcastAndEpisodeParam,
+	podcastIdAndEpisodeParam,
+	serverErrorResponse
+} from "./openapiRouteFactory";
+import {
+	GetPodcastByNameAndEpisodeIdRoute,
+	GetPodcastByNameRoute,
+	SubmitRoute
+} from "./openapiSubmitPodcastRoutes";
 import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
@@ -17,8 +32,6 @@ import { getPageDetails } from "./getPageDetails";
 import { getOgShareImage } from "./ogShareImage";
 import { getOgShareImageOpenApiSchema } from "./ogShareImageOpenApi";
 import { getPersonByName } from "./getPersonByName";
-import { getPodcastByName } from "./getPodcastByName";
-import { getPodcastByNameAndEpisodeId } from "./getPodcastByNameAndEpisodeId";
 import { getSubjectByName } from "./getSubjectByName";
 import { getPeople } from "./getPeople";
 import { getSubjects } from "./getSubjects";
@@ -77,9 +90,7 @@ import {
 	searchResponseSchema,
 	subjectChangeRequestSchema,
 	subjectDtoSchema,
-	subjectsNameListResponseSchema,
-	submitUrlRequestSchema,
-	submitUrlResponseSchema
+	subjectsNameListResponseSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -100,79 +111,13 @@ import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
 import { search } from "./search";
-import { submit } from "./submit";
 import { submitDiscovery } from "./submitDiscovery";
 import { updateEpisode, updatePodcastEpisode } from "./updateEpisode";
 import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { updateSubject } from "./updateSubject";
 
-type RouteHandler = (c: any) => Promise<Response>;
-
-type RouteFactoryOptions = {
-    auth?: boolean;
-    schema?: OpenAPIRouteSchema;
-};
-
-function createOpenApiRoute(handler: RouteHandler, options: RouteFactoryOptions = {}) {
-    const schema: OpenAPIRouteSchema = options.schema ?? {};
-    const requiresAuth = Boolean(options.auth);
-
-    return class extends OpenAPIRoute {
-        static readonly openApiSchema: OpenAPIRouteSchema = schema;
-        static readonly requiresAuth = requiresAuth;
-        schema: OpenAPIRouteSchema = schema;
-
-        async handle(c: any): Promise<Response> {
-            if (options.auth) {
-                const middlewareResult = await Auth0Middleware(c, async () => { });
-                if (middlewareResult instanceof Response) {
-                    return middlewareResult;
-                }
-            }
-            return handler(c);
-        }
-    };
-}
-
-/**
- * Auth response matrix (Wave 2 Vitest: auth-matrix.spec.ts):
- * - 401 Unauthorized: missing or invalid bearer / Auth0 payload
- * - 403 Forbidden: authenticated but missing required permission (e.g. curate, admin)
- *
- * Proxied Azure routes also surface upstream 4xx via forwardStatuses / passthrough.
- */
-const authResponses = {
-    401: {
-        description: "Unauthorized — missing or invalid authentication",
-        ...contentJson(errorSchema)
-    },
-    403: {
-        description: "Forbidden — authenticated but missing required permission",
-        ...contentJson(errorSchema)
-    }
-};
-
-const notFoundResponse = {
-    404: {
-        description: "Not found",
-        ...contentJson(errorSchema)
-    }
-};
-
-const serverErrorResponse = {
-    500: {
-        description: "Upstream or worker failure",
-        ...contentJson(errorSchema)
-    }
-};
-
-const idParam = z.object({ id: z.string() });
-const nameParam = z.object({ name: z.string() });
-const episodeIdParam = z.object({ episodeId: z.string().uuid() });
-const podcastAndEpisodeParam = z.object({ podcastName: z.string(), episodeId: z.string() });
-const podcastIdAndEpisodeParam = z.object({ podcastId: z.string(), episodeId: z.string() });
-const podcastNameAndIdParam = z.object({ name: z.string(), id: z.string() });
+export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitRoute };
 
 export const HomepageRoute = createOpenApiRoute(homepage, {
     schema: {
@@ -306,22 +251,6 @@ export const SearchRoute = createOpenApiRoute(search, {
     }
 });
 
-export const SubmitRoute = createOpenApiRoute(submit, {
-    auth: true,
-    schema: {
-        tags: ["Submission"],
-        summary: "Submit episode URL",
-        request: { body: jsonBody(submitUrlRequestSchema) },
-        responses: {
-            200: { description: "Submission accepted", ...contentJson(submitUrlResponseSchema) },
-            409: { description: "Ambiguous podcast name", ...contentJson(z.array(z.string().uuid())) },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
 export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
     auth: true,
     schema: {
@@ -438,38 +367,6 @@ export const GetOutgoingRoute = createOpenApiRoute(getOutgoing, {
         summary: "Get outgoing episodes",
         responses: {
             200: { description: "Outgoing episodes", ...contentJson(episodeListResponseSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
-export const GetPodcastByNameRoute = createOpenApiRoute(getPodcastByName, {
-    auth: true,
-    schema: {
-        tags: ["Podcasts"],
-        summary: "Get podcast by name",
-        request: { params: nameParam },
-        responses: {
-            200: { description: "Podcast", ...contentJson(podcastDtoSchema) },
-            409: { description: "Ambiguous podcast name", ...contentJson(z.array(z.string().uuid())) },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
-export const GetPodcastByNameAndEpisodeIdRoute = createOpenApiRoute(getPodcastByNameAndEpisodeId, {
-    auth: true,
-    schema: {
-        tags: ["Podcasts"],
-        summary: "Get podcast by name and episode id",
-        request: { params: podcastNameAndIdParam },
-        responses: {
-            200: { description: "Podcast", ...contentJson(podcastDtoSchema) },
-            409: { description: "Ambiguous podcast name", ...contentJson(z.array(z.string().uuid())) },
-            ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
         }

@@ -73,10 +73,18 @@ export async function proxyToAzure(
 			const resp = await fetch(url, init);
 			logCollector.add({ status: resp.status });
 
-			if (successStatuses.includes(resp.status) || forwardStatuses.includes(resp.status)) {
+			if (successStatuses.includes(resp.status)) {
 				logCollector.emit({
 					event: "proxy.success",
 					outcome: "success"
+				});
+				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
+			}
+
+			if (forwardStatuses.includes(resp.status)) {
+				logCollector.emit({
+					event: "proxy.forwarded",
+					outcome: "passthrough"
 				});
 				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 			}

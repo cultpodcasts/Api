@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Auth0JwtPayload } from "../src/Auth0JwtPayload";
 import { submit } from "../src/submit";
-import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
+import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
 const submissionsCreate = vi.hoisted(() => vi.fn());
 
@@ -19,6 +20,11 @@ vi.mock("@prisma/adapter-d1", () => ({
 	PrismaD1: class {}
 }));
 
+const conflictIds = [
+	"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+	"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+];
+
 describe("submit", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
@@ -27,13 +33,9 @@ describe("submit", () => {
 	});
 
 	it("returns Azure 409 UUID list and does not D1-queue as Submitted", async () => {
-		const ids = [
-			"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-			"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
-		];
 		vi.stubGlobal(
 			"fetch",
-			vi.fn(async () => new Response(JSON.stringify(ids), { status: 409 }))
+			vi.fn(async () => new Response(JSON.stringify(conflictIds), { status: 409 }))
 		);
 		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
 
@@ -48,14 +50,72 @@ describe("submit", () => {
 		);
 
 		expect(resp.status).toBe(409);
-		expect(await resp.json()).toEqual(ids);
+		expect(await resp.json()).toEqual(conflictIds);
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("returns Azure 404 and does not D1-queue as Submitted", async () => {
+	it("returns Azure 409 for name-only submit and flushes submit.azure_client_error", async () => {
+		const env = testEnv();
+		const fetchMock = vi.fn(
+			async () => new Response(JSON.stringify(conflictIds), { status: 409 })
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ podcastName: "Shared Show Name" })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflictIds);
+		expect(submissionsCreate).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(env.secureSubmitEndpoint.toString());
+		expect(warnSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "submit.azure_client_error",
+				status: 409
+			})
+		);
+	});
+
+	it("proxies Azure 409 when submit is granted via OAuth scope only", async () => {
 		vi.stubGlobal(
 			"fetch",
-			vi.fn(async () => new Response(JSON.stringify({ message: "Podcast not found" }), { status: 404 }))
+			vi.fn(async () => new Response(JSON.stringify(conflictIds), { status: 409 }))
+		);
+		const app = appWithAuthPayload("/submit", "post", submit, {
+			scope: "openid submit",
+			azp: "m2m"
+		} as Auth0JwtPayload);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ podcastName: "Shared Show Name" })
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflictIds);
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("returns Azure 404 body and does not D1-queue as Submitted", async () => {
+		const notFound = { message: "Podcast not found" };
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response(JSON.stringify(notFound), { status: 404 }))
 		);
 		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
 
@@ -70,6 +130,7 @@ describe("submit", () => {
 		);
 
 		expect(resp.status).toBe(404);
+		expect(await resp.json()).toEqual(notFound);
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
@@ -86,6 +147,25 @@ describe("submit", () => {
 			{
 				method: "POST",
 				headers: authJsonHeaders,
+				body: JSON.stringify({ url: "https://example.com/episode" })
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({ success: "Submitted" });
+		expect(submissionsCreate).toHaveBeenCalledOnce();
+	});
+
+	it("D1-queues when the caller is unauthenticated", async () => {
+		submissionsCreate.mockResolvedValue({});
+		const app = appWithAuthPayload("/submit", "post", submit, null);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ url: "https://example.com/episode" })
 			},
 			testEnv()

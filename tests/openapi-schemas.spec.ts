@@ -45,6 +45,13 @@ describe("openapi Zod schemas", () => {
 	it("accepts search and submit-url request shapes", () => {
 		expect(searchRequestSchema.parse({ search: "cult", orderby: "release desc" }).search).toBe("cult");
 		expect(submitUrlRequestSchema.parse({ url: "https://example.com/ep" }).url).toContain("example.com");
+		expect(submitUrlRequestSchema.parse({ podcastName: "Shared Show Name" }).podcastName).toBe(
+			"Shared Show Name"
+		);
+		expect(
+			submitUrlRequestSchema.parse({ podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }).podcastId
+		).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+		expect(() => submitUrlRequestSchema.parse({})).toThrow();
 		expect(podcastRenameRequestSchema.parse({ newPodcastName: "New Name" }).newPodcastName).toBe("New Name");
 	});
 

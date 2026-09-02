@@ -44,6 +44,46 @@ describe("proxyToAzure", () => {
 		expect(await resp.json()).toEqual(ids);
 	});
 
+	it("logs forwarded 4xx as proxy.forwarded not proxy.success", async () => {
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response(JSON.stringify([]), { status: 409 }))
+		);
+		const app = appWithPermissions(
+			"/",
+			"post",
+			(c) =>
+				proxyToAzure(c, {
+					permission: "submit",
+					endpoint: Endpoint.submit,
+					method: "POST",
+					body: "{}",
+					successStatuses: [200],
+					forwardStatuses: [404, 409],
+					logName: "secure-submit-endpoint"
+				}),
+			["submit"]
+		);
+
+		const resp = await app.request(
+			"/",
+			{ method: "POST", headers: authJsonHeaders, body: "{}" },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(409);
+		expect(infoSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "proxy.forwarded",
+				outcome: "passthrough"
+			})
+		);
+		expect(infoSpy).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "proxy.success" })
+		);
+	});
+
 	it("maps unforwarded Azure 500 to Worker 500 instead of the upstream body", async () => {
 		vi.stubGlobal(
 			"fetch",

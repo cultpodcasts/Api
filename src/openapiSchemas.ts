@@ -35,11 +35,22 @@ export const searchRequestSchema = z.object({
 	orderby: z.string().optional()
 });
 
-export const submitUrlRequestSchema = z.object({
-	url: z.string().url(),
-	podcastId: z.string().uuid().optional().nullable(),
-	podcastName: z.string().optional().nullable()
-});
+/** UUID list returned on ambiguous podcast-name 409 (GET /podcast/{name} and POST /submit). */
+export const ambiguousPodcastIdsSchema = z.array(z.string().uuid());
+
+export const submitUrlRequestSchema = z
+	.object({
+		url: z.string().url().optional().nullable(),
+		podcastId: z.string().uuid().optional().nullable(),
+		podcastName: z.string().optional().nullable()
+	})
+	.refine(
+		(body) =>
+			(typeof body.url === "string" && body.url.length > 0) ||
+			(typeof body.podcastName === "string" && body.podcastName.trim().length > 0) ||
+			(typeof body.podcastId === "string" && body.podcastId.length > 0),
+		{ message: "url, podcastName, or podcastId is required" }
+	);
 
 export const discoverySubmitRequestSchema = z.object({
 	ids: z.array(z.string().uuid()),

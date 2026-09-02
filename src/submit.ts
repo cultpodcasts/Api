@@ -4,6 +4,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Endpoint } from "./Endpoint";
+import { hasPermission } from "./hasPermission";
 import { LogCollector } from "./LogCollector";
 import { proxyToAzure } from "./proxyToAzure";
 
@@ -14,7 +15,7 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	logCollector.add({ route: "submit" });
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
-	if (auth0Payload?.permissions && auth0Payload.permissions.includes("submit")) {
+	if (hasPermission(auth0Payload, "submit")) {
 		const resp = await proxyToAzure(c, {
 			permission: "submit",
 			endpoint: Endpoint.submit,
@@ -24,12 +25,12 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 			forwardStatuses: [404, 409],
 			logName: "secure-submit-endpoint"
 		});
-		if (resp.status == 200) {
+		if (resp.status === 200) {
 			resp.headers.set("X-Origin", "true");
 			return resp;
 		}
 		if (resp.status === 404 || resp.status === 409) {
-			logCollector.add({ event: "submit.azure_client_error", status: resp.status });
+			logCollector.emitWarn({ event: "submit.azure_client_error", status: resp.status });
 			return resp;
 		}
 		logCollector.add({ event: "submit.azure_failed" });
