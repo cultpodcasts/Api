@@ -44,6 +44,26 @@ export const submitUrlRequestSchema = z.object({
 	podcastName: z.string().optional().nullable()
 });
 
+/** Query `url` is validated by Azure SubmitUrl (absolute http/https), not Worker z.url(). */
+export const submitUrlLookupQuerySchema = z.object({
+	url: z.string()
+});
+
+/**
+ * GET /submit/lookup 200 — Cosmos URL membership.
+ * Unique known series: known true + podcastId/podcastName.
+ * Unknown: known false + kind.
+ * Ambiguous stored URL: known false, ambiguous true, podcastIds (not 409).
+ */
+export const submitUrlLookupResponseSchema = z.object({
+	known: z.boolean(),
+	kind: z.enum(["podcast-service", "streaming", "unrecognised"]).optional(),
+	podcastId: z.string().uuid().optional(),
+	podcastName: z.string().optional(),
+	ambiguous: z.boolean().optional(),
+	podcastIds: z.array(z.string().uuid()).optional()
+});
+
 export const discoverySubmitRequestSchema = z.object({
 	ids: z.array(z.string().uuid()),
 	resultIds: z.array(z.string().uuid())

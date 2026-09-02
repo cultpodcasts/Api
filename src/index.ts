@@ -65,6 +65,7 @@ import {
 	RunSearchIndexerRoute,
 	SearchRoute,
 	SubmitDiscoveryRoute,
+	SubmitLookupRoute,
 	SubmitRoute,
 	UpdateEpisodeRoute,
 	UpdatePersonRoute,
@@ -327,6 +328,7 @@ openapi.post('/person/:id', UpdatePersonRoute);
 openapi.put('/person', CreatePersonRoute);
 openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
+openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit', SubmitRoute);
 // New Episode Publish Endpoint
 openapi.post('/episode/publish/:podcastId/:episodeId', PublishPodcastEpisodeRoute);

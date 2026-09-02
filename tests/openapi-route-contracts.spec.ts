@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
 	GetPodcastByNameAndEpisodeIdRoute,
 	GetPodcastByNameRoute,
+	SubmitLookupRoute,
 	SubmitRoute
 } from "../src/openapiSubmitPodcastRoutes";
-import { submitUrlRequestSchema } from "../src/openapiSchemas";
+import { submitUrlLookupQuerySchema, submitUrlRequestSchema } from "../src/openapiSchemas";
 
 describe("OpenAPI route contracts", () => {
 	it("shares one 409 UUID-array object across submit and GET podcast-by-name", () => {
@@ -38,5 +39,13 @@ describe("OpenAPI route contracts", () => {
 			}).url
 		).toContain("example.com");
 		expect(() => submitUrlRequestSchema.parse({ podcastName: "Shared Show Name" })).toThrow();
+	});
+
+	it("documents GET /submit/lookup query url and 200 ambiguous membership", () => {
+		expect(SubmitLookupRoute.openApiSchema.request?.query).toBe(submitUrlLookupQuerySchema);
+		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/ambiguous/i);
+		expect(SubmitLookupRoute.openApiSchema.responses?.[400]?.description).toMatch(
+			/absolute http or https URL/i
+		);
 	});
 });

@@ -15,9 +15,12 @@ import {
 	jsonBody,
 	podcastDtoSchema,
 	submitUrlRequestSchema,
-	submitUrlResponseSchema
+	submitUrlResponseSchema,
+	submitUrlLookupQuerySchema,
+	submitUrlLookupResponseSchema
 } from "./openapiSchemas";
 import { submit } from "./submit";
+import { submitLookup } from "./submitLookup";
 
 export const SubmitRoute = createOpenApiRoute(submit, {
 	auth: true,
@@ -34,6 +37,34 @@ export const SubmitRoute = createOpenApiRoute(submit, {
 			},
 			409: ambiguousPodcastNameConflict,
 			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
+	auth: true,
+	schema: {
+		tags: ["Submission"],
+		summary: "Look up series membership for an episode URL",
+		description:
+			"Read-only Cosmos URL membership. 200 with known true when one series already stores the URL. " +
+			"Unknown URLs return known false and kind podcast-service, streaming, or unrecognised. " +
+			"When the same URL is stored on more than one podcast, 200 with known false, ambiguous true, and podcastIds " +
+			"(not 409) so the client can still show Series.",
+		request: {
+			query: submitUrlLookupQuerySchema
+		},
+		responses: {
+			200: {
+				description: "Lookup result (known, unknown, or ambiguous)",
+				...contentJson(submitUrlLookupResponseSchema)
+			},
+			400: {
+				description: "Url must be an absolute http or https URL",
+				...contentJson(errorSchema)
+			},
 			...serverErrorResponse,
 			...authResponses
 		}
