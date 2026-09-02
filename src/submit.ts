@@ -22,14 +22,14 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 			method: "POST",
 			body: JSON.stringify(data),
 			successStatuses: [200],
-			forwardStatuses: [404, 409],
+			forwardStatuses: [400, 404, 409],
 			logName: "secure-submit-endpoint"
 		});
 		if (resp.status === 200) {
 			resp.headers.set("X-Origin", "true");
 			return resp;
 		}
-		if (resp.status === 404 || resp.status === 409) {
+		if (resp.status === 400 || resp.status === 404 || resp.status === 409) {
 			logCollector.emitWarn({ event: "submit.azure_client_error", status: resp.status });
 			return resp;
 		}

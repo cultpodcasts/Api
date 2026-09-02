@@ -11,6 +11,7 @@ import {
 	serverErrorResponse
 } from "./openapiRouteFactory";
 import {
+	errorSchema,
 	jsonBody,
 	podcastDtoSchema,
 	submitUrlRequestSchema,
@@ -26,6 +27,11 @@ export const SubmitRoute = createOpenApiRoute(submit, {
 		request: { body: jsonBody(submitUrlRequestSchema) },
 		responses: {
 			200: { description: "Submission accepted", ...contentJson(submitUrlResponseSchema) },
+			400: {
+				description:
+					"Bad request — missing or invalid Url, Azure SubmitUrl binding failure, or missing url on D1 fallback",
+				...contentJson(errorSchema)
+			},
 			409: ambiguousPodcastNameConflict,
 			...notFoundResponse,
 			...serverErrorResponse,

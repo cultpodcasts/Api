@@ -16,13 +16,27 @@ describe("OpenAPI route contracts", () => {
 		);
 	});
 
-	it("documents name-only POST /submit (url not required when podcastName is set)", () => {
+	it("documents POST /submit 400 for Azure binding / missing Url", () => {
+		expect(SubmitRoute.openApiSchema.responses?.[400]).toEqual(
+			expect.objectContaining({ description: expect.stringContaining("binding") })
+		);
+		expect(SubmitRoute.openApiSchema.responses?.[400]?.description).toEqual(
+			expect.stringContaining("Url")
+		);
+		expect(SubmitRoute.openApiSchema.responses?.[400]?.description).not.toMatch(/name-only/i);
+	});
+
+	it("documents required url on POST /submit with optional attach-by-name fields", () => {
 		const request = SubmitRoute.openApiSchema.request as
 			| { body?: { content?: { "application/json"?: { schema?: unknown } } } }
 			| undefined;
 		expect(request?.body?.content?.["application/json"]?.schema).toBe(submitUrlRequestSchema);
-		expect(submitUrlRequestSchema.parse({ podcastName: "Shared Show Name" }).podcastName).toBe(
-			"Shared Show Name"
-		);
+		expect(
+			submitUrlRequestSchema.parse({
+				url: "https://example.com/ep",
+				podcastName: "Shared Show Name"
+			}).url
+		).toContain("example.com");
+		expect(() => submitUrlRequestSchema.parse({ podcastName: "Shared Show Name" })).toThrow();
 	});
 });

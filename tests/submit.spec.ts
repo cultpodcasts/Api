@@ -54,7 +54,7 @@ describe("submit", () => {
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("returns Azure 409 for name-only submit and flushes submit.azure_client_error", async () => {
+	it("returns Azure 409 for attach-by-name with url and flushes submit.azure_client_error", async () => {
 		const env = testEnv();
 		const fetchMock = vi.fn(
 			async () => new Response(JSON.stringify(conflictIds), { status: 409 })
@@ -68,7 +68,10 @@ describe("submit", () => {
 			{
 				method: "POST",
 				headers: authJsonHeaders,
-				body: JSON.stringify({ podcastName: "Shared Show Name" })
+				body: JSON.stringify({
+					url: "https://example.com/episode",
+					podcastName: "Shared Show Name"
+				})
 			},
 			env
 		);
@@ -101,7 +104,10 @@ describe("submit", () => {
 			{
 				method: "POST",
 				headers: authJsonHeaders,
-				body: JSON.stringify({ podcastName: "Shared Show Name" })
+				body: JSON.stringify({
+					url: "https://example.com/episode",
+					podcastName: "Shared Show Name"
+				})
 			},
 			testEnv()
 		);
@@ -131,6 +137,59 @@ describe("submit", () => {
 
 		expect(resp.status).toBe(404);
 		expect(await resp.json()).toEqual(notFound);
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("returns Azure 400 for binding/missing Url and does not D1-queue", async () => {
+		const azureBody = { error: "Required property 'Url' not found in JSON. Path ''." };
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response(JSON.stringify(azureBody), { status: 400 }))
+		);
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url: "https://example.com/episode" })
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(400);
+		expect(await resp.json()).toEqual(azureBody);
+		expect(submissionsCreate).not.toHaveBeenCalled();
+		expect(warnSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "submit.azure_client_error",
+				status: 400
+			})
+		);
+	});
+
+	it("returns Azure 400 for name-only submit when Url is required and does not D1-queue", async () => {
+		const fetchMock = vi.fn(
+			async () => new Response("Required property 'Url' not found in JSON.", { status: 400 })
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ podcastName: "Shared Show Name" })
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(400);
+		expect(await resp.text()).toContain("Url");
+		expect(fetchMock).toHaveBeenCalledOnce();
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 

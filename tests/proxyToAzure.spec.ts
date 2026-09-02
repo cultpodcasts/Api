@@ -28,7 +28,7 @@ describe("proxyToAzure", () => {
 					method: "POST",
 					body: "{}",
 					successStatuses: [200],
-					forwardStatuses: [404, 409],
+					forwardStatuses: [400, 404, 409],
 					logName: "secure-submit-endpoint"
 				}),
 			["submit"]
@@ -60,7 +60,7 @@ describe("proxyToAzure", () => {
 					method: "POST",
 					body: "{}",
 					successStatuses: [200],
-					forwardStatuses: [404, 409],
+					forwardStatuses: [400, 404, 409],
 					logName: "secure-submit-endpoint"
 				}),
 			["submit"]
@@ -99,7 +99,7 @@ describe("proxyToAzure", () => {
 					method: "POST",
 					body: "{}",
 					successStatuses: [200],
-					forwardStatuses: [404, 409],
+					forwardStatuses: [400, 404, 409],
 					logName: "secure-submit-endpoint"
 				}),
 			["submit"]
@@ -113,5 +113,36 @@ describe("proxyToAzure", () => {
 
 		expect(resp.status).toBe(500);
 		expect(await resp.json()).toEqual({ error: "Error" });
+	});
+
+	it("returns Azure 400 body when 400 is in forwardStatuses", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response(JSON.stringify({ error: "Required property 'Url'" }), { status: 400 }))
+		);
+		const app = appWithPermissions(
+			"/",
+			"post",
+			(c) =>
+				proxyToAzure(c, {
+					permission: "submit",
+					endpoint: Endpoint.submit,
+					method: "POST",
+					body: "{}",
+					successStatuses: [200],
+					forwardStatuses: [400, 404, 409],
+					logName: "secure-submit-endpoint"
+				}),
+			["submit"]
+		);
+
+		const resp = await app.request(
+			"/",
+			{ method: "POST", headers: authJsonHeaders, body: "{}" },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(400);
+		expect(await resp.json()).toEqual({ error: "Required property 'Url'" });
 	});
 });
