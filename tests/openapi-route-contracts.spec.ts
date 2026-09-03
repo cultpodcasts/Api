@@ -48,6 +48,11 @@ describe("OpenAPI route contracts", () => {
 	it("documents GET /submit/lookup query url and 200 ambiguous membership", () => {
 		expect(SubmitLookupRoute.openApiSchema.request?.query).toBe(submitUrlLookupQuerySchema);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/ambiguous/i);
+		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/podcastName/i);
+		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/curate/i);
+		expect(SubmitLookupRoute.openApiSchema.responses?.[403]?.description).toMatch(
+			/submit-only/i
+		);
 		expect(SubmitLookupRoute.openApiSchema.responses?.[400]?.description).toMatch(
 			/absolute http or https URL/i
 		);
@@ -69,6 +74,17 @@ describe("OpenAPI route contracts", () => {
 		expect(
 			submitUrlLookupResponseSchema.parse({ known: false, kind: "streaming" })
 		).toEqual({ known: false, kind: "streaming" });
+		expect(
+			submitUrlLookupResponseSchema.parse({
+				known: false,
+				kind: "streaming",
+				podcastName: "Extracted Show"
+			})
+		).toEqual({
+			known: false,
+			kind: "streaming",
+			podcastName: "Extracted Show"
+		});
 		expect(
 			submitUrlLookupResponseSchema.parse({
 				known: false,

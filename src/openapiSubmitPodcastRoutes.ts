@@ -49,8 +49,10 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 		tags: ["Submission"],
 		summary: "Look up series membership for an episode URL",
 		description:
-			"Read-only Cosmos URL membership. 200 with known true when one series already stores the URL. " +
-			"Unknown URLs return known false and kind podcast-service, streaming, or unrecognised. " +
+			"Read-only Cosmos URL membership. Requires Curator/`curate` (submit-only is 403; unsigned is 401). " +
+			"200 with known true when one series already stores the URL. " +
+			"Unknown URLs return known false and kind podcast-service, streaming, or unrecognised; unknown streaming " +
+			"may include scraped podcastName when Isolated extracted a series title. " +
 			"When the same URL is stored on more than one podcast, 200 with known false, ambiguous true, and podcastIds " +
 			"(not 409) so the client can still show Series.",
 		request: {
@@ -71,7 +73,12 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 				...contentJson(errorSchema)
 			},
 			...serverErrorResponse,
-			...authResponses
+			...authResponses,
+			403: {
+				description:
+					"Forbidden — authenticated without Curator/`curate` (submit-only is not enough)",
+				...contentJson(errorSchema)
+			}
 		}
 	}
 });

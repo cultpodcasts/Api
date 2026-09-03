@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Auth0JwtPayload } from "../src/Auth0JwtPayload";
 import { submitLookup } from "../src/submitLookup";
-import { appWithPermissions, testEnv } from "./honoTestApp";
+import { appWithAuthPayload, appWithPermissions, testEnv } from "./honoTestApp";
 
 const submissionsCreate = vi.hoisted(() => vi.fn());
 
@@ -26,7 +27,7 @@ const conflictIds = [
 	"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 ];
 
-function lookupApp(permissions: string[] = ["curate", "submit"]) {
+function lookupApp(permissions: string[] = ["curate"]) {
 	return appWithPermissions("/submit/lookup", "get", submitLookup, permissions);
 }
 
@@ -183,7 +184,26 @@ describe("GET /submit/lookup", () => {
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("forwards unknown streaming membership as 200", async () => {
+	it("forwards unknown streaming with scraped podcastName as 200", async () => {
+		const extracted = { known: false, kind: "streaming", podcastName: "Extracted Show" };
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response(JSON.stringify(extracted), { status: 200 }))
+		);
+		const app = lookupApp(["curate"]);
+
+		const resp = await app.request(
+			`/submit/lookup?url=${encodeURIComponent("https://www.bbc.co.uk/sounds/play/p0example")}`,
+			{ method: "GET", headers: authHeaders },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(extracted);
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("forwards unknown streaming scrape-miss without podcastName as 200", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(
@@ -231,8 +251,11 @@ describe("GET /submit/lookup", () => {
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("returns 403 when authenticated without submit permission", async () => {
-		const fetchMock = vi.fn();
+	it("GETs Azure SubmitUrl when Curator has curate permission only", async () => {
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ known: false, kind: "streaming" }), { status: 200 })
+		);
 		vi.stubGlobal("fetch", fetchMock);
 		const app = lookupApp(["curate"]);
 
@@ -242,7 +265,64 @@ describe("GET /submit/lookup", () => {
 			testEnv()
 		);
 
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({ known: false, kind: "streaming" });
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("GETs Azure SubmitUrl when Curator has OAuth scope curate only", async () => {
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ known: false, kind: "streaming" }), { status: 200 })
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithAuthPayload("/submit/lookup", "get", submitLookup, {
+			scope: "openid curate",
+			azp: "spa"
+		} as Auth0JwtPayload);
+
+		const resp = await app.request(
+			"/submit/lookup?url=https://example.com/x",
+			{ method: "GET", headers: authHeaders },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("returns 403 when authenticated with submit permission only", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const app = lookupApp(["submit"]);
+
+		const resp = await app.request(
+			"/submit/lookup?url=https://example.com/x",
+			{ method: "GET", headers: authHeaders },
+			testEnv()
+		);
+
 		expect(resp.status).toBe(403);
+		expect(await resp.json()).toEqual({ error: "Forbidden" });
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("returns 401 when unsigned and does not fetch Azure", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithAuthPayload("/submit/lookup", "get", submitLookup, null);
+
+		const resp = await app.request(
+			"/submit/lookup?url=https://example.com/x",
+			{ method: "GET" },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(401);
+		expect(await resp.json()).toEqual({ error: "Unauthorised" });
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});

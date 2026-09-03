@@ -218,6 +218,8 @@ describe("submit", () => {
 
 	it("D1-queues when the caller is unauthenticated", async () => {
 		submissionsCreate.mockResolvedValue({});
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
 		const app = appWithAuthPayload("/submit", "post", submit, null);
 
 		const resp = await app.request(
@@ -232,7 +234,55 @@ describe("submit", () => {
 
 		expect(resp.status).toBe(200);
 		expect(await resp.json()).toEqual({ success: "Submitted" });
+		expect(fetchMock).not.toHaveBeenCalled();
 		expect(submissionsCreate).toHaveBeenCalledOnce();
+	});
+
+	it("D1-queues when the caller has submit permission only", async () => {
+		submissionsCreate.mockResolvedValue({});
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url: "https://example.com/episode" })
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({ success: "Submitted" });
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(submissionsCreate).toHaveBeenCalledOnce();
+	});
+
+	it("fetches Azure SubmitUrl when Curator has curate permission only", async () => {
+		const env = testEnv();
+		const fetchMock = vi.fn(
+			async () => new Response(JSON.stringify(conflictIds), { status: 409 })
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions("/submit", "post", submit, ["curate"]);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url: "https://example.com/episode" })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflictIds);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(env.secureSubmitEndpoint.toString());
+		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
 	it("returns Azure 200 with X-Origin and does not write D1", async () => {

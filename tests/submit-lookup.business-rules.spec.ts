@@ -61,7 +61,7 @@ function jwtForActor(actor: SubmitUrlActor) {
 	if (actor === "member-submit") {
 		return jwtPayload({ permissions: ["submit"] });
 	}
-	return jwtPayload({ permissions: ["curate", "submit"] });
+	return jwtPayload({ permissions: ["curate"] });
 }
 
 function authHeaders(actor: SubmitUrlActor): Record<string, string> {
@@ -166,9 +166,12 @@ describe("submit / lookup Azure vs D1 business rules", () => {
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("Curator without Isolated submit permission does not fetch Azure", async () => {
+	it("Curator with curate only fetches Azure for lookup and POST", async () => {
 		const curatorOnly = jwtPayload({ permissions: ["curate"] });
 		const env = testEnv();
+		fetchMock.mockResolvedValue(
+			azureJson(200, { known: false, kind: "streaming", podcastName: "Extracted Show" })
+		);
 
 		const lookupApp = handlerApp("get", "/submit/lookup", submitLookup, curatorOnly);
 		const lookupRes = await invokeRoute(
@@ -180,9 +183,20 @@ describe("submit / lookup Azure vs D1 business rules", () => {
 			},
 			env
 		);
-		expect(lookupRes.status).toBe(403);
-		expect(fetchMock).not.toHaveBeenCalled();
+		expect(lookupRes.status).toBe(200);
+		expect(await lookupRes.json()).toEqual({
+			known: false,
+			kind: "streaming",
+			podcastName: "Extracted Show"
+		});
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(submissionsCreate).not.toHaveBeenCalled();
 
+		fetchMock.mockReset();
+		fetchMock.mockResolvedValue(azureJson(409, [
+			"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+		]));
 		const postApp = handlerApp("post", "/submit", submit, curatorOnly);
 		const postRes = await invokeRoute(
 			postApp,
@@ -197,10 +211,9 @@ describe("submit / lookup Azure vs D1 business rules", () => {
 			},
 			env
 		);
-		expect(fetchMock).not.toHaveBeenCalled();
-		expect(postRes.status).toBe(200);
-		expect(await postRes.json()).toEqual({ success: "Submitted" });
-		expect(submissionsCreate).toHaveBeenCalledOnce();
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(postRes.status).toBe(409);
+		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
 	it("lookup 200 and POST body shapes match Isolated SubmitUrl DTOs", () => {

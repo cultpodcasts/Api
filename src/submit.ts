@@ -18,8 +18,9 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	// Curator/`curate` only: Azure Isolated persist. Signed-out and submit-only → D1.
 	if (canCallAzureSubmitBackend(auth0Payload)) {
 		const resp = await proxyToAzure(c, {
-			// Isolated SubmitUrl still authorizes JWT `submit`. Worker already gated on Curator/`curate`.
-			permission: "submit",
+			// Worker already gated on Curator/`curate`. Do not re-require Isolated `submit`:
+			// website Curator persist sends `curate` only. Isolated HandleRequest must accept `curate`.
+			permission: "curate",
 			endpoint: Endpoint.submit,
 			method: "POST",
 			body: JSON.stringify(data),
