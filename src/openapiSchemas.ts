@@ -74,7 +74,8 @@ export const submitUrlLookupUnknownSchema = z
 	.object({
 		known: z.literal(false),
 		kind: submitUrlLookupKindSchema,
-		ambiguous: z.literal(false).optional()
+		ambiguous: z.literal(false).optional(),
+		podcastName: z.string().optional().nullable()
 	})
 	.strict();
 

@@ -4,9 +4,9 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Endpoint } from "./Endpoint";
-import { hasPermission } from "./hasPermission";
 import { LogCollector } from "./LogCollector";
 import { proxyToAzure } from "./proxyToAzure";
+import { canCallAzureSubmitBackend } from "./submitAccess";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
@@ -15,8 +15,10 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	logCollector.add({ route: "submit" });
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
-	if (hasPermission(auth0Payload, "submit")) {
+	// Curator/`curate` only: Azure Isolated persist. Signed-out and submit-only → D1.
+	if (canCallAzureSubmitBackend(auth0Payload)) {
 		const resp = await proxyToAzure(c, {
+			// Isolated SubmitUrl still authorizes JWT `submit`. Worker already gated on Curator/`curate`.
 			permission: "submit",
 			endpoint: Endpoint.submit,
 			method: "POST",

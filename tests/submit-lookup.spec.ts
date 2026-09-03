@@ -26,7 +26,7 @@ const conflictIds = [
 	"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 ];
 
-function lookupApp(permissions: string[] = ["submit"]) {
+function lookupApp(permissions: string[] = ["curate", "submit"]) {
 	return appWithPermissions("/submit/lookup", "get", submitLookup, permissions);
 }
 

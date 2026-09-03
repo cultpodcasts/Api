@@ -8,7 +8,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
 	test: {
 		include: ["tests/**/*.spec.ts"],
-		environment: "node"
+		environment: "node",
+		setupFiles: ["tests/setup-cloudflare-stub.ts"]
 	},
 	assetsInclude: ["**/*.woff"]
 });

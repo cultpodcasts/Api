@@ -37,7 +37,7 @@ describe("submit", () => {
 			"fetch",
 			vi.fn(async () => new Response(JSON.stringify(conflictIds), { status: 409 }))
 		);
-		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
 			"/submit",
@@ -61,7 +61,7 @@ describe("submit", () => {
 		);
 		vi.stubGlobal("fetch", fetchMock);
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
 			"/submit",
@@ -95,7 +95,7 @@ describe("submit", () => {
 			vi.fn(async () => new Response(JSON.stringify(conflictIds), { status: 409 }))
 		);
 		const app = appWithAuthPayload("/submit", "post", submit, {
-			scope: "openid submit",
+			scope: "openid curate submit",
 			azp: "m2m"
 		} as Auth0JwtPayload);
 
@@ -123,7 +123,7 @@ describe("submit", () => {
 			"fetch",
 			vi.fn(async () => new Response(JSON.stringify(notFound), { status: 404 }))
 		);
-		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
 			"/submit",
@@ -147,7 +147,7 @@ describe("submit", () => {
 			"fetch",
 			vi.fn(async () => new Response(JSON.stringify(azureBody), { status: 400 }))
 		);
-		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
 			"/submit",
@@ -175,7 +175,7 @@ describe("submit", () => {
 			async () => new Response("Required property 'Url' not found in JSON.", { status: 400 })
 		);
 		vi.stubGlobal("fetch", fetchMock);
-		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
 			"/submit",
@@ -199,7 +199,7 @@ describe("submit", () => {
 			vi.fn(async () => new Response("upstream failure", { status: 500 }))
 		);
 		submissionsCreate.mockResolvedValue({});
-		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
 			"/submit",
@@ -240,7 +240,7 @@ describe("submit", () => {
 			"fetch",
 			vi.fn(async () => new Response(JSON.stringify({ message: "ok" }), { status: 200 }))
 		);
-		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
 			"/submit",
