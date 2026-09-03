@@ -3,17 +3,25 @@ import { hasPermission } from "./hasPermission";
 
 /**
  * Public Worker gate for the Azure Isolated submit/lookup backend.
- * Product rule (3 Sep 2026): only a Curator may call real lookup / Azure persist.
- * The JWT has no "Curator" role claim — Curator is the `curate` permission
- * (permissions[] and/or OAuth scope). `submit` alone is not enough.
+ * Product rule: JWT `submit` or `curate` may call real lookup / Azure persist.
+ * UI maps `Submitter` / `Curator` Auth0 roles to these permissions.
  */
 export function canCallAzureSubmitBackend(
 	payload: Auth0JwtPayload | null | undefined
 ): boolean {
-	return hasPermission(payload, "curate");
+	return (
+		hasPermission(payload, "submit") || hasPermission(payload, "curate")
+	);
 }
 
-/** Missing/invalid JWT → 401; authenticated without Curator/`curate` → 403. */
+/** Permission to forward to Azure after the Worker gate (matches token claims). */
+export function azureSubmitProxyPermission(
+	payload: Auth0JwtPayload
+): "submit" | "curate" {
+	return hasPermission(payload, "curate") ? "curate" : "submit";
+}
+
+/** Missing/invalid JWT → 401; authenticated without submit/curate → 403. */
 export function azureSubmitBackendDenialStatus(
 	payload: Auth0JwtPayload | null | undefined
 ): 401 | 403 {

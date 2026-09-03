@@ -16,6 +16,7 @@ import { handlerApp, invokeRoute, jwtPayload, testEnv } from "./support/honoRout
 import {
 	submitUrlCases,
 	submitUrlUrls,
+	lookupKnownUnique,
 	type SubmitUrlActor,
 	type SubmitUrlHttpStep
 } from "./fixtures/submit-url-contract";
@@ -120,14 +121,13 @@ describe("submit / lookup Azure vs D1 business rules", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("maps Curator to the curate JWT permission; submit alone is not Curator", () => {
+	it("maps submit and curate JWT permissions to Azure submit backend access", () => {
 		expect(canCallAzureSubmitBackend(jwtPayload({ permissions: ["curate"] }))).toBe(true);
 		expect(canCallAzureSubmitBackend(jwtPayload({ scope: "openid curate" }))).toBe(true);
-		expect(canCallAzureSubmitBackend(jwtPayload({ permissions: ["submit"] }))).toBe(false);
-		expect(canCallAzureSubmitBackend(jwtPayload({ scope: "submit" }))).toBe(false);
+		expect(canCallAzureSubmitBackend(jwtPayload({ permissions: ["submit"] }))).toBe(true);
+		expect(canCallAzureSubmitBackend(jwtPayload({ scope: "submit" }))).toBe(true);
 		expect(canCallAzureSubmitBackend(null)).toBe(false);
 		expect(canCallAzureSubmitBackend(undefined)).toBe(false);
-		expect(hasPermission(jwtPayload({ permissions: ["submit"] }), "curate")).toBe(false);
 	});
 
 	it("unsigned GET /submit/lookup is 401 and does not fetch Azure", async () => {
@@ -146,10 +146,12 @@ describe("submit / lookup Azure vs D1 business rules", () => {
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("signed-in submit-only GET /submit/lookup is 403 and does not fetch Azure", async () => {
+	it("signed-in submit-only GET /submit/lookup fetches Azure", async () => {
 		const member = jwtPayload({ permissions: ["submit"] });
-		expect(azureSubmitBackendDenialStatus(member)).toBe(403);
 		const env = testEnv();
+		fetchMock.mockResolvedValue(
+			azureJson(200, lookupKnownUnique)
+		);
 		const app = handlerApp("get", "/submit/lookup", submitLookup, member);
 		const res = await invokeRoute(
 			app,
@@ -160,9 +162,9 @@ describe("submit / lookup Azure vs D1 business rules", () => {
 			},
 			env
 		);
-		expect(res.status).toBe(403);
-		expect(await res.json()).toEqual({ error: "Forbidden" });
-		expect(fetchMock).not.toHaveBeenCalled();
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual(lookupKnownUnique);
+		expect(fetchMock).toHaveBeenCalledOnce();
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 

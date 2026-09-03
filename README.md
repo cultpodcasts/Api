@@ -6,6 +6,8 @@ It is currently hosted as a Cloudflare Worker with a Durable Object for User-pro
 
 A D1-database (using Prisma) is used for storing anonymous user-submissions.
 
+**Auth0 roles and permissions** (SPA roles vs JWT `submit`/`curate`/`admin`, Worker gates): [`website/cultpodcasts/docs/auth0-roles-and-permissions.md`](../website/cultpodcasts/docs/auth0-roles-and-permissions.md)
+
 ## Running locally
 
 Use:

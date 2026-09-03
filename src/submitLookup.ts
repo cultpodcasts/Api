@@ -4,6 +4,7 @@ import { Endpoint } from "./Endpoint";
 import { proxyToAzure } from "./proxyToAzure";
 import {
 	azureSubmitBackendDenialStatus,
+	azureSubmitProxyPermission,
 	canCallAzureSubmitBackend
 } from "./submitAccess";
 
@@ -18,9 +19,7 @@ export async function submitLookup(c: Auth0ActionContext): Promise<Response> {
 		return c.json({ error: status === 401 ? "Unauthorised" : "Forbidden" }, status);
 	}
 	return proxyToAzure(c, {
-		// Worker already gated on Curator/`curate`. Do not re-require Isolated `submit`:
-		// website Curator JWTs often have scope/permissions `curate` only.
-		permission: "curate",
+		permission: azureSubmitProxyPermission(auth0Payload),
 		endpoint: Endpoint.submit,
 		method: "GET",
 		appendRequestSearch: true,

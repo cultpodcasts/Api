@@ -238,9 +238,11 @@ describe("submit", () => {
 		expect(submissionsCreate).toHaveBeenCalledOnce();
 	});
 
-	it("D1-queues when the caller has submit permission only", async () => {
-		submissionsCreate.mockResolvedValue({});
-		const fetchMock = vi.fn();
+	it("fetches Azure SubmitUrl when the caller has submit permission only", async () => {
+		const env = testEnv();
+		const fetchMock = vi.fn(
+			async () => new Response(JSON.stringify(conflictIds), { status: 409 })
+		);
 		vi.stubGlobal("fetch", fetchMock);
 		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
 
@@ -251,13 +253,14 @@ describe("submit", () => {
 				headers: authJsonHeaders,
 				body: JSON.stringify({ url: "https://example.com/episode" })
 			},
-			testEnv()
+			env
 		);
 
-		expect(resp.status).toBe(200);
-		expect(await resp.json()).toEqual({ success: "Submitted" });
-		expect(fetchMock).not.toHaveBeenCalled();
-		expect(submissionsCreate).toHaveBeenCalledOnce();
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflictIds);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(env.secureSubmitEndpoint.toString());
+		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
 	it("fetches Azure SubmitUrl when Curator has curate permission only", async () => {

@@ -293,9 +293,15 @@ describe("GET /submit/lookup", () => {
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("returns 403 when authenticated with submit permission only", async () => {
+	it("returns 200 when authenticated with submit permission only", async () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);
+		fetchMock.mockResolvedValue(
+			new Response(JSON.stringify({ known: false, kind: "podcast-service" }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" }
+			})
+		);
 		const app = lookupApp(["submit"]);
 
 		const resp = await app.request(
@@ -304,9 +310,8 @@ describe("GET /submit/lookup", () => {
 			testEnv()
 		);
 
-		expect(resp.status).toBe(403);
-		expect(await resp.json()).toEqual({ error: "Forbidden" });
-		expect(fetchMock).not.toHaveBeenCalled();
+		expect(resp.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledOnce();
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 

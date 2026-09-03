@@ -10,6 +10,12 @@ when asked; do not treat “enable” / “ship” / feature flips as deploy app
 
 - Rule: [`.cursor/rules/no-api-website-deploys.mdc`](.cursor/rules/no-api-website-deploys.mdc)
 
+## Auth0 permissions (Worker)
+
+JWT **`permissions[]`** and OAuth **`scope`** are checked via `hasPermission` (not ID-token roles). Submit/lookup Azure gate: `canCallAzureSubmitBackend` in `src/submitAccess.ts` (`submit` or `curate`).
+
+- Cross-repo map: [`website/cultpodcasts/docs/auth0-roles-and-permissions.md`](../website/cultpodcasts/docs/auth0-roles-and-permissions.md)
+
 ## Preview ↔ production secrets (HARD)
 
 Any new Worker secret for preview/staging **must** also be planned for production.
