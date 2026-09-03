@@ -49,9 +49,10 @@ describe("OpenAPI route contracts", () => {
 		expect(SubmitLookupRoute.openApiSchema.request?.query).toBe(submitUrlLookupQuerySchema);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/ambiguous/i);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/podcastName/i);
+		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/submit/i);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/curate/i);
 		expect(SubmitLookupRoute.openApiSchema.responses?.[403]?.description).toMatch(
-			/submit-only/i
+			/without.*submit.*curate/i
 		);
 		expect(SubmitLookupRoute.openApiSchema.responses?.[400]?.description).toMatch(
 			/absolute http or https URL/i

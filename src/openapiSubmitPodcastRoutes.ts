@@ -49,7 +49,7 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 		tags: ["Submission"],
 		summary: "Look up series membership for an episode URL",
 		description:
-			"Read-only Cosmos URL membership. Requires Curator/`curate` (submit-only is 403; unsigned is 401). " +
+			"Read-only Cosmos URL membership. Requires JWT `submit` or `curate` permission (unsigned is 401). " +
 			"200 with known true when one series already stores the URL. " +
 			"Unknown URLs return known false and kind podcast-service, streaming, or unrecognised; unknown streaming " +
 			"may include scraped podcastName when Isolated extracted a series title. " +
@@ -76,7 +76,7 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 			...authResponses,
 			403: {
 				description:
-					"Forbidden — authenticated without Curator/`curate` (submit-only is not enough)",
+					"Forbidden — authenticated without `submit` or `curate` permission",
 				...contentJson(errorSchema)
 			}
 		}

@@ -331,4 +331,21 @@ describe("GET /submit/lookup", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
+
+	it("returns 403 when authenticated without submit or curate and does not fetch Azure", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions("/submit/lookup", "get", submitLookup, ["admin"]);
+
+		const resp = await app.request(
+			"/submit/lookup?url=https://example.com/x",
+			{ method: "GET", headers: authHeaders },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(403);
+		expect(await resp.json()).toEqual({ error: "Forbidden" });
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
 });
