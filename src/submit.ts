@@ -6,6 +6,10 @@ import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Endpoint } from "./Endpoint";
 import { LogCollector } from "./LogCollector";
 import { proxyToAzure } from "./proxyToAzure";
+import {
+	azureSubmitProxyPermission,
+	canCallAzureSubmitBackend
+} from "./submitAccess";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
@@ -14,17 +18,23 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	logCollector.add({ route: "submit" });
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
-	if (auth0Payload?.permissions && auth0Payload.permissions.includes("submit")) {
+	// submit/curate JWT: Azure Isolated persist. Signed-out → D1.
+	if (canCallAzureSubmitBackend(auth0Payload)) {
 		const resp = await proxyToAzure(c, {
-			permission: "submit",
+			permission: azureSubmitProxyPermission(auth0Payload),
 			endpoint: Endpoint.submit,
 			method: "POST",
 			body: JSON.stringify(data),
 			successStatuses: [200],
+			forwardStatuses: [400, 404, 409],
 			logName: "secure-submit-endpoint"
 		});
-		if (resp.status == 200) {
+		if (resp.status === 200) {
 			resp.headers.set("X-Origin", "true");
+			return resp;
+		}
+		if (resp.status === 400 || resp.status === 404 || resp.status === 409) {
+			logCollector.emitWarn({ event: "submit.azure_client_error", status: resp.status });
 			return resp;
 		}
 		logCollector.add({ event: "submit.azure_failed" });

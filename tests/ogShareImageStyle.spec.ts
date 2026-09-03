@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import {
 	OG_SQUARE_FROM_WIDE_SCALE,
 	OG_SQUARE_STYLE,
@@ -20,21 +18,8 @@ import {
 } from "../src/ogShareImageStyle";
 import { OG_SQUARE_TITLE_PX, OG_WIDE_TITLE_PX } from "../src/ogShareImageText";
 
-const impl = readFileSync(resolve(process.cwd(), "src/ogShareImage.ts"), "utf8");
-const styleMod = readFileSync(resolve(process.cwd(), "src/ogShareImageStyle.ts"), "utf8");
-const styleDoc = readFileSync(resolve(process.cwd(), "docs/og-share-image-style-guide.md"), "utf8");
-
 describe("OG style guide tokens", () => {
-	it("documents wide as the source of truth and square as 800/1200", () => {
-		expect(styleDoc).toContain("OG_WIDE_STYLE");
-		expect(styleDoc).toContain("Instrument Serif");
-		expect(styleDoc).toContain("Figtree");
-		expect(styleDoc).toContain("72px");
-		expect(styleDoc).toContain("88");
-		expect(styleDoc).toContain("ogTitlePadTop");
-		expect(styleDoc).toContain("800 / 1200");
-		expect(styleDoc).toContain("fixed max height");
-		expect(styleDoc).toContain("440");
+	it("treats wide as the source of truth and square as 800/1200", () => {
 		expect(OG_SQUARE_FROM_WIDE_SCALE).toBe(800 / 1200);
 	});
 
@@ -85,7 +70,6 @@ describe("OG style guide tokens", () => {
 		expect(squareArtMaxHeight()).toBe(OG_WIDE_STYLE.artMaxHeight);
 		expect(squareArtMaxHeight()).toBe(440);
 		expect(squareCanvasHeight()).toBeGreaterThan(OG_WIDE_STYLE.artMaxHeight);
-		expect(impl).toContain("squareCanvasHeight()");
 		expect(OG_SQUARE_STYLE.artRadius).toBe(scaleWidePx(OG_WIDE_STYLE.artRadius));
 		expect(OG_SQUARE_STYLE.artPad).toBe(scaleWidePx(OG_WIDE_STYLE.artPad));
 		expect(OG_SQUARE_STYLE.metaSize).toBe(scaleWidePx(OG_WIDE_STYLE.metaSize));
@@ -104,80 +88,13 @@ describe("OG style guide tokens", () => {
 		expect(ogTitlePadTop(440, lineBox, 2)).toBe(Math.floor((440 - lineBox * 2) / 2));
 		expect(ogTitlePadTop(100, 80, 2)).toBe(0);
 	});
-});
 
-describe("OG implementation meets the style guide", () => {
-	it("wires the renderer to the style-guide module", () => {
-		expect(impl).toContain('from "./ogShareImageStyle"');
-		expect(impl).toContain("OG_WIDE_STYLE");
-		expect(impl).toContain("OG_SQUARE_STYLE");
-		expect(impl).toContain("OG_STYLE_FACES");
-		expect(impl).toContain("OG_STYLE_COLORS");
-		expect(impl).toContain("ogTitleFontSize");
-		expect(impl).toContain("ogTitlePadTop");
-		expect(styleMod).toContain("export const OG_WIDE_STYLE");
-	});
-
-	it("paints titles in Figtree 600 only (no Instrument Serif fallback)", () => {
-		const titleFn = impl.match(/function titleBlockHtml\([\s\S]*?\n\}/)?.[0];
-		expect(titleFn).toBeDefined();
-		expect(titleFn).toContain("OG_STYLE_FACES.ui");
-		expect(titleFn).toContain("OG_STYLE_FACES.titleWeight");
-		expect(titleFn).not.toContain("Instrument Serif");
-	});
-
-	it("uses Instrument Serif only on the brand wordmark", () => {
-		expect(impl).toContain("OG_STYLE_FACES.brand");
-		const titleFn = impl.match(/function titleBlockHtml\([\s\S]*?\n\}/)?.[0] ?? "";
-		expect(impl.replace(titleFn, "")).toContain("OG_STYLE_FACES.brand");
-	});
-
-	it("registers Figtree before Instrument Serif", () => {
-		const fonts = impl.match(/fonts:\s*\[[\s\S]*?\]/)?.[0];
-		expect(fonts).toBeDefined();
-		expect(fonts?.indexOf("Figtree")).toBeLessThan(fonts?.indexOf("Instrument Serif") ?? -1);
-	});
-
-	it("keeps square show-name type at the wide size", () => {
+	it("keeps square show name and stacked meta in separate footer columns", () => {
 		expect(OG_SQUARE_STYLE.podcastSize).toBe(48); // pragma: allowlist secret
-		expect(OG_SQUARE_STYLE.podcastSize).toBe(OG_WIDE_STYLE.podcastSize); // pragma: allowlist secret
-		expect(impl).toContain("sizes: [s.podcastSize]"); // pragma: allowlist secret
-		expect(impl).toContain("sizes: [sq.podcastSize]"); // pragma: allowlist secret
-		expect(impl).not.toContain("podcastSizeMin) / 2)"); // pragma: allowlist secret
-	});
-
-	it("applies the wide show-name rule to the leftover square footer column", () => {
 		expect(OG_SQUARE_STYLE.podcastMaxLines).toBe(OG_WIDE_STYLE.podcastMaxLines); // pragma: allowlist secret
 		expect(OG_SQUARE_STYLE.podcastMaxLines).toBe(2); // pragma: allowlist secret
 		expect(squareTwoLineShowNameHeight()).toBeGreaterThan(squareStackedMetaHeight());
 		expect(squareShowNameContentWidth()).toBeGreaterThan(squareArtMaxHeight());
-		expect(impl).toContain("layoutOgShowName");
-		expect(impl).toContain("squareShowNameContentWidth");
-		expect(impl).toContain("OG_SQUARE_FOOTER_GUTTER");
-		expect(impl).toContain("justify-content:space-between");
-		expect(impl).toContain("squareArtMaxHeight");
-		expect(styleDoc).toContain("leftover footer");
-		expect(styleDoc).toContain("max 2 lines");
-		expect(styleDoc).toContain("not paint into the meta stack");
-	});
-
-	it("centres 1- and 2-row show names on the footer meta column like wide", () => {
-		expect(styleDoc).toContain("Podcast name in the footer");
-		expect(styleDoc).toContain("vertically centred on the meta+icons block");
-		expect(styleDoc).toContain("Do **not**");
-		const wideFooter = impl.match(
-			/wideLayout === "columns"[\s\S]*?align-items:center;flex-shrink:0;padding:\$\{OG_WIDE_STYLE\.footerPadTop\}/
-		)?.[0];
-		expect(wideFooter).toBeDefined();
-		expect(impl).toContain(
-			"flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}"
-		);
-		expect(impl).not.toContain(
-			"flex-direction:row;align-items:flex-end;justify-content:space-between;flex-shrink:0;padding:${OG_SQUARE_STYLE.footerPadTop}"
-		);
-	});
-
-	it("keeps square show name and stacked meta in separate footer columns", () => {
 		const used =
 			OG_SQUARE_STYLE.artPad +
 			squareShowNameContentWidth() +
@@ -186,22 +103,5 @@ describe("OG implementation meets the style guide", () => {
 			OG_SQUARE_STYLE.chromePadX;
 		expect(used).toBeLessThanOrEqual(OG_SQUARE_STYLE.canvasWidth);
 		expect(OG_SQUARE_FOOTER_GUTTER).toBeGreaterThanOrEqual(24);
-	});
-
-	it("applies the same columns chrome and title pad on square as on wide", () => {
-		expect(impl).toContain("ogTitlePadTop(input.artHeight, titleLineBox, titleLayout.lines.length)");
-		expect(impl.split("ogTitlePadTop(").length).toBeGreaterThanOrEqual(3);
-		expect(impl).toContain("CARD_SCALE.square");
-		expect(impl).toContain("height:${input.artHeight}px");
-		expect(impl).toContain("justify-content:center");
-		expect(impl).not.toContain("Square cards keep a compact right stack");
-	});
-
-	it("keeps wide canvas and art box at the documented sizes", () => {
-		expect(impl).toContain("OG_WIDE_STYLE.canvasWidth");
-		expect(impl).toContain("OG_WIDE_STYLE.artMaxWidth");
-		expect(impl).toContain("OG_WIDE_STYLE.artMaxHeight");
-		expect(impl).toContain("OG_WIDE_STYLE.brandLogo");
-		expect(impl).toContain("OG_WIDE_STYLE.titleMaxLines");
 	});
 });

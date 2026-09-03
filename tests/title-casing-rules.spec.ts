@@ -1,89 +1,139 @@
-import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as titleCasingHandlers from "../src/titleCasingRules";
+import {
+	deleteTitleCasingRulesIgnoredSubject,
+	deleteTitleCasingRulesKnownTerm,
+	deleteTitleCasingRulesLowerCaseTerm,
+	getTitleCasingRulesByLanguage,
+	postTitleCasingRulesIgnoredSubject,
+	postTitleCasingRulesKnownTerm,
+	postTitleCasingRulesLowerCaseTerm
+} from "../src/titleCasingRules";
+import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
-/**
- * Source-contract checks for /title-casing-rules/:language and term delta routes.
- */
-describe("title-casing-rules contract", () => {
-	const src = readFileSync(resolve(process.cwd(), "src/titleCasingRules.ts"), "utf8");
-	const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-	const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
+const azureOk = { language: "en", lowerCaseTerms: ["a"] };
 
-	it("registers language GET plus lower-case and known-terms POST/DELETE; no PUT or /terms", () => {
-		expect(index).toContain(
-			"openapi.get('/title-casing-rules/:language', GetTitleCasingRulesByLanguageRoute)"
-		);
-		expect(index).toContain(
-			"openapi.post('/title-casing-rules/:language/lower-case-terms', PostTitleCasingRulesLowerCaseTermRoute)"
-		);
-		expect(index).toContain(
-			"openapi.delete('/title-casing-rules/:language/lower-case-terms/:term', DeleteTitleCasingRulesLowerCaseTermRoute)"
-		);
-		expect(index).toContain(
-			"openapi.post('/title-casing-rules/:language/known-terms', PostTitleCasingRulesKnownTermRoute)"
-		);
-		expect(index).toContain(
-			"openapi.delete('/title-casing-rules/:language/known-terms/:literal', DeleteTitleCasingRulesKnownTermRoute)"
-		);
-		expect(index).toContain(
-			"openapi.post('/title-casing-rules/:language/ignored-subjects', PostTitleCasingRulesIgnoredSubjectRoute)"
-		);
-		expect(index).toContain(
-			"openapi.delete('/title-casing-rules/:language/ignored-subjects/:term', DeleteTitleCasingRulesIgnoredSubjectRoute)"
-		);
-		expect(index).not.toMatch(/openapi\.put\('\/title-casing-rules/);
-		expect(index).not.toMatch(/openapi\.get\('\/title-casing-rules'/);
-		expect(index).not.toContain("'/terms'");
-		expect(index).not.toContain('"/terms"');
+describe("title-casing-rules", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
 	});
 
-	it("route factories require Auth0 middleware", () => {
-		const getBlock = routes.match(
-			/export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute\(getTitleCasingRulesByLanguage, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const postLower = routes.match(
-			/export const PostTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute\(postTitleCasingRulesLowerCaseTerm, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const deleteLower = routes.match(
-			/export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute\(deleteTitleCasingRulesLowerCaseTerm, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const postKnown = routes.match(
-			/export const PostTitleCasingRulesKnownTermRoute = createOpenApiRoute\(postTitleCasingRulesKnownTerm, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const deleteKnown = routes.match(
-			/export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute\(deleteTitleCasingRulesKnownTerm, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const postIgnored = routes.match(
-			/export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute\(postTitleCasingRulesIgnoredSubject, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		const deleteIgnored = routes.match(
-			/export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute\(deleteTitleCasingRulesIgnoredSubject, \{[\s\S]*?\n\}\);/
-		)?.[0];
-		expect(getBlock).toBeDefined();
-		expect(postLower).toBeDefined();
-		expect(deleteLower).toBeDefined();
-		expect(postKnown).toBeDefined();
-		expect(deleteKnown).toBeDefined();
-		expect(postIgnored).toBeDefined();
-		expect(deleteIgnored).toBeDefined();
-		for (const block of [getBlock, postLower, deleteLower, postKnown, deleteKnown, postIgnored, deleteIgnored]) {
-			expect(block).toContain("auth: true");
+	it("does not export PUT handlers", () => {
+		expect(Object.keys(titleCasingHandlers).filter((k) => /^put/i.test(k))).toEqual([]);
+	});
+
+	it("GET requires admin; curate is 403 and missing auth is 401", async () => {
+		const unauth = appWithAuthPayload(
+			"/title-casing-rules/:language",
+			"get",
+			getTitleCasingRulesByLanguage,
+			null
+		);
+		const curate = appWithPermissions(
+			"/title-casing-rules/:language",
+			"get",
+			getTitleCasingRulesByLanguage,
+			["curate"]
+		);
+
+		expect(
+			(await unauth.request("/title-casing-rules/en", { method: "GET" }, testEnv())).status
+		).toBe(401);
+		expect(
+			(
+				await curate.request("/title-casing-rules/en", { method: "GET", headers: authJsonHeaders }, testEnv())
+			).status
+		).toBe(403);
+	});
+
+	it("admin GET/POST/DELETE proxy to Azure with Cache-Control no-store", async () => {
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(azureOk), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const getApp = appWithPermissions(
+			"/title-casing-rules/:language",
+			"get",
+			getTitleCasingRulesByLanguage,
+			["admin"]
+		);
+		const postLower = appWithPermissions(
+			"/title-casing-rules/:language/lower-case-terms",
+			"post",
+			postTitleCasingRulesLowerCaseTerm,
+			["admin"]
+		);
+		const deleteLower = appWithPermissions(
+			"/title-casing-rules/:language/lower-case-terms/:term",
+			"delete",
+			deleteTitleCasingRulesLowerCaseTerm,
+			["admin"]
+		);
+		const postKnown = appWithPermissions(
+			"/title-casing-rules/:language/known-terms",
+			"post",
+			postTitleCasingRulesKnownTerm,
+			["admin"]
+		);
+		const deleteKnown = appWithPermissions(
+			"/title-casing-rules/:language/known-terms/:literal",
+			"delete",
+			deleteTitleCasingRulesKnownTerm,
+			["admin"]
+		);
+		const postIgnored = appWithPermissions(
+			"/title-casing-rules/:language/ignored-subjects",
+			"post",
+			postTitleCasingRulesIgnoredSubject,
+			["admin"]
+		);
+		const deleteIgnored = appWithPermissions(
+			"/title-casing-rules/:language/ignored-subjects/:term",
+			"delete",
+			deleteTitleCasingRulesIgnoredSubject,
+			["admin"]
+		);
+
+		const env = testEnv();
+		const responses = [
+			await getApp.request("/title-casing-rules/en", { method: "GET", headers: authJsonHeaders }, env),
+			await postLower.request(
+				"/title-casing-rules/en/lower-case-terms",
+				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ term: "the" }) },
+				env
+			),
+			await deleteLower.request(
+				"/title-casing-rules/en/lower-case-terms/the",
+				{ method: "DELETE", headers: authJsonHeaders },
+				env
+			),
+			await postKnown.request(
+				"/title-casing-rules/en/known-terms",
+				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ literal: "AI", display: "AI" }) },
+				env
+			),
+			await deleteKnown.request(
+				"/title-casing-rules/en/known-terms/AI",
+				{ method: "DELETE", headers: authJsonHeaders },
+				env
+			),
+			await postIgnored.request(
+				"/title-casing-rules/fr/ignored-subjects",
+				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ term: "Paris" }) },
+				env
+			),
+			await deleteIgnored.request(
+				"/title-casing-rules/fr/ignored-subjects/Paris",
+				{ method: "DELETE", headers: authJsonHeaders },
+				env
+			)
+		];
+
+		for (const resp of responses) {
+			expect(resp.status).toBe(200);
+			expect(resp.headers.get("Cache-Control")).toBe("no-store");
+			expect(await resp.json()).toEqual(azureOk);
 		}
-	});
-
-	it("handlers require admin permission and no-store cache headers", () => {
-		expect(src).toContain('permission: "admin"');
-		expect(src).not.toContain('permission: "curate"');
-		expect(src).toContain("omitCacheControlHeader: true");
-		expect(src).toContain('c.header("Cache-Control", "no-store")');
-		expect(src.match(/permission: "admin"/g)?.length).toBe(7);
-		expect(src.match(/Cache-Control", "no-store"/g)?.length).toBe(7);
-	});
-
-	it("does not register PUT handlers for title-casing-rules", () => {
-		expect(src).not.toMatch(/\bputTitleCasingRules\b/i);
-		expect(src).not.toContain('method: "PUT"');
-		expect(routes).not.toMatch(/PutTitleCasingRules/);
+		expect(fetchMock).toHaveBeenCalledTimes(7);
 	});
 });

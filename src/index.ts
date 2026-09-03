@@ -12,7 +12,7 @@ import { ProfileDurableObjectLegacy } from './ProfileDurableObjectLegacy';
 import { HeroCurationDurableObject } from './HeroCurationDurableObject';
 import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
-import { openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
+import { openApiDocumentVersion, openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
 import {
 	AddBookmarkRoute,
 	CreatePersonRoute,
@@ -65,6 +65,7 @@ import {
 	RunSearchIndexerRoute,
 	SearchRoute,
 	SubmitDiscoveryRoute,
+	SubmitLookupRoute,
 	SubmitRoute,
 	UpdateEpisodeRoute,
 	UpdatePersonRoute,
@@ -73,8 +74,6 @@ import {
 	UpdatePodcastPutRoute,
 	UpdateSubjectRoute
 } from './openapiRoutes';
-import packageJson from '../package.json';
-
 const app = new Hono<{ Bindings: Env }>();
 const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
 const OPENAPI_AUTH_STATE_COOKIE = 'openapi_auth_state';
@@ -179,7 +178,7 @@ app.use('/openapi.json', async (c, next) => {
 		const body = await c.res.json() as {
 			info?: { title?: string; version?: string; description?: string };
 		};
-		const info = openApiInfoForEnvironment(environment, body.info?.version ?? packageJson.version);
+		const info = openApiInfoForEnvironment(environment, body.info?.version ?? openApiDocumentVersion);
 		body.info = { ...body.info, ...info };
 		c.res = new Response(JSON.stringify(body), {
 			status: c.res.status,
@@ -314,7 +313,7 @@ const openapi = fromHono(app, {
 	schema: {
 		info: {
 			title: 'Cult Podcasts API',
-			version: packageJson.version
+			version: openApiDocumentVersion
 		}
 	}
 });
@@ -329,6 +328,7 @@ openapi.post('/person/:id', UpdatePersonRoute);
 openapi.put('/person', CreatePersonRoute);
 openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
+openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit', SubmitRoute);
 // New Episode Publish Endpoint
 openapi.post('/episode/publish/:podcastId/:episodeId', PublishPodcastEpisodeRoute);

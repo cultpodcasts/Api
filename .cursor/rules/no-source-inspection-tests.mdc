@@ -1,0 +1,31 @@
+---
+description: HARD — tests must run TypeScript; never read production source as text
+globs: "**/*.{spec,test}.ts,**/*.spec.ts"
+alwaysApply: true
+---
+
+# No source-inspection tests (HARD GUARDRAIL)
+
+Tests must **import and run** production TypeScript and assert behaviour. Never treat production `.ts` / `.js` as a string to grep, `includes`, or regex.
+
+**Do not add this to CI.** Do not add a GitHub Actions step or `assert:no-source-inspection` / `assert-no-source-inspection` npm script. Agents must simply never write those tests.
+
+## Forbidden
+
+| NEVER | Why |
+|-------|-----|
+| `readFileSync` / `fs.readFile` of production `.ts` or `.js` as the assertion | Source text is not a contract; refactors fail tests without changing behaviour |
+| Scanning `src/**/*.ts` for string tokens (`export`, route paths, handler names) | Same — implementation shape, not behaviour |
+| `?raw` imports of production TypeScript/JavaScript in specs | Same |
+
+## Allowed
+
+| OK | Notes |
+|----|--------|
+| Import production modules and call them / hit Hono handlers | The test **runs** the code |
+| OpenAPI JSON / JSON / JSONC / markdown / `wrangler.jsonc` as **data** | Not production TS |
+| Copied fixture modules under `tests/fixtures/` imported as TypeScript | Import and use; do not `readFileSync` `src/submit.ts` or `src/index.ts` |
+
+## If unsure
+
+Write a behavioural test. Do not open production source as text.

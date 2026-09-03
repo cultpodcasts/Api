@@ -1,20 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { getOgShareImageOpenApiSchema } from "../src/ogShareImageOpenApi";
+import { ogImageQuerySchema } from "../src/openapiSchemas";
 
 describe("GET /og-image OpenAPI", () => {
-	const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-	const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-
-	it("registers GET /og-image on the OpenAPI router, not a bare Hono route", () => {
-		expect(index).toContain("openapi.get('/og-image', GetOgShareImageRoute)");
-		expect(index).not.toContain("app.get('/og-image'");
+	it("documents the query contract", () => {
+		expect(getOgShareImageOpenApiSchema.request?.query).toBe(ogImageQuerySchema);
+		expect(ogImageQuerySchema.shape.u).toBeDefined();
+		expect(ogImageQuerySchema.shape.a).toBeDefined();
+		expect(ogImageQuerySchema.shape.t).toBeDefined();
 	});
 
-	it("documents query contract and PNG / redirect responses", () => {
-		expect(routes).toContain("export const GetOgShareImageRoute");
-		expect(routes).toContain("request: { query: ogImageQuerySchema }");
-		expect(routes).toContain('"image/png"');
-		expect(routes).toContain("307:");
+	it("documents PNG success and redirect fallback", () => {
+		expect(getOgShareImageOpenApiSchema.responses?.[200]?.content?.["image/png"]).toBeDefined();
+		expect(getOgShareImageOpenApiSchema.responses?.[307]).toBeDefined();
+		expect(getOgShareImageOpenApiSchema.responses?.[400]).toBeDefined();
 	});
 });

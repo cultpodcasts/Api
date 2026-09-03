@@ -1,4 +1,9 @@
+import packageJson from "../package.json";
+
 export type ApiEnvironment = "production" | "preview" | "local";
+
+/** OpenAPI `info.version` — same value `fromHono` and `/openapi.json` rewrite use. */
+export const openApiDocumentVersion: string = packageJson.version;
 
 export function resolveApiEnvironment(
 	envValue: string | undefined | null,

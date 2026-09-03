@@ -29,7 +29,12 @@ import {
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
 import { parseWideLayout, type WideLayoutId } from "./ogWideLayout";
-import { OG_IMAGE_CACHE_MAX_AGE_SECONDS, ogImageCacheKey } from "./ogShareImageCache";
+import {
+	matchCachedOgImage,
+	ogImageCacheControlHeader,
+	putCachedOgImage,
+	withOgCacheHeader
+} from "./ogShareImageCache";
 
 export { OG_IMAGE_CACHE_MAX_AGE_SECONDS, ogImageCacheKey } from "./ogShareImageCache";
 import instrumentSerifRegular from "./fonts/InstrumentSerif-Regular.woff";
@@ -476,12 +481,9 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 	}
 
 	const cache = caches.default;
-	const cacheKey = ogImageCacheKey(c.req.url);
-	const cached = await cache.match(cacheKey);
+	const cached = await matchCachedOgImage(cache, c.req.url);
 	if (cached) {
-		const hitHeaders = new Headers(cached.headers);
-		hitHeaders.set("X-Og-Cache", "HIT");
-		return new Response(cached.body, { status: cached.status, headers: hitHeaders });
+		return cached;
 	}
 
 	const aspect = parseOgImageAspect(c.req.query("a"));
@@ -529,15 +531,17 @@ export async function getOgShareImage(c: Context<{ Bindings: Env }>): Promise<Re
 				{ name: "Instrument Serif", data: instrumentSerifItalic, weight: 400, style: "italic" }
 			],
 			headers: {
-				"Cache-Control": `public, max-age=${OG_IMAGE_CACHE_MAX_AGE_SECONDS}`
+				"Cache-Control": ogImageCacheControlHeader()
 			}
 		});
 		const bytes = await rendered.arrayBuffer();
 		const headers = new Headers(rendered.headers);
-		headers.set("Cache-Control", `public, max-age=${OG_IMAGE_CACHE_MAX_AGE_SECONDS}`);
-		headers.set("X-Og-Cache", "MISS");
-		const response = new Response(bytes, { status: 200, headers });
-		await cache.put(cacheKey, response.clone());
+		headers.set("Cache-Control", ogImageCacheControlHeader());
+		const response = withOgCacheHeader(
+			new Response(bytes, { status: 200, headers }),
+			"MISS"
+		);
+		await putCachedOgImage(cache, c.req.url, response);
 		return response;
 	} catch (err) {
 		const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
