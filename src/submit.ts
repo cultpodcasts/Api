@@ -25,15 +25,20 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	if (canCallAzureSubmitBackend(auth0Payload)) {
 		let azureBody = data;
 		const urlParam = typeof data.url === "string" ? data.url : data.url?.toString?.();
+		let injectedPrefetchedMeta = false;
 		if (urlParam && c.env.StreamMeta) {
 			try {
 				const cached = await getStreamMeta(c.env.StreamMeta, new URL(urlParam).toString());
 				if (cached) {
 					azureBody = { ...data, prefetchedMeta: toPrefetchedMeta(cached) };
-					logCollector.add({ event: "submit.prefetched_meta" });
+					injectedPrefetchedMeta = true;
+					logCollector.addMessage("submit.prefetched_meta injected from StreamMeta KV");
+				} else {
+					logCollector.addMessage("submit.prefetched_meta miss");
 				}
 			} catch {
 				// Invalid url — Azure will 400; leave body without meta.
+				logCollector.addMessage("submit.prefetched_meta skipped (invalid url)");
 			}
 		}
 		const resp = await proxyToAzure(c, {
@@ -46,6 +51,14 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 			logName: "secure-submit-endpoint"
 		});
 		if (resp.status === 200) {
+			// proxyToAzure already terminal-logs; this collector records KV inject trail only.
+			logCollector.emit({
+				event: injectedPrefetchedMeta
+					? "submit.azure_ok_with_meta"
+					: "submit.azure_ok",
+				outcome: "success",
+				status: 200
+			});
 			resp.headers.set("X-Origin", "true");
 			return resp;
 		}
