@@ -49,10 +49,11 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 		tags: ["Submission"],
 		summary: "Look up series membership for an episode URL",
 		description:
-			"Read-only Cosmos URL membership. Requires JWT `submit` or `curate` permission (unsigned is 401). " +
+			"Cosmos URL membership plus streaming service classification. Requires JWT `submit` or `curate` permission (unsigned is 401). " +
 			"200 with known true when one series already stores the URL. " +
-			"Unknown URLs return known false and kind podcast-service, streaming, or unrecognised; unknown streaming " +
-			"may include scraped podcastName when Isolated extracted a series title. " +
+			"Unknown URLs return known false and kind podcast-service, streaming, or unrecognised; streaming responses include " +
+			"`service` (ServiceKeys wire value). Unknown streaming may include scraped podcastName when Isolated extracted a series title " +
+			"(prepare will own HTML fetch in a follow-up). " +
 			"When the same URL is stored on more than one podcast, 200 with known false, ambiguous true, and podcastIds " +
 			"(not 409) so the client can still show Series.",
 		request: {

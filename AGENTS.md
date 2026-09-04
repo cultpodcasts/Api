@@ -35,6 +35,10 @@ Any new Worker secret for preview/staging **must** also be planned for productio
 - Parity check: `pwsh ./scripts/assert-secrets-example-parity.ps1`
 - Live production secrets go on top-level Worker **`api`** (`set-secrets-production.ps1` / `--env=`). Do **not** use `--env production` (that is `api-production`, not serving `api.cultpodcasts.com`).
 
+## Streaming submit orchestration (contracts)
+
+Cross-repo streaming ingest (membership `service`, prepare HTML fetch, BR allowlist): canonical fixture + rules in [`docs/streaming-submit-orchestration.md`](docs/streaming-submit-orchestration.md). Website and RPP consume copies — do not fork enums.
+
 ## Version
 
 Semver patch (or higher) in `package.json` + `package-lock.json` on every shipping PR.
