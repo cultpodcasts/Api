@@ -16,6 +16,15 @@ JWT **`permissions[]`** and OAuth **`scope`** are checked via `hasPermission` (n
 
 - Cross-repo map: [`website/cultpodcasts/docs/auth0-roles-and-permissions.md`](../website/cultpodcasts/docs/auth0-roles-and-permissions.md)
 
+## Planned catalogue content types epic (not scheduled)
+
+Separate TvShow / Movie / News Cosmos containers + unified search `contentKind` facet. Worker search passthrough and new proxy routes — **planning only** until a phase is explicitly started.
+
+Intended RPP docs (not on `main` yet — land with a sibling RPP PR; do not treat as live links):
+
+- Epic: `RedditPodcastPoster/docs/catalogue-content-types-epic.md`
+- Search storage impact: `RedditPodcastPoster/docs/catalogue-content-types-search-storage-impact.md`
+
 ## Preview ↔ production secrets (HARD)
 
 Any new Worker secret for preview/staging **must** also be planned for production.
