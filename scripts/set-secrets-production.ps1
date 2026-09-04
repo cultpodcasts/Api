@@ -96,6 +96,7 @@ try {
         'secureSubmitEndpoint'
         'stagingHostSuffix'
         'auth0ClientId'
+        'browserRenderingServices'
     )
 
     $mustBeNonEmpty = @(

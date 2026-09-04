@@ -56,17 +56,38 @@ export const submitUrlLookupKindSchema = z.enum([
 	"unrecognised"
 ]);
 
+/** Streaming ServiceKeys wire values (podcast-service platforms excluded). */
+export const streamingServiceKeySchema = z.enum([
+	"bbcSounds",
+	"bbcIplayer",
+	"internetArchive",
+	"vimeo",
+	"netflix",
+	"amazonPrime",
+	"paramountPlus",
+	"hboMax",
+	"playSuisse",
+	"tvnzPlus",
+	"itvx",
+	"channel4",
+	"fawesome",
+	"disneyPlus",
+	"discoveryPlus"
+]);
+
 /**
  * GET /submit/lookup 200 — Cosmos URL membership (passthrough of Azure SubmitUrlLookupResponse).
  * Three arms match website SubmitUrlLookupResponse:
  * unique known / unknown (kind required) / ambiguous (not 409).
+ * Streaming arms include `service` (ServiceKeys).
  */
 export const submitUrlLookupKnownSchema = z
 	.object({
 		known: z.literal(true),
 		podcastId: z.string().uuid(),
 		podcastName: z.string(),
-		kind: submitUrlLookupKindSchema.optional()
+		kind: submitUrlLookupKindSchema.optional(),
+		service: streamingServiceKeySchema.optional().nullable()
 	})
 	.strict();
 
@@ -75,7 +96,8 @@ export const submitUrlLookupUnknownSchema = z
 		known: z.literal(false),
 		kind: submitUrlLookupKindSchema,
 		ambiguous: z.literal(false).optional(),
-		podcastName: z.string().optional().nullable()
+		podcastName: z.string().optional().nullable(),
+		service: streamingServiceKeySchema.optional().nullable()
 	})
 	.strict();
 
@@ -84,7 +106,8 @@ export const submitUrlLookupAmbiguousSchema = z
 		known: z.literal(false),
 		ambiguous: z.literal(true),
 		podcastIds: z.array(z.string().uuid()).min(1),
-		kind: submitUrlLookupKindSchema.optional()
+		kind: submitUrlLookupKindSchema.optional(),
+		service: streamingServiceKeySchema.optional().nullable()
 	})
 	.strict();
 

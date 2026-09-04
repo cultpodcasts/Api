@@ -10,6 +10,7 @@ import {
 	submitUrlLookupResponseSchema,
 	submitUrlRequestSchema
 } from "../src/openapiSchemas";
+import { streamingMembershipShapeCases } from "./fixtures/streaming-submit-contract";
 
 describe("OpenAPI route contracts", () => {
 	it("shares one 409 UUID-array object across submit and GET podcast-by-name", () => {
@@ -49,6 +50,9 @@ describe("OpenAPI route contracts", () => {
 		expect(SubmitLookupRoute.openApiSchema.request?.query).toBe(submitUrlLookupQuerySchema);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/ambiguous/i);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/podcastName/i);
+		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/`service`/);
+		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/ServiceKeys/);
+		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/does not scrape/i);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/submit/i);
 		expect(SubmitLookupRoute.openApiSchema.description).toMatch(/curate/i);
 		expect(SubmitLookupRoute.openApiSchema.responses?.[403]?.description).toMatch(
@@ -86,6 +90,29 @@ describe("OpenAPI route contracts", () => {
 			kind: "streaming",
 			podcastName: "Extracted Show"
 		});
+		const knownStreaming = streamingMembershipShapeCases.find(
+			(c) => c.arm === "known" && c.service === "itvx"
+		)!;
+		const unknownStreaming = streamingMembershipShapeCases.find(
+			(c) => c.arm === "unknown" && c.service === "discoveryPlus"
+		)!;
+		const ambiguousStreaming = streamingMembershipShapeCases.find(
+			(c) => c.arm === "ambiguous" && c.service === "netflix"
+		)!;
+		expect(submitUrlLookupResponseSchema.parse(knownStreaming.body)).toEqual(knownStreaming.body);
+		expect(submitUrlLookupResponseSchema.parse(unknownStreaming.body)).toEqual(
+			unknownStreaming.body
+		);
+		expect(submitUrlLookupResponseSchema.parse(ambiguousStreaming.body)).toEqual(
+			ambiguousStreaming.body
+		);
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({
+				known: false,
+				kind: "streaming",
+				service: "spotify"
+			})
+		).toThrow();
 		expect(
 			submitUrlLookupResponseSchema.parse({
 				known: false,

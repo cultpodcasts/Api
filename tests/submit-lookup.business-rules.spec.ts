@@ -228,8 +228,38 @@ describe("submit / lookup Azure vs D1 business rules", () => {
 		expect(submitUrlLookupResponseSchema.parse({
 			known: false,
 			kind: "streaming",
+			service: "itvx",
 			podcastName: "Extracted Show"
-		}).podcastName).toBe("Extracted Show");
+		})).toEqual({
+			known: false,
+			kind: "streaming",
+			service: "itvx",
+			podcastName: "Extracted Show"
+		});
+		expect(submitUrlLookupResponseSchema.parse({
+			known: true,
+			podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			podcastName: "Stored Show",
+			kind: "streaming",
+			service: "discoveryPlus"
+		}).service).toBe("discoveryPlus");
+		expect(submitUrlLookupResponseSchema.parse({
+			known: false,
+			ambiguous: true,
+			kind: "streaming",
+			service: "netflix",
+			podcastIds: [
+				"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+				"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+			]
+		}).service).toBe("netflix");
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({
+				known: false,
+				kind: "streaming",
+				service: "notARealStreamer"
+			})
+		).toThrow();
 		expect(submitUrlLookupResponseSchema.parse({
 			known: false,
 			ambiguous: true,
