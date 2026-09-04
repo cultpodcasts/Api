@@ -23,6 +23,11 @@ export type Env = {
 	secureTitleCasingRulesEndpoint: URL;
 	securePushSubscriptionEndpoint: URL;
 	stagingHostSuffix: string;
+	/**
+	 * CSV of streaming ServiceKeys that use CF Browser Rendering on prepare (e.g. `itvx`).
+	 * Empty / unset = all streaming hosts use Azure HttpClient. Secret (not wrangler vars).
+	 */
+	browserRenderingServices?: string;
 	/** Non-secret: production | preview | local — drives OpenAPI docs title. */
 	apiEnvironment?: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
