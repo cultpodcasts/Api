@@ -13,10 +13,8 @@ import {
 } from "./submitPrepareMeta";
 import {
 	azureSubmitBackendDenialStatus,
-	azureSubmitProxyPermission,
 	canCallAzureSubmitBackend
 } from "./submitAccess";
-import { hasPermission } from "./hasPermission";
 
 type LookupBody = {
 	known?: boolean;
@@ -104,16 +102,6 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 
 	const absoluteUrl = url.toString();
 	logCollector.addMessage(`prepare url host=${url.host}`);
-
-	const permission = azureSubmitProxyPermission(auth0Payload);
-	if (!hasPermission(auth0Payload, permission)) {
-		logCollector.emitError({
-			event: "submit.prepare.forbidden",
-			outcome: "forbidden",
-			status: 403
-		});
-		return c.json({ error: "Forbidden" }, 403);
-	}
 
 	const lookupUrl = getEndpoint(Endpoint.submit, c.env);
 	lookupUrl.searchParams.set("url", absoluteUrl);

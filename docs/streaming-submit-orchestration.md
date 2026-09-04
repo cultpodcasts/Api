@@ -61,6 +61,12 @@ Contract matrix: `streamingMembershipShapeCases` (service × arm).
 - Contract fixture `defaultBrowserRenderingServices` documents the recommended ops starting list only.
 - Empty secret → all streaming hosts use `directHttp`.
 
+### BR navigate wait (ITVX / SPA)
+
+Prepare uses Cloudflare Browser Rendering (`src/browserRenderingHtml.ts`) for allowlisted services (default: `itvx`). `page.goto` waits for **`domcontentloaded`** (45s hard timeout), then a short settle (~1.5s) before `page.content()`, so Azure `SubmitUrl/extract` receives hydrated markup.
+
+Do **not** use `networkidle0` here: ITVX and similar catalogue SPAs keep long-poll/analytics sockets open, so network-idle often never settles and prepare surfaces as a 45s BR timeout / 502 even when the DOM is already extractable.
+
 ## Fakes and tests
 
 | Repo | Enforcement |

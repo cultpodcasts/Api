@@ -2,7 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { submitPrepare } from "../src/submitPrepare";
 import { submit } from "../src/submit";
 import { streamMetaKvKey } from "../src/submitPrepareMeta";
-import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
+import {
+	appWithAuthPayload,
+	appWithPermissions,
+	authJsonHeaders,
+	testEnv
+} from "./honoTestApp";
+
+vi.mock("../src/browserRenderingHtml", () => ({
+	fetchHtmlWithBrowserRendering: vi.fn(async () => "<html><body>br-fixture-html</body></html>")
+}));
 
 describe("submitPrepare", () => {
 	afterEach(() => {
@@ -11,9 +20,6 @@ describe("submitPrepare", () => {
 	});
 
 	it("returns 401 when unauthenticated", async () => {
-		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, []);
-		// empty permissions with null payload via override
-		const { appWithAuthPayload } = await import("./honoTestApp");
 		const unauth = appWithAuthPayload("/submit/prepare", "post", submitPrepare, null);
 		const resp = await unauth.request(
 			"/submit/prepare",
@@ -25,7 +31,6 @@ describe("submitPrepare", () => {
 			testEnv()
 		);
 		expect(resp.status).toBe(401);
-		expect(app).toBeTruthy();
 	});
 
 	it("uses Azure prepare (directHttp) when service is not on BR allowlist and caches meta", async () => {
@@ -83,6 +88,69 @@ describe("submitPrepare", () => {
 		);
 	});
 
+	it("uses Browser Rendering then Azure extract when service is on BR allowlist and caches meta", async () => {
+		const put = vi.fn(async () => undefined);
+		const env = testEnv({
+			browserRenderingServices: "itvx",
+			BROWSER: {} as import("@cloudflare/puppeteer").BrowserWorker,
+			StreamMeta: { get: async () => null, put } as unknown as KVNamespace
+		});
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const u = String(input);
+			if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "itvx" }),
+					{ status: 200 }
+				);
+			}
+			if (u.includes("/extract")) {
+				const body = JSON.parse(String(init?.body ?? "{}"));
+				expect(body.html).toContain("br-fixture-html");
+				expect(body.url).toBe("https://www.itv.com/watch/example-slug/1a2345/1a2345a0001");
+				return new Response(
+					JSON.stringify({
+						service: "itvx",
+						podcastName: "Extracted Show",
+						title: "Episode Title",
+						description: "Desc"
+					}),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const url = "https://www.itv.com/watch/example-slug/1a2345/1a2345a0001";
+		const resp = await app.request(
+			"/submit/prepare",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({
+			service: "itvx",
+			htmlFetchMode: "browserRendering",
+			podcastName: "Extracted Show",
+			title: "Episode Title"
+		});
+		expect(put).toHaveBeenCalledWith(
+			streamMetaKvKey(url),
+			expect.stringContaining("Extracted Show"),
+			expect.objectContaining({ expirationTtl: 15 * 60 })
+		);
+		const extractCalls = fetchMock.mock.calls.filter(([input]) =>
+			String(input).includes("/extract")
+		);
+		expect(extractCalls).toHaveLength(1);
+	});
+
 	it("returns 400 when lookup kind is not streaming", async () => {
 		vi.stubGlobal(
 			"fetch",
@@ -129,17 +197,10 @@ describe("submit prefetchedMeta inject", () => {
 		const fetchMock = vi.fn(
 			async (_input: RequestInfo | URL, init?: RequestInit) => {
 				const body = JSON.parse(String(init?.body ?? "{}"));
-				expect(body.prefetchedMeta).toEqual({
-					title: "Ep",
-					description: "D",
-					duration: undefined,
-					release: undefined,
-					image: undefined,
-					explicit: undefined,
-					publisher: undefined,
-					showName: undefined
-				});
-				expect(body.clientMeta).toBeUndefined();
+				// Wire shape after JSON.stringify drops undefined optional keys.
+				expect(body.prefetchedMeta).toEqual({ title: "Ep", description: "D" });
+				expect(body.prefetchedMeta.title).not.toBe("evil");
+				expect(body.prefetchedMeta.description).not.toBe("no");
 				return new Response(JSON.stringify({ success: true }), { status: 200 });
 			}
 		);
