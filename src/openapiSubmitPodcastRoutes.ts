@@ -52,8 +52,8 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 			"Cosmos URL membership plus streaming service classification. Requires JWT `submit` or `curate` permission (unsigned is 401). " +
 			"200 with known true when one series already stores the URL. " +
 			"Unknown URLs return known false and kind podcast-service, streaming, or unrecognised; streaming responses include " +
-			"`service` (ServiceKeys wire value). Unknown streaming may include scraped podcastName when Isolated extracted a series title " +
-			"(prepare will own HTML fetch in a follow-up). " +
+			"`service` (ServiceKeys wire value). Lookup does not scrape HTML — membership returns kind and service only. " +
+			"Any podcastName on unknown today is transitional Azure Isolated legacy until prepare owns HTML fetch. " +
 			"When the same URL is stored on more than one podcast, 200 with known false, ambiguous true, and podcastIds " +
 			"(not 409) so the client can still show Series.",
 		request: {

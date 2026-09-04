@@ -3,6 +3,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+	streamingServiceKeySchema,
+	submitUrlLookupResponseSchema
+} from "../src/openapiSchemas";
+import {
 	STREAMING_SUBMIT_CONTRACT_COPY_FROM,
 	STREAMING_SUBMIT_CONTRACT_JSON_COPY_FROM,
 	defaultBrowserRenderingServices,
@@ -19,6 +23,23 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("streaming-submit-contract (Api publisher)", () => {
+	it("keeps OpenAPI streamingServiceKeySchema in lockstep with fixture streamingServiceKeys", () => {
+		expect([...streamingServiceKeySchema.options]).toEqual([...streamingServiceKeys]);
+	});
+
+	it("parses OpenAPI lookup response schema for every membership shape specimen with service", () => {
+		for (const row of streamingMembershipShapeCases) {
+			expect(submitUrlLookupResponseSchema.parse(row.body)).toEqual(row.body);
+		}
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({
+				known: false,
+				kind: "streaming",
+				service: "notAServiceKey"
+			})
+		).toThrow();
+	});
+
 	it("lists every streaming ServiceKey exactly once", () => {
 		expect(new Set(streamingServiceKeys).size).toBe(streamingServiceKeys.length);
 		expect(streamingServiceKeys).not.toContain("spotify");
