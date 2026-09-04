@@ -44,6 +44,12 @@ export const submitUrlRequestSchema = z.object({
 	podcastName: z.string().optional().nullable()
 });
 
+export const submitUrlPrepareRequestSchema = z.object({
+	url: z.string().url()
+});
+
+export const htmlFetchModeSchema = z.enum(["directHttp", "browserRendering"]);
+
 /** Query `url` is validated by Azure SubmitUrl (absolute http/https), not Worker z.url(). */
 export const submitUrlLookupQuerySchema = z.object({
 	url: z.string()
@@ -74,6 +80,13 @@ export const streamingServiceKeySchema = z.enum([
 	"disneyPlus",
 	"discoveryPlus"
 ]);
+
+export const submitUrlPrepareResponseSchema = z.object({
+	service: streamingServiceKeySchema,
+	htmlFetchMode: htmlFetchModeSchema,
+	podcastName: z.string().nullable(),
+	title: z.string().nullable()
+});
 
 /**
  * GET /submit/lookup 200 — Cosmos URL membership (passthrough of Azure SubmitUrlLookupResponse).

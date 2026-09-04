@@ -37,8 +37,8 @@ TypeScript: const arrays + derived union types in the contract fixture.
 ## Process (happy path, unknown streaming URL)
 
 1. **`GET /submit/lookup`** — Cosmos membership + classify URL → `{ known, kind: "streaming", service }`. **No page scrape. No Browser Rendering.**
-2. **`POST /submit/prepare`** — Fetch HTML + extract meta; cache meta (KV). Fetch mode: if `service ∈ browserRenderingServices` (Worker **secret**, CSV) → Browser Rendering; else Azure `HttpClient`.
-3. **`POST /submit`** — Ingest using cached `prefetchedMeta` when present; **no second page fetch** on cache hit.
+2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service ∈ browserRenderingServices` → Browser Rendering HTML + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
+3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit.
 
 Direction: **SPA → CF → Azure** (and CF → Browser Rendering). Azure does **not** call Cloudflare.
 

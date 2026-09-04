@@ -10,6 +10,7 @@ import {
 	azureSubmitProxyPermission,
 	canCallAzureSubmitBackend
 } from "./submitAccess";
+import { getStreamMeta, toPrefetchedMeta } from "./submitPrepareMeta";
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const auth0Payload: Auth0JwtPayload = c.var.auth0("payload");
@@ -18,13 +19,28 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	logCollector.add({ route: "submit" });
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data = await c.req.json();
+	// Never trust client-supplied prefetchedMeta — only Worker KV cache.
+	delete data.prefetchedMeta;
 	// submit/curate JWT: Azure Isolated persist. Signed-out → D1.
 	if (canCallAzureSubmitBackend(auth0Payload)) {
+		let azureBody = data;
+		const urlParam = typeof data.url === "string" ? data.url : data.url?.toString?.();
+		if (urlParam && c.env.StreamMeta) {
+			try {
+				const cached = await getStreamMeta(c.env.StreamMeta, new URL(urlParam).toString());
+				if (cached) {
+					azureBody = { ...data, prefetchedMeta: toPrefetchedMeta(cached) };
+					logCollector.add({ event: "submit.prefetched_meta" });
+				}
+			} catch {
+				// Invalid url — Azure will 400; leave body without meta.
+			}
+		}
 		const resp = await proxyToAzure(c, {
 			permission: azureSubmitProxyPermission(auth0Payload),
 			endpoint: Endpoint.submit,
 			method: "POST",
-			body: JSON.stringify(data),
+			body: JSON.stringify(azureBody),
 			successStatuses: [200],
 			forwardStatuses: [400, 404, 409],
 			logName: "secure-submit-endpoint"
