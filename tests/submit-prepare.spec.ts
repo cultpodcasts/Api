@@ -10,7 +10,19 @@ import {
 } from "./honoTestApp";
 
 vi.mock("../src/browserRenderingHtml", () => ({
-	fetchHtmlWithBrowserRendering: vi.fn(async () => "<html><body>br-fixture-html</body></html>")
+	fetchHtmlWithBrowserRendering: vi.fn(async () => ({
+		html: "<html><head><title>BR</title><meta property=\"og:title\" content=\"BR\" /></head><body>br-fixture-html</body></html>",
+		diagnostics: {
+			finalUrl: "https://www.itv.com/watch/x/1/1",
+			title: "BR",
+			challengeLikely: false,
+			documentStatus: 200,
+			redirectStatuses: [],
+			marks: [{ label: "goto_ok", tMs: 100 }],
+			htmlLength: 120
+		}
+	})),
+	isUsableBrowserHtml: vi.fn((html: string) => html.length > 20)
 }));
 
 describe("submitPrepare", () => {
