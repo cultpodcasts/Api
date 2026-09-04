@@ -1,6 +1,12 @@
+import type { BrowserWorker } from "@cloudflare/puppeteer";
+
 export type Env = {
 	shortner: KVNamespace;
 	Curated: KVNamespace;
+	/** Streaming prepare meta cache (`stream-meta:v1:<url>`). */
+	StreamMeta: KVNamespace;
+	/** Cloudflare Browser Rendering binding for prepare HTML fetch. */
+	BROWSER?: BrowserWorker;
 	auth0Issuer: string;
 	auth0Audience: string;
 	auth0ClientId: string;

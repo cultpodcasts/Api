@@ -58,7 +58,7 @@ export type HtmlFetchMode = (typeof htmlFetchModes)[number];
 export const defaultBrowserRenderingServices: readonly StreamingServiceKey[] = ["itvx"];
 
 export function htmlFetchModeForService(
-	service: StreamingServiceKey,
+	service: string,
 	browserRenderingServices: readonly string[] = defaultBrowserRenderingServices
 ): HtmlFetchMode {
 	return browserRenderingServices.includes(service) ? "browserRendering" : "directHttp";

@@ -37,8 +37,8 @@ TypeScript: const arrays + derived union types in the contract fixture.
 ## Process (happy path, unknown streaming URL)
 
 1. **`GET /submit/lookup`** — Cosmos membership + classify URL → `{ known, kind: "streaming", service }`. **No page scrape. No Browser Rendering.**
-2. **`POST /submit/prepare`** — Fetch HTML + extract meta; cache meta (KV). Fetch mode: if `service ∈ browserRenderingServices` (Worker **secret**, CSV) → Browser Rendering; else Azure `HttpClient`.
-3. **`POST /submit`** — Ingest using cached `prefetchedMeta` when present; **no second page fetch** on cache hit.
+2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service ∈ browserRenderingServices` → Browser Rendering HTML + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
+3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit.
 
 Direction: **SPA → CF → Azure** (and CF → Browser Rendering). Azure does **not** call Cloudflare.
 
@@ -60,6 +60,12 @@ Contract matrix: `streamingMembershipShapeCases` (service × arm).
 - Set via gitignored `scripts/local-secrets.*.env` + `.\scripts\set-secrets-preview.ps1` / `set-secrets-production.ps1` (survives deploy).
 - Contract fixture `defaultBrowserRenderingServices` documents the recommended ops starting list only.
 - Empty secret → all streaming hosts use `directHttp`.
+
+### BR navigate wait (ITVX / SPA)
+
+Prepare uses Cloudflare Browser Rendering (`src/browserRenderingHtml.ts`) for allowlisted services (default: `itvx`). `page.goto` waits for **`domcontentloaded`** (45s hard timeout), then a short settle (~1.5s) before `page.content()`, so Azure `SubmitUrl/extract` receives hydrated markup.
+
+Do **not** use `networkidle0` here: ITVX and similar catalogue SPAs keep long-poll/analytics sockets open, so network-idle often never settles and prepare surfaces as a 45s BR timeout / 502 even when the DOM is already extractable.
 
 ## Fakes and tests
 

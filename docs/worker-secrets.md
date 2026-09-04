@@ -48,6 +48,11 @@ Process environment variables with the same key names override file values if se
 - Local: also set in `.dev.vars` for `wrangler dev` if testing prepare locally.
 - Recommended starting value: `itvx` (see `docs/streaming-submit-orchestration.md`).
 
+### Related bindings (not secrets)
+
+- `BROWSER` — Cloudflare Browser Rendering binding (`wrangler.jsonc` `browser.binding`)
+- `StreamMeta` — KV namespace for prepare meta cache (`stream-meta:v1:<url>`)
+
 ## Local Wrangler / Pages vars
 
 - `.dev.vars` — local Worker secrets for `wrangler dev` (gitignored). Copy keys from `scripts/local-secrets.preview.env.example` (includes `secureDiscoveryScheduleEndpoint`, `secureSupportedLanguagesEndpoint`, `secureTitleCasingRulesEndpoint`, and other Azure Function proxy URLs).

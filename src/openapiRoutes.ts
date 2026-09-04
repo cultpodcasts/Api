@@ -15,6 +15,7 @@ import {
 	GetPodcastByNameAndEpisodeIdRoute,
 	GetPodcastByNameRoute,
 	SubmitLookupRoute,
+	SubmitPrepareRoute,
 	SubmitRoute
 } from "./openapiSubmitPodcastRoutes";
 import { addBookmark } from "./addBookmark";
@@ -118,7 +119,7 @@ import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { updateSubject } from "./updateSubject";
 
-export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupRoute, SubmitRoute };
+export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupRoute, SubmitPrepareRoute, SubmitRoute };
 
 export const HomepageRoute = createOpenApiRoute(homepage, {
     schema: {

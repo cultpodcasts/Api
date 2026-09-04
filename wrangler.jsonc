@@ -36,8 +36,16 @@
     {
       "binding": "Curated",
       "id": "564b9b11748e4d3c9da703fe019e3176"
+    },
+    {
+      "binding": "StreamMeta",
+      "id": "be39c74c54cc46fa9be2d1c6c1e6426c",
+      "preview_id": "7629709eb579437382528c3d796c7530"
     }
   ],
+  "browser": {
+    "binding": "BROWSER"
+  },
   "analytics_engine_datasets": [
     {
       "binding": "Analytics"
@@ -139,8 +147,16 @@
         {
           "binding": "Curated",
           "id": "564b9b11748e4d3c9da703fe019e3176"
+        },
+        {
+          "binding": "StreamMeta",
+          "id": "be39c74c54cc46fa9be2d1c6c1e6426c",
+          "preview_id": "7629709eb579437382528c3d796c7530"
         }
       ],
+      "browser": {
+        "binding": "BROWSER"
+      },
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
@@ -231,8 +247,16 @@
         {
           "binding": "Curated",
           "id": "564b9b11748e4d3c9da703fe019e3176"
+        },
+        {
+          "binding": "StreamMeta",
+          "id": "be39c74c54cc46fa9be2d1c6c1e6426c",
+          "preview_id": "7629709eb579437382528c3d796c7530"
         }
       ],
+      "browser": {
+        "binding": "BROWSER"
+      },
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
@@ -312,8 +336,16 @@
         {
           "binding": "Curated",
           "id": "564b9b11748e4d3c9da703fe019e3176"
+        },
+        {
+          "binding": "StreamMeta",
+          "id": "be39c74c54cc46fa9be2d1c6c1e6426c",
+          "preview_id": "7629709eb579437382528c3d796c7530"
         }
       ],
+      "browser": {
+        "binding": "BROWSER"
+      },
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
