@@ -39,6 +39,15 @@ The scripts read `KEY=VALUE` lines and pipe each value to `npx wrangler secret p
 
 Process environment variables with the same key names override file values if set.
 
+## Browser Rendering allowlist
+
+`browserRenderingServices` — comma-separated streaming ServiceKeys (e.g. `itvx`) that use CF Browser Rendering on prepare. Empty = no BR (all Azure `HttpClient`).
+
+- **Secret** (not `wrangler.jsonc` vars) so deploys do not wipe dashboard/ops values.
+- Same key in preview + production `.env.example` and both `set-secrets-*.ps1` lists (not in `$mustBeNonEmpty`).
+- Local: also set in `.dev.vars` for `wrangler dev` if testing prepare locally.
+- Recommended starting value: `itvx` (see `docs/streaming-submit-orchestration.md`).
+
 ## Local Wrangler / Pages vars
 
 - `.dev.vars` — local Worker secrets for `wrangler dev` (gitignored). Copy keys from `scripts/local-secrets.preview.env.example` (includes `secureDiscoveryScheduleEndpoint`, `secureSupportedLanguagesEndpoint`, `secureTitleCasingRulesEndpoint`, and other Azure Function proxy URLs).

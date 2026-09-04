@@ -56,9 +56,10 @@ Contract matrix: `streamingMembershipShapeCases` (service × arm).
 
 ## Browser Rendering allowlist
 
-- Default keys: `defaultBrowserRenderingServices` in the fixture (starts with `itvx`).
-- Runtime: Worker env array / CSV of the same `service` strings.
-- Changing the allowlist does **not** require SPA regex changes; membership already returned `service`.
+- Runtime: Worker secret `browserRenderingServices` (CSV of ServiceKeys). **Not** hardcoded in `src/`.
+- Set via gitignored `scripts/local-secrets.*.env` + `.\scripts\set-secrets-preview.ps1` / `set-secrets-production.ps1` (survives deploy).
+- Contract fixture `defaultBrowserRenderingServices` documents the recommended ops starting list only.
+- Empty secret → all streaming hosts use `directHttp`.
 
 ## Fakes and tests
 
