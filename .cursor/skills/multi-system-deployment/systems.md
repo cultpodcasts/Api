@@ -46,7 +46,7 @@ Output: `artifacts/tools/`. Parallel publish can fail with `MSBuild server unava
 ## Cosmos dump
 
 ```powershell
-$dest = "C:\Users\jonbr\source\repos\CultPodcasts-PrivateDatabase\yyyy-MM-dd"
+$dest = "<CultPodcasts-PrivateDatabase>\yyyy-MM-dd"
 if (Test-Path -LiteralPath $dest) { throw "Folder already exists — will not overwrite: $dest" }
 New-Item -ItemType Directory -Path $dest | Out-Null
 Set-Location -LiteralPath $dest
@@ -57,8 +57,8 @@ No `--overwrite`. Default containers include people when the freeze-branch tool 
 
 ## Version bumps on PRs
 
-- Api: bump `package.json` + `package-lock.json` (semver patch unless the change warrants more) before opening/pushing.
-- Website: bump `cultpodcasts/package.json` + lockfile the same way.
+- Api: bump `package.json` + `package-lock.json` (semver patch unless the change warrants more) only when the PR ships Worker runtime code — not for Cursor skills / AGENTS-only docs.
+- Website: bump `cultpodcasts/package.json` + lockfile the same way when shipping client code.
 - Website tests before push: `npm run test:all` from `cultpodcasts/` (do not `--no-verify`).
 
 ## Website no-merge

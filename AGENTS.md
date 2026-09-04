@@ -20,8 +20,10 @@ JWT **`permissions[]`** and OAuth **`scope`** are checked via `hasPermission` (n
 
 Separate TvShow / Movie / News Cosmos containers + unified search `contentKind` facet. Worker search passthrough and new proxy routes — **planning only** until a phase is explicitly started.
 
-- Epic + Phase 0 ADRs: [`RedditPodcastPoster/docs/catalogue-content-types-epic.md`](../cultpodcasts/RedditPodcastPoster/docs/catalogue-content-types-epic.md)
-- Search storage impact: [`RedditPodcastPoster/docs/catalogue-content-types-search-storage-impact.md`](../cultpodcasts/RedditPodcastPoster/docs/catalogue-content-types-search-storage-impact.md)
+Intended RPP docs (not on `main` yet — land with a sibling RPP PR; do not treat as live links):
+
+- Epic: `RedditPodcastPoster/docs/catalogue-content-types-epic.md`
+- Search storage impact: `RedditPodcastPoster/docs/catalogue-content-types-search-storage-impact.md`
 
 ## Preview ↔ production secrets (HARD)
 
