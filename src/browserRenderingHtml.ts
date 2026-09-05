@@ -61,11 +61,17 @@ export function isUsableBrowserHtml(html: string): boolean {
 	return /property=["']og:title["']/i.test(html) || html.includes("__NEXT_DATA__");
 }
 
-function raceWithTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-	return Promise.race([
-		promise.catch(() => fallback),
-		new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))
-	]);
+/** Race a promise against a timeout fallback; always clear the timer when settled. */
+export function raceWithTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	const timeoutPromise = new Promise<T>((resolve) => {
+		timeoutId = setTimeout(() => resolve(fallback), ms);
+	});
+	return Promise.race([promise.catch(() => fallback), timeoutPromise]).finally(() => {
+		if (timeoutId !== undefined) {
+			clearTimeout(timeoutId);
+		}
+	});
 }
 
 async function salvagePageContent(
@@ -188,13 +194,17 @@ export async function fetchHtmlWithBrowserRendering(
 		}
 	};
 
+	const runPromise = run();
+	let hardCapTimer: ReturnType<typeof setTimeout> | undefined;
+	const hardCapPromise = new Promise<never>((_, reject) => {
+		hardCapTimer = setTimeout(
+			() => reject(new Error(`hardCap ${HARD_CAP_MS}ms exceeded`)),
+			HARD_CAP_MS
+		);
+	});
+
 	try {
-		return await Promise.race([
-			run(),
-			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error(`hardCap ${HARD_CAP_MS}ms exceeded`)), HARD_CAP_MS)
-			)
-		]);
+		return await Promise.race([runPromise, hardCapPromise]);
 	} catch (e) {
 		const fatal = e instanceof Error ? e.message : String(e);
 		const isHardCap = /hardCap \d+ms exceeded/.test(fatal);
@@ -212,5 +222,12 @@ export async function fetchHtmlWithBrowserRendering(
 
 		await closeBrowser();
 		return buildResult("", "", url, fatal);
+	} finally {
+		if (hardCapTimer !== undefined) {
+			clearTimeout(hardCapTimer);
+		}
+		// Loser may still reject after the race settles — swallow so it is not unhandled.
+		void runPromise.catch(() => {});
+		void hardCapPromise.catch(() => {});
 	}
 }

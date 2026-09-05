@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { isUsableBrowserHtml } from "../src/browserRenderingHtml";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isUsableBrowserHtml, raceWithTimeout } from "../src/browserRenderingHtml";
 
 function padToMinLength(html: string, min = 500): string {
 	if (html.length >= min) {
@@ -8,6 +8,47 @@ function padToMinLength(html: string, min = 500): string {
 	const pad = "x".repeat(min - html.length);
 	return html.replace("</body>", `<!--${pad}--></body>`);
 }
+
+describe("raceWithTimeout", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("returns the primary value and clears the fallback timer", async () => {
+		let resolvePrimary!: (value: string) => void;
+		const primary = new Promise<string>((resolve) => {
+			resolvePrimary = resolve;
+		});
+		const raced = raceWithTimeout(primary, 5_000, "fallback");
+		resolvePrimary("ok");
+		await expect(raced).resolves.toBe("ok");
+		expect(vi.getTimerCount()).toBe(0);
+		await vi.advanceTimersByTimeAsync(10_000);
+		await expect(raced).resolves.toBe("ok");
+	});
+
+	it("returns the fallback when the primary stays pending", async () => {
+		const primary = new Promise<string>(() => {
+			/* never settles */
+		});
+		const raced = raceWithTimeout(primary, 1_000, "fallback");
+		const assertion = expect(raced).resolves.toBe("fallback");
+		await vi.advanceTimersByTimeAsync(1_000);
+		await assertion;
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("returns the fallback when the primary rejects", async () => {
+		const primary = Promise.reject(new Error("boom"));
+		const raced = raceWithTimeout(primary, 5_000, "fallback");
+		await expect(raced).resolves.toBe("fallback");
+		expect(vi.getTimerCount()).toBe(0);
+	});
+});
 
 describe("isUsableBrowserHtml", () => {
 	it("rejects HTML shorter than 500 bytes", () => {
