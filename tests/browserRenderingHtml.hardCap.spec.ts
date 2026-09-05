@@ -10,7 +10,7 @@ vi.mock("@cloudflare/puppeteer", () => ({
 	}
 }));
 
-import { fetchHtmlWithBrowserRendering } from "../src/browserRenderingHtml";
+import { HARD_CAP_MS, fetchHtmlWithBrowserRendering } from "../src/browserRenderingHtml";
 
 describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 	beforeEach(() => {
@@ -46,9 +46,9 @@ describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 
 		expect(result.diagnostics.gotoError).toBeUndefined();
 		expect(result.diagnostics.marks.some((m) => m.label === "goto_ok")).toBe(true);
-		// Hard-cap timer (28s) must have been cleared — only settle/salvage timers gone.
+		// Hard-cap timer must have been cleared — only settle/salvage timers gone.
 		expect(vi.getTimerCount()).toBe(0);
-		await vi.advanceTimersByTimeAsync(40_000);
+		await vi.advanceTimersByTimeAsync(HARD_CAP_MS + 5_000);
 		expect(result.diagnostics.gotoError).toBeUndefined();
 	});
 
@@ -85,13 +85,14 @@ describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 				"https://example.test/hang"
 			);
 			await Promise.resolve();
-			await vi.advanceTimersByTimeAsync(28_000);
+			await vi.advanceTimersByTimeAsync(HARD_CAP_MS);
 			const result = await resultPromise;
 
-			expect(result.diagnostics.gotoError).toMatch(/hardCap 28000ms exceeded/);
+			expect(result.diagnostics.gotoError).toBe(`hardCap ${HARD_CAP_MS}ms exceeded`);
 			expect(result.diagnostics.marks.some((m) => m.label === "hard_cap")).toBe(true);
 			expect(result.html).toContain("og:title");
 
+			const marksSnapshot = [...result.diagnostics.marks];
 			rejectGoto(new Error("Target closed"));
 			await Promise.resolve();
 			await vi.advanceTimersByTimeAsync(5_000);
@@ -99,6 +100,8 @@ describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 
 			expect(unhandled).toEqual([]);
 			expect(vi.getTimerCount()).toBe(0);
+			// Loser `run()` must not mutate diagnostics.marks after hard-cap return.
+			expect(result.diagnostics.marks).toEqual(marksSnapshot);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);
 		}

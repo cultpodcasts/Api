@@ -10,8 +10,13 @@ const GOTO_TIMEOUT_MS = 20_000;
  */
 const POST_DOM_SETTLE_MS = 1_500;
 
-/** Cap total BR wall time so a wedged session still returns partial HTML. */
-const HARD_CAP_MS = 28_000;
+/**
+ * Cap total BR wall time so a wedged session still returns partial HTML.
+ * Budget: goto (20s) + settle (1.5s) + 2× salvage (6s) ≈ 27.5s, plus headroom
+ * for cold `puppeteer.launch` / `newPage` so a successful navigate is not raced
+ * by the hard-cap during settle/salvage.
+ */
+export const HARD_CAP_MS = 40_000;
 
 /** Max wait to salvage title/content after the hard-cap timer fires. */
 const SALVAGE_TIMEOUT_MS = 3_000;
@@ -126,8 +131,10 @@ export async function fetchHtmlWithBrowserRendering(
 			gotoError,
 			challengeLikely: challengeLikely(html),
 			documentStatus,
-			redirectStatuses,
-			marks,
+			// Snapshot mutable arrays so a losing `run()` cannot mutate diagnostics
+			// after hard-cap (or any other path) has already returned.
+			redirectStatuses: [...redirectStatuses],
+			marks: marks.map((m) => ({ ...m })),
 			htmlLength: html.length
 		}
 	});

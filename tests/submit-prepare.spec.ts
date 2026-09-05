@@ -258,8 +258,8 @@ describe("submitPrepare", () => {
 			diagnostics: {
 				...defaultBrDiagnostics,
 				title: "Empty",
-				gotoError: "hardCap 28000ms exceeded",
-				marks: [{ label: "hard_cap", tMs: 28000 }],
+				gotoError: "hardCap 40000ms exceeded",
+				marks: [{ label: "hard_cap", tMs: 40000 }],
 				htmlLength: unusableBrHtml.length
 			}
 		}));
