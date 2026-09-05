@@ -10,7 +10,27 @@ vi.mock("@cloudflare/puppeteer", () => ({
 	}
 }));
 
-import { HARD_CAP_MS, fetchHtmlWithBrowserRendering } from "../src/browserRenderingHtml";
+import {
+	DESKTOP_CHROME_UA,
+	DESKTOP_VIEWPORT,
+	HARD_CAP_MS,
+	fetchHtmlWithBrowserRendering
+} from "../src/browserRenderingHtml";
+
+function expectDesktopChromeProfile(page: {
+	setViewport: ReturnType<typeof vi.fn>;
+	setUserAgent: ReturnType<typeof vi.fn>;
+	goto: ReturnType<typeof vi.fn>;
+}) {
+	expect(page.setViewport).toHaveBeenCalledWith(DESKTOP_VIEWPORT);
+	expect(page.setUserAgent).toHaveBeenCalledWith(DESKTOP_CHROME_UA);
+	expect(page.setViewport.mock.invocationCallOrder[0]).toBeLessThan(
+		page.goto.mock.invocationCallOrder[0]
+	);
+	expect(page.setUserAgent.mock.invocationCallOrder[0]).toBeLessThan(
+		page.goto.mock.invocationCallOrder[0]
+	);
+}
 
 describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 	beforeEach(() => {
@@ -26,6 +46,8 @@ describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 		const close = vi.fn(async () => undefined);
 		const page = {
 			on: vi.fn(),
+			setViewport: vi.fn(async () => undefined),
+			setUserAgent: vi.fn(async () => undefined),
 			goto: vi.fn(async () => undefined),
 			title: vi.fn(async () => "Show"),
 			content: vi.fn(
@@ -44,6 +66,7 @@ describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 		await vi.advanceTimersByTimeAsync(2_000);
 		const result = await resultPromise;
 
+		expectDesktopChromeProfile(page);
 		expect(result.diagnostics.gotoError).toBeUndefined();
 		expect(result.diagnostics.marks.some((m) => m.label === "goto_ok")).toBe(true);
 		// Hard-cap timer must have been cleared — only settle/salvage timers gone.
@@ -67,6 +90,8 @@ describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 			const close = vi.fn(async () => undefined);
 			const page = {
 				on: vi.fn(),
+				setViewport: vi.fn(async () => undefined),
+				setUserAgent: vi.fn(async () => undefined),
 				goto: vi.fn(() => gotoHang),
 				title: vi.fn(async () => "Partial"),
 				content: vi.fn(
@@ -88,6 +113,7 @@ describe("fetchHtmlWithBrowserRendering hard-cap deadline", () => {
 			await vi.advanceTimersByTimeAsync(HARD_CAP_MS);
 			const result = await resultPromise;
 
+			expectDesktopChromeProfile(page);
 			expect(result.diagnostics.gotoError).toBe(`hardCap ${HARD_CAP_MS}ms exceeded`);
 			expect(result.diagnostics.marks.some((m) => m.label === "hard_cap")).toBe(true);
 			expect(result.html).toContain("og:title");

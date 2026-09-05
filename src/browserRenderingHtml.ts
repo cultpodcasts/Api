@@ -21,6 +21,16 @@ export const HARD_CAP_MS = 40_000;
 /** Max wait to salvage title/content after the hard-cap timer fires. */
 const SALVAGE_TIMEOUT_MS = 3_000;
 
+/**
+ * Desktop Chrome UA required for catalogue SPAs under Browser Rendering.
+ * Default Puppeteer UA often hangs on goto (about:blank / navigation timeout).
+ */
+export const DESKTOP_CHROME_UA =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+/** Viewport paired with {@link DESKTOP_CHROME_UA} for BR prepare navigations. */
+export const DESKTOP_VIEWPORT = { width: 1280, height: 720 } as const;
+
 export type BrowserRenderingMark = { label: string; tMs: number };
 
 export type BrowserRenderingDiagnostics = {
@@ -159,6 +169,11 @@ export async function fetchHtmlWithBrowserRendering(
 		try {
 			const page = await browser.newPage();
 			pageRef = page;
+			// Match the browser profile that successfully loads catalogue SPAs (e.g. ITVX)
+			// under Cloudflare Browser Rendering. Default Puppeteer UA often hangs on goto
+			// (about:blank / navigation timeout) while a desktop Chrome UA completes in seconds.
+			await page.setViewport(DESKTOP_VIEWPORT);
+			await page.setUserAgent(DESKTOP_CHROME_UA);
 			page.on("response", (res) => {
 				const status = res.status();
 				const type = res.request().resourceType();
