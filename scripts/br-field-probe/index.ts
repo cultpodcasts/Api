@@ -1,7 +1,17 @@
-import puppeteer, { type Browser } from "@cloudflare/puppeteer";
+/**
+ * On-demand BR field probe — **must** call the same module as prepare.
+ * Do not reimplement Puppeteer goto/UA/settle here; that drifts from production
+ * and makes a green probe meaningless for Api Worker prepare failures.
+ */
+import type { BrowserWorker } from "@cloudflare/puppeteer";
+import {
+	fetchHtmlWithBrowserRendering,
+	HARD_CAP_MS,
+	isUsableBrowserHtml
+} from "../../src/browserRenderingHtml";
 import fieldUrlsCatalog from "./field-urls.json";
 
-type Env = { BROWSER: Fetcher };
+type Env = { BROWSER: BrowserWorker };
 
 export type FieldUrlTarget = {
 	id: string;
@@ -11,32 +21,13 @@ export type FieldUrlTarget = {
 	notes?: string;
 };
 
-type NetEvent = {
-	tMs: number;
-	kind: "request" | "response" | "requestfailed";
-	url: string;
-	method?: string;
-	status?: number;
-	resourceType?: string;
-	redirectFrom?: string;
-	failure?: string;
-};
-
-type ProbeOptions = {
-	waitUntil: "load" | "domcontentloaded" | "networkidle0" | "networkidle2";
-	timeoutMs: number;
-	hardCapMs: number;
-	compact: boolean;
-};
-
 type ProbeResult = {
-	id?: string;
-	service?: string;
-	source: "cloudflare-browser-run";
+	id: string;
+	service: string;
+	/** Always the production prepare BR helper. */
+	source: "api-browserRenderingHtml";
 	url: string;
 	finalUrl: string;
-	waitUntil: string;
-	timeoutMs: number;
 	hardCapMs: number;
 	elapsedMs: number;
 	gotoError: string | null;
@@ -44,8 +35,6 @@ type ProbeResult = {
 	htmlLength: number;
 	htmlHasOgTitle: boolean;
 	htmlHasNextData: boolean;
-	htmlHasJsonLd: boolean;
-	htmlHasTwitterTitle: boolean;
 	challengeLikely: boolean;
 	usable: boolean;
 	marks: { label: string; tMs: number }[];
@@ -53,18 +42,12 @@ type ProbeResult = {
 	redirectStatuses: number[];
 	fatal?: string;
 	htmlSnippet?: string;
-	html?: string;
-	screenshotPngBase64?: string | null;
-	documentResponses?: NetEvent[];
-	redirectResponses?: NetEvent[];
-	netSample?: NetEvent[];
 };
 
 function catalogTargets(): FieldUrlTarget[] {
 	return (fieldUrlsCatalog as { targets: FieldUrlTarget[] }).targets ?? [];
 }
 
-/** Enabled targets with a non-empty http(s) URL from field-urls.json (and optional filters). */
 export function resolveTargetsFromCatalog(opts?: {
 	service?: string | null;
 	id?: string | null;
@@ -115,204 +98,67 @@ function parseTargetsBody(body: unknown): FieldUrlTarget[] | null {
 	return null;
 }
 
-function usableFromHtml(html: string): {
-	htmlHasOgTitle: boolean;
-	htmlHasNextData: boolean;
-	htmlHasJsonLd: boolean;
-	htmlHasTwitterTitle: boolean;
-	challengeLikely: boolean;
-	usable: boolean;
-} {
-	const sample = html.slice(0, 8000);
-	const challengeLikely =
-		/just a moment/i.test(sample) ||
-		/cf-browser-verification/i.test(sample) ||
-		/challenge-platform/i.test(sample) ||
-		/Enable JavaScript and cookies/i.test(sample) ||
-		/Attention Required/i.test(sample) ||
-		/checking your browser/i.test(sample) ||
-		/bot.?detect/i.test(sample);
-	const htmlHasOgTitle =
-		/property\s*=\s*["']og:title["']/i.test(html) || /name\s*=\s*["']og:title["']/i.test(html);
-	const htmlHasNextData = html.includes("__NEXT_DATA__");
-	const htmlHasJsonLd = /type\s*=\s*["']application\/ld\+json["']/i.test(html);
-	const htmlHasTwitterTitle =
-		/name\s*=\s*["']twitter:title["']/i.test(html) ||
-		/property\s*=\s*["']twitter:title["']/i.test(html);
-	const minLength = html.length >= 500;
-	const usable =
-		minLength &&
-		!challengeLikely &&
-		(htmlHasOgTitle || htmlHasNextData || htmlHasJsonLd || htmlHasTwitterTitle);
-	return {
-		htmlHasOgTitle,
-		htmlHasNextData,
-		htmlHasJsonLd,
-		htmlHasTwitterTitle,
-		challengeLikely,
-		usable
-	};
-}
-
-async function probeOneUrl(
-	browser: Browser,
-	target: FieldUrlTarget,
-	opts: ProbeOptions
-): Promise<ProbeResult> {
+async function probeOneUrl(env: Env, target: FieldUrlTarget, compact: boolean): Promise<ProbeResult> {
 	const pageUrl = target.url.trim();
 	const started = Date.now();
-	const t0 = Date.now();
-	const mark = (label: string) => ({ label, tMs: Date.now() - t0 });
-	const marks: { label: string; tMs: number }[] = [mark("start")];
-	const net: NetEvent[] = [];
-
-	const page = await browser.newPage();
 	try {
-		await page.setViewport({ width: 1280, height: 720 });
-		await page.setUserAgent(
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-		);
-
-		page.on("request", (req) => {
-			if (net.length > 80) return;
-			net.push({
-				tMs: Date.now() - t0,
-				kind: "request",
-				url: req.url().slice(0, 300),
-				method: req.method(),
-				resourceType: req.resourceType(),
-				redirectFrom: req.redirectChain?.()?.[0]?.url()?.slice(0, 200)
-			});
-		});
-		page.on("response", (res) => {
-			if (net.length > 80) return;
-			const req = res.request();
-			net.push({
-				tMs: Date.now() - t0,
-				kind: "response",
-				url: res.url().slice(0, 300),
-				status: res.status(),
-				resourceType: req.resourceType(),
-				method: req.method()
-			});
-		});
-		page.on("requestfailed", (req) => {
-			if (net.length > 80) return;
-			net.push({
-				tMs: Date.now() - t0,
-				kind: "requestfailed",
-				url: req.url().slice(0, 300),
-				resourceType: req.resourceType(),
-				failure: req.failure()?.errorText
-			});
-		});
-
-		let gotoError: string | null = null;
-		const gotoPromise = (async () => {
-			try {
-				await page.goto(pageUrl, { waitUntil: opts.waitUntil, timeout: opts.timeoutMs });
-				marks.push(mark("goto_ok"));
-			} catch (e) {
-				gotoError = e instanceof Error ? e.message : String(e);
-				marks.push(mark("goto_error"));
-			}
-		})();
-
-		await Promise.race([
-			gotoPromise,
-			new Promise<void>((resolve) =>
-				setTimeout(() => {
-					if (!gotoError) {
-						gotoError = `hardCap ${opts.hardCapMs}ms exceeded during goto`;
-						marks.push(mark("hard_cap"));
-					}
-					resolve();
-				}, opts.hardCapMs)
-			)
-		]);
-
-		const title = await page.title().catch(() => "");
-		marks.push(mark("title"));
-		const html = await page.content().catch(() => "");
-		marks.push(mark("content"));
-		const finalUrl = page.url();
-		const signals = usableFromHtml(html);
-
-		let screenshotBase64: string | null = null;
-		if (!opts.compact) {
-			try {
-				const buf = await page.screenshot({ type: "png", fullPage: false });
-				screenshotBase64 = Buffer.from(buf).toString("base64");
-				marks.push(mark("screenshot"));
-			} catch {
-				marks.push(mark("screenshot_error"));
-			}
-		}
-
-		const docResponses = net.filter(
-			(e) =>
-				e.kind === "response" &&
-				(e.resourceType === "document" || e.url.startsWith(pageUrl.slice(0, 40)))
-		);
-		const redirects = net.filter(
-			(e) => e.kind === "response" && e.status !== undefined && e.status >= 300 && e.status < 400
-		);
-
+		const br = await fetchHtmlWithBrowserRendering(env.BROWSER, pageUrl);
+		const d = br.diagnostics;
+		const html = br.html;
+		const usable = isUsableBrowserHtml(html);
 		return {
 			id: target.id,
 			service: target.service,
-			source: "cloudflare-browser-run",
+			source: "api-browserRenderingHtml",
 			url: pageUrl,
-			finalUrl,
-			waitUntil: opts.waitUntil,
-			timeoutMs: opts.timeoutMs,
-			hardCapMs: opts.hardCapMs,
+			finalUrl: d.finalUrl,
+			hardCapMs: HARD_CAP_MS,
 			elapsedMs: Date.now() - started,
-			gotoError,
-			title,
-			htmlLength: html.length,
-			...signals,
-			marks,
-			documentStatus: docResponses[0]?.status ?? null,
-			redirectStatuses: redirects
-				.map((e) => e.status)
-				.filter((s): s is number => typeof s === "number")
-				.slice(0, 20),
-			...(opts.compact
-				? { htmlSnippet: html.slice(0, 400) }
-				: {
-						documentResponses: docResponses.slice(0, 20),
-						redirectResponses: redirects.slice(0, 20),
-						netSample: net.slice(0, 40),
-						htmlSnippet: html.slice(0, 1500),
-						html,
-						screenshotPngBase64: screenshotBase64
-					})
+			gotoError: d.gotoError ?? null,
+			title: d.title,
+			htmlLength: d.htmlLength,
+			htmlHasOgTitle: /property\s*=\s*["']og:title["']/i.test(html),
+			htmlHasNextData: html.includes("__NEXT_DATA__"),
+			challengeLikely: d.challengeLikely,
+			usable,
+			marks: d.marks,
+			documentStatus: d.documentStatus ?? null,
+			redirectStatuses: d.redirectStatuses,
+			htmlSnippet: html.slice(0, compact ? 400 : 1500)
 		};
-	} finally {
-		try {
-			await page.close();
-		} catch {
-			/* ignore */
-		}
+	} catch (e) {
+		return {
+			id: target.id,
+			service: target.service,
+			source: "api-browserRenderingHtml",
+			url: pageUrl,
+			finalUrl: pageUrl,
+			hardCapMs: HARD_CAP_MS,
+			elapsedMs: Date.now() - started,
+			gotoError: null,
+			title: "",
+			htmlLength: 0,
+			htmlHasOgTitle: false,
+			htmlHasNextData: false,
+			challengeLikely: false,
+			usable: false,
+			marks: [],
+			documentStatus: null,
+			redirectStatuses: [],
+			fatal: e instanceof Error ? e.message : String(e)
+		};
 	}
 }
 
-function parseOpts(q: URLSearchParams): ProbeOptions {
-	return {
-		waitUntil:
-			(q.get("waitUntil") as ProbeOptions["waitUntil"] | null) ?? "domcontentloaded",
-		timeoutMs: Number(q.get("timeoutMs") ?? "15000"),
-		hardCapMs: Number(q.get("hardCapMs") ?? "40000"),
-		compact: q.get("compact") === "1" || q.get("compact") === "true"
-	};
+function pass(r: ProbeResult): boolean {
+	return r.usable && !r.fatal && !r.gotoError;
 }
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
 		const q = url.searchParams;
-		const opts = parseOpts(q);
+		const compact = q.get("compact") === "1" || q.get("compact") === "true";
 
 		let targets: FieldUrlTarget[] = [];
 
@@ -358,80 +204,33 @@ export default {
 			);
 		}
 
-		let browser: Browser | null = null;
 		const batchStarted = Date.now();
-		try {
-			browser = await puppeteer.launch(env.BROWSER);
-			const results: ProbeResult[] = [];
-			for (const t of targets) {
-				try {
-					results.push(await probeOneUrl(browser, t, opts));
-				} catch (e) {
-					results.push({
-						id: t.id,
-						service: t.service,
-						source: "cloudflare-browser-run",
-						url: t.url,
-						finalUrl: t.url,
-						waitUntil: opts.waitUntil,
-						timeoutMs: opts.timeoutMs,
-						hardCapMs: opts.hardCapMs,
-						elapsedMs: 0,
-						gotoError: null,
-						title: "",
-						htmlLength: 0,
-						htmlHasOgTitle: false,
-						htmlHasNextData: false,
-						htmlHasJsonLd: false,
-						htmlHasTwitterTitle: false,
-						challengeLikely: false,
-						usable: false,
-						marks: [],
-						documentStatus: null,
-						redirectStatuses: [],
-						fatal: e instanceof Error ? e.message : String(e)
-					});
-				}
-			}
-
-			const passed = results.filter((r) => r.usable && !r.fatal && !r.gotoError).length;
-			const failed = results.length - passed;
-			const payload = {
-				source: "cloudflare-browser-run-batch",
-				elapsedMs: Date.now() - batchStarted,
-				count: results.length,
-				passed,
-				failed,
-				ok: failed === 0,
-				results
-			};
-
-			if (targets.length === 1) {
-				const only = results[0]!;
-				return Response.json(
-					{ ...only, batch: payload },
-					{ status: only.usable && !only.fatal && !only.gotoError ? 200 : 502 }
-				);
-			}
-
-			return Response.json(payload, { status: payload.ok ? 200 : 502 });
-		} catch (e) {
-			return Response.json(
-				{
-					source: "cloudflare-browser-run-batch",
-					fatal: e instanceof Error ? e.message : String(e),
-					elapsedMs: Date.now() - batchStarted
-				},
-				{ status: 500 }
-			);
-		} finally {
-			if (browser) {
-				try {
-					await browser.close();
-				} catch {
-					/* ignore */
-				}
-			}
+		const results: ProbeResult[] = [];
+		for (const t of targets) {
+			results.push(await probeOneUrl(env, t, compact));
 		}
+
+		const passed = results.filter(pass).length;
+		const failed = results.length - passed;
+		const payload = {
+			source: "api-browserRenderingHtml-batch",
+			usesProductionHelper: true as const,
+			elapsedMs: Date.now() - batchStarted,
+			count: results.length,
+			passed,
+			failed,
+			ok: failed === 0,
+			results
+		};
+
+		if (targets.length === 1) {
+			const only = results[0]!;
+			return Response.json(
+				{ ...only, batch: payload },
+				{ status: pass(only) ? 200 : 502 }
+			);
+		}
+
+		return Response.json(payload, { status: payload.ok ? 200 : 502 });
 	}
 };

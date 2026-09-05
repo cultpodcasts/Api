@@ -159,6 +159,13 @@ export async function fetchHtmlWithBrowserRendering(
 		try {
 			const page = await browser.newPage();
 			pageRef = page;
+			// Match the browser profile that successfully loads catalogue SPAs (e.g. ITVX)
+			// under Cloudflare Browser Rendering. Default Puppeteer UA often hangs on goto
+			// (about:blank / navigation timeout) while a desktop Chrome UA completes in seconds.
+			await page.setViewport({ width: 1280, height: 720 });
+			await page.setUserAgent(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+			);
 			page.on("response", (res) => {
 				const status = res.status();
 				const type = res.request().resourceType();
