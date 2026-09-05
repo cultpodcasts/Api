@@ -1,6 +1,6 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
-import { fetchHtmlWithBrowserRendering } from "./browserRenderingHtml";
+import { fetchHtmlWithBrowserRendering, isUsableBrowserHtml } from "./browserRenderingHtml";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
@@ -147,8 +147,34 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 		let html: string;
 		try {
 			logCollector.add({ event: "submit.prepare.br_fetch" });
-			html = await fetchHtmlWithBrowserRendering(c.env.BROWSER, absoluteUrl);
-			logCollector.addMessage(`br html length=${html.length}`);
+			const br = await fetchHtmlWithBrowserRendering(c.env.BROWSER, absoluteUrl);
+			const d = br.diagnostics;
+			logCollector.addMessage(
+				`br marks=${d.marks.map((m) => `${m.label}:${m.tMs}`).join(",")}`
+			);
+			logCollector.addMessage(
+				`br finalUrl=${d.finalUrl} title=${d.title ? "set" : "empty"} htmlLength=${d.htmlLength} documentStatus=${d.documentStatus ?? "none"} redirects=${d.redirectStatuses.join("|") || "none"} challengeLikely=${d.challengeLikely}`
+			);
+			if (d.gotoError) {
+				logCollector.addMessage(`br gotoError=${d.gotoError}`);
+			}
+			html = br.html;
+			if (!isUsableBrowserHtml(html)) {
+				logCollector.addMessage(
+					`br_failed: unusable html snippet=${html.slice(0, 240).replace(/\s+/g, " ")}`
+				);
+				logCollector.emitError({
+					event: "submit.prepare.br_failed",
+					outcome: "error",
+					status: 502
+				});
+				return c.json({ error: "Browser Rendering fetch failed" }, 502);
+			}
+			if (d.gotoError) {
+				logCollector.addMessage("br partial html usable — continuing to extract");
+			} else {
+				logCollector.addMessage(`br html length=${html.length}`);
+			}
 		} catch (e) {
 			const detail = e instanceof Error ? e.message : String(e);
 			logCollector.addMessage(`br_failed: ${detail}`);

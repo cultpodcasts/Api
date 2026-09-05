@@ -63,7 +63,7 @@ Contract matrix: `streamingMembershipShapeCases` (service × arm).
 
 ### BR navigate wait (ITVX / SPA)
 
-Prepare uses Cloudflare Browser Rendering (`src/browserRenderingHtml.ts`) for allowlisted services (default: `itvx`). `page.goto` waits for **`domcontentloaded`** (45s hard timeout), then a short settle (~1.5s) before `page.content()`, so Azure `SubmitUrl/extract` receives hydrated markup.
+Prepare uses Cloudflare Browser Rendering (`src/browserRenderingHtml.ts`) for allowlisted services (default: `itvx`). `page.goto` waits for **`domcontentloaded`** (20s timeout, 40s hard cap), then a short settle (~1.5s) before `page.content()`. On goto timeout or hard-cap, prepare still salvages `page.content()` when possible, logs marks / document status / challenge hints, and continues to Azure extract only if the HTML looks usable (`og:title` or `__NEXT_DATA__`, length ≥ 500, and not a challenge/interstitial page). Bare `<title>` alone is not enough.
 
 Do **not** use `networkidle0` here: ITVX and similar catalogue SPAs keep long-poll/analytics sockets open, so network-idle often never settles and prepare surfaces as a 45s BR timeout / 502 even when the DOM is already extractable.
 

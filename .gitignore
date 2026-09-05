@@ -17,3 +17,5 @@ homepage-ssr.json
 scripts/local-secrets.*.env
 !scripts/local-secrets.*.env.example
 .cert/
+scripts/br-field-probe/out/
+scripts/br-field-probe/.wrangler/

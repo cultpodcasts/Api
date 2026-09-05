@@ -1,0 +1,40 @@
+{
+	"description": "On-demand Cloudflare Browser Rendering field targets. Enable real episode/show URLs per streaming service to verify BR salvage / usable-HTML signals. ITVX entry is an example that is known to work.",
+	"targets": [
+		{
+			"id": "itvx-children-of-the-cult",
+			"service": "itvx",
+			"url": "https://www.itv.com/watch/children-of-the-cult/10a5261a0001B/10a5261a0001",
+			"enabled": true,
+			"notes": "Example BR allowlisted episode (Children of the Cult)."
+		},
+		{
+			"id": "channel4-placeholder",
+			"service": "channel4",
+			"url": "",
+			"enabled": false,
+			"notes": "Set a real Channel 4 programme/episode URL and enabled=true to include."
+		},
+		{
+			"id": "discovery-plus-placeholder",
+			"service": "discoveryPlus",
+			"url": "",
+			"enabled": false,
+			"notes": "Set a real discovery+ show/episode URL and enabled=true to include."
+		},
+		{
+			"id": "bbc-iplayer-placeholder",
+			"service": "bbcIplayer",
+			"url": "",
+			"enabled": false,
+			"notes": "Set a real iPlayer episode URL and enabled=true to include."
+		},
+		{
+			"id": "netflix-placeholder",
+			"service": "netflix",
+			"url": "",
+			"enabled": false,
+			"notes": "Set a real Netflix watch URL and enabled=true to include (may require geo/login)."
+		}
+	]
+}

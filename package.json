@@ -1,6 +1,6 @@
 {
 	"name": "cultpodcasts-api",
-	"version": "1.1.8",
+	"version": "1.1.12",
 	"private": true,
 	"scripts": {
 		"deploy": "wrangler deploy",
@@ -8,6 +8,8 @@
 		"og:preview": "pwsh -File ./scripts/og-card-preview.ps1 -Open",
 		"og:preview:preview": "pwsh -File ./scripts/og-card-preview.ps1 -BaseUrl https://api-preview.jonbreen.workers.dev -Open",
 		"test": "vitest run",
+		"test:br:field": "pwsh -File ./scripts/br-field-probe/run-field-test.ps1",
+		"test:br:itvx": "pwsh -File ./scripts/br-field-probe/run-field-test.ps1 -Service itvx",
 		"lint": "tsc --noEmit",
 		"assert:secrets-parity": "pwsh ./scripts/assert-secrets-example-parity.ps1"
 	},

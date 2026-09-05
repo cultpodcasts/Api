@@ -9,14 +9,49 @@ import {
 	testEnv
 } from "./honoTestApp";
 
-vi.mock("../src/browserRenderingHtml", () => ({
-	fetchHtmlWithBrowserRendering: vi.fn(async () => "<html><body>br-fixture-html</body></html>")
+const usableBrHtml = (() => {
+	const base =
+		'<html><head><title>BR</title><meta property="og:title" content="BR" /></head><body>br-fixture-html</body></html>';
+	const pad = "x".repeat(Math.max(0, 500 - base.length));
+	return base.replace("</body>", `<!--${pad}--></body>`);
+})();
+
+const unusableBrHtml = "<html><head><title>Empty</title></head><body>short</body></html>";
+
+const defaultBrDiagnostics = {
+	finalUrl: "https://www.itv.com/watch/x/1/1",
+	title: "BR",
+	challengeLikely: false,
+	documentStatus: 200,
+	redirectStatuses: [] as number[],
+	marks: [{ label: "goto_ok", tMs: 100 }],
+	htmlLength: usableBrHtml.length
+};
+
+const { fetchHtmlWithBrowserRendering } = vi.hoisted(() => ({
+	fetchHtmlWithBrowserRendering: vi.fn(async () => ({
+		html: usableBrHtml,
+		diagnostics: { ...defaultBrDiagnostics, htmlLength: usableBrHtml.length }
+	}))
 }));
+
+vi.mock("../src/browserRenderingHtml", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../src/browserRenderingHtml")>();
+	return {
+		...actual,
+		fetchHtmlWithBrowserRendering
+	};
+});
 
 describe("submitPrepare", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
 		vi.restoreAllMocks();
+		fetchHtmlWithBrowserRendering.mockReset();
+		fetchHtmlWithBrowserRendering.mockImplementation(async () => ({
+			html: usableBrHtml,
+			diagnostics: { ...defaultBrDiagnostics, htmlLength: usableBrHtml.length }
+		}));
 	});
 
 	it("returns 401 when unauthenticated", async () => {
@@ -149,6 +184,119 @@ describe("submitPrepare", () => {
 			String(input).includes("/extract")
 		);
 		expect(extractCalls).toHaveLength(1);
+	});
+
+	it("continues to Azure extract when BR returns usable partial HTML after gotoError", async () => {
+		fetchHtmlWithBrowserRendering.mockImplementation(async () => ({
+			html: usableBrHtml,
+			diagnostics: {
+				...defaultBrDiagnostics,
+				gotoError: "Navigation timeout of 20000 ms exceeded",
+				marks: [
+					{ label: "goto_error", tMs: 20000 },
+					{ label: "content", tMs: 20100 }
+				],
+				htmlLength: usableBrHtml.length
+			}
+		}));
+
+		const put = vi.fn(async () => undefined);
+		const env = testEnv({
+			browserRenderingServices: "itvx",
+			BROWSER: {} as import("@cloudflare/puppeteer").BrowserWorker,
+			StreamMeta: { get: async () => null, put } as unknown as KVNamespace
+		});
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const u = String(input);
+			if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "itvx" }),
+					{ status: 200 }
+				);
+			}
+			if (u.includes("/extract")) {
+				const body = JSON.parse(String(init?.body ?? "{}"));
+				expect(body.html).toContain("br-fixture-html");
+				return new Response(
+					JSON.stringify({
+						service: "itvx",
+						podcastName: "Partial Show",
+						title: "Partial Episode",
+						description: "Desc"
+					}),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const resp = await app.request(
+			"/submit/prepare",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url: "https://www.itv.com/watch/example/1/1" })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toMatchObject({
+			htmlFetchMode: "browserRendering",
+			podcastName: "Partial Show"
+		});
+		expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/extract"))).toHaveLength(
+			1
+		);
+	});
+
+	it("returns 502 when BR HTML is unusable for extract", async () => {
+		fetchHtmlWithBrowserRendering.mockImplementation(async () => ({
+			html: unusableBrHtml,
+			diagnostics: {
+				...defaultBrDiagnostics,
+				title: "Empty",
+				gotoError: "hardCap 40000ms exceeded",
+				marks: [{ label: "hard_cap", tMs: 40000 }],
+				htmlLength: unusableBrHtml.length
+			}
+		}));
+
+		const env = testEnv({
+			browserRenderingServices: "itvx",
+			BROWSER: {} as import("@cloudflare/puppeteer").BrowserWorker,
+			StreamMeta: { get: async () => null, put: vi.fn() } as unknown as KVNamespace
+		});
+		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+			const u = String(input);
+			if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "itvx" }),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const resp = await app.request(
+			"/submit/prepare",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url: "https://www.itv.com/watch/example/1/1" })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(502);
+		expect(await resp.json()).toEqual({ error: "Browser Rendering fetch failed" });
+		expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/extract"))).toHaveLength(
+			0
+		);
 	});
 
 	it("returns 400 when lookup kind is not streaming", async () => {
