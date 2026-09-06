@@ -1,5 +1,6 @@
 // pragma: allowlist secret
 import { z } from "zod";
+import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contract";
 
 /**
  * OpenAPI/Zod contracts for the Cloudflare Api worker.
@@ -62,25 +63,11 @@ export const submitUrlLookupKindSchema = z.enum([
 	"unrecognised"
 ]);
 
-/** Streaming ServiceKeys wire values (podcast-service platforms excluded). */
-export const streamingServiceKeySchema = z.enum([
-	"bbcSounds",
-	"bbcIplayer",
-	"internetArchive",
-	"vimeo",
-	"netflix",
-	"amazonPrime",
-	"paramountPlus",
-	"hboMax",
-	"playSuisse",
-	"playRts",
-	"tvnzPlus",
-	"itvx",
-	"channel4",
-	"fawesome",
-	"disneyPlus",
-	"discoveryPlus"
-]);
+/**
+ * Streaming ServiceKeys wire values (podcast-service platforms excluded).
+ * Derived from the contract fixture so OpenAPI cannot drift from website/RPP copies.
+ */
+export const streamingServiceKeySchema = z.enum(streamingServiceKeys);
 
 export const submitUrlPrepareResponseSchema = z.object({
 	service: streamingServiceKeySchema,
