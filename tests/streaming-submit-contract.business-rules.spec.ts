@@ -25,6 +25,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 describe("streaming-submit-contract (Api publisher)", () => {
 	it("keeps OpenAPI streamingServiceKeySchema in lockstep with fixture streamingServiceKeys", () => {
 		expect([...streamingServiceKeySchema.options]).toEqual([...streamingServiceKeys]);
+		for (const service of streamingServiceKeys) {
+			expect(streamingServiceKeySchema.parse(service)).toBe(service);
+		}
+		expect(() => streamingServiceKeySchema.parse("notAServiceKey")).toThrow();
 	});
 
 	it("parses OpenAPI lookup response schema for every membership shape specimen with service", () => {
