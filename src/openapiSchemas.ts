@@ -73,6 +73,7 @@ export const streamingServiceKeySchema = z.enum([
 	"paramountPlus",
 	"hboMax",
 	"playSuisse",
+	"playRts",
 	"tvnzPlus",
 	"itvx",
 	"channel4",
