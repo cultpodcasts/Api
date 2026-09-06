@@ -49,6 +49,7 @@ Multi-repo workspace: this repo is at `/agent/repos/api` alongside `/agent/repos
 `/agent/repos/redditpodcastposter`. The startup update script runs `npm ci` + `./build.sh` <!-- pragma: allowlist secret -->
 (`prisma generate`) here. <!-- pragma: allowlist secret -->
 
+- **HARD**: Never use the `pin-github-identity` skill (or `GH_TOKEN` process-override from `gh auth token --user …`) on Cursor Cloud / Cloud Agent VMs; GitHub identity is whatever Cursor assigned to the run. <!-- pragma: allowlist secret -->
 - **Node**: the app needs Node 22.22.3 (installed via nvm). Login shells (`bash -lc`, tmux) get it <!-- pragma: allowlist secret -->
   from `~/.bashrc`. The sandbox ships an older `/exec-daemon/node` (22.14.0) that shadows PATH in <!-- pragma: allowlist secret -->
   bare non-login shells — prefer `bash -lc "…"` or prepend `$HOME/.nvm/versions/node/v22.22.3/bin`. <!-- pragma: allowlist secret -->
