@@ -9,7 +9,8 @@ export function expandSearchServices(svc: string | undefined | null): { key: str
 		bbcIplayer: (id) => `https://www.bbc.co.uk/iplayer/episode/${id}`,
 		internetArchive: (id) => `https://archive.org/details/${id}`,
 		vimeo: (id) => `https://vimeo.com/${id}`,
-		netflix: (id) => `https://www.netflix.com/title/${id}`
+		netflix: (id) => `https://www.netflix.com/title/${id}`,
+		bitchute: (id) => `https://www.bitchute.com/video/${id}` // pragma: allowlist secret
 	};
 	const out: { key: string; url: string }[] = [];
 	for (const entry of svc.split("|")) {
