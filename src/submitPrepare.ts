@@ -5,6 +5,7 @@ import { buildFetchHeaders } from "./buildFetchHeaders";
 import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
+import { fetchBcVideoApiJson } from "./bitchuteVideoPrepare";
 import { htmlFetchModeForService } from "./streamingHtmlFetchMode";
 import {
 	parseBrowserRenderingServicesCsv,
@@ -134,8 +135,39 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	const mode = htmlFetchModeForService(service, allowlist);
 	logCollector.addMessage(`service=${service} htmlFetchMode=${mode}`);
 
-	let azureMeta: AzurePrepareBody;
-	if (mode === "browserRendering") {
+	let azureMeta: AzurePrepareBody | undefined;
+	if (service === "bitchute") {
+		const json = await fetchBcVideoApiJson(url, (message) => logCollector.addMessage(message));
+		if (json) {
+			const extractEndpoint = submitPath(c.env, "extract");
+			const extractResp = await fetch(extractEndpoint, {
+				method: "POST",
+				headers: buildFetchHeaders(c.req, extractEndpoint),
+				body: JSON.stringify({ url: absoluteUrl, html: json })
+			});
+			logCollector.addMessage(`bitchute azure extract status=${extractResp.status}`);
+			if (extractResp.status === 400) {
+				logCollector.emitWarn({
+					event: "submit.prepare.extract_client_error",
+					outcome: "error",
+					status: 400
+				});
+				return new Response(await extractResp.text(), {
+					status: 400,
+					headers: {
+						"content-type": extractResp.headers.get("content-type") ?? "application/json"
+					}
+				});
+			}
+			if (extractResp.status === 200) {
+				azureMeta = (await extractResp.json()) as AzurePrepareBody;
+			} else {
+				logCollector.addMessage("bitchute extract failed, falling back to azure prepare");
+			}
+		}
+	}
+
+	if (!azureMeta && mode === "browserRendering") {
 		if (!c.env.BROWSER) {
 			logCollector.emitError({
 				event: "submit.prepare.br_unconfigured",
@@ -214,7 +246,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			return c.json({ error: "Azure extract failed" }, 502);
 		}
 		azureMeta = (await extractResp.json()) as AzurePrepareBody;
-	} else {
+	} else if (!azureMeta) {
 		const prepareEndpoint = submitPath(c.env, "prepare");
 		const prepareResp = await fetch(prepareEndpoint, {
 			method: "POST",
@@ -244,6 +276,15 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			return c.json({ error: "Azure prepare failed" }, 502);
 		}
 		azureMeta = (await prepareResp.json()) as AzurePrepareBody;
+	}
+
+	if (!azureMeta) {
+		logCollector.emitError({
+			event: "submit.prepare.azure_failed",
+			outcome: "error",
+			status: 502
+		});
+		return c.json({ error: "Azure prepare failed" }, 502);
 	}
 
 	const title = azureMeta.title ?? null;
