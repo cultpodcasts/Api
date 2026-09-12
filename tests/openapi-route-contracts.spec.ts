@@ -3,6 +3,7 @@ import {
 	GetPodcastByNameAndEpisodeIdRoute,
 	GetPodcastByNameRoute,
 	SubmitLookupRoute,
+	SubmitPrepareRoute,
 	SubmitRoute
 } from "../src/openapiSubmitPodcastRoutes";
 import {
@@ -132,5 +133,14 @@ describe("OpenAPI route contracts", () => {
 			})
 		).toThrow();
 		expect(() => submitUrlLookupResponseSchema.parse({ known: false })).toThrow();
+	});
+
+	it("documents POST /submit/prepare BitChute video JSON then Azure extract", () => {
+		const description = SubmitPrepareRoute.openApiSchema.description ?? "";
+		expect(description).toMatch(/api\.bitchute\.com\/api\/beta\/video/);
+		expect(description).toMatch(/SubmitUrl\/extract/);
+		expect(description).toMatch(/browserRenderingServices/);
+		expect(description).toMatch(/SubmitUrl\/prepare/);
+		expect(description).toMatch(/fetch\/extract miss/i);
 	});
 });

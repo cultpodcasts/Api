@@ -5,7 +5,8 @@ import { buildFetchHeaders } from "./buildFetchHeaders";
 import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
-import { htmlFetchModeForService } from "./streamingHtmlFetchMode";
+import { fetchBcVideoApiJson } from "./bitchuteVideoPrepare";
+import { htmlFetchModeForService, workerPrefetchesVideoJson } from "./streamingHtmlFetchMode";
 import {
 	parseBrowserRenderingServicesCsv,
 	putStreamMeta,
@@ -38,6 +39,19 @@ type AzurePrepareBody = {
 function submitPath(env: Auth0ActionContext["env"], suffix: "prepare" | "extract"): URL {
 	const base = getEndpoint(Endpoint.submit, env).toString().replace(/\/$/, "");
 	return new URL(`${base}/${suffix}`);
+}
+
+function postAzureExtract(
+	c: Auth0ActionContext,
+	absoluteUrl: string,
+	html: string
+): Promise<Response> {
+	const extractEndpoint = submitPath(c.env, "extract");
+	return fetch(extractEndpoint, {
+		method: "POST",
+		headers: buildFetchHeaders(c.req, extractEndpoint),
+		body: JSON.stringify({ url: absoluteUrl, html })
+	});
 }
 
 export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
@@ -134,8 +148,23 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	const mode = htmlFetchModeForService(service, allowlist);
 	logCollector.addMessage(`service=${service} htmlFetchMode=${mode}`);
 
-	let azureMeta: AzurePrepareBody;
-	if (mode === "browserRendering") {
+	let azureMeta: AzurePrepareBody | undefined;
+	let bitchuteJsonExtractOk = false;
+	if (workerPrefetchesVideoJson(service)) {
+		const json = await fetchBcVideoApiJson(url, (message) => logCollector.addMessage(message));
+		if (json) {
+			const extractResp = await postAzureExtract(c, absoluteUrl, json);
+			logCollector.addMessage(`bitchute azure extract status=${extractResp.status}`);
+			if (extractResp.status === 200) {
+				azureMeta = (await extractResp.json()) as AzurePrepareBody;
+				bitchuteJsonExtractOk = true;
+			} else {
+				logCollector.addMessage("bitchute extract failed, falling back to azure prepare");
+			}
+		}
+	}
+
+	if (!azureMeta && mode === "browserRendering") {
 		if (!c.env.BROWSER) {
 			logCollector.emitError({
 				event: "submit.prepare.br_unconfigured",
@@ -185,12 +214,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			});
 			return c.json({ error: "Browser Rendering fetch failed" }, 502);
 		}
-		const extractEndpoint = submitPath(c.env, "extract");
-		const extractResp = await fetch(extractEndpoint, {
-			method: "POST",
-			headers: buildFetchHeaders(c.req, extractEndpoint),
-			body: JSON.stringify({ url: absoluteUrl, html })
-		});
+		const extractResp = await postAzureExtract(c, absoluteUrl, html);
 		logCollector.addMessage(`azure extract status=${extractResp.status}`);
 		if (extractResp.status === 400) {
 			logCollector.emitWarn({
@@ -214,7 +238,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			return c.json({ error: "Azure extract failed" }, 502);
 		}
 		azureMeta = (await extractResp.json()) as AzurePrepareBody;
-	} else {
+	} else if (!azureMeta) {
 		const prepareEndpoint = submitPath(c.env, "prepare");
 		const prepareResp = await fetch(prepareEndpoint, {
 			method: "POST",
@@ -244,6 +268,15 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			return c.json({ error: "Azure prepare failed" }, 502);
 		}
 		azureMeta = (await prepareResp.json()) as AzurePrepareBody;
+	}
+
+	if (!azureMeta) {
+		logCollector.emitError({
+			event: "submit.prepare.azure_failed",
+			outcome: "error",
+			status: 502
+		});
+		return c.json({ error: "Azure prepare failed" }, 502);
 	}
 
 	const title = azureMeta.title ?? null;
@@ -279,8 +312,9 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	}
 
 	logCollector.emit({
-		event:
-			mode === "browserRendering"
+		event: bitchuteJsonExtractOk
+			? "submit.prepare.bitchute_json_ok"
+			: mode === "browserRendering"
 				? "submit.prepare.br_ok"
 				: "submit.prepare.direct_ok",
 		outcome: "success",
