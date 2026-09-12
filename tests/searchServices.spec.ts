@@ -9,6 +9,12 @@ describe("searchServices", () => {
 		]);
 	});
 
+	it("expands a compact BitChute svc token to the canonical /video/ URL", () => {
+		expect(expandSearchServices("bitchute:32qXfqGEf4Qx")).toEqual([
+			{ key: "bitchute", url: "https://www.bitchute.com/video/32qXfqGEf4Qx" }
+		]);
+	});
+
 	it("expands a u-prefixed full Netflix URL", () => {
 		const svc = "netflix:uhttps://www.netflix.com/watch/81040344?trackId=1";
 		expect(expandSearchServices(svc)).toEqual([
