@@ -4,9 +4,14 @@ import { expandSearchServices } from "../src/searchServices";
 
 describe("searchServices", () => {
 	it("expands compact svc tokens for BBC Sounds and Vimeo", () => {
-		expect(expandSearchServices("bbcSounds:p0example|vimeo:123456789|bitchute:32qXfqGEf4Qx")).toEqual([ // pragma: allowlist secret
+		expect(expandSearchServices("bbcSounds:p0example|vimeo:123456789")).toEqual([
 			{ key: "bbcSounds", url: "https://www.bbc.co.uk/sounds/play/p0example" },
-			{ key: "vimeo", url: "https://vimeo.com/123456789" },
+			{ key: "vimeo", url: "https://vimeo.com/123456789" }
+		]);
+	});
+
+	it("expands a compact BitChute svc token to the canonical /video/ URL", () => { // pragma: allowlist secret
+		expect(expandSearchServices("bitchute:32qXfqGEf4Qx")).toEqual([ // pragma: allowlist secret
 			{ key: "bitchute", url: "https://www.bitchute.com/video/32qXfqGEf4Qx" } // pragma: allowlist secret
 		]);
 	});
