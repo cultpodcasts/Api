@@ -6,7 +6,7 @@ import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
 import { fetchBcVideoApiJson } from "./bitchuteVideoPrepare";
-import { htmlFetchModeForService } from "./streamingHtmlFetchMode";
+import { htmlFetchModeForService, workerPrefetchesVideoJson } from "./streamingHtmlFetchMode";
 import {
 	parseBrowserRenderingServicesCsv,
 	putStreamMeta,
@@ -39,6 +39,19 @@ type AzurePrepareBody = {
 function submitPath(env: Auth0ActionContext["env"], suffix: "prepare" | "extract"): URL {
 	const base = getEndpoint(Endpoint.submit, env).toString().replace(/\/$/, "");
 	return new URL(`${base}/${suffix}`);
+}
+
+function postAzureExtract(
+	c: Auth0ActionContext,
+	absoluteUrl: string,
+	html: string
+): Promise<Response> {
+	const extractEndpoint = submitPath(c.env, "extract");
+	return fetch(extractEndpoint, {
+		method: "POST",
+		headers: buildFetchHeaders(c.req, extractEndpoint),
+		body: JSON.stringify({ url: absoluteUrl, html })
+	});
 }
 
 export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
@@ -136,31 +149,15 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	logCollector.addMessage(`service=${service} htmlFetchMode=${mode}`);
 
 	let azureMeta: AzurePrepareBody | undefined;
-	if (service === "bitchute") {
+	let bitchuteJsonExtractOk = false;
+	if (workerPrefetchesVideoJson(service)) {
 		const json = await fetchBcVideoApiJson(url, (message) => logCollector.addMessage(message));
 		if (json) {
-			const extractEndpoint = submitPath(c.env, "extract");
-			const extractResp = await fetch(extractEndpoint, {
-				method: "POST",
-				headers: buildFetchHeaders(c.req, extractEndpoint),
-				body: JSON.stringify({ url: absoluteUrl, html: json })
-			});
+			const extractResp = await postAzureExtract(c, absoluteUrl, json);
 			logCollector.addMessage(`bitchute azure extract status=${extractResp.status}`);
-			if (extractResp.status === 400) {
-				logCollector.emitWarn({
-					event: "submit.prepare.extract_client_error",
-					outcome: "error",
-					status: 400
-				});
-				return new Response(await extractResp.text(), {
-					status: 400,
-					headers: {
-						"content-type": extractResp.headers.get("content-type") ?? "application/json"
-					}
-				});
-			}
 			if (extractResp.status === 200) {
 				azureMeta = (await extractResp.json()) as AzurePrepareBody;
+				bitchuteJsonExtractOk = true;
 			} else {
 				logCollector.addMessage("bitchute extract failed, falling back to azure prepare");
 			}
@@ -217,12 +214,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			});
 			return c.json({ error: "Browser Rendering fetch failed" }, 502);
 		}
-		const extractEndpoint = submitPath(c.env, "extract");
-		const extractResp = await fetch(extractEndpoint, {
-			method: "POST",
-			headers: buildFetchHeaders(c.req, extractEndpoint),
-			body: JSON.stringify({ url: absoluteUrl, html })
-		});
+		const extractResp = await postAzureExtract(c, absoluteUrl, html);
 		logCollector.addMessage(`azure extract status=${extractResp.status}`);
 		if (extractResp.status === 400) {
 			logCollector.emitWarn({
@@ -320,8 +312,9 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	}
 
 	logCollector.emit({
-		event:
-			mode === "browserRendering"
+		event: bitchuteJsonExtractOk
+			? "submit.prepare.bitchute_json_ok"
+			: mode === "browserRendering"
 				? "submit.prepare.br_ok"
 				: "submit.prepare.direct_ok",
 		outcome: "success",

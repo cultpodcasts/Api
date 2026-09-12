@@ -459,6 +459,86 @@ describe("submitPrepare", () => {
 			1
 		);
 	});
+
+	it.each([400, 502] as const)(
+		"for bitchute, falls back to Azure prepare when video JSON extract returns %s",
+		async (extractStatus) => {
+			const put = vi.fn(async () => undefined);
+			const env = testEnv({
+				browserRenderingServices: "",
+				StreamMeta: { get: async () => null, put } as unknown as KVNamespace
+			});
+			const videoId = "abcdefg";
+			const url = `https://www.bitchute.com/video/${videoId}`;
+			const videoJson = JSON.stringify({
+				video_name: "Episode Title",
+				description: "Desc"
+			});
+			const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const u = String(input);
+				if (u.includes("api.bitchute.com/api/beta/video")) {
+					const body = JSON.parse(String(init?.body ?? "{}"));
+					expect(body.video_id).toBe(videoId);
+					return new Response(videoJson, { status: 200 });
+				}
+				if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+					return new Response(
+						JSON.stringify({ known: false, kind: "streaming", service: "bitchute" }),
+						{ status: 200 }
+					);
+				}
+				if (u.includes("/extract")) {
+					return new Response(
+						JSON.stringify({ error: "extractFromHtml not registered" }),
+						{ status: extractStatus }
+					);
+				}
+				if (u.includes("/prepare")) {
+					return new Response(
+						JSON.stringify({
+							service: "bitchute",
+							podcastName: "Extracted Show",
+							title: "Episode Title",
+							description: "Desc"
+						}),
+						{ status: 200 }
+					);
+				}
+				return new Response("unexpected", { status: 500 });
+			});
+			vi.stubGlobal("fetch", fetchMock);
+
+			const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+			const resp = await app.request(
+				"/submit/prepare",
+				{
+					method: "POST",
+					headers: authJsonHeaders,
+					body: JSON.stringify({ url })
+				},
+				env
+			);
+
+			expect(resp.status).toBe(200);
+			expect(await resp.json()).toEqual({
+				service: "bitchute",
+				htmlFetchMode: "directHttp",
+				podcastName: "Extracted Show",
+				title: "Episode Title"
+			});
+			expect(
+				fetchMock.mock.calls.filter(([input]) => String(input).includes("/extract"))
+			).toHaveLength(1);
+			expect(
+				fetchMock.mock.calls.filter(([input]) => String(input).includes("/prepare"))
+			).toHaveLength(1);
+			expect(put).toHaveBeenCalledWith(
+				streamMetaKvKey(url),
+				expect.stringContaining("Extracted Show"),
+				expect.objectContaining({ expirationTtl: 15 * 60 })
+			);
+		}
+	);
 });
 
 describe("submit prefetchedMeta inject", () => {

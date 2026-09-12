@@ -52,9 +52,10 @@ export const SubmitPrepareRoute = createOpenApiRoute(submitPrepare, {
 		tags: ["Submission"],
 		summary: "Prepare streaming URL meta (HTML fetch + extract)",
 		description:
-			"Requires JWT `submit` or `curate`. Classifies via lookup, fetches HTML (Browser Rendering when " +
-			"`service` is in secret `browserRenderingServices`, else Azure HttpClient), extracts meta, caches in StreamMeta KV. " +
-			"Client must not send HTML or meta.",
+			"Requires JWT `submit` or `curate`. Classifies via lookup. For BitChute the Worker POSTs " +
+			"`api.bitchute.com/api/beta/video` then Azure `SubmitUrl/extract` maps that JSON. On fetch/extract miss: " +
+			"Browser Rendering when `service` is in secret `browserRenderingServices`, else Azure `SubmitUrl/prepare`. " +
+			"Caches meta in StreamMeta KV. Client must not send HTML or meta.",
 		request: { body: jsonBody(submitUrlPrepareRequestSchema) },
 		responses: {
 			200: {
