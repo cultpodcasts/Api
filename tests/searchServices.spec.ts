@@ -9,10 +9,9 @@ describe("searchServices", () => {
 		]);
 	});
 
-	it("expands a compact video-host svc token to the canonical /video/ URL", () => {
-		const host = "\u0062itchute";
-		expect(expandSearchServices(`${host}:32qXfqGEf4Qx`)).toEqual([
-			{ key: host, url: `https://www.${host}.com/video/32qXfqGEf4Qx` }
+	it("expands a compact BitChute svc token to the canonical /video/ URL", () => {
+		expect(expandSearchServices("bitchute:32qXfqGEf4Qx")).toEqual([
+			{ key: "bitchute", url: "https://www.bitchute.com/video/32qXfqGEf4Qx" }
 		]);
 	});
 
