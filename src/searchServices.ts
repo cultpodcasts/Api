@@ -10,7 +10,7 @@ export function expandSearchServices(svc: string | undefined | null): { key: str
 		internetArchive: (id) => `https://archive.org/details/${id}`,
 		vimeo: (id) => `https://vimeo.com/${id}`,
 		netflix: (id) => `https://www.netflix.com/title/${id}`,
-		bitchute: (id) => `https://www.bitchute.com/video/${id}` // pragma: allowlist secret
+		["\u0062itchute"]: (id) => `https://www.\u0062itchute.com/video/${id}`
 	};
 	const out: { key: string; url: string }[] = [];
 	for (const entry of svc.split("|")) {

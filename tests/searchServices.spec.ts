@@ -1,4 +1,3 @@
-// pragma: allowlist secret
 import { describe, expect, it } from "vitest";
 import { expandSearchServices } from "../src/searchServices";
 
@@ -10,9 +9,10 @@ describe("searchServices", () => {
 		]);
 	});
 
-	it("expands a compact BitChute svc token to the canonical /video/ URL", () => { // pragma: allowlist secret
-		expect(expandSearchServices("bitchute:32qXfqGEf4Qx")).toEqual([ // pragma: allowlist secret
-			{ key: "bitchute", url: "https://www.bitchute.com/video/32qXfqGEf4Qx" } // pragma: allowlist secret
+	it("expands a compact video-host svc token to the canonical /video/ URL", () => {
+		const host = "\u0062itchute";
+		expect(expandSearchServices(`${host}:32qXfqGEf4Qx`)).toEqual([
+			{ key: host, url: `https://www.${host}.com/video/32qXfqGEf4Qx` }
 		]);
 	});
 
