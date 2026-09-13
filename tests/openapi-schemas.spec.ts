@@ -274,6 +274,7 @@ describe("openapi Zod schemas", () => {
 					youtube: true,
 					extraServiceKeys: ["vimeo"],
 					subjects: ["cult"],
+					people: [],
 					guestSuggestions: [{
 						name: "Guest",
 						matchResults: [{ term: "Guest", matches: 1 }]
@@ -283,7 +284,64 @@ describe("openapi Zod schemas", () => {
 		});
 		expect(parsed.success?.episode).toBe("Created");
 		expect(parsed.success?.episodeDetails?.extraServiceKeys).toEqual(["vimeo"]);
+		expect(parsed.success?.episodeDetails?.people).toEqual([]);
 		expect(parsed.success?.episodeDetails?.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
+	});
+
+	it("accepts SubmitUrlResponse extraServiceKeys omit, null, empty array, and bbcIplayer", () => {
+		const platforms = { spotify: true, apple: false, youtube: true };
+		const envelope = (episodeDetails: Record<string, unknown>) => ({
+			success: {
+				episode: "Created",
+				podcast: "Enriched",
+				episodeDetails
+			}
+		});
+
+		expect(submitUrlResponseSchema.parse(envelope(platforms)).success?.episodeDetails?.extraServiceKeys)
+			.toBeUndefined();
+		expect(submitUrlResponseSchema.parse(envelope({ ...platforms, extraServiceKeys: null }))
+			.success?.episodeDetails?.extraServiceKeys).toBeNull();
+		expect(submitUrlResponseSchema.parse(envelope({ ...platforms, extraServiceKeys: [] }))
+			.success?.episodeDetails?.extraServiceKeys).toEqual([]);
+		expect(submitUrlResponseSchema.parse(envelope({ ...platforms, extraServiceKeys: ["bbcIplayer"] }))
+			.success?.episodeDetails?.extraServiceKeys).toEqual(["bbcIplayer"]);
+	});
+
+	it("accepts SubmitUrlResponse leftover bbc and internetArchive episodeDetails bools", () => {
+		const parsed = submitUrlResponseSchema.parse({
+			success: {
+				episode: "Created",
+				podcast: "Enriched",
+				episodeDetails: {
+					spotify: false,
+					apple: false,
+					youtube: false,
+					bbc: false,
+					internetArchive: false
+				}
+			}
+		});
+		expect(parsed.success?.episodeDetails?.spotify).toBe(false);
+		expect(parsed.success?.episodeDetails).not.toHaveProperty("bbc");
+		expect(parsed.success?.episodeDetails).not.toHaveProperty("internetArchive");
+	});
+
+	it("rejects SubmitUrlResponse extraServiceKeys unknown catalog keys", () => {
+		const envelope = (extraServiceKeys: string[]) => ({
+			success: {
+				episode: "Created",
+				podcast: "Enriched",
+				episodeDetails: {
+					spotify: true,
+					apple: false,
+					youtube: true,
+					extraServiceKeys
+				}
+			}
+		});
+		expect(() => submitUrlResponseSchema.parse(envelope(["notARealStreamer"]))).toThrow();
+		expect(() => submitUrlResponseSchema.parse(envelope(["bbc"]))).toThrow();
 	});
 
 	it("accepts R2 subjects name list, discovery-info, page details, and search envelope", () => {
