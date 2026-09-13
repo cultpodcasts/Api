@@ -272,8 +272,7 @@ describe("openapi Zod schemas", () => {
 					spotify: true,
 					apple: false,
 					youtube: true,
-					bbc: false,
-					internetArchive: false,
+					extraServiceKeys: ["vimeo"],
 					subjects: ["cult"],
 					guestSuggestions: [{
 						name: "Guest",
@@ -283,6 +282,7 @@ describe("openapi Zod schemas", () => {
 			}
 		});
 		expect(parsed.success?.episode).toBe("Created");
+		expect(parsed.success?.episodeDetails?.extraServiceKeys).toEqual(["vimeo"]);
 		expect(parsed.success?.episodeDetails?.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
 	});
 
