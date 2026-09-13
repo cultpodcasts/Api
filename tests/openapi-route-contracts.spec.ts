@@ -142,5 +142,7 @@ describe("OpenAPI route contracts", () => {
 		expect(description).toMatch(/browserRenderingServices/);
 		expect(description).toMatch(/SubmitUrl\/prepare/);
 		expect(description).toMatch(/fetch\/extract miss/i);
+		expect(description).toMatch(/Tubi/);
+		expect(description).toMatch(/catalogue HTML/);
 	});
 });

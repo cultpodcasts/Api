@@ -17,3 +17,12 @@ export {
 export function workerPrefetchesVideoJson(service: string): boolean {
 	return service === "bitchute";
 }
+
+/**
+ * Worker GETs catalogue HTML then Azure extract before Azure prepare.
+ * Not an `htmlFetchMode` — do not add to the published fixture unless website
+ * re-copies it. Hosts Azure UK cannot fetch (geo wall) grow this helper.
+ */
+export function workerPrefetchesCatalogHtml(service: string): boolean {
+	return service === "tubi";
+}

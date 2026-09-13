@@ -37,7 +37,7 @@ TypeScript: const arrays + derived union types in the contract fixture.
 ## Process (happy path, unknown streaming URL)
 
 1. **`GET /submit/lookup`** — Cosmos membership + classify URL → `{ known, kind: "streaming", service }`. **No page scrape. No Browser Rendering.**
-2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service` is `bitchute`, Worker POSTs `api.bitchute.com/api/beta/video` and Azure `SubmitUrl/extract` maps that JSON (duration/release live there; Azure UK often cannot POST it). On fetch/extract miss, fall through. If `service ∈ browserRenderingServices` → Browser Rendering HTML + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
+2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service` is `bitchute`, Worker POSTs `api.bitchute.com/api/beta/video` and Azure `SubmitUrl/extract` maps that JSON (duration/release live there; Azure UK often cannot POST it). If `service` is `tubi`, Worker GETs catalogue HTML and Azure `SubmitUrl/extract` maps that HTML (Azure UK may be geo-walled). Catalogue GET is **not** gated on BR salvage (`og:title` / `__NEXT_DATA__`); title-only HTML is passed through so Azure can apply host title recovery. Challenge/interstitial HTML is a fetch miss. On fetch/extract miss, fall through. If `service ∈ browserRenderingServices` → Browser Rendering HTML + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
 3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit.
 
 Direction: **SPA → CF → Azure** (and CF → Browser Rendering). Azure does **not** call Cloudflare.

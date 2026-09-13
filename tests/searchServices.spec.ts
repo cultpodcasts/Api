@@ -15,6 +15,12 @@ describe("searchServices", () => {
 		]);
 	});
 
+	it("expands a compact Tubi svc token to the canonical /movies/{id} URL", () => {
+		expect(expandSearchServices("tubi:movies/1")).toEqual([
+			{ key: "tubi", url: "https://tubitv.com/movies/1" }
+		]);
+	});
+
 	it("expands a u-prefixed full Netflix URL", () => {
 		const svc = "netflix:uhttps://www.netflix.com/watch/81040344?trackId=1";
 		expect(expandSearchServices(svc)).toEqual([
