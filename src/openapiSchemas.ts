@@ -668,8 +668,12 @@ export const submitUrlResponseSchema = z.object({
 			spotify: z.boolean(),
 			apple: z.boolean(),
 			youtube: z.boolean(),
-			bbc: z.boolean(),
-			internetArchive: z.boolean(),
+			extraServiceKeys: z.array(streamingServiceKeySchema)
+				.optional()
+				.nullable()
+				.describe(
+					"Streaming ServiceKeys on the episode (bbcIplayer, vimeo, tubi, …). Spotify/Apple/YouTube stay the named booleans."
+				),
 			subjects: z.array(z.string()).optional().nullable(),
 			people: z.array(z.string()).optional().nullable(),
 			guestSuggestions: z.array(z.object({
