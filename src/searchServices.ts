@@ -10,7 +10,8 @@ export function expandSearchServices(svc: string | undefined | null): { key: str
 		internetArchive: (id) => `https://archive.org/details/${id}`,
 		vimeo: (id) => `https://vimeo.com/${id}`,
 		netflix: (id) => `https://www.netflix.com/title/${id}`,
-		bitchute: (id) => `https://www.bitchute.com/video/${id}`
+		bitchute: (id) => `https://www.bitchute.com/video/${id}`,
+		tubi: (id) => `https://tubitv.com/${id}`
 	};
 	const out: { key: string; url: string }[] = [];
 	for (const entry of svc.split("|")) {

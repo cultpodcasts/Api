@@ -6,7 +6,8 @@ import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
 import { fetchBcVideoApiJson } from "./bitchuteVideoPrepare";
-import { htmlFetchModeForService, workerPrefetchesVideoJson } from "./streamingHtmlFetchMode";
+import { htmlFetchModeForService, workerPrefetchesCatalogHtml, workerPrefetchesVideoJson } from "./streamingHtmlFetchMode";
+import { fetchCatalogHtml } from "./catalogHtmlPrepare";
 import {
 	parseBrowserRenderingServicesCsv,
 	putStreamMeta,
@@ -150,6 +151,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 
 	let azureMeta: AzurePrepareBody | undefined;
 	let bitchuteJsonExtractOk = false;
+	let catalogHtmlExtractOk = false;
 	if (workerPrefetchesVideoJson(service)) {
 		const json = await fetchBcVideoApiJson(url, (message) => logCollector.addMessage(message));
 		if (json) {
@@ -160,6 +162,20 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 				bitchuteJsonExtractOk = true;
 			} else {
 				logCollector.addMessage("bitchute extract failed, falling back to azure prepare");
+			}
+		}
+	}
+
+	if (!azureMeta && workerPrefetchesCatalogHtml(service)) {
+		const html = await fetchCatalogHtml(url, (message) => logCollector.addMessage(message));
+		if (html) {
+			const extractResp = await postAzureExtract(c, absoluteUrl, html);
+			logCollector.addMessage(`catalog html azure extract status=${extractResp.status}`);
+			if (extractResp.status === 200) {
+				azureMeta = (await extractResp.json()) as AzurePrepareBody;
+				catalogHtmlExtractOk = true;
+			} else {
+				logCollector.addMessage("catalog html extract failed, falling back to azure prepare");
 			}
 		}
 	}
@@ -314,9 +330,11 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	logCollector.emit({
 		event: bitchuteJsonExtractOk
 			? "submit.prepare.bitchute_json_ok"
-			: mode === "browserRendering"
-				? "submit.prepare.br_ok"
-				: "submit.prepare.direct_ok",
+			: catalogHtmlExtractOk
+				? "submit.prepare.catalog_html_ok"
+				: mode === "browserRendering"
+					? "submit.prepare.br_ok"
+					: "submit.prepare.direct_ok",
 		outcome: "success",
 		status: 200
 	});
