@@ -547,10 +547,7 @@ describe("submitPrepare", () => {
 			StreamMeta: { get: async () => null, put } as unknown as KVNamespace
 		});
 		const url = "https://tubitv.com/en-au/movies/1/example-slug";
-		const html =
-			'<html><head><title>Film</title><meta property="og:title" content="Film" /></head><body>' +
-			"x".repeat(500) +
-			"</body></html>";
+		const html = "<html><head><title>Film</title></head><body>catalogue without og tags</body></html>";
 		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const u = String(input);
 			if (u === url) {
@@ -609,6 +606,65 @@ describe("submitPrepare", () => {
 			streamMetaKvKey(url),
 			expect.stringContaining("Film"),
 			expect.objectContaining({ expirationTtl: 15 * 60 })
+		);
+	});
+
+	it("for tubi, falls back to Azure prepare when the catalogue GET is forbidden", async () => {
+		const put = vi.fn(async () => undefined);
+		const env = testEnv({
+			browserRenderingServices: "",
+			StreamMeta: { get: async () => null, put } as unknown as KVNamespace
+		});
+		const url = "https://tubitv.com/movies/1/example-slug";
+		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+			const u = String(input);
+			if (u === url) {
+				return new Response("forbidden", { status: 403 });
+			}
+			if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "tubi" }),
+					{ status: 200 }
+				);
+			}
+			if (u.includes("/prepare")) {
+				return new Response(
+					JSON.stringify({
+						service: "tubi",
+						podcastName: null,
+						title: "Film",
+						description: "Desc"
+					}),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const resp = await app.request(
+			"/submit/prepare",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({
+			service: "tubi",
+			htmlFetchMode: "directHttp",
+			podcastName: null,
+			title: "Film"
+		});
+		expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/extract"))).toHaveLength(
+			0
+		);
+		expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/prepare"))).toHaveLength(
+			1
 		);
 	});
 

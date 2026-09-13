@@ -55,6 +55,37 @@ function postAzureExtract(
 	});
 }
 
+/**
+ * POST Azure extract for a Worker-prefetched body (JSON or HTML).
+ * Non-200 falls through so the caller can Azure-prepare. Keep fetchers
+ * (`fetchBcVideoApiJson` / `fetchCatalogHtml`) separate; grow this helper
+ * for the next geo-walled host rather than copying the extract block.
+ */
+async function extractPrefetchedBody(
+	c: Auth0ActionContext,
+	absoluteUrl: string,
+	body: string | null,
+	addMessage: (message: string) => void,
+	options: {
+		statusLogPrefix: string;
+		fallthroughMessage: string;
+		onSuccess: () => void;
+	}
+): Promise<AzurePrepareBody | undefined> {
+	if (!body) {
+		return undefined;
+	}
+	const extractResp = await postAzureExtract(c, absoluteUrl, body);
+	addMessage(`${options.statusLogPrefix} status=${extractResp.status}`);
+	if (extractResp.status === 200) {
+		const parsed = (await extractResp.json()) as AzurePrepareBody;
+		options.onSuccess();
+		return parsed;
+	}
+	addMessage(options.fallthroughMessage);
+	return undefined;
+}
+
 export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
@@ -152,32 +183,27 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	let azureMeta: AzurePrepareBody | undefined;
 	let bitchuteJsonExtractOk = false;
 	let catalogHtmlExtractOk = false;
+	const addPrepareMessage = (message: string) => logCollector.addMessage(message);
 	if (workerPrefetchesVideoJson(service)) {
-		const json = await fetchBcVideoApiJson(url, (message) => logCollector.addMessage(message));
-		if (json) {
-			const extractResp = await postAzureExtract(c, absoluteUrl, json);
-			logCollector.addMessage(`bitchute azure extract status=${extractResp.status}`);
-			if (extractResp.status === 200) {
-				azureMeta = (await extractResp.json()) as AzurePrepareBody;
+		const json = await fetchBcVideoApiJson(url, addPrepareMessage);
+		azureMeta = await extractPrefetchedBody(c, absoluteUrl, json, addPrepareMessage, {
+			statusLogPrefix: "bitchute azure extract",
+			fallthroughMessage: "bitchute extract failed, falling back to azure prepare",
+			onSuccess: () => {
 				bitchuteJsonExtractOk = true;
-			} else {
-				logCollector.addMessage("bitchute extract failed, falling back to azure prepare");
 			}
-		}
+		});
 	}
 
 	if (!azureMeta && workerPrefetchesCatalogHtml(service)) {
-		const html = await fetchCatalogHtml(url, (message) => logCollector.addMessage(message));
-		if (html) {
-			const extractResp = await postAzureExtract(c, absoluteUrl, html);
-			logCollector.addMessage(`catalog html azure extract status=${extractResp.status}`);
-			if (extractResp.status === 200) {
-				azureMeta = (await extractResp.json()) as AzurePrepareBody;
+		const html = await fetchCatalogHtml(url, addPrepareMessage);
+		azureMeta = await extractPrefetchedBody(c, absoluteUrl, html, addPrepareMessage, {
+			statusLogPrefix: "catalog html azure extract",
+			fallthroughMessage: "catalog html extract failed, falling back to azure prepare",
+			onSuccess: () => {
 				catalogHtmlExtractOk = true;
-			} else {
-				logCollector.addMessage("catalog html extract failed, falling back to azure prepare");
 			}
-		}
+		});
 	}
 
 	if (!azureMeta && mode === "browserRendering") {

@@ -49,7 +49,8 @@ export type BrowserRenderingFetchResult = {
 	diagnostics: BrowserRenderingDiagnostics;
 };
 
-function challengeLikely(html: string): boolean {
+/** Challenge / interstitial page (Cloudflare wall, bot-detect, etc.). */
+export function challengeLikely(html: string): boolean {
 	return (
 		/just a moment/i.test(html) ||
 		/cf-browser-verification/i.test(html) ||
