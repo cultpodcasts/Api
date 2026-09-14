@@ -20,10 +20,18 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
 ## Steps (this repo)
 
 1. Confirm `key`, specimen URL, and whether BR is needed (`directHttp` default).
+   - If BR is required for the new key: add it to `defaultBrowserRenderingServices` in
+     `tests/fixtures/streaming-submit-contract.ts` (see `itvx` pattern) **and** plan
+     Worker secret `browserRenderingServices` under PR **`## Config / secrets`** for
+     `api-preview` **and** top-level Worker **`api`** (names only; step 7).
 2. Edit `tests/fixtures/streaming-submit-contract.ts` and sibling `.json`:
-   - `streamingServiceKeys`
-   - `streamingSpecimenUrls`
-   - membership / orchestration case coverage (fixture helpers)
+   - Add the key to `streamingServiceKeys` and a matching specimen in `streamingSpecimenUrls`
+   - Membership / orchestration case lists are **derived** (`flatMap` / `map` over
+     `streamingServiceKeys`) — do **not** invent parallel hand-maintained arrays
+   - Sync sibling `.json` from `streamingSubmitContractJsonPayload()` (or edit until
+     `streaming-submit-contract.business-rules` passes — committed JSON must equal that payload)
+   - Optionally before sibling copies:
+     `npm test -- tests/streaming-submit-contract.business-rules.spec.ts`
 3. Bump root `package.json` + `package-lock.json` **patch** (required on every Api PR).
 4. Copy JSON to RPP: `RedditPodcastPoster/docs/contracts/streaming-submit-contract.json`
 5. Copy TS to website: `website/cultpodcasts/src/app/streaming-submit-contract.ts`
@@ -36,6 +44,7 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
 
 - Never `wrangler deploy` / `npm run deploy` unless user names that exact deploy
 - Do not invent website/RPP enums — extend this fixture, then re-copy
+- Never commit ad-hoc BR probe trees (`scripts/br-*-probe/`) or `*.wipbak` scratch files
 
 ## Related
 
