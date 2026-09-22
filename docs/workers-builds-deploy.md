@@ -1,21 +1,17 @@
 # Workers Builds deploy commands (Api)
 
-Git push deploys via Cloudflare Workers Builds. Keep **one** Builds project per Api Worker; chain the US scrape Worker in the deploy command so `SCRAPE_US` always resolves.
+`npm run deploy` publishes the US scrape Worker **first**, then Api (see `scripts/cf-deploy.mjs`).
 
-## Required dashboard settings
+| Worker Builds | Deploy command |
+|---------------|----------------|
+| **api** (production) | `npm run deploy` |
+| **api-preview** | `npm run deploy -- --env preview` |
 
-| Worker | Build command | Deploy command |
-|--------|---------------|----------------|
-| **api-preview** | `./build.sh` | `npm run deploy:preview:ci` |
-| **api** (production / main) | `./build.sh` | `npm run deploy:ci` |
+If preview is still set to `npx wrangler deploy --env preview`, switch it to `npm run deploy -- --env preview` once — after that, scrape stays chained automatically.
 
-That publishes `streaming-scrape-us-preview` / `streaming-scrape-us` **before** Api, so the service binding does not fail with Worker not found.
+Build command can stay `./build.sh`.
 
-Do **not** use `deploy:*:with-contract` until GitHub Packages billing works (see [`contract-publish.md`](./contract-publish.md) — deferred).
-
-## Why not a second Builds project?
-
-Possible, but a PR would need two Builds connections and still race Api vs scrape. Chaining in Api’s deploy command is one push → both Workers.
+Do **not** use `deploy:*:with-contract` until GitHub Packages billing works.
 
 ## Survey after preview is green
 
@@ -28,5 +24,3 @@ npm run survey:streaming-scrape -- `
   -IncludeUsFetch `
   -ExpectedUsLocs US
 ```
-
-Needs Auth0 M2M (`submit` or `curate`) — see [`scripts/streaming-scrape-survey/README.md`](../scripts/streaming-scrape-survey/README.md).

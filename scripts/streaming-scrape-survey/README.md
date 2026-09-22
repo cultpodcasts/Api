@@ -34,7 +34,7 @@ npm run survey:streaming-scrape -- `
   -ExpectedUsLocs US
 ```
 
-Requires Api **already deployed** with this route. For `-IncludeUsFetch`, the matching scrape Worker must exist (`streaming-scrape-us-preview` for api-preview). Prefer automatic chain: CF Builds deploy command `npm run deploy:preview:ci` — see [`docs/workers-builds-deploy.md`](../../docs/workers-builds-deploy.md).
+Requires Api **already deployed** with this route. Prefer Builds using `npm run deploy -- --env preview` so scrape-us-preview is published first — [`docs/workers-builds-deploy.md`](../../docs/workers-builds-deploy.md).
 
 Prefer preview/workers.dev Api host if apex Bot Fight challenges M2M (see `docs/hero-curation-m2m-edge.md`).
 

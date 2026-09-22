@@ -1,13 +1,11 @@
 {
 	"name": "cultpodcasts-api",
-	"version": "1.1.32",
+	"version": "1.1.33",
 	"private": true,
 	"scripts": {
-		"deploy": "wrangler deploy",
-		"deploy:ci": "npm run deploy:scrape-us && wrangler deploy",
-		"deploy:preview:ci": "npm run deploy:scrape-us:preview && wrangler deploy --env preview",
-		"deploy:with-contract": "npm run publish:contract:production && npm run deploy:ci",
-		"deploy:preview:with-contract": "npm run publish:contract:staging && npm run deploy:preview:ci",
+		"deploy": "node ./scripts/cf-deploy.mjs",
+		"deploy:with-contract": "npm run publish:contract:production && node ./scripts/cf-deploy.mjs",
+		"deploy:preview:with-contract": "npm run publish:contract:staging && node ./scripts/cf-deploy.mjs --env preview",
 		"deploy:scrape-us": "wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc",
 		"deploy:scrape-us:preview": "wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc --env preview",
 		"publish:contract:production": "node ./scripts/publish-streaming-submit-contract.mjs production",
