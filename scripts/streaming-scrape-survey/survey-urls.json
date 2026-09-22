@@ -1,0 +1,58 @@
+{
+	"description": "Specimen catalogue for streaming scrape survey (Azure prepare vs CF fetch vs CF Browser Run). Prefer real episode/series deep links — hubs false-pass. Ops only — not CI.",
+	"targets": [
+		{
+			"id": "zdf-mako-ausgestossen",
+			"service": "zdf",
+			"url": "https://www.zdf.de/video/serien/mako-108/ausgestossen-102",
+			"enabled": true,
+			"expectHomeHosts": ["zdf.de"],
+			"assumedTechnique": "azurePrepare",
+			"notes": "UK/Azure should get OG + JSON-LD; DE only for playback"
+		},
+		{
+			"id": "itvx-children-of-the-cult",
+			"service": "itvx",
+			"url": "https://www.itv.com/watch/children-of-the-cult/10a5261a0001B/10a5261a0001",
+			"enabled": true,
+			"expectHomeHosts": ["itv.com"],
+			"assumedTechnique": "browserRendering",
+			"notes": "SPA hydration — CF BR on edge Api Worker"
+		},
+		{
+			"id": "hulu-heavens-gate",
+			"service": "hulu",
+			"url": "https://www.hulu.com/series/heavens-gate-the-cult-of-cults-3de513f8-ee47-44d4-98c8-f6910ce4ee9b",
+			"enabled": true,
+			"expectHomeHosts": ["hulu.com"],
+			"assumedTechnique": "scrapeUsFetch",
+			"notes": "US soft-wall; Azure UK often Disney+ shell — geo = SCRAPE_US directHttp (not BR)"
+		},
+		{
+			"id": "peacock-office",
+			"service": "peacock",
+			"url": "https://www.peacocktv.com/watch/asset/tv/the-office/5568795438602876112",
+			"enabled": true,
+			"expectHomeHosts": ["peacocktv.com"],
+			"assumedTechnique": "scrapeUsFetch",
+			"notes": "US geo fetch; may still soft-wall to signin"
+		},
+		{
+			"id": "netflix-stranger-things",
+			"service": "netflix",
+			"url": "https://www.netflix.com/title/80057281",
+			"enabled": true,
+			"expectHomeHosts": ["netflix.com"],
+			"assumedTechnique": "azurePrepare"
+		},
+		{
+			"id": "ard-tatort",
+			"service": "ard",
+			"url": "https://www.ardmediathek.de/tatort",
+			"enabled": true,
+			"expectHomeHosts": ["ardmediathek.de"],
+			"assumedTechnique": "azurePrepare",
+			"notes": "Hub-ish — upgrade to episode deep link when convenient"
+		}
+	]
+}

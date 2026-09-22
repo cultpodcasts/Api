@@ -8,10 +8,12 @@ Rules for **streaming** catalogue URL ingest across Cloudflare Worker (Api), Azu
 |----------|------|
 | [`tests/fixtures/streaming-submit-contract.ts`](../tests/fixtures/streaming-submit-contract.ts) | Source of truth (TypeScript) |
 | [`tests/fixtures/streaming-submit-contract.json`](../tests/fixtures/streaming-submit-contract.json) | Same payload for RPP / tooling |
-| Website copy | `website/cultpodcasts/src/app/streaming-submit-contract.ts` (byte-identical) |
-| RPP copy | `RedditPodcastPoster/docs/contracts/streaming-submit-contract.json` (byte-identical) |
+| **GitHub Packages** `@cultpodcasts/streaming-submit-contract` | Published from Workers Builds (`latest` = production, `staging` = api-preview) — [`contract-publish.md`](./contract-publish.md) |
+| Website / RPP copies | Legacy byte-identical copies until package install is wired |
 
-Assert copies:
+Publish (CF Builds): [`docs/contract-publish.md`](./contract-publish.md).
+
+Legacy assert copies (sibling checkouts):
 
 ```powershell
 # website git root
@@ -21,7 +23,7 @@ pwsh ./scripts/assert-streaming-submit-contract-copy.ps1
 pwsh ./scripts/assert-streaming-submit-contract-copy.ps1
 ```
 
-Do **not** invent a parallel streamer enum or membership shape on the website or in RPP docs. Extend the Api fixture, then re-copy.
+Do **not** invent a parallel streamer enum or membership shape on the website or in RPP docs. Extend the Api fixture, then publish (and re-copy if still on copies).
 
 ## Wire enums (stable strings)
 
@@ -39,10 +41,25 @@ TypeScript: const arrays + derived union types in the contract fixture.
 ## Process (happy path, unknown streaming URL)
 
 1. **`GET /submit/lookup`** — Cosmos membership + classify URL → `{ known, kind: "streaming", service }`. **No page scrape. No Browser Rendering.**
-2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service` is `bitchute`, Worker POSTs `api.bitchute.com/api/beta/video` and Azure `SubmitUrl/extract` maps that JSON (duration/release live there; Azure UK often cannot POST it). If `service` is `tubi`, Worker GETs catalogue HTML and Azure `SubmitUrl/extract` maps that HTML (Azure UK may be geo-walled). Catalogue GET is **not** gated on BR salvage (`og:title` / `__NEXT_DATA__`); title-only HTML is passed through so Azure can apply host title recovery. Challenge/interstitial HTML is a fetch miss. On fetch/extract miss, fall through. If `resolveScrapeProfile(service).mode === browserRendering` → fetch HTML (local Browser Rendering, or a **regional scrape Worker** when `region` is `us` / later `uk`/`de`) + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Known marketing / geo soft-wall shells (e.g. Hulu → Disney+ homepage) are rejected before extract. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
+2. **`POST /submit/prepare`** — Worker classifies via lookup, then applies **Azure-first** fetch policy (below). Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
 3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit.
 
-Direction: **SPA → CF → Azure** (and CF → Browser Rendering / regional scrape Workers). Azure does **not** call Cloudflare.
+Direction: **SPA → CF → Azure** (and CF → Browser Rendering / regional scrape Workers only when required). Azure does **not** call Cloudflare. **Episode extraction always runs on Azure** (`SubmitUrl/prepare` or `SubmitUrl/extract`); Cloudflare only acquires HTML/JSON Azure cannot.
+
+### Azure-first HTML policy
+
+| Path | Who fetches | Who extracts | Use when |
+|------|-------------|--------------|----------|
+| **Default** | Azure | Azure `SubmitUrl/prepare` | Azure UK can load episode meta (most services, including **ZDF**) |
+| **CF GET / API** | Worker | Azure `SubmitUrl/extract` | Azure cannot reach host (Tubi GET, BitChute video API) |
+| **CF Browser Rendering** | Worker (edge) | Azure extract | **SPA hydration** (ITVX) — BR is **not** region-pinnable; never for geo |
+| **CF regional fetch** | `streaming-scrape-us` via `SCRAPE_US` (`directHttp`) | Azure extract | **Geo soft-wall** (Hulu / Peacock) |
+
+Known marketing / geo soft-wall shells (Hulu → Disney+, Peacock → signin) are rejected before extract.
+
+Field evidence: [`streaming-scrape-findings.md`](./streaming-scrape-findings.md).
+
+**Re-verify anytime:** `npm run survey:streaming-scrape` → `POST /ops/streaming-scrape-survey` (PoP preflight; **409 contaminated** if trace misses `expectedPop`). Ops: [`scripts/streaming-scrape-survey/README.md`](../scripts/streaming-scrape-survey/README.md).
 
 ## Membership response shapes (streaming)
 
@@ -65,11 +82,18 @@ Contract matrix: `streamingMembershipShapeCases` (service × arm).
 
 ### Regional scrape Workers (geo)
 
-One Worker can have only one [`placement.region`](https://developers.cloudflare.com/workers/configuration/placement/). Api stays at the edge; Phase 1 adds **`streaming-scrape-us`** (`placement.region: aws:us-east-1`, Browser Rendering binding) reached via service binding **`SCRAPE_US`**. When `scrapeProfiles[service].region === "us"` (Hulu / Peacock), prepare POSTs `{ url, mode }` to that Worker and uses the returned HTML / `finalUrl` / title / placement diagnostics before Azure extract.
+One Worker can have only one [`placement.region`](https://developers.cloudflare.com/workers/configuration/placement/). Api stays at the edge; Phase 1 adds US scrape Workers (`placement.region: aws:us-east-1`) reached via service binding **`SCRAPE_US`**:
 
-Phase 2 (not shipped): `SCRAPE_UK` / `SCRAPE_DE` for ITVX/BBC-class and ZDF/ARD-class.
+| Api | `SCRAPE_US` → |
+|-----|----------------|
+| Top-level **`api`** | **`streaming-scrape-us`** |
+| **`api-preview`** | **`streaming-scrape-us-preview`** |
 
-Ops field probe for US placement: [`scripts/br-field-probe/wrangler.us-east.jsonc`](../scripts/br-field-probe/wrangler.us-east.jsonc) (same production `browserRenderingHtml` helper as prepare). Prefer verifying against the deployed `streaming-scrape-us` Worker once live.
+Same repo (`workers/streaming-scrape-us`); **separate** Workers Builds / deploys from Api. Preview must not bind production scrape. When `scrapeProfiles[service].region === "us"` (Hulu / Peacock: **`directHttp`**), prepare POSTs `{ url, mode }` over `SCRAPE_US` and uses the returned HTML before Azure extract. Prefer **fetch** for geo; Browser Run is not region-pinnable.
+
+Ops: [`workers/streaming-scrape-us/README.md`](../workers/streaming-scrape-us/README.md).
+
+**Do not** add `SCRAPE_DE` for ZDF HTML meta. Further regional Workers only for geo **fetch** soft-walls with PoP preflight on surveys.
 
 ### BR navigate wait (ITVX / SPA)
 

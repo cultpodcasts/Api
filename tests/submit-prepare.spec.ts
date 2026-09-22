@@ -35,6 +35,10 @@ const { fetchHtmlWithBrowserRendering } = vi.hoisted(() => ({
 	}))
 }));
 
+const { scrapeViaRegionalWorker } = vi.hoisted(() => ({
+	scrapeViaRegionalWorker: vi.fn()
+}));
+
 vi.mock("../src/browserRenderingHtml", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../src/browserRenderingHtml")>();
 	return {
@@ -42,6 +46,10 @@ vi.mock("../src/browserRenderingHtml", async (importOriginal) => {
 		fetchHtmlWithBrowserRendering
 	};
 });
+
+vi.mock("../src/regionalScrape", () => ({
+	scrapeViaRegionalWorker
+}));
 
 describe("submitPrepare", () => {
 	afterEach(() => {
@@ -52,6 +60,7 @@ describe("submitPrepare", () => {
 			html: usableBrHtml,
 			diagnostics: { ...defaultBrDiagnostics, htmlLength: usableBrHtml.length }
 		}));
+		scrapeViaRegionalWorker.mockReset();
 	});
 
 	it("returns 401 when unauthenticated", async () => {
@@ -184,6 +193,83 @@ describe("submitPrepare", () => {
 			String(input).includes("/extract")
 		);
 		expect(extractCalls).toHaveLength(1);
+	});
+
+	it("for hulu, uses SCRAPE_US directHttp then Azure extract (geo fetch, not BR)", async () => {
+		const huluHtml =
+			'<html><head><meta property="og:title" content="Heavens Gate" /></head><body>' +
+			"x".repeat(500) +
+			"</body></html>";
+		scrapeViaRegionalWorker.mockImplementation(async (_b: unknown, req: { mode: string; url: string }) => {
+			expect(req.mode).toBe("directHttp");
+			return {
+				html: huluHtml,
+				finalUrl: req.url,
+				title: "Heavens Gate",
+				htmlLength: huluHtml.length,
+				placement: { colo: "IAD", country: "US", cfPlacement: "aws:us-east-1" }
+			};
+		});
+
+		const put = vi.fn(async () => undefined);
+		const url =
+			"https://www.hulu.com/series/heavens-gate-the-cult-of-cults-3de513f8-ee47-44d4-98c8-f6910ce4ee9b";
+		const env = testEnv({
+			browserRenderingServices: "",
+			SCRAPE_US: { fetch: vi.fn() } as unknown as Fetcher,
+			StreamMeta: { get: async () => null, put } as unknown as KVNamespace
+		});
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const u = String(input);
+			if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "hulu" }),
+					{ status: 200 }
+				);
+			}
+			if (u.includes("/extract")) {
+				const body = JSON.parse(String(init?.body ?? "{}"));
+				expect(body.html).toContain("Heavens Gate");
+				expect(body.url).toBe(url);
+				return new Response(
+					JSON.stringify({
+						service: "hulu",
+						podcastName: "Heavens Gate",
+						title: "Heavens Gate",
+						description: "Desc"
+					}),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const resp = await app.request(
+			"/submit/prepare",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({
+			service: "hulu",
+			htmlFetchMode: "directHttp",
+			podcastName: "Heavens Gate",
+			title: "Heavens Gate"
+		});
+		expect(scrapeViaRegionalWorker).toHaveBeenCalled();
+		expect(fetchHtmlWithBrowserRendering).not.toHaveBeenCalled();
+		expect(put).toHaveBeenCalledWith(
+			streamMetaKvKey(url),
+			expect.stringContaining("Heavens Gate"),
+			expect.objectContaining({ expirationTtl: 15 * 60 })
+		);
 	});
 
 	it("continues to Azure extract when BR returns usable partial HTML after gotoError", async () => {

@@ -26,7 +26,7 @@ const SALVAGE_TIMEOUT_MS = 3_000;
  * Default Puppeteer UA often hangs on goto (about:blank / navigation timeout).
  */
 export const DESKTOP_CHROME_UA =
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 /** Viewport paired with {@link DESKTOP_CHROME_UA} for BR prepare navigations. */
 export const DESKTOP_VIEWPORT = { width: 1280, height: 720 } as const;

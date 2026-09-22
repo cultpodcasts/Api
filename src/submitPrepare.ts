@@ -216,7 +216,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 		});
 	}
 
-	if (!azureMeta && mode === "browserRendering") {
+	if (!azureMeta && (scrapeProfile.region === "us" || mode === "browserRendering")) {
 		let html: string;
 		let scrapeFinalUrl = absoluteUrl;
 		let scrapeTitle = "";
@@ -231,7 +231,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 					return c.json({ error: "US scrape Worker binding is not configured" }, 500);
 				}
 				logCollector.add({ event: "submit.prepare.regional_scrape" });
-				logCollector.addMessage("regional scrape region=us");
+				logCollector.addMessage(`regional scrape region=us mode=${mode}`);
 				const scraped = await scrapeViaRegionalWorker(c.env.SCRAPE_US, {
 					url: absoluteUrl,
 					mode,
@@ -249,10 +249,21 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 					logCollector.addMessage(`br marks=${scraped.diagnosticsMarks}`);
 				}
 				logCollector.addMessage(
-					`br finalUrl=${scrapeFinalUrl} title=${scrapeTitle ? "set" : "empty"} htmlLength=${scraped.htmlLength ?? html.length} documentStatus=${scraped.documentStatus ?? "none"} redirects=${(scraped.redirectStatuses ?? []).join("|") || "none"} challengeLikely=${scraped.challengeLikely ?? false}`
+					`scrape finalUrl=${scrapeFinalUrl} title=${scrapeTitle ? "set" : "empty"} htmlLength=${scraped.htmlLength ?? html.length} documentStatus=${scraped.documentStatus ?? "none"} redirects=${(scraped.redirectStatuses ?? []).join("|") || "none"} challengeLikely=${scraped.challengeLikely ?? false}`
 				);
 				if (scraped.gotoError) {
 					logCollector.addMessage(`br gotoError=${scraped.gotoError}`);
+				}
+				if (mode === "browserRendering" && !isUsableBrowserHtml(html)) {
+					logCollector.addMessage(
+						`br_failed: unusable html snippet=${html.slice(0, 240).replace(/\s+/g, " ")}`
+					);
+					logCollector.emitError({
+						event: "submit.prepare.br_failed",
+						outcome: "error",
+						status: 502
+					});
+					return c.json({ error: "Browser Rendering fetch failed" }, 502);
 				}
 			} else {
 				if (!c.env.BROWSER) {
@@ -297,13 +308,24 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			}
 		} catch (e) {
 			const detail = e instanceof Error ? e.message : String(e);
-			logCollector.addMessage(`br_failed: ${detail}`);
+			logCollector.addMessage(`scrape_failed: ${detail}`);
 			logCollector.emitError({
-				event: "submit.prepare.br_failed",
+				event:
+					mode === "browserRendering"
+						? "submit.prepare.br_failed"
+						: "submit.prepare.regional_scrape_failed",
 				outcome: "error",
 				status: 502
 			});
-			return c.json({ error: "Browser Rendering fetch failed" }, 502);
+			return c.json(
+				{
+					error:
+						mode === "browserRendering"
+							? "Browser Rendering fetch failed"
+							: "Regional scrape fetch failed"
+				},
+				502
+			);
 		}
 
 		if (

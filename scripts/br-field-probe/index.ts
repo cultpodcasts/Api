@@ -1,7 +1,7 @@
 /**
- * On-demand BR field probe — **must** call the same module as prepare.
- * Do not reimplement Puppeteer goto/UA/settle here; that drifts from production
- * and makes a green probe meaningless for Api Worker prepare failures.
+ * On-demand scrape field probe — **must** call the same modules as prepare.
+ * Modes: `br` (default) → browserRenderingHtml; `fetch` → catalogHtmlPrepare.
+ * Do not reimplement Puppeteer goto/UA/settle or catalogue GET headers here.
  */
 import type { BrowserWorker } from "@cloudflare/puppeteer";
 import {
@@ -9,9 +9,18 @@ import {
 	HARD_CAP_MS,
 	isUsableBrowserHtml
 } from "../../src/browserRenderingHtml";
+import { fetchCatalogHtml } from "../../src/catalogHtmlPrepare";
+import { isMarketingShellHtml } from "../../src/marketingShellReject";
+import { verifyAuth0M2mBearer } from "../../src/verifyAuth0M2mBearer";
 import fieldUrlsCatalog from "./field-urls.json";
 
-type Env = { BROWSER: BrowserWorker };
+type Env = {
+	BROWSER: BrowserWorker;
+	/** Same Auth0 API issuer as top-level api Worker (trailing slash normalized). */
+	auth0Issuer: string;
+	/** Same Auth0 API audience as top-level api Worker. */
+	auth0Audience: string;
+};
 
 export type FieldUrlTarget = {
 	id: string;
@@ -21,11 +30,14 @@ export type FieldUrlTarget = {
 	notes?: string;
 };
 
+type ProbeMode = "br" | "fetch";
+
 type ProbeResult = {
 	id: string;
 	service: string;
-	/** Always the production prepare BR helper. */
-	source: "api-browserRenderingHtml";
+	mode: ProbeMode;
+	/** Production helper used for this leg. */
+	source: "api-browserRenderingHtml" | "api-catalogHtmlPrepare";
 	url: string;
 	finalUrl: string;
 	hardCapMs: number;
@@ -36,6 +48,7 @@ type ProbeResult = {
 	htmlHasOgTitle: boolean;
 	htmlHasNextData: boolean;
 	challengeLikely: boolean;
+	marketingShell: boolean;
 	usable: boolean;
 	marks: { label: string; tMs: number }[];
 	documentStatus: number | null;
@@ -98,17 +111,137 @@ function parseTargetsBody(body: unknown): FieldUrlTarget[] | null {
 	return null;
 }
 
-async function probeOneUrl(env: Env, target: FieldUrlTarget, compact: boolean): Promise<ProbeResult> {
+function titleFromHtml(html: string): string {
+	const og = html.match(
+		/(?:property|name)=["']og:title["'][^>]*content=["']([^"']+)["']/i
+	);
+	if (og?.[1]) {
+		return og[1];
+	}
+	const doc = html.match(/<title>([^<]*)<\/title>/i);
+	return doc?.[1]?.trim() ?? "";
+}
+
+function htmlSignals(html: string) {
+	return {
+		htmlHasOgTitle: /property\s*=\s*["']og:title["']/i.test(html),
+		htmlHasNextData: html.includes("__NEXT_DATA__"),
+		challengeLikely: /cf-browser-verification|just a moment|attention required/i.test(html)
+	};
+}
+
+async function probeFetch(target: FieldUrlTarget, compact: boolean): Promise<ProbeResult> {
+	const pageUrl = target.url.trim();
+	const started = Date.now();
+	const messages: string[] = [];
+	try {
+		const html = await fetchCatalogHtml(new URL(pageUrl), (m) => messages.push(m));
+		if (!html) {
+			return {
+				id: target.id,
+				service: target.service,
+				mode: "fetch",
+				source: "api-catalogHtmlPrepare",
+				url: pageUrl,
+				finalUrl: pageUrl,
+				hardCapMs: 0,
+				elapsedMs: Date.now() - started,
+				gotoError: null,
+				title: "",
+				htmlLength: 0,
+				htmlHasOgTitle: false,
+				htmlHasNextData: false,
+				challengeLikely: messages.some((m) => m.includes("challenge")),
+				marketingShell: false,
+				usable: false,
+				marks: [],
+				documentStatus: null,
+				redirectStatuses: [],
+				fatal: messages.join("; ") || "catalog html miss"
+			};
+		}
+		const title = titleFromHtml(html);
+		const signals = htmlSignals(html);
+		const marketingShell = isMarketingShellHtml({
+			service: target.service,
+			submittedUrl: pageUrl,
+			finalUrl: pageUrl,
+			title,
+			html
+		});
+		const usable =
+			!marketingShell &&
+			html.length >= 500 &&
+			(signals.htmlHasOgTitle || signals.htmlHasNextData || title.length > 0);
+		return {
+			id: target.id,
+			service: target.service,
+			mode: "fetch",
+			source: "api-catalogHtmlPrepare",
+			url: pageUrl,
+			finalUrl: pageUrl,
+			hardCapMs: 0,
+			elapsedMs: Date.now() - started,
+			gotoError: null,
+			title,
+			htmlLength: html.length,
+			...signals,
+			marketingShell,
+			usable,
+			marks: [],
+			documentStatus: null,
+			redirectStatuses: [],
+			htmlSnippet: html.slice(0, compact ? 400 : 1500)
+		};
+	} catch (e) {
+		return {
+			id: target.id,
+			service: target.service,
+			mode: "fetch",
+			source: "api-catalogHtmlPrepare",
+			url: pageUrl,
+			finalUrl: pageUrl,
+			hardCapMs: 0,
+			elapsedMs: Date.now() - started,
+			gotoError: null,
+			title: "",
+			htmlLength: 0,
+			htmlHasOgTitle: false,
+			htmlHasNextData: false,
+			challengeLikely: false,
+			marketingShell: false,
+			usable: false,
+			marks: [],
+			documentStatus: null,
+			redirectStatuses: [],
+			fatal: e instanceof Error ? e.message : String(e)
+		};
+	}
+}
+
+async function probeBr(
+	env: Env,
+	target: FieldUrlTarget,
+	compact: boolean
+): Promise<ProbeResult> {
 	const pageUrl = target.url.trim();
 	const started = Date.now();
 	try {
 		const br = await fetchHtmlWithBrowserRendering(env.BROWSER, pageUrl);
 		const d = br.diagnostics;
 		const html = br.html;
-		const usable = isUsableBrowserHtml(html);
+		const marketingShell = isMarketingShellHtml({
+			service: target.service,
+			submittedUrl: pageUrl,
+			finalUrl: d.finalUrl,
+			title: d.title,
+			html
+		});
+		const usable = isUsableBrowserHtml(html) && !marketingShell;
 		return {
 			id: target.id,
 			service: target.service,
+			mode: "br",
 			source: "api-browserRenderingHtml",
 			url: pageUrl,
 			finalUrl: d.finalUrl,
@@ -120,6 +253,7 @@ async function probeOneUrl(env: Env, target: FieldUrlTarget, compact: boolean): 
 			htmlHasOgTitle: /property\s*=\s*["']og:title["']/i.test(html),
 			htmlHasNextData: html.includes("__NEXT_DATA__"),
 			challengeLikely: d.challengeLikely,
+			marketingShell,
 			usable,
 			marks: d.marks,
 			documentStatus: d.documentStatus ?? null,
@@ -130,6 +264,7 @@ async function probeOneUrl(env: Env, target: FieldUrlTarget, compact: boolean): 
 		return {
 			id: target.id,
 			service: target.service,
+			mode: "br",
 			source: "api-browserRenderingHtml",
 			url: pageUrl,
 			finalUrl: pageUrl,
@@ -141,6 +276,7 @@ async function probeOneUrl(env: Env, target: FieldUrlTarget, compact: boolean): 
 			htmlHasOgTitle: false,
 			htmlHasNextData: false,
 			challengeLikely: false,
+			marketingShell: false,
 			usable: false,
 			marks: [],
 			documentStatus: null,
@@ -151,14 +287,25 @@ async function probeOneUrl(env: Env, target: FieldUrlTarget, compact: boolean): 
 }
 
 function pass(r: ProbeResult): boolean {
-	return r.usable && !r.fatal && !r.gotoError;
+	return r.usable && !r.fatal && !r.gotoError && !r.marketingShell;
 }
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
+		const auth = await verifyAuth0M2mBearer(
+			request.headers.get("Authorization"),
+			env.auth0Issuer,
+			env.auth0Audience
+		);
+		if (!auth.ok) {
+			return Response.json({ error: auth.error }, { status: auth.status });
+		}
+
 		const url = new URL(request.url);
 		const q = url.searchParams;
 		const compact = q.get("compact") === "1" || q.get("compact") === "true";
+		const modeParam = (q.get("mode") || "br").toLowerCase();
+		const mode: ProbeMode = modeParam === "fetch" ? "fetch" : "br";
 
 		let targets: FieldUrlTarget[] = [];
 
@@ -207,13 +354,19 @@ export default {
 		const batchStarted = Date.now();
 		const results: ProbeResult[] = [];
 		for (const t of targets) {
-			results.push(await probeOneUrl(env, t, compact));
+			results.push(
+				mode === "fetch" ? await probeFetch(t, compact) : await probeBr(env, t, compact)
+			);
 		}
 
 		const passed = results.filter(pass).length;
 		const failed = results.length - passed;
 		const payload = {
-			source: "api-browserRenderingHtml-batch",
+			mode,
+			source:
+				mode === "fetch"
+					? "api-catalogHtmlPrepare-batch"
+					: "api-browserRenderingHtml-batch",
 			usesProductionHelper: true as const,
 			elapsedMs: Date.now() - batchStarted,
 			count: results.length,

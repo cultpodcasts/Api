@@ -1,15 +1,22 @@
 {
 	"name": "cultpodcasts-api",
-	"version": "1.1.26",
+	"version": "1.1.31",
 	"private": true,
 	"scripts": {
 		"deploy": "wrangler deploy",
+		"deploy:with-contract": "npm run publish:contract:production && wrangler deploy",
+		"deploy:preview:with-contract": "npm run publish:contract:staging && wrangler deploy --env preview",
+		"deploy:scrape-us": "wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc",
+		"deploy:scrape-us:preview": "wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc --env preview",
+		"publish:contract:production": "node ./scripts/publish-streaming-submit-contract.mjs production",
+		"publish:contract:staging": "node ./scripts/publish-streaming-submit-contract.mjs staging",
 		"start": "wrangler dev --env local --ip 127.0.0.1 --port 8787 --local-protocol https --https-cert-path ./.cert/dev-cert.pem --https-key-path ./.cert/dev-key.pem",
 		"og:preview": "pwsh -File ./scripts/og-card-preview.ps1 -Open",
 		"og:preview:preview": "pwsh -File ./scripts/og-card-preview.ps1 -BaseUrl https://api-preview.jonbreen.workers.dev -Open",
 		"test": "vitest run",
 		"test:br:field": "pwsh -File ./scripts/br-field-probe/run-field-test.ps1",
 		"test:br:itvx": "pwsh -File ./scripts/br-field-probe/run-field-test.ps1 -Service itvx",
+		"survey:streaming-scrape": "pwsh -File ./scripts/streaming-scrape-survey/run-survey.ps1",
 		"lint": "tsc --noEmit",
 		"assert:secrets-parity": "pwsh ./scripts/assert-secrets-example-parity.ps1"
 	},

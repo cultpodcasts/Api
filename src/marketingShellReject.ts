@@ -1,6 +1,7 @@
 /**
  * Reject geo / marketing soft-wall HTML before Azure extract so prepare
- * cannot create junk episodes (e.g. Hulu → Disney+ homepage).
+ * cannot create junk episodes (e.g. Hulu → Disney+ homepage,
+ * Peacock → signin / browser-not-supported).
  */
 
 export type MarketingShellCheck = {
@@ -55,6 +56,25 @@ export function isMarketingShellHtml(check: MarketingShellCheck): boolean {
 		}
 	}
 
+	if (service === "peacock" && submittedHost?.endsWith("peacocktv.com")) {
+		if (finalHost && finalHost.includes("peacocktv.com")) {
+			const path = (() => {
+				try {
+					return new URL(check.finalUrl!).pathname.toLowerCase();
+				} catch {
+					return "";
+				}
+			})();
+			if (
+				path.startsWith("/signin") ||
+				path.includes("browser-not-supported") ||
+				path.includes("/webwatch/release/")
+			) {
+				return true;
+			}
+		}
+	}
+
 	const title =
 		check.title?.trim() ||
 		(() => {
@@ -70,6 +90,17 @@ export function isMarketingShellHtml(check: MarketingShellCheck): boolean {
 
 	if (titleLooksLikeDisneyMarketing(title)) {
 		return true;
+	}
+
+	if (service === "peacock") {
+		const t = title.trim();
+		if (
+			/^Peacock$/i.test(t) ||
+			/^Peacock\s*[-–—]\s*Update your browser/i.test(t) ||
+			/^Peacock Not Found$/i.test(t)
+		) {
+			return true;
+		}
 	}
 
 	return false;

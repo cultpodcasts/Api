@@ -26,7 +26,8 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
      `api-preview` **and** top-level Worker **`api`** (names only; step 7).
    - If the host is geo-walled (e.g. US-only catalogue): add a `scrapeProfiles` entry with
      `mode` + `region` (`us` / later `uk` / `de`). Phase 1 US scrape Worker is
-     `workers/streaming-scrape-us` via Api binding `SCRAPE_US` — do not pin the main Api Worker.
+     `workers/streaming-scrape-us` via Api binding `SCRAPE_US` (`api` → `streaming-scrape-us`,
+     `api-preview` → `streaming-scrape-us-preview`) — do not pin the main Api Worker.
 2. Edit `tests/fixtures/streaming-submit-contract.ts` and sibling `.json`:
    - Add the key to `streamingServiceKeys` and a matching specimen in `streamingSpecimenUrls`
    - Membership / orchestration case lists are **derived** (`flatMap` / `map` over
@@ -36,19 +37,24 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
    - Optionally before sibling copies:
      `npm test -- tests/streaming-submit-contract.business-rules.spec.ts`
 3. Bump root `package.json` + `package-lock.json` **patch** (required on every Api PR).
-4. Copy JSON to RPP: `RedditPodcastPoster/docs/contracts/streaming-submit-contract.json`
+   Workers Builds publishes `@cultpodcasts/streaming-submit-contract` (see
+   [`docs/contract-publish.md`](../../docs/contract-publish.md)).
+4. Prefer consumers take the package (`@latest` / `@staging`). Until then, copy JSON to RPP:
+   `RedditPodcastPoster/docs/contracts/streaming-submit-contract.json`
 5. Copy TS to website: `website/cultpodcasts/src/app/streaming-submit-contract.ts`
-6. Run sibling asserts (from those repos):
+6. Run sibling asserts (from those repos) if still on copies:
    - `pwsh ./scripts/assert-streaming-submit-contract-copy.ps1`
 7. If `browserRenderingServices` must include the new key: PR body **`## Config / secrets`**
    for `api-preview` **and** top-level Worker **`api`** (names only).
+   For contract publish: Builds secret `NODE_AUTH_TOKEN` on both Workers Builds projects
+   (not a runtime Worker secret).
 
 ## Safety
 
 - Never `wrangler deploy` / `npm run deploy` unless user names that exact deploy
 - Do not invent website/RPP enums — extend this fixture, then re-copy
 - Never commit ad-hoc BR probe trees (`scripts/br-*-probe/`) or `*.wipbak` scratch files
-- Regional scrape Workers are separate from Api; Phase 1 is US only (`streaming-scrape-us`)
+- Regional scrape Workers are separate from Api; Phase 1 is US only (`streaming-scrape-us` + preview twin)
 
 ## Related
 

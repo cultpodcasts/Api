@@ -68,6 +68,7 @@ import {
 	SubmitLookupRoute,
 	SubmitPrepareRoute,
 	SubmitRoute,
+	StreamingScrapeSurveyRoute,
 	UpdateEpisodeRoute,
 	UpdatePersonRoute,
 	UpdatePodcastEpisodeRoute,
@@ -389,6 +390,7 @@ openapi.delete('/bookmark/:episodeId', DeleteBookmarkRoute);
 openapi.get('/bookmarks', GetBookmarksRoute);
 openapi.get('/public/episode/:id', PublicGetEpisodeRoute);
 openapi.get('/languages', GetLanguagesRoute);
+openapi.post('/ops/streaming-scrape-survey', StreamingScrapeSurveyRoute);
 
 export default {
 	fetch: app.fetch,

@@ -18,6 +18,7 @@ import {
 	SubmitPrepareRoute,
 	SubmitRoute
 } from "./openapiSubmitPodcastRoutes";
+import { streamingScrapeSurvey } from "./streamingScrapeSurvey";
 import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
@@ -902,4 +903,46 @@ export const GetLanguagesRoute = createOpenApiRoute(getLanguages, {
         summary: "List languages",
         responses: { 200: { description: "Languages", ...contentJson(languagesResponseSchema) }, ...authResponses }
     }
+});
+export const StreamingScrapeSurveyRoute = createOpenApiRoute(streamingScrapeSurvey, {
+	auth: true,
+	schema: {
+		tags: ["Ops"],
+		summary: "Streaming scrape survey (PoP-gated)",
+		description:
+			"Requires JWT submit or curate. Runs PoP preflight (cdn-cgi/trace) for each enabled CF leg; " +
+			"aborts with contaminated=true if observed loc/colo is outside expectedPop. " +
+			"Then surveys azure prepare, edge fetch, edge Browser Run (hydration), and US placed fetch (geo — never BR).",
+		request: {
+			body: jsonBody(
+				z.object({
+					targets: z.array(
+						z.object({
+							id: z.string(),
+							service: z.string(),
+							url: z.string().url(),
+							assumedTechnique: z.string().optional()
+						})
+					),
+					legs: z.array(z.enum(["azure", "cfFetch", "cfBr", "cfUsFetch"])).optional(),
+					expectedPop: z.record(
+						z.string(),
+						z.object({
+							locs: z.array(z.string()).optional(),
+							colos: z.array(z.string()).optional()
+						})
+					)
+				})
+			)
+		},
+		responses: {
+			200: { description: "Survey matrix" },
+			409: {
+				description: "Contaminated — PoP preflight failed; no catalogue rows",
+				...contentJson(errorSchema)
+			},
+			...authResponses,
+			...serverErrorResponse
+		}
+	}
 });
