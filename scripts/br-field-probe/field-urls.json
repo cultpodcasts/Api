@@ -9,6 +9,20 @@
 			"notes": "Example BR allowlisted episode (Children of the Cult)."
 		},
 		{
+			"id": "hulu-heavens-gate",
+			"service": "hulu",
+			"url": "https://www.hulu.com/series/heavens-gate-the-cult-of-cults-3de513f8-ee47-44d4-98c8-f6910ce4ee9b",
+			"enabled": false,
+			"notes": "Submit-retired (no usable episode pages; /watch → series hub). Keep disabled — not a BR field probe target."
+		},
+		{
+			"id": "peacock-office",
+			"service": "peacock",
+			"url": "https://www.peacocktv.com/watch/asset/tv/the-office/5568795438602876112",
+			"enabled": false,
+			"notes": "US BR + Chrome 131 clears browser-not-supported but soft-walls to signin — keep disabled until public meta URL found."
+		},
+		{
 			"id": "channel4-placeholder",
 			"service": "channel4",
 			"url": "",

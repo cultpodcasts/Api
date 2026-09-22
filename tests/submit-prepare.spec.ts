@@ -35,6 +35,10 @@ const { fetchHtmlWithBrowserRendering } = vi.hoisted(() => ({
 	}))
 }));
 
+const { scrapeViaRegionalWorker } = vi.hoisted(() => ({
+	scrapeViaRegionalWorker: vi.fn()
+}));
+
 vi.mock("../src/browserRenderingHtml", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../src/browserRenderingHtml")>();
 	return {
@@ -42,6 +46,10 @@ vi.mock("../src/browserRenderingHtml", async (importOriginal) => {
 		fetchHtmlWithBrowserRendering
 	};
 });
+
+vi.mock("../src/regionalScrape", () => ({
+	scrapeViaRegionalWorker
+}));
 
 describe("submitPrepare", () => {
 	afterEach(() => {
@@ -52,6 +60,7 @@ describe("submitPrepare", () => {
 			html: usableBrHtml,
 			diagnostics: { ...defaultBrDiagnostics, htmlLength: usableBrHtml.length }
 		}));
+		scrapeViaRegionalWorker.mockReset();
 	});
 
 	it("returns 401 when unauthenticated", async () => {
@@ -178,6 +187,167 @@ describe("submitPrepare", () => {
 		expect(put).toHaveBeenCalledWith(
 			streamMetaKvKey(url),
 			expect.stringContaining("Extracted Show"),
+			expect.objectContaining({ expirationTtl: 15 * 60 })
+		);
+		const extractCalls = fetchMock.mock.calls.filter(([input]) =>
+			String(input).includes("/extract")
+		);
+		expect(extractCalls).toHaveLength(1);
+	});
+
+	it("for peacock, uses SCRAPE_US directHttp then Azure extract (geo fetch, not BR)", async () => {
+		const peacockHtml =
+			'<html><head><meta property="og:title" content="The Office UK" /></head><body>' +
+			"x".repeat(500) +
+			"</body></html>";
+		scrapeViaRegionalWorker.mockImplementation(async (_b: unknown, req: { mode: string; url: string }) => {
+			expect(req.mode).toBe("directHttp");
+			return {
+				html: peacockHtml,
+				finalUrl: req.url,
+				title: "The Office UK",
+				htmlLength: peacockHtml.length,
+				placement: { colo: "IAD", country: "US", cfPlacement: "aws:us-east-1" }
+			};
+		});
+
+		const put = vi.fn(async () => undefined);
+		const url =
+			"https://www.peacocktv.com/watch-online/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0";
+		const env = testEnv({
+			browserRenderingServices: "",
+			SCRAPE_US: { fetch: vi.fn() } as unknown as Fetcher,
+			StreamMeta: { get: async () => null, put } as unknown as KVNamespace
+		});
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const u = String(input);
+			if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "peacock" }),
+					{ status: 200 }
+				);
+			}
+			if (u.includes("/extract")) {
+				const body = JSON.parse(String(init?.body ?? "{}"));
+				expect(body.html).toContain("The Office UK");
+				expect(body.url).toBe(url);
+				return new Response(
+					JSON.stringify({
+						service: "peacock",
+						podcastName: "The Office UK",
+						title: "The Office UK",
+						description: "Desc"
+					}),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const resp = await app.request(
+			"/submit/prepare",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({
+			service: "peacock",
+			htmlFetchMode: "directHttp",
+			podcastName: "The Office UK",
+			title: "The Office UK"
+		});
+		expect(scrapeViaRegionalWorker).toHaveBeenCalled();
+		expect(fetchHtmlWithBrowserRendering).not.toHaveBeenCalled();
+		expect(put).toHaveBeenCalledWith(
+			streamMetaKvKey(url),
+			expect.stringContaining("The Office UK"),
+			expect.objectContaining({ expirationTtl: 15 * 60 })
+		);
+	});
+
+	it("for peacock asset URL, extracts against SEO twin when regional scrape rewrites", async () => {
+		const assetUrl =
+			"https://www.peacocktv.com/watch/asset/tv/the-office/5568795438602876112/c06434e4-8d0c-35d8-9d5a-9f0e6c1b2a3b";
+		const seoUrl =
+			"https://www.peacocktv.com/watch-online/tv/the-office/5568795438602876112/seasons/1/episodes/pilot/c06434e4-8d0c-35d8-9d5a-9f0e6c1b2a3b";
+		const peacockHtml =
+			'<html><head><meta property="og:title" content="The Office" /></head><body>' +
+			"x".repeat(500) +
+			"</body></html>";
+		scrapeViaRegionalWorker.mockResolvedValueOnce({
+			html: peacockHtml,
+			finalUrl: seoUrl,
+			title: "The Office",
+			htmlLength: peacockHtml.length,
+			requestUrl: seoUrl,
+			rewrittenTo: seoUrl,
+			placement: { colo: "IAD", country: "US", cfPlacement: "aws:us-east-1" }
+		});
+
+		const put = vi.fn(async () => undefined);
+		const env = testEnv({
+			browserRenderingServices: "",
+			SCRAPE_US: { fetch: vi.fn() } as unknown as Fetcher,
+			StreamMeta: { get: async () => null, put } as unknown as KVNamespace
+		});
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const u = String(input);
+			if (u.includes("SubmitUrl") && !u.includes("/prepare") && !u.includes("/extract")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "peacock" }),
+					{ status: 200 }
+				);
+			}
+			if (u.includes("/extract")) {
+				const body = JSON.parse(String(init?.body ?? "{}"));
+				expect(body.html).toContain("The Office");
+				expect(body.url).toBe(seoUrl);
+				return new Response(
+					JSON.stringify({
+						service: "peacock",
+						podcastName: "The Office",
+						title: "Pilot",
+						description: "Desc"
+					}),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const app = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const resp = await app.request(
+			"/submit/prepare",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ url: assetUrl })
+			},
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({
+			service: "peacock",
+			htmlFetchMode: "directHttp",
+			podcastName: "The Office",
+			title: "Pilot"
+		});
+		expect(scrapeViaRegionalWorker).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({ url: assetUrl, mode: "directHttp", service: "peacock" })
+		);
+		expect(put).toHaveBeenCalledWith(
+			streamMetaKvKey(assetUrl),
+			expect.stringContaining("The Office"),
 			expect.objectContaining({ expirationTtl: 15 * 60 })
 		);
 		const extractCalls = fetchMock.mock.calls.filter(([input]) =>

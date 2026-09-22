@@ -1,0 +1,49 @@
+{
+	"description": "Specimen catalogue for streaming scrape survey (Azure prepare vs CF fetch vs CF Browser Run). Prefer real episode/series deep links — hubs false-pass. Ops only — not CI.",
+	"targets": [
+		{
+			"id": "zdf-mako-ausgestossen",
+			"service": "zdf",
+			"url": "https://www.zdf.de/video/serien/mako-108/ausgestossen-102",
+			"enabled": true,
+			"expectHomeHosts": ["zdf.de"],
+			"assumedTechnique": "azurePrepare",
+			"notes": "UK/Azure should get OG + JSON-LD; DE only for playback"
+		},
+		{
+			"id": "itvx-children-of-the-cult",
+			"service": "itvx",
+			"url": "https://www.itv.com/watch/children-of-the-cult/10a5261a0001B/10a5261a0001",
+			"enabled": true,
+			"expectHomeHosts": ["itv.com"],
+			"assumedTechnique": "browserRendering",
+			"notes": "SPA hydration — CF BR on edge Api Worker"
+		},
+		{
+			"id": "peacock-office-uk-episode",
+			"service": "peacock",
+			"url": "https://www.peacocktv.com/watch/asset/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0",
+			"enabled": true,
+			"expectHomeHosts": ["peacocktv.com"],
+			"assumedTechnique": "scrapeUsFetch",
+			"notes": "US geo: survey+prepare rewrite /watch/asset → /watch-online before SCRAPE_US; SSR og/title on SEO twin. Peacock is the only US scrapeProfiles entry (Hulu submit-retired — no episode URLs)."
+		},
+		{
+			"id": "netflix-stranger-things",
+			"service": "netflix",
+			"url": "https://www.netflix.com/title/80057281",
+			"enabled": true,
+			"expectHomeHosts": ["netflix.com"],
+			"assumedTechnique": "azurePrepare"
+		},
+		{
+			"id": "ard-tatort",
+			"service": "ard",
+			"url": "https://www.ardmediathek.de/tatort",
+			"enabled": false,
+			"expectHomeHosts": ["ardmediathek.de"],
+			"assumedTechnique": "azurePrepare",
+			"notes": "DISABLED: hub URL false-passes compare — replace with a real episode deep link before enabling"
+		}
+	]
+}

@@ -46,6 +46,13 @@
   "browser": {
     "binding": "BROWSER"
   },
+  "services": [
+    {
+      // Top-level Worker `api` (live production) — never streaming-scrape-us-preview.
+      "binding": "SCRAPE_US",
+      "service": "streaming-scrape-us"
+    }
+  ],
   "analytics_engine_datasets": [
     {
       "binding": "Analytics"
@@ -157,6 +164,13 @@
       "browser": {
         "binding": "BROWSER"
       },
+      "services": [
+        {
+          // Preview Api must not call production scrape (quota / logs / unreleased code).
+          "binding": "SCRAPE_US",
+          "service": "streaming-scrape-us-preview"
+        }
+      ],
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
@@ -257,6 +271,12 @@
       "browser": {
         "binding": "BROWSER"
       },
+      "services": [
+        {
+          "binding": "SCRAPE_US",
+          "service": "streaming-scrape-us"
+        }
+      ],
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
@@ -346,6 +366,12 @@
       "browser": {
         "binding": "BROWSER"
       },
+      "services": [
+        {
+          "binding": "SCRAPE_US",
+          "service": "streaming-scrape-us-preview"
+        }
+      ],
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"

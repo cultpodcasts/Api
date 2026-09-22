@@ -1,29 +1,7 @@
-# BR field probe — same code path as prepare (not CI)
+# BR field probe — legacy ad-hoc only
 
-Exercises **production** `src/browserRenderingHtml.ts` (`fetchHtmlWithBrowserRendering` + `isUsableBrowserHtml`) via a remote Cloudflare Browser binding.
+Prefer the **Api survey**: [`../streaming-scrape-survey/README.md`](../streaming-scrape-survey/README.md) (`POST /ops/streaming-scrape-survey`).
 
-**Do not** reimplement Puppeteer goto / UA / settle in this Worker. A green probe that uses different browser settings than Api prepare does **not** prove prepare will work.
+This folder still exercises production `browserRenderingHtml` / `catalogHtmlPrepare` for one-off **edge** BR debugging. Do **not** use `wrangler dev` for ship decisions. Do **not** deploy permanent US/geo probe Workers — geo uses product `streaming-scrape-us` via `SCRAPE_US` (`directHttp` only).
 
-## URL catalog
-
-Edit [`field-urls.json`](./field-urls.json) — set `enabled: true` and real episode URLs per streaming `service`.
-
-## Run (on demand)
-
-```powershell
-npm run test:br:field          # all enabled targets
-npm run test:br:itvx           # service=itvx only
-```
-
-Writes `out/field-test-result.json` (gitignored). Exit `0` = all targets usable per **production** `isUsableBrowserHtml`.
-
-**Not part of CI.**
-
-## Worker API
-
-| Request | Behaviour |
-|---------|-----------|
-| `GET /?compact=1` | All enabled catalog targets via production BR helper |
-| `GET /?compact=1&service=itvx` | Filtered catalog |
-| `GET /?compact=1&url=…` | Single ad-hoc URL |
-| `POST /` + `{ "targets": [ … ] }` | Override catalog |
+See [`docs/streaming-scrape-findings.md`](../../docs/streaming-scrape-findings.md).

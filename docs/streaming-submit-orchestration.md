@@ -8,10 +8,12 @@ Rules for **streaming** catalogue URL ingest across Cloudflare Worker (Api), Azu
 |----------|------|
 | [`tests/fixtures/streaming-submit-contract.ts`](../tests/fixtures/streaming-submit-contract.ts) | Source of truth (TypeScript) |
 | [`tests/fixtures/streaming-submit-contract.json`](../tests/fixtures/streaming-submit-contract.json) | Same payload for RPP / tooling |
-| Website copy | `website/cultpodcasts/src/app/streaming-submit-contract.ts` (byte-identical) |
-| RPP copy | `RedditPodcastPoster/docs/contracts/streaming-submit-contract.json` (byte-identical) |
+| **GitHub Packages** `@cultpodcasts/streaming-submit-contract` | **Deferred** (billing) — see [`contract-publish.md`](./contract-publish.md). Until unblocked, use sibling byte-copies. |
+| Website / RPP copies | Canonical consumers until Packages is enabled |
 
-Assert copies:
+Prefer sibling contract copies until Packages publish is unblocked. Do **not** wire Builds to `deploy:*:with-contract`.
+
+Legacy assert copies (sibling checkouts):
 
 ```powershell
 # website git root
@@ -21,7 +23,7 @@ pwsh ./scripts/assert-streaming-submit-contract-copy.ps1
 pwsh ./scripts/assert-streaming-submit-contract-copy.ps1
 ```
 
-Do **not** invent a parallel streamer enum or membership shape on the website or in RPP docs. Extend the Api fixture, then re-copy.
+Do **not** invent a parallel streamer enum or membership shape on the website or in RPP docs. Extend the Api fixture, then re-copy siblings (and publish later when Packages is unblocked).
 
 ## Wire enums (stable strings)
 
@@ -30,6 +32,9 @@ Do **not** invent a parallel streamer enum or membership shape on the website or
 | `kind` | `podcast-service` \| `streaming` \| `unrecognised` | Coarse membership class |
 | `service` | `ServiceKeys` streaming keys (`itvx`, `discoveryPlus`, `bbcSounds`, …) | On streaming membership only |
 | `htmlFetchMode` | `directHttp` \| `browserRendering` | Prepare-time fetch policy |
+| `scrapeRegions` | `default` \| `us` \| `uk` \| `de` | Where prepare HTML fetch runs (`default` = Api Worker) |
+| `scrapeProfiles` | per-service `{ mode, region }` | Canonical mode + region (Phase 1: `peacock` → US; Hulu submit-retired) |
+| `prepareUrlRewrites` | per-service `{ fromPathPrefix, toPathPrefix, … }` | Rewrite soft-wall catalogue paths before regional scrape (Phase 1: Peacock `/watch/asset` → `/watch-online`) |
 
 TypeScript: const arrays + derived union types in the contract fixture.  
 .NET: `ServiceKeys` / `UrlMembershipLookupKinds` must stay aligned with the JSON `streamingServiceKeys` list (RPP business-rule test).
@@ -37,10 +42,25 @@ TypeScript: const arrays + derived union types in the contract fixture.
 ## Process (happy path, unknown streaming URL)
 
 1. **`GET /submit/lookup`** — Cosmos membership + classify URL → `{ known, kind: "streaming", service }`. **No page scrape. No Browser Rendering.**
-2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service` is `bitchute`, Worker POSTs `api.bitchute.com/api/beta/video` and Azure `SubmitUrl/extract` maps that JSON (duration/release live there; Azure UK often cannot POST it). If `service` is `tubi`, Worker GETs catalogue HTML and Azure `SubmitUrl/extract` maps that HTML (Azure UK may be geo-walled). Catalogue GET is **not** gated on BR salvage (`og:title` / `__NEXT_DATA__`); title-only HTML is passed through so Azure can apply host title recovery. Challenge/interstitial HTML is a fetch miss. On fetch/extract miss, fall through. If `service ∈ browserRenderingServices` → Browser Rendering HTML + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
+2. **`POST /submit/prepare`** — Worker classifies via lookup, then applies **Azure-first** fetch policy (below). Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
 3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit.
 
-Direction: **SPA → CF → Azure** (and CF → Browser Rendering). Azure does **not** call Cloudflare.
+Direction: **SPA → CF → Azure** (and CF → Browser Rendering / regional scrape Workers only when required). Azure does **not** call Cloudflare. **Episode extraction always runs on Azure** (`SubmitUrl/prepare` or `SubmitUrl/extract`); Cloudflare only acquires HTML/JSON Azure cannot.
+
+### Azure-first HTML policy
+
+| Path | Who fetches | Who extracts | Use when |
+|------|-------------|--------------|----------|
+| **Default** | Azure | Azure `SubmitUrl/prepare` | Azure UK can load episode meta (most services, including **ZDF**) |
+| **CF GET / API** | Worker | Azure `SubmitUrl/extract` | Azure cannot reach host (Tubi GET, BitChute video API) |
+| **CF Browser Rendering** | Worker (edge) | Azure extract | **SPA hydration** (ITVX) — BR is **not** region-pinnable; never for geo |
+| **CF regional fetch** | `streaming-scrape-us` via `SCRAPE_US` (`directHttp`) | Azure extract | **Geo soft-wall** (Peacock) |
+
+Known marketing / geo soft-wall shells (Peacock → signin, Disney+ marketing titles) are rejected before extract.
+
+Field evidence: [`streaming-scrape-findings.md`](./streaming-scrape-findings.md).
+
+**Re-verify anytime:** `npm run survey:streaming-scrape` → `POST /ops/streaming-scrape-survey` (PoP preflight; **409 contaminated** if trace misses `expectedPop`). Ops: [`scripts/streaming-scrape-survey/README.md`](../scripts/streaming-scrape-survey/README.md).
 
 ## Membership response shapes (streaming)
 
@@ -54,12 +74,27 @@ Every streaming `service` must support:
 
 Contract matrix: `streamingMembershipShapeCases` (service × arm).
 
-## Browser Rendering allowlist
+## Browser Rendering allowlist + scrape profiles
 
-- Runtime: Worker secret `browserRenderingServices` (CSV of ServiceKeys). **Not** hardcoded in `src/`.
-- Set via gitignored `scripts/local-secrets.*.env` + `.\scripts\set-secrets-preview.ps1` / `set-secrets-production.ps1` (survives deploy).
-- Contract fixture `defaultBrowserRenderingServices` documents the recommended ops starting list only.
-- Empty secret → all streaming hosts use `directHttp`.
+- **Canonical:** contract `scrapeProfiles[service]` supplies both `mode` and `region`. Missing profile → `region: default` and mode from the BR allowlist.
+- **Legacy overlay:** Worker secret `browserRenderingServices` (CSV of ServiceKeys) can force `browserRendering` without a website bump. Set via gitignored `scripts/local-secrets.*.env` + `.\scripts\set-secrets-preview.ps1` / `set-secrets-production.ps1`.
+- Contract fixture `defaultBrowserRenderingServices` documents the recommended ops starting list for hosts without a profile (today: `itvx` on the edge Api Worker).
+- Empty secret → profiles still apply; hosts without a profile use `directHttp`.
+
+### Regional scrape Workers (geo)
+
+One Worker can have only one [`placement.region`](https://developers.cloudflare.com/workers/configuration/placement/). Api stays at the edge; Phase 1 adds US scrape Workers (`placement.region: aws:us-east-1`) reached via service binding **`SCRAPE_US`**:
+
+| Api | `SCRAPE_US` → |
+|-----|----------------|
+| Top-level **`api`** | **`streaming-scrape-us`** |
+| **`api-preview`** | **`streaming-scrape-us-preview`** |
+
+Same repo (`workers/streaming-scrape-us`); **separate** Workers Builds / deploys from Api. Preview must not bind production scrape. When `scrapeProfiles[service].region === "us"` (Peacock: **`directHttp`**), prepare POSTs `{ url, mode }` over `SCRAPE_US` and uses the returned HTML before Azure extract. Prefer **fetch** for geo; Browser Run is not region-pinnable. Services with `prepareUrlRewrites` (Peacock) rewrite the fetch URL **once** inside `scrapeViaRegionalWorker` via contract `resolvePrepareFetchUrl` — prepare and survey share that path.
+
+Ops: [`workers/streaming-scrape-us/README.md`](../workers/streaming-scrape-us/README.md).
+
+**Do not** add `SCRAPE_DE` for ZDF HTML meta. Further regional Workers only for geo **fetch** soft-walls with PoP preflight on surveys.
 
 ### BR navigate wait (ITVX / SPA)
 

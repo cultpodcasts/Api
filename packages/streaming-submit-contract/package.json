@@ -1,0 +1,28 @@
+{
+	"name": "@cultpodcasts/streaming-submit-contract",
+	"version": "0.0.0",
+	"description": "Streaming submit orchestration contract (TS + JSON). Published from Api Workers Builds.",
+	"license": "UNLICENSED",
+	"private": false,
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cultpodcasts/Api.git"
+	},
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com",
+		"access": "restricted"
+	},
+	"files": [
+		"streaming-submit-contract.ts",
+		"streaming-submit-contract.json",
+		"README.md"
+	],
+	"exports": {
+		".": "./streaming-submit-contract.ts",
+		"./json": "./streaming-submit-contract.json",
+		"./package.json": "./package.json"
+	},
+	"types": "./streaming-submit-contract.ts",
+	"main": "./streaming-submit-contract.ts"
+}

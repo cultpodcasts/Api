@@ -11,6 +11,9 @@ import {
 	STREAMING_SUBMIT_CONTRACT_JSON_COPY_FROM,
 	defaultBrowserRenderingServices,
 	htmlFetchModeForService,
+	prepareUrlRewrites,
+	resolvePrepareFetchUrl,
+	resolveScrapeProfile,
 	streamingLookupByUrl,
 	streamingMembershipShapeCases,
 	streamingOrchestrationCases,
@@ -112,13 +115,41 @@ describe("streaming-submit-contract (Api publisher)", () => {
 		expect(STREAMING_SUBMIT_CONTRACT_JSON_COPY_FROM).toContain("streaming-submit-contract.json");
 	});
 
-	it("marks itvx as the only default Browser Rendering service", () => {
+	it("uses scrapeProfiles for Peacock (US directHttp) and default allowlist for itvx", () => {
 		const modes = Object.fromEntries(
 			streamingServiceKeys.map((s: StreamingServiceKey) => [s, htmlFetchModeForService(s)])
 		);
 		expect(modes.itvx).toBe("browserRendering");
-		for (const s of streamingServiceKeys.filter((k) => k !== "itvx")) {
+		expect(modes.peacock).toBe("directHttp");
+		expect(modes.hulu).toBeUndefined();
+		expect(resolveScrapeProfile("peacock")).toEqual({ mode: "directHttp", region: "us" });
+		expect(resolveScrapeProfile("hulu")).toEqual({ mode: "directHttp", region: "default" });
+		expect(resolveScrapeProfile("itvx").region).toBe("default");
+		for (const s of streamingServiceKeys.filter((k) => k !== "itvx" && k !== "peacock")) {
 			expect(modes[s]).toBe("directHttp");
+			expect(resolveScrapeProfile(s).region).toBe("default");
 		}
+	});
+
+	it("declares Peacock prepareUrlRewrites and resolves asset→watch-online before regional scrape", () => {
+		expect(prepareUrlRewrites.peacock).toEqual({
+			fromPathPrefix: "/watch/asset/",
+			toPathPrefix: "/watch-online/",
+			segmentRemaps: { movie: "movies" },
+			hostSuffix: "peacocktv.com"
+		});
+		const asset =
+			"https://www.peacocktv.com/watch/asset/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0";
+		const seo =
+			"https://www.peacocktv.com/watch-online/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0";
+		expect(resolvePrepareFetchUrl("peacock", asset)).toEqual({
+			requestUrl: seo,
+			rewrittenTo: seo
+		});
+		expect(resolvePrepareFetchUrl("peacock", seo)).toEqual({
+			requestUrl: seo,
+			rewrittenTo: null
+		});
+		expect(resolvePrepareFetchUrl("zdf", asset).rewrittenTo).toBeNull();
 	});
 });

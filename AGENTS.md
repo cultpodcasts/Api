@@ -37,7 +37,7 @@ Any new Worker secret for preview/staging **must** also be planned for productio
 
 ## Streaming submit orchestration (contracts)
 
-Cross-repo streaming ingest (membership `service`, prepare HTML fetch, BR allowlist): canonical fixture + rules in [`docs/streaming-submit-orchestration.md`](docs/streaming-submit-orchestration.md). Website and RPP consume copies — do not fork enums.
+Cross-repo streaming ingest (membership `service`, prepare HTML fetch, BR allowlist): canonical fixture + rules in [`docs/streaming-submit-orchestration.md`](docs/streaming-submit-orchestration.md). Prefer GitHub Packages `@cultpodcasts/streaming-submit-contract` ([`docs/contract-publish.md`](docs/contract-publish.md)); do not fork enums.
 
 ## Version
 
