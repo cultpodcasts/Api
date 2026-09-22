@@ -1,14 +1,13 @@
 #!/usr/bin/env node
-// Cloudflare Builds / ops: deploy US scrape Worker first, then Api.
+// Deploy Api (and, locally, the US scrape Worker first).
 //
 //   npm run deploy                  → streaming-scrape-us + top-level api
 //   npm run deploy -- --env preview → streaming-scrape-us-preview + api-preview
 //
-// Pass-through any further wrangler args after the scrape step.
-//
-// Workers Builds sets WRANGLER_CI_OVERRIDE_NAME to the connected Worker (e.g. api-preview).
-// That must be cleared (or set to the scrape Worker name) when publishing scrape, or
-// wrangler rewrites the name and the scrape bundle fails.
+// Workers Builds is bound to one Worker name (api / api-preview). It refuses to
+// publish streaming-scrape-us(-preview) from that connection (name mismatch).
+// Under WORKERS_CI, this script only deploys Api. Publish scrape via a separate
+// Builds project or: npm run deploy:scrape-us[:preview]
 
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
@@ -17,6 +16,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
 const wranglerArgs = process.argv.slice(2);
+const inWorkersCi = Boolean(process.env.WORKERS_CI);
 
 function isPreviewEnv(args) {
 	for (let i = 0; i < args.length; i++) {
@@ -48,12 +48,18 @@ function run(cmd, args, envExtra = {}) {
 }
 
 const preview = isPreviewEnv(wranglerArgs);
-const scrapeName = preview ? "streaming-scrape-us-preview" : "streaming-scrape-us";
-const scrapeScript = preview ? "deploy:scrape-us:preview" : "deploy:scrape-us";
 
-// Allow scrape Worker name to win under Workers Builds (connected to api / api-preview).
-run("npm", ["run", scrapeScript], {
-	WRANGLER_CI_OVERRIDE_NAME: scrapeName
-});
+if (!inWorkersCi) {
+	const scrapeName = preview ? "streaming-scrape-us-preview" : "streaming-scrape-us";
+	const scrapeScript = preview ? "deploy:scrape-us:preview" : "deploy:scrape-us";
+	run("npm", ["run", scrapeScript], {
+		WRANGLER_CI_OVERRIDE_NAME: scrapeName
+	});
+} else {
+	console.log(
+		"WORKERS_CI: skipping scrape Worker deploy (Builds is bound to this Api Worker name). " +
+			"Ensure streaming-scrape-us(-preview) is published separately — see docs/workers-builds-deploy.md"
+	);
+}
 
 run("npx", ["wrangler", "deploy", ...wranglerArgs]);
