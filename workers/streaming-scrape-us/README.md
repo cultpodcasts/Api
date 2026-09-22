@@ -27,3 +27,6 @@ Uses `wrangler.streaming-scrape-us.jsonc` at the repo root so shared `src/` impo
 ## Geo note
 
 Worker placement soft-pins the **fetch** isolate. This Worker accepts **`directHttp` only** — Browser Rendering is rejected (422). BR stays on the edge Api Worker for ITVX-class hydration.
+
+<!-- builds watch-path probe 2026-09-22T18:54:13.7232978+01:00 -->
+
