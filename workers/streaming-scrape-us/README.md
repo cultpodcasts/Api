@@ -1,6 +1,6 @@
 # streaming-scrape-us
 
-US-placed regional scrape Worker (`placement.region: aws:us-east-1`). Called only via Api service binding **`SCRAPE_US`** (no public Auth0).
+US-placed regional scrape Worker (`placement.region: aws:us-east-1`). **Service-binding only** via Api **`SCRAPE_US`** — no Auth0, no public routes. Both **`streaming-scrape-us`** and **`streaming-scrape-us-preview`** set `workers_dev: false` and `preview_urls: false` (no `*.workers.dev` / Workers Preview URLs).
 
 **Product** geo prepare for Hulu/Peacock — not a survey-only Worker. Survey is `POST /ops/streaming-scrape-survey` on Api (ephemeral isolates).
 

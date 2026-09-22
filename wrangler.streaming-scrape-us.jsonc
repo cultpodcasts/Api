@@ -5,7 +5,9 @@
 	"compatibility_date": "2025-09-01",
 	"compatibility_flags": ["nodejs_compat"],
 	"account_id": "bae3f835f19899c6eee1ec48f2d658cf",
+	// Service-binding only (Api SCRAPE_US). No public workers.dev / preview URLs.
 	"workers_dev": false,
+	"preview_urls": false,
 	"placement": {
 		"region": "aws:us-east-1"
 	},
@@ -19,7 +21,8 @@
 		"preview": {
 			// Explicit so Workers Builds name-check can target streaming-scrape-us-preview.
 			"name": "streaming-scrape-us-preview",
-			"workers_dev": true,
+			"workers_dev": false,
+			"preview_urls": false,
 			"placement": {
 				"region": "aws:us-east-1"
 			},
