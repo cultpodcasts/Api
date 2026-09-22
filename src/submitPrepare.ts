@@ -13,6 +13,7 @@ import {
 } from "./streamingHtmlFetchMode";
 import { fetchCatalogHtml } from "./catalogHtmlPrepare";
 import { isMarketingShellHtml } from "./marketingShellReject";
+import { toPeacockWatchOnlineUrl } from "./peacockWatchOnlineUrl";
 import { scrapeViaRegionalWorker } from "./regionalScrape";
 import {
 	parseBrowserRenderingServicesCsv,
@@ -220,6 +221,8 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 		let html: string;
 		let scrapeFinalUrl = absoluteUrl;
 		let scrapeTitle = "";
+		/** Peacock: fetch public SEO twin; extract against the URL we actually scraped. */
+		let extractUrl = absoluteUrl;
 		try {
 			if (scrapeProfile.region === "us") {
 				if (!c.env.SCRAPE_US) {
@@ -232,9 +235,20 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 				}
 				logCollector.add({ event: "submit.prepare.regional_scrape" });
 				// US geo soft-walls: directHttp only — never BR (edge Api owns hydration).
+				let fetchUrl = absoluteUrl;
+				if (service.trim().toLowerCase() === "peacock") {
+					const rewritten = toPeacockWatchOnlineUrl(absoluteUrl);
+					if (rewritten) {
+						fetchUrl = rewritten;
+						extractUrl = rewritten;
+						logCollector.addMessage(
+							`peacock rewrite asset→watch-online fetch=${fetchUrl}`
+						);
+					}
+				}
 				logCollector.addMessage(`regional scrape region=us mode=directHttp`);
 				const scraped = await scrapeViaRegionalWorker(c.env.SCRAPE_US, {
-					url: absoluteUrl,
+					url: fetchUrl,
 					mode: "directHttp",
 					service
 				});
@@ -335,7 +349,7 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			);
 		}
 
-		const extractResp = await postAzureExtract(c, absoluteUrl, html);
+		const extractResp = await postAzureExtract(c, extractUrl, html);
 		logCollector.addMessage(`azure extract status=${extractResp.status}`);
 		if (extractResp.status === 400) {
 			logCollector.emitWarn({

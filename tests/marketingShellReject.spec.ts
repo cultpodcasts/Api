@@ -103,4 +103,32 @@ describe("isMarketingShellHtml", () => {
 			})
 		).toBe(true);
 	});
+
+	it("rejects Peacock geo Unavailable page", () => {
+		const seoUrl =
+			"https://www.peacocktv.com/watch-online/movies/sex-lies-and-the-college-cult/f45c2853-4230-3910-aa53-51ac37f5a788";
+		expect(
+			isMarketingShellHtml({
+				service: "peacock",
+				submittedUrl: seoUrl,
+				finalUrl: "https://www.peacocktv.com/unavailable",
+				title: "Unavailable In Your Region",
+				html: "<html><title>Unavailable In Your Region</title></html>"
+			})
+		).toBe(true);
+	});
+
+	it("accepts Peacock US SEO watch-online catalogue HTML", () => {
+		const seoUrl =
+			"https://www.peacocktv.com/watch-online/movies/sex-lies-and-the-college-cult/f45c2853-4230-3910-aa53-51ac37f5a788";
+		expect(
+			isMarketingShellHtml({
+				service: "peacock",
+				submittedUrl: seoUrl,
+				finalUrl: seoUrl,
+				title: "Watch Sex, Lies and the College Cult | Peacock",
+				html: `<html><head><meta property="og:title" content="Watch Sex, Lies and the College Cult | Peacock" /><title>Watch Sex, Lies and the College Cult | Peacock</title></head></html>`
+			})
+		).toBe(false);
+	});
 });

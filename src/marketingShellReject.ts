@@ -67,6 +67,7 @@ export function isMarketingShellHtml(check: MarketingShellCheck): boolean {
 			})();
 			if (
 				path.startsWith("/signin") ||
+				path.startsWith("/unavailable") ||
 				path.includes("browser-not-supported") ||
 				path.includes("/webwatch/release/")
 			) {
@@ -97,7 +98,8 @@ export function isMarketingShellHtml(check: MarketingShellCheck): boolean {
 		if (
 			/^Peacock$/i.test(t) ||
 			/^Peacock\s*[-–—]\s*Update your browser/i.test(t) ||
-			/^Peacock Not Found$/i.test(t)
+			/^Peacock Not Found$/i.test(t) ||
+			/^Unavailable In Your Region$/i.test(t)
 		) {
 			return true;
 		}

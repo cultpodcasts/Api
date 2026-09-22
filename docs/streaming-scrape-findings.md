@@ -43,7 +43,10 @@ Worker placement soft-pins the **Worker** isolate. BR pool affinity is unreliabl
 ## Hulu / Peacock
 
 - Profile: `{ mode: "directHttp", region: "us" }` → `SCRAPE_US` fetch + marketing-shell reject + Azure extract.
-- Peacock may still soft-wall to signin after fetch — shell reject; need public meta URL/API.
+- **Peacock prepare URLs:** US SEO `/watch-online/movies|tv/...` (Next.js SSR `title` / `og:*`). `/watch/asset/...` is the authenticated SPA and soft-walls to signin / browser-not-supported.
+- **Rewrite:** prepare rewrites `/watch/asset/...` → `/watch-online/...` (same slug/ids; `movie`→`movies`) before `SCRAPE_US` fetch. Playback `/watch/playback/vod/...` is not rewritten.
+- Non-US / mis-placed fetch → `/unavailable` with title `Unavailable In Your Region` — marketing-shell reject.
+- Spike (Sep 2026): `cfUsFetch` on real `/watch-online` movie + Office UK episode → `usable=true`, real titles; GraphQL/BFF not required for prepare meta.
 
 ## ZDF
 
