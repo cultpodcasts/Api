@@ -7,20 +7,6 @@
 | **api** (production) | `npm run deploy` |
 | **api-preview** | `npm run deploy -- --env preview` |
 
-If preview is still set to `npx wrangler deploy --env preview`, switch it to `npm run deploy -- --env preview` once — after that, scrape stays chained automatically.
+Under Workers Builds, wrangler receives `WRANGLER_CI_OVERRIDE_NAME` for the connected Worker. The scrape step temporarily sets that to `streaming-scrape-us` / `streaming-scrape-us-preview` so the binding target can publish.
 
-Build command can stay `./build.sh`.
-
-Do **not** use `deploy:*:with-contract` until GitHub Packages billing works.
-
-## Survey after preview is green
-
-```powershell
-npm run survey:streaming-scrape -- `
-  -ApiBaseUrl https://api-preview.jonbreen.workers.dev `
-  -SecretsFile ./scripts/local-secrets.preview.env `
-  -ExpectedEdgeLocs GB `
-  -ExpectedEdgeColos LHR `
-  -IncludeUsFetch `
-  -ExpectedUsLocs US
-```
+Build command can stay `./build.sh`. Do **not** use `deploy:*:with-contract` until GitHub Packages billing works.
