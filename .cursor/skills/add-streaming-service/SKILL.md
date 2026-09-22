@@ -3,7 +3,8 @@ name: add-streaming-service
 description: >-
   Extend Api streaming-submit-contract when adding a new streaming ServiceKey.
   Use with RedditPodcastPoster add-streaming-service skill for full plugin work,
-  or when the user asks to add a streaming service / scraper / new *.tv URL.
+  or when the user asks to add a streaming service / scraper / new *.tv URL /
+  create-scraping-service. Strategy MUST come from the streaming scrape survey.
 ---
 
 # Add streaming service (Api)
@@ -15,19 +16,34 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
 ## When to use
 
 - New streaming `ServiceKey` for submit lookup / prepare / membership
-- User says add-streaming-service / support a new streamer URL
+- User says add-streaming-service / create-scraping-service / support a new streamer URL
+
+## HARD: survey decides prepare strategy
+
+**Do not** guess `browserRendering`, US geo, or azurePrepare.
+
+1. Read and follow [`.cursor/skills/streaming-scrape-survey/SKILL.md`](../streaming-scrape-survey/SKILL.md).
+2. Add an enabled specimen to `scripts/streaming-scrape-survey/survey-urls.json`
+   (`service`, deep-link `url`, provisional `assumedTechnique` if any).
+3. Run the survey for that `-Service <key>` against **api-preview** (with `-IncludeUsFetch`
+   unless you already know geo is irrelevant).
+4. Set contract from **`recommend`** (see survey skill table). If recommend is `blocked`,
+   stop — do not scaffold a false strategy.
+5. After contract edits, `npm run survey:compare-contract` must be clean for that service
+   (or the full matrix).
+
+`streaming-scrape-us-preview` is **survey-only**: the survey script deploys and tears it
+down. Do not leave it running. Production `streaming-scrape-us` stays for live geo prepare.
 
 ## Steps (this repo)
 
-1. Confirm `key`, specimen URL, and whether BR / geo is needed (`directHttp` + `region: default` by default).
-   - If BR is required **without** a geo pin: add the key to `defaultBrowserRenderingServices` in
-     `tests/fixtures/streaming-submit-contract.ts` (see `itvx` pattern) **and** plan
-     Worker secret `browserRenderingServices` under PR **`## Config / secrets`** for
-     `api-preview` **and** top-level Worker **`api`** (names only; step 7).
-   - If the host is geo-walled (e.g. US-only catalogue): add a `scrapeProfiles` entry with
-     `mode` + `region` (`us` / later `uk` / `de`). Phase 1 US scrape Worker is
-     `workers/streaming-scrape-us` via Api binding `SCRAPE_US` (`api` → `streaming-scrape-us`,
-     `api-preview` → `streaming-scrape-us-preview`) — do not pin the main Api Worker.
+1. **Survey → strategy** (above). Confirm `key` + specimen URL.
+   - `browserRendering` → add key to `defaultBrowserRenderingServices` **and** plan Worker
+     secret `browserRenderingServices` under PR **`## Config / secrets`** for
+     `api-preview` **and** top-level Worker **`api`** (names only).
+   - `scrapeUsFetch` → `scrapeProfiles` entry `{ mode: "directHttp", region: "us" }`
+     (binding `SCRAPE_US` → `streaming-scrape-us` / preview twin during survey only).
+   - `azurePrepare` / `cfDirectHttp` → no US profile; not BR.
 2. Edit `tests/fixtures/streaming-submit-contract.ts` and sibling `.json`:
    - Add the key to `streamingServiceKeys` and a matching specimen in `streamingSpecimenUrls`
    - Membership / orchestration case lists are **derived** (`flatMap` / `map` over
@@ -52,11 +68,13 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
 ## Safety
 
 - Never `wrangler deploy` / `npm run deploy` unless user names that exact deploy
+- Survey may run `deploy:scrape-us:preview` / delete — that is intentional and scoped
 - Do not invent website/RPP enums — extend this fixture, then re-copy
 - Never commit ad-hoc BR probe trees (`scripts/br-*-probe/`) or `*.wipbak` scratch files
-- Regional scrape Workers are separate from Api; Phase 1 is US only (`streaming-scrape-us` + preview twin)
+- Never encode geo soft-walls as Browser Rendering
 
 ## Related
 
-- `docs/streaming-submit-orchestration.md` (Browser Rendering + regional scrape)
+- `.cursor/skills/streaming-scrape-survey/SKILL.md`
+- `docs/streaming-submit-orchestration.md`
 - `.cursor/rules/preview-production-secrets-parity.mdc`

@@ -1,6 +1,6 @@
 {
 	"name": "cultpodcasts-api",
-	"version": "1.1.37",
+	"version": "1.1.38",
 	"private": true,
 	"scripts": {
 		"deploy": "wrangler deploy",
@@ -17,6 +17,11 @@
 		"test:br:field": "pwsh -File ./scripts/br-field-probe/run-field-test.ps1",
 		"test:br:itvx": "pwsh -File ./scripts/br-field-probe/run-field-test.ps1 -Service itvx",
 		"survey:streaming-scrape": "pwsh -File ./scripts/streaming-scrape-survey/run-survey.ps1",
+		"survey:compare-contract": "pwsh -File ./scripts/streaming-scrape-survey/compare-survey-to-contract.ps1",
+		"survey:scrape-us:ensure": "pwsh -File ./scripts/streaming-scrape-survey/ensure-scrape-us-preview.ps1",
+		"survey:scrape-us:teardown": "pwsh -File ./scripts/streaming-scrape-survey/teardown-scrape-us-preview.ps1",
+		"survey:scrape-us:assert-stopped": "pwsh -File ./scripts/streaming-scrape-survey/assert-scrape-us-preview-stopped.ps1",
+		"survey:scrape-us:assert-start": "pwsh -File ./scripts/streaming-scrape-survey/assert-scrape-us-preview-stopped.ps1 -Phase start",
 		"lint": "tsc --noEmit",
 		"assert:secrets-parity": "pwsh ./scripts/assert-secrets-example-parity.ps1"
 	},

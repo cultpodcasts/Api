@@ -2,13 +2,24 @@
 
 Hosts change. Re-run when prepare regresses or before changing `scrapeProfiles`.
 
-**No probe Workers.** The survey is `POST /ops/streaming-scrape-survey` on deployed **Api**. Isolates are ephemeral. **PoP preflight is mandatory** — if `cdn-cgi/trace` for a CF leg is outside `expectedPop`, the Api returns **409 contaminated** and does not scrape catalogues.
+**No permanent probe Workers.** Survey is `POST /ops/streaming-scrape-survey` on deployed **Api**.
+**`streaming-scrape-us-preview`** is deployed only for the survey run (`-IncludeUsFetch`) and
+**deleted afterward** unless `-KeepScrapeWorker`. Production `streaming-scrape-us` stays up for live geo prepare.
 
-Ops run the survey **from local** against a deployed Api host (prefer preview/workers.dev).
+**PoP preflight is mandatory** — outside `expectedPop` → **409 contaminated**.
+
+Ops run the survey **from local** against deployed Api (prefer preview/workers.dev).
 
 ## Auth
 
-Auth0 Bearer with **`submit` or `curate`** (ops: M2M `client_credentials` on the Api audience).
+Auth0 Bearer with **`submit` or `curate`** (staging M2M for api-preview). Put in gitignored secrets:
+
+```
+CULT_AUTH0_M2M_CLIENT_ID=...
+CULT_AUTH0_M2M_CLIENT_SECRET=...
+```
+
+(plus `auth0Audience` / `auth0Issuer` already in `local-secrets.preview.env`)
 
 ## Legs
 
@@ -21,33 +32,46 @@ Auth0 Bearer with **`submit` or `curate`** (ops: M2M `client_credentials` on the
 
 ## Prerequisites
 
-1. Api with the survey route deployed (e.g. api-preview via PR Builds).
-2. Matching scrape Worker if using `-IncludeUsFetch`:
-
-```powershell
-npm run deploy:scrape-us:preview
-```
+1. Api with the survey route deployed (api-preview via PR Builds).
+2. For `-IncludeUsFetch`: script deploys/tears down scrape preview — no manual step.
 
 ## Run
 
 ```powershell
-$env:CULT_AUTH0_M2M_CLIENT_ID = "..."
-$env:CULT_AUTH0_M2M_CLIENT_SECRET = "..."
-
 npm run survey:streaming-scrape -- `
   -ApiBaseUrl https://api-preview.jonbreen.workers.dev `
   -SecretsFile ./scripts/local-secrets.preview.env `
   -ExpectedEdgeLocs GB `
   -ExpectedEdgeColos LHR `
   -IncludeUsFetch `
-  -ExpectedUsLocs US
+  -ExpectedUsColos IAD
 ```
 
-Prefer preview/workers.dev if apex Bot Fight challenges M2M (see `docs/hero-curation-m2m-edge.md`).
+Prefer **colo** for US (`IAD`) — US scrape can report `loc=GB` with `colo=IAD`.
+
+After success, compare runs automatically → `out/survey-contract-drift.md`. Alone:
+
+```powershell
+npm run survey:compare-contract
+```
+
+End of every run prints `SURVEY_WORKERS: STOPPED` or `STILL_RUNNING`. Start of every run
+prints `SURVEY_WORKERS_START: CLEAN` or `NOT_STOPPED` (leftover = previous teardown failure).
+
+```powershell
+npm run survey:scrape-us:assert-start
+npm run survey:scrape-us:assert-stopped
+```
 
 ## Contaminated
 
 Exit code `2` / HTTP 409 — do **not** trust results; fix PoP expectations or retry.
+
+## Strategy for new plugins
+
+**MUST** use survey `recommend` when adding a service — see
+[`.cursor/skills/streaming-scrape-survey/SKILL.md`](../../.cursor/skills/streaming-scrape-survey/SKILL.md)
+and [`.cursor/skills/add-streaming-service/SKILL.md`](../../.cursor/skills/add-streaming-service/SKILL.md).
 
 ## Specimens
 

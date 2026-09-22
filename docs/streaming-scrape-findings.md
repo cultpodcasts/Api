@@ -20,8 +20,11 @@ npm run survey:streaming-scrape -- `
   -ApiBaseUrl https://api-preview.jonbreen.workers.dev `
   -SecretsFile ./scripts/local-secrets.preview.env `
   -ExpectedEdgeLocs GB -ExpectedEdgeColos LHR `
-  -IncludeUsFetch -ExpectedUsLocs US
+  -IncludeUsFetch -ExpectedUsColos IAD
 ```
+
+`-IncludeUsFetch` deploys then **deletes** `streaming-scrape-us-preview`. Compare to contract:
+`npm run survey:compare-contract`. Skill: [`.cursor/skills/streaming-scrape-survey/SKILL.md`](../.cursor/skills/streaming-scrape-survey/SKILL.md).
 
 See [`scripts/streaming-scrape-survey/README.md`](../scripts/streaming-scrape-survey/README.md).
 
