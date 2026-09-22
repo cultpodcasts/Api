@@ -46,6 +46,12 @@
   "browser": {
     "binding": "BROWSER"
   },
+  "services": [
+    {
+      "binding": "SCRAPE_US",
+      "service": "streaming-scrape-us"
+    }
+  ],
   "analytics_engine_datasets": [
     {
       "binding": "Analytics"
@@ -157,6 +163,12 @@
       "browser": {
         "binding": "BROWSER"
       },
+      "services": [
+        {
+          "binding": "SCRAPE_US",
+          "service": "streaming-scrape-us"
+        }
+      ],
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
@@ -257,6 +269,12 @@
       "browser": {
         "binding": "BROWSER"
       },
+      "services": [
+        {
+          "binding": "SCRAPE_US",
+          "service": "streaming-scrape-us"
+        }
+      ],
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
@@ -346,6 +364,12 @@
       "browser": {
         "binding": "BROWSER"
       },
+      "services": [
+        {
+          "binding": "SCRAPE_US",
+          "service": "streaming-scrape-us"
+        }
+      ],
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"

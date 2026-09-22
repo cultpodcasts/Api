@@ -7,6 +7,10 @@ export type Env = {
 	StreamMeta: KVNamespace;
 	/** Cloudflare Browser Rendering binding for prepare HTML fetch. */
 	BROWSER?: BrowserWorker;
+	/**
+	 * US-placed scrape Worker (service binding). Used when scrapeProfiles.region === "us".
+	 */
+	SCRAPE_US?: Fetcher;
 	auth0Issuer: string;
 	auth0Audience: string;
 	auth0ClientId: string;
@@ -31,7 +35,8 @@ export type Env = {
 	stagingHostSuffix: string;
 	/**
 	 * CSV of streaming ServiceKeys that use CF Browser Rendering on prepare (e.g. `itvx`).
-	 * Empty / unset = all streaming hosts use Azure HttpClient. Secret (not wrangler vars).
+	 * Legacy overlay on contract scrapeProfiles; empty = contract defaults / profiles only.
+	 * Secret (not wrangler vars).
 	 */
 	browserRenderingServices?: string;
 	/** Non-secret: production | preview | local — drives OpenAPI docs title. */

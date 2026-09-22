@@ -1,0 +1,15 @@
+{
+	"name": "br-field-probe-us-east",
+	"main": "index.ts",
+	"compatibility_date": "2025-09-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"account_id": "bae3f835f19899c6eee1ec48f2d658cf",
+	"workers_dev": true,
+	"placement": {
+		"region": "aws:us-east-1"
+	},
+	"browser": {
+		"binding": "BROWSER",
+		"remote": true
+	}
+}

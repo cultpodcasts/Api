@@ -6,8 +6,14 @@ import { Endpoint } from "./Endpoint";
 import { getEndpoint } from "./endpoints";
 import { LogCollector } from "./LogCollector";
 import { fetchBcVideoApiJson } from "./bitchuteVideoPrepare";
-import { htmlFetchModeForService, workerPrefetchesCatalogHtml, workerPrefetchesVideoJson } from "./streamingHtmlFetchMode";
+import {
+	resolveScrapeProfile,
+	workerPrefetchesCatalogHtml,
+	workerPrefetchesVideoJson
+} from "./streamingHtmlFetchMode";
 import { fetchCatalogHtml } from "./catalogHtmlPrepare";
+import { isMarketingShellHtml } from "./marketingShellReject";
+import { scrapeViaRegionalWorker } from "./regionalScrape";
 import {
 	parseBrowserRenderingServicesCsv,
 	putStreamMeta,
@@ -177,12 +183,16 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 
 	const service = lookup.service;
 	const allowlist = parseBrowserRenderingServicesCsv(c.env.browserRenderingServices);
-	const mode = htmlFetchModeForService(service, allowlist);
-	logCollector.addMessage(`service=${service} htmlFetchMode=${mode}`);
+	const scrapeProfile = resolveScrapeProfile(service, allowlist);
+	const mode = scrapeProfile.mode;
+	logCollector.addMessage(
+		`service=${service} htmlFetchMode=${mode} scrapeRegion=${scrapeProfile.region}`
+	);
 
 	let azureMeta: AzurePrepareBody | undefined;
 	let bitchuteJsonExtractOk = false;
 	let catalogHtmlExtractOk = false;
+	let regionalScrapeOk = false;
 	const addPrepareMessage = (message: string) => logCollector.addMessage(message);
 	if (workerPrefetchesVideoJson(service)) {
 		const json = await fetchBcVideoApiJson(url, addPrepareMessage);
@@ -207,44 +217,83 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	}
 
 	if (!azureMeta && mode === "browserRendering") {
-		if (!c.env.BROWSER) {
-			logCollector.emitError({
-				event: "submit.prepare.br_unconfigured",
-				outcome: "error",
-				status: 500
-			});
-			return c.json({ error: "Browser Rendering binding is not configured" }, 500);
-		}
 		let html: string;
+		let scrapeFinalUrl = absoluteUrl;
+		let scrapeTitle = "";
 		try {
-			logCollector.add({ event: "submit.prepare.br_fetch" });
-			const br = await fetchHtmlWithBrowserRendering(c.env.BROWSER, absoluteUrl);
-			const d = br.diagnostics;
-			logCollector.addMessage(
-				`br marks=${d.marks.map((m) => `${m.label}:${m.tMs}`).join(",")}`
-			);
-			logCollector.addMessage(
-				`br finalUrl=${d.finalUrl} title=${d.title ? "set" : "empty"} htmlLength=${d.htmlLength} documentStatus=${d.documentStatus ?? "none"} redirects=${d.redirectStatuses.join("|") || "none"} challengeLikely=${d.challengeLikely}`
-			);
-			if (d.gotoError) {
-				logCollector.addMessage(`br gotoError=${d.gotoError}`);
-			}
-			html = br.html;
-			if (!isUsableBrowserHtml(html)) {
-				logCollector.addMessage(
-					`br_failed: unusable html snippet=${html.slice(0, 240).replace(/\s+/g, " ")}`
-				);
-				logCollector.emitError({
-					event: "submit.prepare.br_failed",
-					outcome: "error",
-					status: 502
+			if (scrapeProfile.region === "us") {
+				if (!c.env.SCRAPE_US) {
+					logCollector.emitError({
+						event: "submit.prepare.scrape_us_unconfigured",
+						outcome: "error",
+						status: 500
+					});
+					return c.json({ error: "US scrape Worker binding is not configured" }, 500);
+				}
+				logCollector.add({ event: "submit.prepare.regional_scrape" });
+				logCollector.addMessage("regional scrape region=us");
+				const scraped = await scrapeViaRegionalWorker(c.env.SCRAPE_US, {
+					url: absoluteUrl,
+					mode,
+					service
 				});
-				return c.json({ error: "Browser Rendering fetch failed" }, 502);
-			}
-			if (d.gotoError) {
-				logCollector.addMessage("br partial html usable — continuing to extract");
+				regionalScrapeOk = true;
+				html = scraped.html;
+				scrapeFinalUrl = scraped.finalUrl;
+				scrapeTitle = scraped.title;
+				const p = scraped.placement;
+				logCollector.addMessage(
+					`regional scrape us placement=${p?.cfPlacement ?? "none"} colo=${p?.colo ?? "none"} country=${p?.country ?? "none"}`
+				);
+				if (scraped.diagnosticsMarks) {
+					logCollector.addMessage(`br marks=${scraped.diagnosticsMarks}`);
+				}
+				logCollector.addMessage(
+					`br finalUrl=${scrapeFinalUrl} title=${scrapeTitle ? "set" : "empty"} htmlLength=${scraped.htmlLength ?? html.length} documentStatus=${scraped.documentStatus ?? "none"} redirects=${(scraped.redirectStatuses ?? []).join("|") || "none"} challengeLikely=${scraped.challengeLikely ?? false}`
+				);
+				if (scraped.gotoError) {
+					logCollector.addMessage(`br gotoError=${scraped.gotoError}`);
+				}
 			} else {
-				logCollector.addMessage(`br html length=${html.length}`);
+				if (!c.env.BROWSER) {
+					logCollector.emitError({
+						event: "submit.prepare.br_unconfigured",
+						outcome: "error",
+						status: 500
+					});
+					return c.json({ error: "Browser Rendering binding is not configured" }, 500);
+				}
+				logCollector.add({ event: "submit.prepare.br_fetch" });
+				const br = await fetchHtmlWithBrowserRendering(c.env.BROWSER, absoluteUrl);
+				const d = br.diagnostics;
+				logCollector.addMessage(
+					`br marks=${d.marks.map((m) => `${m.label}:${m.tMs}`).join(",")}`
+				);
+				logCollector.addMessage(
+					`br finalUrl=${d.finalUrl} title=${d.title ? "set" : "empty"} htmlLength=${d.htmlLength} documentStatus=${d.documentStatus ?? "none"} redirects=${d.redirectStatuses.join("|") || "none"} challengeLikely=${d.challengeLikely}`
+				);
+				if (d.gotoError) {
+					logCollector.addMessage(`br gotoError=${d.gotoError}`);
+				}
+				html = br.html;
+				scrapeFinalUrl = d.finalUrl || absoluteUrl;
+				scrapeTitle = d.title || "";
+				if (!isUsableBrowserHtml(html)) {
+					logCollector.addMessage(
+						`br_failed: unusable html snippet=${html.slice(0, 240).replace(/\s+/g, " ")}`
+					);
+					logCollector.emitError({
+						event: "submit.prepare.br_failed",
+						outcome: "error",
+						status: 502
+					});
+					return c.json({ error: "Browser Rendering fetch failed" }, 502);
+				}
+				if (d.gotoError) {
+					logCollector.addMessage("br partial html usable — continuing to extract");
+				} else {
+					logCollector.addMessage(`br html length=${html.length}`);
+				}
 			}
 		} catch (e) {
 			const detail = e instanceof Error ? e.message : String(e);
@@ -256,6 +305,30 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			});
 			return c.json({ error: "Browser Rendering fetch failed" }, 502);
 		}
+
+		if (
+			isMarketingShellHtml({
+				service,
+				submittedUrl: absoluteUrl,
+				finalUrl: scrapeFinalUrl,
+				title: scrapeTitle,
+				html
+			})
+		) {
+			logCollector.addMessage(
+				`marketing_shell rejected finalUrl=${scrapeFinalUrl} title=${scrapeTitle ? "set" : "empty"}`
+			);
+			logCollector.emitError({
+				event: "submit.prepare.marketing_shell",
+				outcome: "error",
+				status: 502
+			});
+			return c.json(
+				{ error: "Catalogue page returned a marketing / geo soft-wall shell" },
+				502
+			);
+		}
+
 		const extractResp = await postAzureExtract(c, absoluteUrl, html);
 		logCollector.addMessage(`azure extract status=${extractResp.status}`);
 		if (extractResp.status === 400) {
@@ -358,9 +431,11 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 			? "submit.prepare.bitchute_json_ok"
 			: catalogHtmlExtractOk
 				? "submit.prepare.catalog_html_ok"
-				: mode === "browserRendering"
-					? "submit.prepare.br_ok"
-					: "submit.prepare.direct_ok",
+				: regionalScrapeOk
+					? "submit.prepare.regional_scrape_ok"
+					: mode === "browserRendering"
+						? "submit.prepare.br_ok"
+						: "submit.prepare.direct_ok",
 		outcome: "success",
 		status: 200
 	});

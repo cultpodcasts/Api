@@ -19,11 +19,14 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
 
 ## Steps (this repo)
 
-1. Confirm `key`, specimen URL, and whether BR is needed (`directHttp` default).
-   - If BR is required for the new key: add it to `defaultBrowserRenderingServices` in
+1. Confirm `key`, specimen URL, and whether BR / geo is needed (`directHttp` + `region: default` by default).
+   - If BR is required **without** a geo pin: add the key to `defaultBrowserRenderingServices` in
      `tests/fixtures/streaming-submit-contract.ts` (see `itvx` pattern) **and** plan
      Worker secret `browserRenderingServices` under PR **`## Config / secrets`** for
      `api-preview` **and** top-level Worker **`api`** (names only; step 7).
+   - If the host is geo-walled (e.g. US-only catalogue): add a `scrapeProfiles` entry with
+     `mode` + `region` (`us` / later `uk` / `de`). Phase 1 US scrape Worker is
+     `workers/streaming-scrape-us` via Api binding `SCRAPE_US` — do not pin the main Api Worker.
 2. Edit `tests/fixtures/streaming-submit-contract.ts` and sibling `.json`:
    - Add the key to `streamingServiceKeys` and a matching specimen in `streamingSpecimenUrls`
    - Membership / orchestration case lists are **derived** (`flatMap` / `map` over
@@ -45,8 +48,9 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
 - Never `wrangler deploy` / `npm run deploy` unless user names that exact deploy
 - Do not invent website/RPP enums — extend this fixture, then re-copy
 - Never commit ad-hoc BR probe trees (`scripts/br-*-probe/`) or `*.wipbak` scratch files
+- Regional scrape Workers are separate from Api; Phase 1 is US only (`streaming-scrape-us`)
 
 ## Related
 
-- `docs/streaming-submit-orchestration.md`
+- `docs/streaming-submit-orchestration.md` (Browser Rendering + regional scrape)
 - `.cursor/rules/preview-production-secrets-parity.mdc`

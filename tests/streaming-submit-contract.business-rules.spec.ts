@@ -11,6 +11,7 @@ import {
 	STREAMING_SUBMIT_CONTRACT_JSON_COPY_FROM,
 	defaultBrowserRenderingServices,
 	htmlFetchModeForService,
+	resolveScrapeProfile,
 	streamingLookupByUrl,
 	streamingMembershipShapeCases,
 	streamingOrchestrationCases,
@@ -96,7 +97,7 @@ describe("streaming-submit-contract (Api publisher)", () => {
 			if (submit.name === "submit") {
 				expect(submit.usesPrefetchedMeta).toBe(true);
 			}
-			if (c.service === "itvx") {
+			if (c.service === "itvx" || c.service === "hulu" || c.service === "peacock") {
 				expect(c.htmlFetchMode).toBe("browserRendering");
 			} else {
 				expect(c.htmlFetchMode).toBe("directHttp");
@@ -112,13 +113,21 @@ describe("streaming-submit-contract (Api publisher)", () => {
 		expect(STREAMING_SUBMIT_CONTRACT_JSON_COPY_FROM).toContain("streaming-submit-contract.json");
 	});
 
-	it("marks itvx as the only default Browser Rendering service", () => {
+	it("uses scrapeProfiles for Hulu/Peacock (US Browser Rendering) and default allowlist for itvx", () => {
 		const modes = Object.fromEntries(
 			streamingServiceKeys.map((s: StreamingServiceKey) => [s, htmlFetchModeForService(s)])
 		);
 		expect(modes.itvx).toBe("browserRendering");
-		for (const s of streamingServiceKeys.filter((k) => k !== "itvx")) {
+		expect(modes.hulu).toBe("browserRendering");
+		expect(modes.peacock).toBe("browserRendering");
+		expect(resolveScrapeProfile("hulu").region).toBe("us");
+		expect(resolveScrapeProfile("peacock").region).toBe("us");
+		expect(resolveScrapeProfile("itvx").region).toBe("default");
+		for (const s of streamingServiceKeys.filter(
+			(k) => k !== "itvx" && k !== "hulu" && k !== "peacock"
+		)) {
 			expect(modes[s]).toBe("directHttp");
+			expect(resolveScrapeProfile(s).region).toBe("default");
 		}
 	});
 });

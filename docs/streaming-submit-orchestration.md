@@ -30,6 +30,8 @@ Do **not** invent a parallel streamer enum or membership shape on the website or
 | `kind` | `podcast-service` \| `streaming` \| `unrecognised` | Coarse membership class |
 | `service` | `ServiceKeys` streaming keys (`itvx`, `discoveryPlus`, `bbcSounds`, …) | On streaming membership only |
 | `htmlFetchMode` | `directHttp` \| `browserRendering` | Prepare-time fetch policy |
+| `scrapeRegions` | `default` \| `us` \| `uk` \| `de` | Where prepare HTML fetch runs (`default` = Api Worker) |
+| `scrapeProfiles` | per-service `{ mode, region }` | Canonical mode + region (Phase 1: `hulu` / `peacock` → US) |
 
 TypeScript: const arrays + derived union types in the contract fixture.  
 .NET: `ServiceKeys` / `UrlMembershipLookupKinds` must stay aligned with the JSON `streamingServiceKeys` list (RPP business-rule test).
@@ -37,10 +39,10 @@ TypeScript: const arrays + derived union types in the contract fixture.
 ## Process (happy path, unknown streaming URL)
 
 1. **`GET /submit/lookup`** — Cosmos membership + classify URL → `{ known, kind: "streaming", service }`. **No page scrape. No Browser Rendering.**
-2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service` is `bitchute`, Worker POSTs `api.bitchute.com/api/beta/video` and Azure `SubmitUrl/extract` maps that JSON (duration/release live there; Azure UK often cannot POST it). If `service` is `tubi`, Worker GETs catalogue HTML and Azure `SubmitUrl/extract` maps that HTML (Azure UK may be geo-walled). Catalogue GET is **not** gated on BR salvage (`og:title` / `__NEXT_DATA__`); title-only HTML is passed through so Azure can apply host title recovery. Challenge/interstitial HTML is a fetch miss. On fetch/extract miss, fall through. If `service ∈ browserRenderingServices` → Browser Rendering HTML + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
+2. **`POST /submit/prepare`** — Worker classifies via lookup, then: if `service` is `bitchute`, Worker POSTs `api.bitchute.com/api/beta/video` and Azure `SubmitUrl/extract` maps that JSON (duration/release live there; Azure UK often cannot POST it). If `service` is `tubi`, Worker GETs catalogue HTML and Azure `SubmitUrl/extract` maps that HTML (Azure UK may be geo-walled). Catalogue GET is **not** gated on BR salvage (`og:title` / `__NEXT_DATA__`); title-only HTML is passed through so Azure can apply host title recovery. Challenge/interstitial HTML is a fetch miss. On fetch/extract miss, fall through. If `resolveScrapeProfile(service).mode === browserRendering` → fetch HTML (local Browser Rendering, or a **regional scrape Worker** when `region` is `us` / later `uk`/`de`) + Azure `SubmitUrl/extract`; else Azure `SubmitUrl/prepare`. Known marketing / geo soft-wall shells (e.g. Hulu → Disney+ homepage) are rejected before extract. Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
 3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit.
 
-Direction: **SPA → CF → Azure** (and CF → Browser Rendering). Azure does **not** call Cloudflare.
+Direction: **SPA → CF → Azure** (and CF → Browser Rendering / regional scrape Workers). Azure does **not** call Cloudflare.
 
 ## Membership response shapes (streaming)
 
@@ -54,12 +56,20 @@ Every streaming `service` must support:
 
 Contract matrix: `streamingMembershipShapeCases` (service × arm).
 
-## Browser Rendering allowlist
+## Browser Rendering allowlist + scrape profiles
 
-- Runtime: Worker secret `browserRenderingServices` (CSV of ServiceKeys). **Not** hardcoded in `src/`.
-- Set via gitignored `scripts/local-secrets.*.env` + `.\scripts\set-secrets-preview.ps1` / `set-secrets-production.ps1` (survives deploy).
-- Contract fixture `defaultBrowserRenderingServices` documents the recommended ops starting list only.
-- Empty secret → all streaming hosts use `directHttp`.
+- **Canonical:** contract `scrapeProfiles[service]` supplies both `mode` and `region`. Missing profile → `region: default` and mode from the BR allowlist.
+- **Legacy overlay:** Worker secret `browserRenderingServices` (CSV of ServiceKeys) can force `browserRendering` without a website bump. Set via gitignored `scripts/local-secrets.*.env` + `.\scripts\set-secrets-preview.ps1` / `set-secrets-production.ps1`.
+- Contract fixture `defaultBrowserRenderingServices` documents the recommended ops starting list for hosts without a profile (today: `itvx` on the edge Api Worker).
+- Empty secret → profiles still apply; hosts without a profile use `directHttp`.
+
+### Regional scrape Workers (geo)
+
+One Worker can have only one [`placement.region`](https://developers.cloudflare.com/workers/configuration/placement/). Api stays at the edge; Phase 1 adds **`streaming-scrape-us`** (`placement.region: aws:us-east-1`, Browser Rendering binding) reached via service binding **`SCRAPE_US`**. When `scrapeProfiles[service].region === "us"` (Hulu / Peacock), prepare POSTs `{ url, mode }` to that Worker and uses the returned HTML / `finalUrl` / title / placement diagnostics before Azure extract.
+
+Phase 2 (not shipped): `SCRAPE_UK` / `SCRAPE_DE` for ITVX/BBC-class and ZDF/ARD-class.
+
+Ops field probe for US placement: [`scripts/br-field-probe/wrangler.us-east.jsonc`](../scripts/br-field-probe/wrangler.us-east.jsonc) (same production `browserRenderingHtml` helper as prepare). Prefer verifying against the deployed `streaming-scrape-us` Worker once live.
 
 ### BR navigate wait (ITVX / SPA)
 
