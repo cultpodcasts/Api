@@ -23,10 +23,12 @@ CULT_API_BEARER=...   # preferred for SPA tokens
 
 | Leg | Path | Purpose |
 |-----|------|---------|
-| `azure` | Azure `SubmitUrl/prepare` | Can UK Azure extract? |
-| `cfFetch` | Api Worker `catalogHtmlPrepare` | Edge fetch |
-| `cfBr` | Api `browserRenderingHtml` | **Hydration only** (ITVX-class) — not geo |
-| `cfUsFetch` | `SCRAPE_US` + **directHttp** | **Geo soft-wall** (Hulu-class) — **never BR** |
+| `azure` | Azure `SubmitUrl/prepare` | Can UK Azure extract? Reports full meta field coverage. |
+| `cfFetch` | Api Worker `catalogHtmlPrepare` → Azure `extract` | Edge fetch + extract meta coverage |
+| `cfBr` | Api `browserRenderingHtml` → Azure `extract` | **Hydration only** (ITVX-class) — not geo |
+| `cfUsFetch` | `SCRAPE_US` + **directHttp** → Azure `extract` | **Geo soft-wall** (Hulu/Peacock) — **never BR**; includes contract URL rewrite + meta coverage |
+
+Each successful HTML leg posts Azure extract and reports `metaComplete` plus per-field presence for: `title`, `podcastName`, `description`, `publisher`, `image`, `duration`, `release`.
 
 Response rows include **`prefer`** (Azure-first this run), **`recommend`** (contract technique), and **`geoFallback`**. When `assumedTechnique` is `scrapeUsFetch` and the US leg succeeds, `recommend` stays `scrapeUsFetch` even if Azure also returned a title.
 

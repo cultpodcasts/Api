@@ -197,22 +197,27 @@ try {
 		Write-Host $resp.Content
 		$exitCode = 1
 	} else {
-		$md = @("| service | azure | cfFetch | cfBr | cfUsFetch | prefer | recommend | geoFallback | assumed |", "|---------|:-----:|:------:|:----:|:--------:|--------|-----------|-------------|---------|")
+		$md = @("| service | azure | cfFetch | cfBr | cfUsFetch | usMeta | prefer | recommend | geoFallback | assumed |", "|---------|:-----:|:------:|:----:|:--------:|:------:|--------|-----------|-------------|---------|")
 		foreach ($r in @($j.rows)) {
 			$az = if ($null -eq $r.azure) { "—" } elseif ($r.azure) { "✓" } else { "✗" }
 			$ff = if ($null -eq $r.cfFetch) { "—" } elseif ($r.cfFetch) { "✓" } else { "✗" }
 			$br = if ($null -eq $r.cfBr) { "—" } elseif ($r.cfBr) { "✓" } else { "✗" }
 			$uf = if ($null -eq $r.cfUsFetch) { "—" } elseif ($r.cfUsFetch) { "✓" } else { "✗" }
+			$um = if ($null -eq $r.cfUsFetchMetaComplete) { "—" } elseif ($r.cfUsFetchMetaComplete) { "✓" } else { "partial" }
 			$gf = if ($null -eq $r.geoFallback) { "—" } else { $r.geoFallback }
 			$pref = if ($null -eq $r.prefer) { $r.recommend } else { $r.prefer }
-			$md += "| $($r.service) | $az | $ff | $br | $uf | $pref | $($r.recommend) | $gf | $($r.assumed) |"
+			$md += "| $($r.service) | $az | $ff | $br | $uf | $um | $pref | $($r.recommend) | $gf | $($r.assumed) |"
 		}
 		($md -join "`n") + "`n" | Set-Content (Join-Path $outDir "survey-summary.md") -Encoding utf8
 		($j | ConvertTo-Json -Depth 8) | Set-Content (Join-Path $outDir "survey-summary.json") -Encoding utf8
 
 		Write-Host "`n=== SURVEY OK ===" -ForegroundColor Green
-		$j.rows | Select-Object service, azure, cfFetch, cfBr, cfUsFetch, prefer, recommend, geoFallback, assumed | Format-Table -AutoSize | Out-Host
+		$j.rows | Select-Object service, azure, cfFetch, cfBr, cfUsFetch, cfUsFetchMetaComplete, prefer, recommend, geoFallback, assumed | Format-Table -AutoSize | Out-Host
 		Write-Host "Wrote out/survey-summary.md"
+		foreach ($r in @($j.rows)) {
+			if ($r.cfUsFetchDetail) { Write-Host "cfUsFetch $($r.service): $($r.cfUsFetchDetail)" -ForegroundColor DarkGray }
+			if ($r.azureDetail) { Write-Host "azure $($r.service): $($r.azureDetail)" -ForegroundColor DarkGray }
+		}
 
 		if (-not $SkipContractCompare) {
 			$compareArgs = @{ SurveySummary = (Join-Path $outDir "survey-summary.json") }

@@ -18,6 +18,11 @@ import {
 	azureSubmitBackendDenialStatus
 } from "./submitAccess";
 import { surveyRecommendation } from "./streamingScrapeSurveyRecommend";
+import {
+	formatMetaCoverage,
+	metaCoverageFromExtractBody,
+	type SurveyMetaCoverage
+} from "./streamingScrapeSurveyMeta";
 
 export const SURVEY_LEGS = ["azure", "cfFetch", "cfBr", "cfUsFetch"] as const;
 export type SurveyLeg = (typeof SURVEY_LEGS)[number];
@@ -43,6 +48,8 @@ type LegResult = {
 	title?: string | null;
 	finalUrl?: string | null;
 	trace?: CdnCgiTrace | null;
+	/** Azure prepare / extract field coverage when available. */
+	meta?: SurveyMetaCoverage | null;
 };
 
 function titleFromHtml(html: string): string {
@@ -165,6 +172,45 @@ function submitPrepareUrl(env: Auth0ActionContext["env"]): URL {
 	return base;
 }
 
+function submitExtractUrl(env: Auth0ActionContext["env"]): URL {
+	const base = new URL(env.secureSubmitEndpoint.toString());
+	if (!base.pathname.endsWith("/")) {
+		base.pathname = `${base.pathname}/`;
+	}
+	base.pathname = `${base.pathname}extract`;
+	return base;
+}
+
+async function azureExtractMeta(
+	c: Auth0ActionContext,
+	pageUrl: string,
+	html: string
+): Promise<{ meta: SurveyMetaCoverage | null; detail: string }> {
+	try {
+		const endpoint = submitExtractUrl(c.env);
+		const resp = await fetch(endpoint, {
+			method: "POST",
+			headers: buildFetchHeaders(c.req, endpoint),
+			body: JSON.stringify({ url: pageUrl, html })
+		});
+		const text = await resp.text();
+		if (resp.status !== 200) {
+			return {
+				meta: null,
+				detail: `extract ${resp.status} ${text.slice(0, 120)}`
+			};
+		}
+		const body = JSON.parse(text) as Parameters<typeof metaCoverageFromExtractBody>[0];
+		const meta = metaCoverageFromExtractBody(body);
+		return { meta, detail: formatMetaCoverage(meta) };
+	} catch (e) {
+		return {
+			meta: null,
+			detail: `extract error ${e instanceof Error ? e.message : String(e)}`
+		};
+	}
+}
+
 async function azurePrepareLeg(
 	c: Auth0ActionContext,
 	pageUrl: string
@@ -183,20 +229,22 @@ async function azurePrepareLeg(
 				detail: `azure prepare ${resp.status} ${text.slice(0, 180)}`
 			};
 		}
-		let title: string | null = null;
+		let body: Parameters<typeof metaCoverageFromExtractBody>[0] = {};
 		try {
-			const j = JSON.parse(text) as { podcastName?: string; title?: string };
-			title = j.podcastName ?? j.title ?? null;
+			body = JSON.parse(text) as Parameters<typeof metaCoverageFromExtractBody>[0];
 		} catch {
-			/* ignore */
+			return { ok: false, detail: "azure prepare 200 but invalid JSON" };
 		}
+		const meta = metaCoverageFromExtractBody(body);
+		const title = meta.title ?? meta.podcastName;
 		const ok = Boolean(title);
 		return {
 			ok,
 			title,
+			meta,
 			detail: ok
-				? `azure prepare 200 title=${title}`
-				: `azure prepare 200 but no title/podcastName`
+				? `azure prepare 200 title=${title} ${formatMetaCoverage(meta)}`
+				: `azure prepare 200 but no title/podcastName ${formatMetaCoverage(meta)}`
 		};
 	} catch (e) {
 		return { ok: false, detail: e instanceof Error ? e.message : String(e) };
@@ -204,6 +252,7 @@ async function azurePrepareLeg(
 }
 
 async function cfFetchLeg(
+	c: Auth0ActionContext,
 	pageUrl: string,
 	service: string
 ): Promise<LegResult> {
@@ -220,17 +269,28 @@ async function cfFetchLeg(
 		title,
 		html
 	});
-	const ok =
+	const htmlOk =
 		!shell &&
 		html.length >= 500 &&
 		(Boolean(title) ||
 			/property=["']og:title["']/i.test(html) ||
 			html.includes("__NEXT_DATA__"));
+	if (!htmlOk) {
+		return {
+			ok: false,
+			title,
+			finalUrl: pageUrl,
+			detail: `usable=false marketingShell=${shell} title=${title}`
+		};
+	}
+	const extracted = await azureExtractMeta(c, pageUrl, html);
+	const ok = Boolean(extracted.meta?.title ?? extracted.meta?.podcastName);
 	return {
 		ok,
-		title,
+		title: extracted.meta?.title ?? title,
 		finalUrl: pageUrl,
-		detail: `usable=${ok} marketingShell=${shell} title=${title}`
+		meta: extracted.meta,
+		detail: `usable=true marketingShell=false title=${extracted.meta?.title ?? title} ${extracted.detail}`
 	};
 }
 
@@ -248,15 +308,26 @@ async function cfBrLeg(c: Auth0ActionContext, pageUrl: string, service: string):
 			title: d.title,
 			html: br.html
 		});
-		const ok =
+		const htmlOk =
 			!shell &&
 			br.html.length >= 500 &&
 			(/property=["']og:title["']/i.test(br.html) || br.html.includes("__NEXT_DATA__"));
+		if (!htmlOk) {
+			return {
+				ok: false,
+				title: d.title,
+				finalUrl: d.finalUrl,
+				detail: `usable=false marketingShell=${shell} title=${d.title} final=${d.finalUrl}`
+			};
+		}
+		const extracted = await azureExtractMeta(c, pageUrl, br.html);
+		const ok = Boolean(extracted.meta?.title ?? extracted.meta?.podcastName);
 		return {
 			ok,
-			title: d.title,
+			title: extracted.meta?.title ?? d.title,
 			finalUrl: d.finalUrl,
-			detail: `usable=${ok} marketingShell=${shell} title=${d.title} final=${d.finalUrl}`
+			meta: extracted.meta,
+			detail: `usable=true marketingShell=false title=${extracted.meta?.title ?? d.title} final=${d.finalUrl} ${extracted.detail}`
 		};
 	} catch (e) {
 		return { ok: false, detail: e instanceof Error ? e.message : String(e) };
@@ -286,20 +357,31 @@ async function cfUsFetchLeg(
 			title,
 			html: scraped.html
 		});
-		const ok =
+		const rewriteNote = scraped.rewrittenTo
+			? ` prepareUrlRewrite=${scraped.rewrittenTo}`
+			: "";
+		const htmlOk =
 			!shell &&
 			scraped.html.length >= 500 &&
 			(Boolean(title) ||
 				/property=["']og:title["']/i.test(scraped.html) ||
 				scraped.html.includes("__NEXT_DATA__"));
-		const rewriteNote = scraped.rewrittenTo
-			? ` prepareUrlRewrite=${scraped.rewrittenTo}`
-			: "";
+		if (!htmlOk) {
+			return {
+				ok: false,
+				title,
+				finalUrl: scraped.finalUrl,
+				detail: `usable=false marketingShell=${shell} title=${title} final=${scraped.finalUrl} colo=${scraped.placement?.colo ?? "none"}${rewriteNote}`
+			};
+		}
+		const extracted = await azureExtractMeta(c, scraped.requestUrl, scraped.html);
+		const ok = Boolean(extracted.meta?.title ?? extracted.meta?.podcastName);
 		return {
 			ok,
-			title,
+			title: extracted.meta?.title ?? title,
 			finalUrl: scraped.finalUrl,
-			detail: `usable=${ok} marketingShell=${shell} title=${title} final=${scraped.finalUrl} colo=${scraped.placement?.colo ?? "none"}${rewriteNote}`
+			meta: extracted.meta,
+			detail: `usable=true marketingShell=false title=${extracted.meta?.title ?? title} final=${scraped.finalUrl} colo=${scraped.placement?.colo ?? "none"}${rewriteNote} ${extracted.detail}`
 		};
 	} catch (e) {
 		return { ok: false, detail: e instanceof Error ? e.message : String(e) };
@@ -391,7 +473,7 @@ export async function streamingScrapeSurvey(c: Auth0ActionContext): Promise<Resp
 			? await azurePrepareLeg(c, pageUrl)
 			: { ok: null, skip: true, detail: "skipped" };
 		const cfFetch: LegResult = legs.includes("cfFetch")
-			? await cfFetchLeg(pageUrl, service)
+			? await cfFetchLeg(c, pageUrl, service)
 			: { ok: null, skip: true, detail: "skipped" };
 		const cfBr: LegResult = legs.includes("cfBr")
 			? await cfBrLeg(c, pageUrl, service)
@@ -416,12 +498,20 @@ export async function streamingScrapeSurvey(c: Auth0ActionContext): Promise<Resp
 			assumed: t.assumedTechnique ?? null,
 			azure: azure.ok,
 			azureDetail: azure.detail,
+			azureMeta: azure.meta ?? null,
+			azureMetaComplete: azure.meta?.complete ?? null,
 			cfFetch: cfFetch.ok,
 			cfFetchDetail: cfFetch.detail,
+			cfFetchMeta: cfFetch.meta ?? null,
+			cfFetchMetaComplete: cfFetch.meta?.complete ?? null,
 			cfBr: cfBr.ok,
 			cfBrDetail: cfBr.detail,
+			cfBrMeta: cfBr.meta ?? null,
+			cfBrMetaComplete: cfBr.meta?.complete ?? null,
 			cfUsFetch: cfUsFetch.ok,
 			cfUsFetchDetail: cfUsFetch.detail,
+			cfUsFetchMeta: cfUsFetch.meta ?? null,
+			cfUsFetchMetaComplete: cfUsFetch.meta?.complete ?? null,
 			prefer: ranking.prefer,
 			recommend: ranking.recommend,
 			geoFallback: ranking.geoFallback

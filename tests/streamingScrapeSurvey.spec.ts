@@ -6,6 +6,47 @@ import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 const usTrace = `fl=1\nh=cloudflare.com\ncolo=IAD\nloc=US\n`;
 const gbTrace = `fl=1\nh=cloudflare.com\ncolo=LHR\nloc=GB\n`;
 
+function fullExtractJson(overrides: Record<string, unknown> = {}) {
+	return {
+		service: "hulu",
+		title: "Hulu Show",
+		podcastName: "Hulu Show",
+		description: "A description",
+		publisher: "Hulu",
+		image: "https://example.com/art.jpg",
+		duration: "01:00:00",
+		release: "2020-01-01T00:00:00Z",
+		...overrides
+	};
+}
+
+function stubFetchForSurvey(opts?: {
+	extract?: Record<string, unknown>;
+	prepare?: Record<string, unknown>;
+}) {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async (input: RequestInfo | URL) => {
+			const u = String(input);
+			if (u === CDN_CGI_TRACE_URL || u.includes("cdn-cgi/trace")) {
+				return new Response(gbTrace, { status: 200 });
+			}
+			if (u.includes("/extract")) {
+				return new Response(JSON.stringify(fullExtractJson(opts?.extract)), {
+					status: 200
+				});
+			}
+			if (u.includes("/prepare")) {
+				return new Response(
+					JSON.stringify(fullExtractJson(opts?.prepare ?? { title: "Azure Title", podcastName: "Azure Show" })),
+					{ status: 200 }
+				);
+			}
+			throw new Error(`unexpected fetch ${u}`);
+		})
+	);
+}
+
 const { scrapeViaRegionalWorker } = vi.hoisted(() => ({
 	scrapeViaRegionalWorker: vi.fn()
 }));
@@ -170,20 +211,13 @@ describe("streamingScrapeSurvey", () => {
 				finalUrl: req.url,
 				title: "Hulu Show",
 				htmlLength: 600,
+				requestUrl: req.url,
+				rewrittenTo: null,
 				placement: { colo: "IAD", country: "US" }
 			};
 		});
 
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (input: RequestInfo | URL) => {
-				const u = String(input);
-				if (u === CDN_CGI_TRACE_URL || u.includes("cdn-cgi/trace")) {
-					return new Response(gbTrace, { status: 200 });
-				}
-				throw new Error(`unexpected fetch ${u}`);
-			})
-		);
+		stubFetchForSurvey();
 
 		const scrapeUs = { fetch: vi.fn() } as unknown as Fetcher;
 		const app = appWithPermissions(
@@ -264,16 +298,13 @@ describe("streamingScrapeSurvey", () => {
 			};
 		});
 
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (input: RequestInfo | URL) => {
-				const u = String(input);
-				if (u === CDN_CGI_TRACE_URL || u.includes("cdn-cgi/trace")) {
-					return new Response(gbTrace, { status: 200 });
-				}
-				throw new Error(`unexpected fetch ${u}`);
-			})
-		);
+		stubFetchForSurvey({
+			extract: {
+				title: "Watch The Office (UK) Season 1, Episode 2: Work Experience",
+				podcastName: "The Office (UK)",
+				publisher: "Peacock"
+			}
+		});
 
 		const scrapeUs = { fetch: vi.fn() } as unknown as Fetcher;
 		const app = appWithPermissions(
@@ -297,11 +328,16 @@ describe("streamingScrapeSurvey", () => {
 		);
 		expect(resp.status).toBe(200);
 		const body = (await resp.json()) as {
-			rows: Array<{ cfUsFetch: boolean; cfUsFetchDetail?: string }>;
+			rows: Array<{
+				cfUsFetch: boolean;
+				cfUsFetchDetail?: string;
+				cfUsFetchMetaComplete?: boolean | null;
+			}>;
 		};
 		expect(body.rows[0].cfUsFetch).toBe(true);
 		expect(body.rows[0].cfUsFetchDetail).toContain("prepareUrlRewrite=");
 		expect(body.rows[0].cfUsFetchDetail).toContain("/watch-online/");
+		expect(body.rows[0].cfUsFetchDetail).toContain("metaComplete=");
 	});
 
 	it("keeps scrapeUsFetch recommend when Azure and US both succeed for assumed geo", async () => {
@@ -312,6 +348,8 @@ describe("streamingScrapeSurvey", () => {
 					finalUrl: req.url,
 					title: "",
 					htmlLength: usTrace.length,
+					requestUrl: req.url,
+					rewrittenTo: null,
 					placement: { colo: "IAD", country: "US" }
 				};
 			}
@@ -323,26 +361,15 @@ describe("streamingScrapeSurvey", () => {
 				finalUrl: req.url,
 				title: "Hulu Show",
 				htmlLength: 600,
+				requestUrl: req.url,
+				rewrittenTo: null,
 				placement: { colo: "IAD", country: "US" }
 			};
 		});
 
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (input: RequestInfo | URL) => {
-				const u = String(input);
-				if (u.includes("/prepare")) {
-					return new Response(
-						JSON.stringify({ podcastName: "Azure Title", title: "Ep" }),
-						{ status: 200, headers: { "Content-Type": "application/json" } }
-					);
-				}
-				if (u === CDN_CGI_TRACE_URL || u.includes("cdn-cgi/trace")) {
-					return new Response(usTrace, { status: 200 });
-				}
-				throw new Error(`unexpected fetch ${u}`);
-			})
-		);
+		stubFetchForSurvey({
+			prepare: { podcastName: "Azure Title", title: "Ep" }
+		});
 
 		const app = appWithPermissions(
 			"/ops/streaming-scrape-survey",
