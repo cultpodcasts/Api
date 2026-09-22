@@ -11,7 +11,7 @@ describe("streamingScrapeSurveyMeta", () => {
 			title: "Ep",
 			podcastName: "Show",
 			description: "Desc",
-			publisher: "Hulu",
+			publisher: "Peacock",
 			image: "https://example.com/i.jpg",
 			duration: "01:00:00",
 			release: "2020-01-01T00:00:00Z"

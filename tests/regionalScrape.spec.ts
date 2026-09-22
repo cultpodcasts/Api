@@ -11,7 +11,7 @@ describe("regionalScrape", () => {
 			requestUrl: seo,
 			rewrittenTo: seo
 		});
-		expect(resolveRegionalScrapeUrl({ service: "hulu", url: asset })).toEqual({
+		expect(resolveRegionalScrapeUrl({ service: "zdf", url: asset })).toEqual({
 			requestUrl: asset,
 			rewrittenTo: null
 		});

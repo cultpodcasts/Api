@@ -9,7 +9,7 @@ Ops / architecture notes. Prefer **Azure extract**; Cloudflare only when require
 | **Azure `SubmitUrl/prepare`** | Azure UK can load episode meta (most services, incl. **ZDF**) |
 | **CF Worker `fetch` → Azure extract** | Azure cannot GET; edge Worker can (e.g. Tubi) |
 | **CF Browser Rendering → Azure extract** | **SPA hydration** only (e.g. ITVX) — no geo claim |
-| **CF regional scrape + `directHttp` → Azure extract** | **Geo soft-wall** (Hulu / Peacock) via `SCRAPE_US` — **never BR for geo**. Preview Api → `streaming-scrape-us-preview`; production Api → `streaming-scrape-us`. |
+| **CF regional scrape + `directHttp` → Azure extract** | **Geo soft-wall** (Peacock) via `SCRAPE_US` — **never BR for geo**. Preview Api → `streaming-scrape-us-preview`; production Api → `streaming-scrape-us`. Hulu is submit-retired (no usable episode catalogue pages). |
 
 ## Ongoing survey (Api-orchestrated)
 
@@ -40,9 +40,10 @@ See [`scripts/streaming-scrape-survey/README.md`](../scripts/streaming-scrape-su
 
 Worker placement soft-pins the **Worker** isolate. BR pool affinity is unreliable (US often IAD; DE/CH BR missed). Do not use BR as a geo tool.
 
-## Hulu / Peacock
+## Peacock (US scrape)
 
-- Profile: `{ mode: "directHttp", region: "us" }` → `SCRAPE_US` fetch + marketing-shell reject + Azure extract.
+- Profile: `{ mode: "directHttp", region: "us" }` → `SCRAPE_US` fetch + marketing-shell reject + Azure extract. **Only** US `scrapeProfiles` entry.
+- **Hulu retired from submit:** `/watch/{id}` redirects to series hub; public SEO episode pages do not exist. Enum/icon may remain for historical URLs.
 - **Peacock prepare URLs:** US SEO `/watch-online/movies|tv/...` (Next.js SSR `title` / `og:*`). `/watch/asset/...` is the authenticated SPA and soft-walls to signin / browser-not-supported.
 - **Rewrite:** contract `prepareUrlRewrites.peacock` (`/watch/asset/` → `/watch-online/`); applied once in `scrapeViaRegionalWorker` via `resolvePrepareFetchUrl` (prepare + survey). Playback `/watch/playback/vod/...` is not rewritten.
 - Non-US / mis-placed fetch → `/unavailable` with title `Unavailable In Your Region` — marketing-shell reject.
@@ -60,8 +61,8 @@ Azure / edge fetch — no `SCRAPE_DE` for meta. DE only for playback.
 | CF GET → extract | tubi |
 | CF BitChute API → extract | bitchute |
 | Edge BR → extract | itvx |
-| US placed **fetch** → extract | hulu, peacock |
-| Marketing shell reject | hulu, peacock, disneyPlus |
+| US placed **fetch** → extract | peacock |
+| Marketing shell reject | peacock, disneyPlus |
 
 ## Related
 

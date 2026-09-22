@@ -20,9 +20,9 @@ describe("streaming-scrape-us Worker", () => {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					url: "https://www.hulu.com/series/x",
+					url: "https://www.peacocktv.com/watch-online/movies/example/f45c2853-4230-3910-aa53-51ac37f5a788",
 					mode: "browserRendering",
-					service: "hulu"
+					service: "peacock"
 				})
 			}),
 			{}
@@ -41,9 +41,9 @@ describe("streaming-scrape-us Worker", () => {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					url: "https://www.hulu.com/series/x",
+					url: "https://www.peacocktv.com/watch-online/movies/example/f45c2853-4230-3910-aa53-51ac37f5a788",
 					mode: "directHttp",
-					service: "hulu"
+					service: "peacock"
 				})
 			}),
 			{}

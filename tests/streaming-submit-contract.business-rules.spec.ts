@@ -115,19 +115,17 @@ describe("streaming-submit-contract (Api publisher)", () => {
 		expect(STREAMING_SUBMIT_CONTRACT_JSON_COPY_FROM).toContain("streaming-submit-contract.json");
 	});
 
-	it("uses scrapeProfiles for Hulu/Peacock (US directHttp) and default allowlist for itvx", () => {
+	it("uses scrapeProfiles for Peacock (US directHttp) and default allowlist for itvx", () => {
 		const modes = Object.fromEntries(
 			streamingServiceKeys.map((s: StreamingServiceKey) => [s, htmlFetchModeForService(s)])
 		);
 		expect(modes.itvx).toBe("browserRendering");
-		expect(modes.hulu).toBe("directHttp");
 		expect(modes.peacock).toBe("directHttp");
-		expect(resolveScrapeProfile("hulu")).toEqual({ mode: "directHttp", region: "us" });
+		expect(modes.hulu).toBeUndefined();
 		expect(resolveScrapeProfile("peacock")).toEqual({ mode: "directHttp", region: "us" });
+		expect(resolveScrapeProfile("hulu")).toEqual({ mode: "directHttp", region: "default" });
 		expect(resolveScrapeProfile("itvx").region).toBe("default");
-		for (const s of streamingServiceKeys.filter(
-			(k) => k !== "itvx" && k !== "hulu" && k !== "peacock"
-		)) {
+		for (const s of streamingServiceKeys.filter((k) => k !== "itvx" && k !== "peacock")) {
 			expect(modes[s]).toBe("directHttp");
 			expect(resolveScrapeProfile(s).region).toBe("default");
 		}
@@ -152,6 +150,6 @@ describe("streaming-submit-contract (Api publisher)", () => {
 			requestUrl: seo,
 			rewrittenTo: null
 		});
-		expect(resolvePrepareFetchUrl("hulu", asset).rewrittenTo).toBeNull();
+		expect(resolvePrepareFetchUrl("zdf", asset).rewrittenTo).toBeNull();
 	});
 });

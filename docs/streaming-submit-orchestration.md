@@ -33,7 +33,7 @@ Do **not** invent a parallel streamer enum or membership shape on the website or
 | `service` | `ServiceKeys` streaming keys (`itvx`, `discoveryPlus`, `bbcSounds`, …) | On streaming membership only |
 | `htmlFetchMode` | `directHttp` \| `browserRendering` | Prepare-time fetch policy |
 | `scrapeRegions` | `default` \| `us` \| `uk` \| `de` | Where prepare HTML fetch runs (`default` = Api Worker) |
-| `scrapeProfiles` | per-service `{ mode, region }` | Canonical mode + region (Phase 1: `hulu` / `peacock` → US) |
+| `scrapeProfiles` | per-service `{ mode, region }` | Canonical mode + region (Phase 1: `peacock` → US; Hulu submit-retired) |
 | `prepareUrlRewrites` | per-service `{ fromPathPrefix, toPathPrefix, … }` | Rewrite soft-wall catalogue paths before regional scrape (Phase 1: Peacock `/watch/asset` → `/watch-online`) |
 
 TypeScript: const arrays + derived union types in the contract fixture.  
@@ -54,9 +54,9 @@ Direction: **SPA → CF → Azure** (and CF → Browser Rendering / regional scr
 | **Default** | Azure | Azure `SubmitUrl/prepare` | Azure UK can load episode meta (most services, including **ZDF**) |
 | **CF GET / API** | Worker | Azure `SubmitUrl/extract` | Azure cannot reach host (Tubi GET, BitChute video API) |
 | **CF Browser Rendering** | Worker (edge) | Azure extract | **SPA hydration** (ITVX) — BR is **not** region-pinnable; never for geo |
-| **CF regional fetch** | `streaming-scrape-us` via `SCRAPE_US` (`directHttp`) | Azure extract | **Geo soft-wall** (Hulu / Peacock) |
+| **CF regional fetch** | `streaming-scrape-us` via `SCRAPE_US` (`directHttp`) | Azure extract | **Geo soft-wall** (Peacock) |
 
-Known marketing / geo soft-wall shells (Hulu → Disney+, Peacock → signin) are rejected before extract.
+Known marketing / geo soft-wall shells (Peacock → signin, Disney+ marketing titles) are rejected before extract.
 
 Field evidence: [`streaming-scrape-findings.md`](./streaming-scrape-findings.md).
 
@@ -90,7 +90,7 @@ One Worker can have only one [`placement.region`](https://developers.cloudflare.
 | Top-level **`api`** | **`streaming-scrape-us`** |
 | **`api-preview`** | **`streaming-scrape-us-preview`** |
 
-Same repo (`workers/streaming-scrape-us`); **separate** Workers Builds / deploys from Api. Preview must not bind production scrape. When `scrapeProfiles[service].region === "us"` (Hulu / Peacock: **`directHttp`**), prepare POSTs `{ url, mode }` over `SCRAPE_US` and uses the returned HTML before Azure extract. Prefer **fetch** for geo; Browser Run is not region-pinnable. Services with `prepareUrlRewrites` (Peacock) rewrite the fetch URL **once** inside `scrapeViaRegionalWorker` via contract `resolvePrepareFetchUrl` — prepare and survey share that path.
+Same repo (`workers/streaming-scrape-us`); **separate** Workers Builds / deploys from Api. Preview must not bind production scrape. When `scrapeProfiles[service].region === "us"` (Peacock: **`directHttp`**), prepare POSTs `{ url, mode }` over `SCRAPE_US` and uses the returned HTML before Azure extract. Prefer **fetch** for geo; Browser Run is not region-pinnable. Services with `prepareUrlRewrites` (Peacock) rewrite the fetch URL **once** inside `scrapeViaRegionalWorker` via contract `resolvePrepareFetchUrl` — prepare and survey share that path.
 
 Ops: [`workers/streaming-scrape-us/README.md`](../workers/streaming-scrape-us/README.md).
 

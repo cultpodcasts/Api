@@ -8,11 +8,11 @@ const gbTrace = `fl=1\nh=cloudflare.com\ncolo=LHR\nloc=GB\n`;
 
 function fullExtractJson(overrides: Record<string, unknown> = {}) {
 	return {
-		service: "hulu",
-		title: "Hulu Show",
-		podcastName: "Hulu Show",
+		service: "peacock",
+		title: "Peacock Show",
+		podcastName: "Peacock Show",
 		description: "A description",
-		publisher: "Hulu",
+		publisher: "Peacock",
 		image: "https://example.com/art.jpg",
 		duration: "01:00:00",
 		release: "2020-01-01T00:00:00Z",
@@ -113,9 +113,9 @@ describe("streamingScrapeSurvey", () => {
 				body: JSON.stringify({
 					targets: [
 						{
-							id: "hulu-1",
-							service: "hulu",
-							url: "https://www.hulu.com/series/x"
+							id: "peacock-contam",
+							service: "peacock",
+							url: "https://www.peacocktv.com/watch-online/movies/example/f45c2853-4230-3910-aa53-51ac37f5a788"
 						}
 					],
 					legs: ["cfFetch"],
@@ -205,11 +205,11 @@ describe("streamingScrapeSurvey", () => {
 			}
 			return {
 				html:
-					'<html><head><meta property="og:title" content="Hulu Show" /></head><body>' +
+					'<html><head><meta property="og:title" content="Peacock Show" /></head><body>' +
 					"x".repeat(500) +
 					"</body></html>",
 				finalUrl: req.url,
-				title: "Hulu Show",
+				title: "Peacock Show",
 				htmlLength: 600,
 				requestUrl: req.url,
 				rewrittenTo: null,
@@ -234,9 +234,9 @@ describe("streamingScrapeSurvey", () => {
 				body: JSON.stringify({
 					targets: [
 						{
-							id: "hulu-1",
-							service: "hulu",
-							url: "https://www.hulu.com/series/x",
+							id: "peacock-1",
+							service: "peacock",
+							url: "https://www.peacocktv.com/watch-online/movies/example/f45c2853-4230-3910-aa53-51ac37f5a788",
 							assumedTechnique: "scrapeUsFetch"
 						}
 					],
@@ -355,11 +355,11 @@ describe("streamingScrapeSurvey", () => {
 			}
 			return {
 				html:
-					'<html><head><meta property="og:title" content="Hulu Show" /></head><body>' +
+					'<html><head><meta property="og:title" content="Peacock Show" /></head><body>' +
 					"x".repeat(500) +
 					"</body></html>",
 				finalUrl: req.url,
-				title: "Hulu Show",
+				title: "Peacock Show",
 				htmlLength: 600,
 				requestUrl: req.url,
 				rewrittenTo: null,
@@ -385,9 +385,9 @@ describe("streamingScrapeSurvey", () => {
 				body: JSON.stringify({
 					targets: [
 						{
-							id: "hulu-1",
-							service: "hulu",
-							url: "https://www.hulu.com/series/x",
+							id: "peacock-1",
+							service: "peacock",
+							url: "https://www.peacocktv.com/watch-online/movies/example/f45c2853-4230-3910-aa53-51ac37f5a788",
 							assumedTechnique: "scrapeUsFetch"
 						}
 					],

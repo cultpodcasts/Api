@@ -1,11 +1,11 @@
 /**
  * Reject geo / marketing soft-wall HTML before Azure extract so prepare
- * cannot create junk episodes (e.g. Hulu → Disney+ homepage,
- * Peacock → signin / browser-not-supported).
+ * cannot create junk episodes (e.g. Peacock → signin / browser-not-supported,
+ * Disney+ marketing homepage).
  */
 
 export type MarketingShellCheck = {
-	/** Streaming service key from lookup (e.g. hulu). */
+	/** Streaming service key from lookup (e.g. peacock). */
 	service: string;
 	/** Submitted catalogue URL. */
 	submittedUrl: string;
@@ -38,23 +38,17 @@ function titleLooksLikeDisneyMarketing(title: string): boolean {
 }
 
 /**
- * True when scraped content is a Disney+/Hulu marketing shell rather than the
+ * True when scraped content is a Peacock / Disney+ marketing shell rather than the
  * submitted catalogue page.
  */
 export function isMarketingShellHtml(check: MarketingShellCheck): boolean {
 	const service = check.service.trim().toLowerCase();
-	if (service !== "hulu" && service !== "peacock" && service !== "disneyplus") {
+	if (service !== "peacock" && service !== "disneyplus") {
 		return false;
 	}
 
 	const submittedHost = hostOf(check.submittedUrl);
 	const finalHost = check.finalUrl ? hostOf(check.finalUrl) : null;
-
-	if (service === "hulu" && submittedHost?.endsWith("hulu.com")) {
-		if (finalHost && !finalHost.endsWith("hulu.com")) {
-			return true;
-		}
-	}
 
 	if (service === "peacock" && submittedHost?.endsWith("peacocktv.com")) {
 		if (finalHost && finalHost.includes("peacocktv.com")) {
