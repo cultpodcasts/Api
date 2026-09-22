@@ -11,7 +11,7 @@ US-placed regional scrape Worker (`placement.region: aws:us-east-1`). Called onl
 
 ## Automatic deploy
 
-Chained from Api’s `npm run deploy` (see `scripts/cf-deploy.mjs` / [`docs/workers-builds-deploy.md`](../../docs/workers-builds-deploy.md)):
+Chained from Api’s `npm run deploy` via root config `wrangler.streaming-scrape-us.jsonc` (must be at repo root so `src/` imports resolve in CI):
 
 - `npm run deploy` → scrape-us + api  
 - `npm run deploy -- --env preview` → scrape-us-preview + api-preview  

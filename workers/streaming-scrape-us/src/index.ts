@@ -3,9 +3,9 @@ import {
 	fetchHtmlWithBrowserRendering,
 	isUsableBrowserHtml,
 	type BrowserRenderingDiagnostics
-} from "../../src/browserRenderingHtml";
-import { fetchCatalogHtml } from "../../src/catalogHtmlPrepare";
-import type { HtmlFetchMode } from "../../tests/fixtures/streaming-submit-contract";
+} from "../../../src/browserRenderingHtml";
+import { fetchCatalogHtml } from "../../../src/catalogHtmlPrepare";
+import type { HtmlFetchMode } from "../../../tests/fixtures/streaming-submit-contract";
 
 export type ScrapeRequest = {
 	url: string;

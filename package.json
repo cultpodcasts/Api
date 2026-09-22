@@ -1,13 +1,13 @@
 {
 	"name": "cultpodcasts-api",
-	"version": "1.1.34",
+	"version": "1.1.35",
 	"private": true,
 	"scripts": {
 		"deploy": "node ./scripts/cf-deploy.mjs",
 		"deploy:with-contract": "npm run publish:contract:production && node ./scripts/cf-deploy.mjs",
 		"deploy:preview:with-contract": "npm run publish:contract:staging && node ./scripts/cf-deploy.mjs --env preview",
-		"deploy:scrape-us": "wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc",
-		"deploy:scrape-us:preview": "wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc --env preview",
+		"deploy:scrape-us": "wrangler deploy -c ./wrangler.streaming-scrape-us.jsonc",
+		"deploy:scrape-us:preview": "wrangler deploy -c ./wrangler.streaming-scrape-us.jsonc --env preview",
 		"publish:contract:production": "node ./scripts/publish-streaming-submit-contract.mjs production",
 		"publish:contract:staging": "node ./scripts/publish-streaming-submit-contract.mjs staging",
 		"start": "wrangler dev --env local --ip 127.0.0.1 --port 8787 --local-protocol https --https-cert-path ./.cert/dev-cert.pem --https-key-path ./.cert/dev-key.pem",
