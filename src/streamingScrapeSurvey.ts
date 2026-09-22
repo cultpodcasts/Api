@@ -12,7 +12,6 @@ import { fetchCatalogHtml } from "./catalogHtmlPrepare";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { isMarketingShellHtml } from "./marketingShellReject";
 import { LogCollector } from "./LogCollector";
-import { toPeacockWatchOnlineUrl } from "./peacockWatchOnlineUrl";
 import { scrapeViaRegionalWorker } from "./regionalScrape";
 import {
 	canCallAzureSubmitBackend,
@@ -273,18 +272,9 @@ async function cfUsFetchLeg(
 		return { ok: false, detail: "SCRAPE_US not configured" };
 	}
 	try {
-		// Same as submitPrepare: Peacock asset soft-walls; fetch the public SEO twin.
-		let fetchUrl = pageUrl;
-		let rewriteNote = "";
-		if (service.trim().toLowerCase() === "peacock") {
-			const rewritten = toPeacockWatchOnlineUrl(pageUrl);
-			if (rewritten) {
-				fetchUrl = rewritten;
-				rewriteNote = ` peacockRewrite=${rewritten}`;
-			}
-		}
+		// Peacock asset→watch-online rewrite is inside scrapeViaRegionalWorker (shared with prepare).
 		const scraped = await scrapeViaRegionalWorker(c.env.SCRAPE_US, {
-			url: fetchUrl,
+			url: pageUrl,
 			mode: "directHttp",
 			service
 		});
@@ -302,6 +292,9 @@ async function cfUsFetchLeg(
 			(Boolean(title) ||
 				/property=["']og:title["']/i.test(scraped.html) ||
 				scraped.html.includes("__NEXT_DATA__"));
+		const rewriteNote = scraped.rewrittenTo
+			? ` prepareUrlRewrite=${scraped.rewrittenTo}`
+			: "";
 		return {
 			ok,
 			title,

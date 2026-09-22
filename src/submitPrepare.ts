@@ -13,7 +13,6 @@ import {
 } from "./streamingHtmlFetchMode";
 import { fetchCatalogHtml } from "./catalogHtmlPrepare";
 import { isMarketingShellHtml } from "./marketingShellReject";
-import { toPeacockWatchOnlineUrl } from "./peacockWatchOnlineUrl";
 import { scrapeViaRegionalWorker } from "./regionalScrape";
 import {
 	parseBrowserRenderingServicesCsv,
@@ -235,23 +234,19 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 				}
 				logCollector.add({ event: "submit.prepare.regional_scrape" });
 				// US geo soft-walls: directHttp only — never BR (edge Api owns hydration).
-				let fetchUrl = absoluteUrl;
-				if (service.trim().toLowerCase() === "peacock") {
-					const rewritten = toPeacockWatchOnlineUrl(absoluteUrl);
-					if (rewritten) {
-						fetchUrl = rewritten;
-						extractUrl = rewritten;
-						logCollector.addMessage(
-							`peacock rewrite asset→watch-online fetch=${fetchUrl}`
-						);
-					}
-				}
+				// Peacock asset→watch-online rewrite lives in scrapeViaRegionalWorker.
 				logCollector.addMessage(`regional scrape region=us mode=directHttp`);
 				const scraped = await scrapeViaRegionalWorker(c.env.SCRAPE_US, {
-					url: fetchUrl,
+					url: absoluteUrl,
 					mode: "directHttp",
 					service
 				});
+				if (scraped.rewrittenTo) {
+					extractUrl = scraped.requestUrl;
+					logCollector.addMessage(
+						`prepare url rewrite fetch=${scraped.requestUrl}`
+					);
+				}
 				regionalScrapeOk = true;
 				html = scraped.html;
 				scrapeFinalUrl = scraped.finalUrl;

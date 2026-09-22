@@ -229,7 +229,7 @@ describe("streamingScrapeSurvey", () => {
 		expect(scrapeViaRegionalWorker).toHaveBeenCalled();
 	});
 
-	it("rewrites Peacock asset URLs to watch-online before cfUsFetch", async () => {
+	it("rewrites Peacock asset URLs via contract before cfUsFetch (mocked regional scrape returns rewrite fields)", async () => {
 		const asset =
 			"https://www.peacocktv.com/watch/asset/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0";
 		const seo =
@@ -243,10 +243,13 @@ describe("streamingScrapeSurvey", () => {
 					finalUrl: req.url,
 					title: "",
 					htmlLength: usTrace.length,
+					requestUrl: req.url,
+					rewrittenTo: null,
 					placement: { colo: "IAD", country: "US" }
 				};
 			}
-			expect(req.url).toBe(seo);
+			// Production path rewrites inside scrapeViaRegionalWorker; mock simulates that.
+			expect(req.url).toBe(asset);
 			return {
 				html:
 					'<html><head><meta property="og:title" content="Watch The Office (UK) Season 1, Episode 2: Work Experience | Peacock" /></head><body>' +
@@ -255,6 +258,8 @@ describe("streamingScrapeSurvey", () => {
 				finalUrl: seo,
 				title: "Watch The Office (UK) Season 1, Episode 2: Work Experience | Peacock",
 				htmlLength: 600,
+				requestUrl: seo,
+				rewrittenTo: seo,
 				placement: { colo: "IAD", country: "US" }
 			};
 		});
@@ -295,7 +300,7 @@ describe("streamingScrapeSurvey", () => {
 			rows: Array<{ cfUsFetch: boolean; cfUsFetchDetail?: string }>;
 		};
 		expect(body.rows[0].cfUsFetch).toBe(true);
-		expect(body.rows[0].cfUsFetchDetail).toContain("peacockRewrite=");
+		expect(body.rows[0].cfUsFetchDetail).toContain("prepareUrlRewrite=");
 		expect(body.rows[0].cfUsFetchDetail).toContain("/watch-online/");
 	});
 

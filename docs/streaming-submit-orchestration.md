@@ -34,6 +34,7 @@ Do **not** invent a parallel streamer enum or membership shape on the website or
 | `htmlFetchMode` | `directHttp` \| `browserRendering` | Prepare-time fetch policy |
 | `scrapeRegions` | `default` \| `us` \| `uk` \| `de` | Where prepare HTML fetch runs (`default` = Api Worker) |
 | `scrapeProfiles` | per-service `{ mode, region }` | Canonical mode + region (Phase 1: `hulu` / `peacock` → US) |
+| `prepareUrlRewrites` | per-service `{ fromPathPrefix, toPathPrefix, … }` | Rewrite soft-wall catalogue paths before regional scrape (Phase 1: Peacock `/watch/asset` → `/watch-online`) |
 
 TypeScript: const arrays + derived union types in the contract fixture.  
 .NET: `ServiceKeys` / `UrlMembershipLookupKinds` must stay aligned with the JSON `streamingServiceKeys` list (RPP business-rule test).
@@ -89,7 +90,7 @@ One Worker can have only one [`placement.region`](https://developers.cloudflare.
 | Top-level **`api`** | **`streaming-scrape-us`** |
 | **`api-preview`** | **`streaming-scrape-us-preview`** |
 
-Same repo (`workers/streaming-scrape-us`); **separate** Workers Builds / deploys from Api. Preview must not bind production scrape. When `scrapeProfiles[service].region === "us"` (Hulu / Peacock: **`directHttp`**), prepare POSTs `{ url, mode }` over `SCRAPE_US` and uses the returned HTML before Azure extract. Prefer **fetch** for geo; Browser Run is not region-pinnable.
+Same repo (`workers/streaming-scrape-us`); **separate** Workers Builds / deploys from Api. Preview must not bind production scrape. When `scrapeProfiles[service].region === "us"` (Hulu / Peacock: **`directHttp`**), prepare POSTs `{ url, mode }` over `SCRAPE_US` and uses the returned HTML before Azure extract. Prefer **fetch** for geo; Browser Run is not region-pinnable. Services with `prepareUrlRewrites` (Peacock) rewrite the fetch URL **once** inside `scrapeViaRegionalWorker` via contract `resolvePrepareFetchUrl` — prepare and survey share that path.
 
 Ops: [`workers/streaming-scrape-us/README.md`](../workers/streaming-scrape-us/README.md).
 

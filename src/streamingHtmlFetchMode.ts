@@ -5,10 +5,14 @@
  */
 export {
 	htmlFetchModeForService,
+	resolvePrepareFetchUrl,
 	resolveScrapeProfile,
 	scrapeProfiles,
 	scrapeRegions,
+	prepareUrlRewrites,
 	type HtmlFetchMode,
+	type PrepareFetchUrlResolution,
+	type PrepareUrlRewriteSpec,
 	type ScrapeProfile,
 	type ScrapeRegion
 } from "../tests/fixtures/streaming-submit-contract";
