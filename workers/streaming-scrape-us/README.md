@@ -11,21 +11,30 @@ US-placed regional scrape Worker (`placement.region: aws:us-east-1`). Called onl
 
 Same script, two publishes — so preview surveys / prepare do not hit production scrape.
 
-## Deploy (separate from Api)
+## Automatic deploy (recommended)
 
-Workers Builds / `wrangler` must target **this** config; Api Git deploys do **not** publish it.
+Do **not** rely on a second Workers Builds project. Chain scrape → Api in the **existing** Api Builds deploy commands:
+
+| Worker Builds | Deploy command |
+|---------------|----------------|
+| **api-preview** | `npm run deploy:preview:ci` |
+| **api** (production) | `npm run deploy:ci` |
+
+`deploy:preview:ci` = `deploy:scrape-us:preview` then `wrangler deploy --env preview`.  
+`deploy:ci` = `deploy:scrape-us` then `wrangler deploy`.
+
+One PR / main push then creates the scrape Worker (if missing) and deploys Api with a resolvable `SCRAPE_US` binding.
+
+Set these under each Worker → **Settings** → **Build** → **Deploy command** (dashboard). Build command can stay `./build.sh`.
+
+## Manual deploy
 
 ```powershell
-# Preview (bind target for api-preview)
-npx wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc --env preview
-
-# Production (bind target for top-level api)
-npx wrangler deploy -c ./workers/streaming-scrape-us/wrangler.jsonc
+npm run deploy:scrape-us:preview   # streaming-scrape-us-preview
+npm run deploy:scrape-us           # streaming-scrape-us
 ```
 
-Or: `npm run deploy:scrape-us:preview` / `npm run deploy:scrape-us` (explicit ask only — see no-deploys rule).
-
-Configure **two** Workers Builds projects on this repo (root directory `workers/streaming-scrape-us`), one for each Worker name / env, mirroring Api preview vs production.
+(Explicit ask only — see no-deploys rule.)
 
 ## Geo note
 
