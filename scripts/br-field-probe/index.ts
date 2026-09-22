@@ -9,7 +9,10 @@ import {
 	HARD_CAP_MS,
 	isUsableBrowserHtml
 } from "../../src/browserRenderingHtml";
-import { fetchCatalogHtml } from "../../src/catalogHtmlPrepare";
+import {
+	fetchCatalogHtml,
+	titleFromCatalogHtml
+} from "../../src/catalogHtmlPrepare";
 import { isMarketingShellHtml } from "../../src/marketingShellReject";
 import { verifyAuth0M2mBearer } from "../../src/verifyAuth0M2mBearer";
 import fieldUrlsCatalog from "./field-urls.json";
@@ -111,17 +114,6 @@ function parseTargetsBody(body: unknown): FieldUrlTarget[] | null {
 	return null;
 }
 
-function titleFromHtml(html: string): string {
-	const og = html.match(
-		/(?:property|name)=["']og:title["'][^>]*content=["']([^"']+)["']/i
-	);
-	if (og?.[1]) {
-		return og[1];
-	}
-	const doc = html.match(/<title>([^<]*)<\/title>/i);
-	return doc?.[1]?.trim() ?? "";
-}
-
 function htmlSignals(html: string) {
 	return {
 		htmlHasOgTitle: /property\s*=\s*["']og:title["']/i.test(html),
@@ -135,8 +127,8 @@ async function probeFetch(target: FieldUrlTarget, compact: boolean): Promise<Pro
 	const started = Date.now();
 	const messages: string[] = [];
 	try {
-		const html = await fetchCatalogHtml(new URL(pageUrl), (m) => messages.push(m));
-		if (!html) {
+		const fetched = await fetchCatalogHtml(new URL(pageUrl), (m) => messages.push(m));
+		if (!fetched) {
 			return {
 				id: target.id,
 				service: target.service,
@@ -160,12 +152,13 @@ async function probeFetch(target: FieldUrlTarget, compact: boolean): Promise<Pro
 				fatal: messages.join("; ") || "catalog html miss"
 			};
 		}
-		const title = titleFromHtml(html);
+		const { html, finalUrl } = fetched;
+		const title = titleFromCatalogHtml(html);
 		const signals = htmlSignals(html);
 		const marketingShell = isMarketingShellHtml({
 			service: target.service,
 			submittedUrl: pageUrl,
-			finalUrl: pageUrl,
+			finalUrl,
 			title,
 			html
 		});
@@ -179,7 +172,7 @@ async function probeFetch(target: FieldUrlTarget, compact: boolean): Promise<Pro
 			mode: "fetch",
 			source: "api-catalogHtmlPrepare",
 			url: pageUrl,
-			finalUrl: pageUrl,
+			finalUrl,
 			hardCapMs: 0,
 			elapsedMs: Date.now() - started,
 			gotoError: null,

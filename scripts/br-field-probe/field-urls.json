@@ -12,8 +12,8 @@
 			"id": "hulu-heavens-gate",
 			"service": "hulu",
 			"url": "https://www.hulu.com/series/heavens-gate-the-cult-of-cults-3de513f8-ee47-44d4-98c8-f6910ce4ee9b",
-			"enabled": true,
-			"notes": "Geo soft-wall — use Api survey / streaming-scrape-us directHttp (not BR field probe)."
+			"enabled": false,
+			"notes": "Submit-retired (no usable episode pages; /watch → series hub). Keep disabled — not a BR field probe target."
 		},
 		{
 			"id": "peacock-office",

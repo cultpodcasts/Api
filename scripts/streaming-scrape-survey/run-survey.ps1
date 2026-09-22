@@ -9,8 +9,8 @@
   Legs: azure | cfFetch | cfBr (hydration) | cfUsFetch (geo via SCRAPE_US directHttp — never BR).
 
   streaming-scrape-us / streaming-scrape-us-preview are product regional scrape
-  Workers (SCRAPE_US for Hulu/Peacock prepare). Survey does not deploy or tear
-  them down — keep the preview twin deployed like api-preview.
+  Workers (SCRAPE_US for Peacock / US scrapeProfiles prepare). Survey does not
+  deploy or tear them down — keep the preview twin deployed like api-preview.
 
 .PARAMETER ApiBaseUrl
   Api origin (preview/workers.dev recommended — Bot Fight on apex).

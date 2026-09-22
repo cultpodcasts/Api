@@ -206,14 +206,20 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 	}
 
 	if (!azureMeta && workerPrefetchesCatalogHtml(service)) {
-		const html = await fetchCatalogHtml(url, addPrepareMessage);
-		azureMeta = await extractPrefetchedBody(c, absoluteUrl, html, addPrepareMessage, {
-			statusLogPrefix: "catalog html azure extract",
-			fallthroughMessage: "catalog html extract failed, falling back to azure prepare",
-			onSuccess: () => {
-				catalogHtmlExtractOk = true;
+		const fetched = await fetchCatalogHtml(url, addPrepareMessage);
+		azureMeta = await extractPrefetchedBody(
+			c,
+			fetched?.finalUrl ?? absoluteUrl,
+			fetched?.html ?? null,
+			addPrepareMessage,
+			{
+				statusLogPrefix: "catalog html azure extract",
+				fallthroughMessage: "catalog html extract failed, falling back to azure prepare",
+				onSuccess: () => {
+					catalogHtmlExtractOk = true;
+				}
 			}
-		});
+		);
 	}
 
 	if (!azureMeta && (scrapeProfile.region === "us" || mode === "browserRendering")) {

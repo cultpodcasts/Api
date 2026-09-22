@@ -1,4 +1,7 @@
-import { fetchCatalogHtml } from "../../../src/catalogHtmlPrepare";
+import {
+	fetchCatalogHtml,
+	titleFromCatalogHtml
+} from "../../../src/catalogHtmlPrepare";
 import type { HtmlFetchMode } from "../../../tests/fixtures/streaming-submit-contract";
 
 export type ScrapeRequest = {
@@ -87,8 +90,8 @@ export default {
 		}
 
 		const messages: string[] = [];
-		const html = await fetchCatalogHtml(absolute, (m) => messages.push(m));
-		if (!html) {
+		const fetched = await fetchCatalogHtml(absolute, (m) => messages.push(m));
+		if (!fetched) {
 			return Response.json(
 				{
 					ok: false,
@@ -100,9 +103,9 @@ export default {
 		}
 		return Response.json({
 			ok: true,
-			html,
-			finalUrl: pageUrl,
-			title: "",
+			html: fetched.html,
+			finalUrl: fetched.finalUrl,
+			title: titleFromCatalogHtml(fetched.html),
 			placement
 		} satisfies ScrapeResponse);
 	}

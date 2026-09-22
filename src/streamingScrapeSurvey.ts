@@ -8,7 +8,7 @@ import {
 	type CdnCgiTrace
 } from "./cdnCgiTrace";
 import { fetchHtmlWithBrowserRendering } from "./browserRenderingHtml";
-import { fetchCatalogHtml } from "./catalogHtmlPrepare";
+import { fetchCatalogHtml, titleFromCatalogHtml } from "./catalogHtmlPrepare";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { isMarketingShellHtml } from "./marketingShellReject";
 import { LogCollector } from "./LogCollector";
@@ -51,17 +51,6 @@ type LegResult = {
 	/** Azure prepare / extract field coverage when available. */
 	meta?: SurveyMetaCoverage | null;
 };
-
-function titleFromHtml(html: string): string {
-	const og = html.match(
-		/(?:property|name)=["']og:title["'][^>]*content=["']([^"']+)["']/i
-	);
-	if (og?.[1]) {
-		return og[1];
-	}
-	const doc = html.match(/<title>([^<]*)<\/title>/i);
-	return doc?.[1]?.trim() ?? "";
-}
 
 async function workerFetchTrace(): Promise<CdnCgiTrace> {
 	const resp = await fetch(CDN_CGI_TRACE_URL, {
@@ -257,15 +246,16 @@ async function cfFetchLeg(
 	service: string
 ): Promise<LegResult> {
 	const messages: string[] = [];
-	const html = await fetchCatalogHtml(new URL(pageUrl), (m) => messages.push(m));
-	if (!html) {
+	const fetched = await fetchCatalogHtml(new URL(pageUrl), (m) => messages.push(m));
+	if (!fetched) {
 		return { ok: false, detail: messages.join("; ") || "catalog fetch miss" };
 	}
-	const title = titleFromHtml(html);
+	const { html, finalUrl } = fetched;
+	const title = titleFromCatalogHtml(html);
 	const shell = isMarketingShellHtml({
 		service,
 		submittedUrl: pageUrl,
-		finalUrl: pageUrl,
+		finalUrl,
 		title,
 		html
 	});
@@ -279,7 +269,7 @@ async function cfFetchLeg(
 		return {
 			ok: false,
 			title,
-			finalUrl: pageUrl,
+			finalUrl,
 			detail: `usable=false marketingShell=${shell} title=${title}`
 		};
 	}
@@ -288,7 +278,7 @@ async function cfFetchLeg(
 	return {
 		ok,
 		title: extracted.meta?.title ?? title,
-		finalUrl: pageUrl,
+		finalUrl,
 		meta: extracted.meta,
 		detail: `usable=true marketingShell=false title=${extracted.meta?.title ?? title} ${extracted.detail}`
 	};
@@ -349,7 +339,7 @@ async function cfUsFetchLeg(
 			mode: "directHttp",
 			service
 		});
-		const title = scraped.title || titleFromHtml(scraped.html);
+		const title = scraped.title || titleFromCatalogHtml(scraped.html);
 		const shell = isMarketingShellHtml({
 			service,
 			submittedUrl: pageUrl,
