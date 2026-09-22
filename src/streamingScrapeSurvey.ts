@@ -12,6 +12,7 @@ import { fetchCatalogHtml } from "./catalogHtmlPrepare";
 import { buildFetchHeaders } from "./buildFetchHeaders";
 import { isMarketingShellHtml } from "./marketingShellReject";
 import { LogCollector } from "./LogCollector";
+import { toPeacockWatchOnlineUrl } from "./peacockWatchOnlineUrl";
 import { scrapeViaRegionalWorker } from "./regionalScrape";
 import {
 	canCallAzureSubmitBackend,
@@ -272,8 +273,18 @@ async function cfUsFetchLeg(
 		return { ok: false, detail: "SCRAPE_US not configured" };
 	}
 	try {
+		// Same as submitPrepare: Peacock asset soft-walls; fetch the public SEO twin.
+		let fetchUrl = pageUrl;
+		let rewriteNote = "";
+		if (service.trim().toLowerCase() === "peacock") {
+			const rewritten = toPeacockWatchOnlineUrl(pageUrl);
+			if (rewritten) {
+				fetchUrl = rewritten;
+				rewriteNote = ` peacockRewrite=${rewritten}`;
+			}
+		}
 		const scraped = await scrapeViaRegionalWorker(c.env.SCRAPE_US, {
-			url: pageUrl,
+			url: fetchUrl,
 			mode: "directHttp",
 			service
 		});
@@ -295,7 +306,7 @@ async function cfUsFetchLeg(
 			ok,
 			title,
 			finalUrl: scraped.finalUrl,
-			detail: `usable=${ok} marketingShell=${shell} title=${title} final=${scraped.finalUrl} colo=${scraped.placement?.colo ?? "none"}`
+			detail: `usable=${ok} marketingShell=${shell} title=${title} final=${scraped.finalUrl} colo=${scraped.placement?.colo ?? "none"}${rewriteNote}`
 		};
 	} catch (e) {
 		return { ok: false, detail: e instanceof Error ? e.message : String(e) };

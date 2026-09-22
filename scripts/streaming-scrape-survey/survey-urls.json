@@ -29,13 +29,13 @@
 			"notes": "US soft-wall; Azure UK often Disney+ shell — geo = SCRAPE_US directHttp (not BR)"
 		},
 		{
-			"id": "peacock-office",
+			"id": "peacock-office-uk-episode",
 			"service": "peacock",
-			"url": "https://www.peacocktv.com/watch/asset/tv/the-office/5568795438602876112",
+			"url": "https://www.peacocktv.com/watch/asset/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0",
 			"enabled": true,
 			"expectHomeHosts": ["peacocktv.com"],
 			"assumedTechnique": "scrapeUsFetch",
-			"notes": "US geo fetch; may still soft-wall to signin"
+			"notes": "US geo: survey+prepare rewrite /watch/asset → /watch-online before SCRAPE_US; SSR og/title on SEO twin"
 		},
 		{
 			"id": "netflix-stranger-things",

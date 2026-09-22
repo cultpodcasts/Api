@@ -229,6 +229,76 @@ describe("streamingScrapeSurvey", () => {
 		expect(scrapeViaRegionalWorker).toHaveBeenCalled();
 	});
 
+	it("rewrites Peacock asset URLs to watch-online before cfUsFetch", async () => {
+		const asset =
+			"https://www.peacocktv.com/watch/asset/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0";
+		const seo =
+			"https://www.peacocktv.com/watch-online/tv/the-office-uk/8893980556248533112/seasons/1/episodes/work-experience-episode-2/9694b7a9-ffae-3b84-9606-5f852ccffee0";
+
+		scrapeViaRegionalWorker.mockImplementation(async (_binding: unknown, req: { url: string; mode: string }) => {
+			expect(req.mode).toBe("directHttp");
+			if (req.url.includes("cdn-cgi/trace")) {
+				return {
+					html: usTrace,
+					finalUrl: req.url,
+					title: "",
+					htmlLength: usTrace.length,
+					placement: { colo: "IAD", country: "US" }
+				};
+			}
+			expect(req.url).toBe(seo);
+			return {
+				html:
+					'<html><head><meta property="og:title" content="Watch The Office (UK) Season 1, Episode 2: Work Experience | Peacock" /></head><body>' +
+					"x".repeat(500) +
+					"</body></html>",
+				finalUrl: seo,
+				title: "Watch The Office (UK) Season 1, Episode 2: Work Experience | Peacock",
+				htmlLength: 600,
+				placement: { colo: "IAD", country: "US" }
+			};
+		});
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const u = String(input);
+				if (u === CDN_CGI_TRACE_URL || u.includes("cdn-cgi/trace")) {
+					return new Response(gbTrace, { status: 200 });
+				}
+				throw new Error(`unexpected fetch ${u}`);
+			})
+		);
+
+		const scrapeUs = { fetch: vi.fn() } as unknown as Fetcher;
+		const app = appWithPermissions(
+			"/ops/streaming-scrape-survey",
+			"post",
+			streamingScrapeSurvey,
+			["submit"]
+		);
+		const resp = await app.request(
+			"/ops/streaming-scrape-survey",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({
+					targets: [{ id: "peacock-1", service: "peacock", url: asset }],
+					legs: ["cfUsFetch"],
+					expectedPop: { cfUsFetch: { locs: ["US"] } }
+				})
+			},
+			testEnv({ SCRAPE_US: scrapeUs })
+		);
+		expect(resp.status).toBe(200);
+		const body = (await resp.json()) as {
+			rows: Array<{ cfUsFetch: boolean; cfUsFetchDetail?: string }>;
+		};
+		expect(body.rows[0].cfUsFetch).toBe(true);
+		expect(body.rows[0].cfUsFetchDetail).toContain("peacockRewrite=");
+		expect(body.rows[0].cfUsFetchDetail).toContain("/watch-online/");
+	});
+
 	it("keeps scrapeUsFetch recommend when Azure and US both succeed for assumed geo", async () => {
 		scrapeViaRegionalWorker.mockImplementation(async (_binding: unknown, req: { url: string; mode: string }) => {
 			if (req.url.includes("cdn-cgi/trace")) {
