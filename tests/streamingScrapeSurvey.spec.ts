@@ -141,12 +141,13 @@ describe("streamingScrapeSurvey", () => {
 		expect(resp.status).toBe(200);
 		const body = (await resp.json()) as {
 			contaminated: boolean;
-			rows: Array<{ azure: boolean; recommend: string }>;
+			rows: Array<{ azure: boolean; recommend: string; prefer?: string }>;
 		};
 		expect(body.contaminated).toBe(false);
 		expect(body.rows).toHaveLength(1);
 		expect(body.rows[0].azure).toBe(true);
 		expect(body.rows[0].recommend).toBe("azurePrepare");
+		expect(body.rows[0].prefer ?? body.rows[0].recommend).toBe("azurePrepare");
 	});
 
 	it("preflights cfUsFetch via SCRAPE_US directHttp and surveys when PoP ok", async () => {
@@ -214,11 +215,100 @@ describe("streamingScrapeSurvey", () => {
 		expect(resp.status).toBe(200);
 		const body = (await resp.json()) as {
 			contaminated: boolean;
-			rows: Array<{ cfUsFetch: boolean; recommend: string }>;
+			rows: Array<{
+				cfUsFetch: boolean;
+				recommend: string;
+				prefer?: string;
+				geoFallback?: string | null;
+			}>;
 		};
 		expect(body.contaminated).toBe(false);
 		expect(body.rows[0].cfUsFetch).toBe(true);
 		expect(body.rows[0].recommend).toBe("scrapeUsFetch");
+		expect(body.rows[0].geoFallback).toBe("scrapeUsFetch");
 		expect(scrapeViaRegionalWorker).toHaveBeenCalled();
+	});
+
+	it("keeps scrapeUsFetch recommend when Azure and US both succeed for assumed geo", async () => {
+		scrapeViaRegionalWorker.mockImplementation(async (_binding: unknown, req: { url: string; mode: string }) => {
+			if (req.url.includes("cdn-cgi/trace")) {
+				return {
+					html: usTrace,
+					finalUrl: req.url,
+					title: "",
+					htmlLength: usTrace.length,
+					placement: { colo: "IAD", country: "US" }
+				};
+			}
+			return {
+				html:
+					'<html><head><meta property="og:title" content="Hulu Show" /></head><body>' +
+					"x".repeat(500) +
+					"</body></html>",
+				finalUrl: req.url,
+				title: "Hulu Show",
+				htmlLength: 600,
+				placement: { colo: "IAD", country: "US" }
+			};
+		});
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const u = String(input);
+				if (u.includes("/prepare")) {
+					return new Response(
+						JSON.stringify({ podcastName: "Azure Title", title: "Ep" }),
+						{ status: 200, headers: { "Content-Type": "application/json" } }
+					);
+				}
+				if (u === CDN_CGI_TRACE_URL || u.includes("cdn-cgi/trace")) {
+					return new Response(usTrace, { status: 200 });
+				}
+				throw new Error(`unexpected fetch ${u}`);
+			})
+		);
+
+		const app = appWithPermissions(
+			"/ops/streaming-scrape-survey",
+			"post",
+			streamingScrapeSurvey,
+			["submit"]
+		);
+		const resp = await app.request(
+			"/ops/streaming-scrape-survey",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({
+					targets: [
+						{
+							id: "hulu-1",
+							service: "hulu",
+							url: "https://www.hulu.com/series/x",
+							assumedTechnique: "scrapeUsFetch"
+						}
+					],
+					legs: ["azure", "cfUsFetch"],
+					expectedPop: { cfUsFetch: { locs: ["US"] } }
+				})
+			},
+			testEnv({ SCRAPE_US: { fetch: vi.fn() } as unknown as Fetcher })
+		);
+		expect(resp.status).toBe(200);
+		const body = (await resp.json()) as {
+			rows: Array<{
+				azure: boolean;
+				cfUsFetch: boolean;
+				prefer: string;
+				recommend: string;
+				geoFallback: string | null;
+			}>;
+		};
+		expect(body.rows[0].azure).toBe(true);
+		expect(body.rows[0].cfUsFetch).toBe(true);
+		expect(body.rows[0].prefer).toBe("azurePrepare");
+		expect(body.rows[0].recommend).toBe("scrapeUsFetch");
+		expect(body.rows[0].geoFallback).toBe("scrapeUsFetch");
 	});
 });

@@ -49,10 +49,10 @@
 			"id": "ard-tatort",
 			"service": "ard",
 			"url": "https://www.ardmediathek.de/tatort",
-			"enabled": true,
+			"enabled": false,
 			"expectHomeHosts": ["ardmediathek.de"],
 			"assumedTechnique": "azurePrepare",
-			"notes": "Hub-ish — upgrade to episode deep link when convenient"
+			"notes": "DISABLED: hub URL false-passes compare — replace with a real episode deep link before enabling"
 		}
 	]
 }

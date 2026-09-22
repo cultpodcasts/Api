@@ -1,9 +1,3 @@
-import type { BrowserWorker } from "@cloudflare/puppeteer";
-import {
-	fetchHtmlWithBrowserRendering,
-	isUsableBrowserHtml,
-	type BrowserRenderingDiagnostics
-} from "../../../src/browserRenderingHtml";
 import { fetchCatalogHtml } from "../../../src/catalogHtmlPrepare";
 import type { HtmlFetchMode } from "../../../tests/fixtures/streaming-submit-contract";
 
@@ -25,12 +19,9 @@ export type ScrapeResponse = {
 		colo: string | null;
 		country: string | null;
 	};
-	diagnostics?: BrowserRenderingDiagnostics;
 };
 
-type Env = {
-	BROWSER?: BrowserWorker;
-};
+type Env = Record<string, never>;
 
 function placementFromRequest(request: Request): ScrapeResponse["placement"] {
 	const cf = request.cf as { colo?: string; country?: string } | undefined;
@@ -42,11 +33,12 @@ function placementFromRequest(request: Request): ScrapeResponse["placement"] {
 }
 
 /**
- * US-placed scrape Worker: catalogue HTML via Browser Rendering or direct HTTP.
+ * US-placed scrape Worker: catalogue HTML via direct HTTP only.
+ * Browser Rendering is edge-Api (ITVX hydration) — never a geo tool.
  * Callable only via service binding from Api (no Auth0).
  */
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
+	async fetch(request: Request, _env: Env): Promise<Response> {
 		if (request.method !== "POST") {
 			return Response.json({ ok: false, error: "POST required" }, { status: 405 });
 		}
@@ -72,47 +64,26 @@ export default {
 			return Response.json({ ok: false, error: "url must be http(s)" }, { status: 400 });
 		}
 
-		const mode: HtmlFetchMode =
-			body.mode === "browserRendering" ? "browserRendering" : "directHttp";
 		const placement = placementFromRequest(request);
 
-		if (mode === "browserRendering") {
-			if (!env.BROWSER) {
-				return Response.json(
-					{ ok: false, error: "Browser Rendering binding is not configured", placement },
-					{ status: 500 }
-				);
-			}
-			try {
-				const br = await fetchHtmlWithBrowserRendering(env.BROWSER, pageUrl);
-				const d = br.diagnostics;
-				if (!isUsableBrowserHtml(br.html)) {
-					const payload: ScrapeResponse = {
-						ok: false,
-						error: "Browser Rendering returned unusable HTML",
-						finalUrl: d.finalUrl,
-						title: d.title,
-						placement,
-						diagnostics: d
-					};
-					return Response.json(payload, { status: 502 });
-				}
-				const payload: ScrapeResponse = {
-					ok: true,
-					html: br.html,
-					finalUrl: d.finalUrl,
-					title: d.title,
-					placement,
-					diagnostics: d
-				};
-				return Response.json(payload);
-			} catch (e) {
-				const detail = e instanceof Error ? e.message : String(e);
-				return Response.json(
-					{ ok: false, error: detail, placement },
-					{ status: 502 }
-				);
-			}
+		if (body.mode === "browserRendering") {
+			return Response.json(
+				{
+					ok: false,
+					error:
+						"browserRendering is not supported on the US scrape Worker; use edge Api BR for hydration, directHttp for geo",
+					placement
+				} satisfies ScrapeResponse,
+				{ status: 422 }
+			);
+		}
+
+		const mode: HtmlFetchMode = "directHttp";
+		if (body.mode && body.mode !== mode) {
+			return Response.json(
+				{ ok: false, error: `unsupported mode ${body.mode}`, placement },
+				{ status: 400 }
+			);
 		}
 
 		const messages: string[] = [];

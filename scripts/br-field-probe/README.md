@@ -2,6 +2,6 @@
 
 Prefer the **Api survey**: [`../streaming-scrape-survey/README.md`](../streaming-scrape-survey/README.md) (`POST /ops/streaming-scrape-survey`).
 
-This folder still exercises production `browserRenderingHtml` / `catalogHtmlPrepare` for one-off debugging. Do **not** use `wrangler dev` for ship decisions. Do **not** leave permanent survey probe Workers for geo (BR is not region-pinnable; geo uses `SCRAPE_US` fetch).
+This folder still exercises production `browserRenderingHtml` / `catalogHtmlPrepare` for one-off **edge** BR debugging. Do **not** use `wrangler dev` for ship decisions. Do **not** deploy permanent US/geo probe Workers — geo uses product `streaming-scrape-us` via `SCRAPE_US` (`directHttp` only).
 
 See [`docs/streaming-scrape-findings.md`](../../docs/streaming-scrape-findings.md).

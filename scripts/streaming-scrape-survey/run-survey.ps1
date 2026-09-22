@@ -8,21 +8,20 @@
 
   Legs: azure | cfFetch | cfBr (hydration) | cfUsFetch (geo via SCRAPE_US directHttp — never BR).
 
-  When -IncludeUsFetch: deploys streaming-scrape-us-preview, then deletes it in finally
-  unless -KeepScrapeWorker. Production streaming-scrape-us is product (not torn down).
+  streaming-scrape-us / streaming-scrape-us-preview are product regional scrape
+  Workers (SCRAPE_US for Hulu/Peacock prepare). Survey does not deploy or tear
+  them down — keep the preview twin deployed like api-preview.
 
 .PARAMETER ApiBaseUrl
-  Api origin (preview/workers.dev recommended for M2M — Bot Fight on apex).
+  Api origin (preview/workers.dev recommended — Bot Fight on apex).
 
 .PARAMETER SecretsFile
   local-secrets.*.env for secureSubmitEndpoint / auth0Audience / auth0Issuer /
-  CULT_AUTH0_M2M_CLIENT_ID / CULT_AUTH0_M2M_CLIENT_SECRET (staging tenant for api-preview).
+  optional CULT_AUTH0_M2M_CLIENT_ID / CULT_AUTH0_M2M_CLIENT_SECRET, or use
+  CULT_API_BEARER (SPA submit/curate token is enough for the survey route).
 
 .PARAMETER IncludeUsFetch
-  Include cfUsFetch leg (deploys + tears down streaming-scrape-us-preview).
-
-.PARAMETER KeepScrapeWorker
-  Do not delete streaming-scrape-us-preview after the survey.
+  Include cfUsFetch leg (requires deployed streaming-scrape-us-preview bound as SCRAPE_US).
 
 .PARAMETER SkipContractCompare
   Skip compare-survey-to-contract.ps1 after a successful survey.
@@ -42,7 +41,6 @@ param(
 	[switch] $SkipAzure,
 	[switch] $SkipCfBr,
 	[switch] $IncludeUsFetch,
-	[switch] $KeepScrapeWorker,
 	[switch] $SkipContractCompare,
 	[string] $SecretsFile = "",
 	[string] $BearerToken = $env:CULT_API_BEARER,
@@ -64,7 +62,6 @@ $outDir = Join-Path $here "out"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 if (-not $UrlsFile) { $UrlsFile = Join-Path $here "survey-urls.json" }
 
-$scrapeStarted = $false
 $exitCode = 0
 
 function Read-SecretsFile([string] $path) {
@@ -94,15 +91,15 @@ if ($SecretsFile) {
 	}
 }
 
-function Get-Auth0M2mToken {
+function Get-Auth0Token {
 	if ($BearerToken) {
-		Write-Host "Using -BearerToken / CULT_API_BEARER (prefer M2M)." -ForegroundColor Yellow
+		Write-Host "Using -BearerToken / CULT_API_BEARER (SPA submit/curate or M2M)." -ForegroundColor Yellow
 		return $BearerToken
 	}
 	if (-not $Auth0TokenUrl -or -not $Auth0ClientId -or -not $Auth0ClientSecret -or -not $Auth0Audience) {
-		throw "Need CULT_AUTH0_M2M_CLIENT_ID/SECRET + audience/token URL (or -SecretsFile), or CULT_API_BEARER"
+		throw "Need CULT_API_BEARER (submit/curate) or M2M CLIENT_ID/SECRET + audience/token URL (or -SecretsFile)"
 	}
-	Write-Host "Fetching Auth0 M2M token ..." -ForegroundColor Cyan
+	Write-Host "Fetching Auth0 M2M token (optional convenience) ..." -ForegroundColor Cyan
 	$body = @{
 		grant_type = "client_credentials"
 		client_id = $Auth0ClientId
@@ -119,18 +116,7 @@ try {
 	if ($base -notmatch '^https://') { throw "ApiBaseUrl must be https (deployed Api)" }
 	if ($base -match '127\.0\.0\.1|localhost') { throw "Refuse localhost — use deployed Api" }
 
-	# Detect leftover preview scrape Worker from a previous survey that failed to tear down.
-	& (Join-Path $here "assert-scrape-us-preview-stopped.ps1") -Phase start
-	if ($LASTEXITCODE -eq 1) {
-		Write-Host "Continuing survey; will tear down in finally unless -KeepScrapeWorker." -ForegroundColor Yellow
-	}
-
-	if ($IncludeUsFetch) {
-		& (Join-Path $here "ensure-scrape-us-preview.ps1")
-		$scrapeStarted = $true
-	}
-
-	$token = Get-Auth0M2mToken
+	$token = Get-Auth0Token
 	$catalog = Get-Content $UrlsFile -Raw | ConvertFrom-Json
 	$targets = @($catalog.targets | Where-Object {
 		$_.enabled -ne $false -and $_.url -and (-not $Service -or $_.service -eq $Service)
@@ -183,6 +169,9 @@ try {
 
 	Write-Host "POST $base/ops/streaming-scrape-survey" -ForegroundColor Cyan
 	Write-Host "legs=$($legs -join ',') targets=$($targets.Count)"
+	if ($IncludeUsFetch) {
+		Write-Host "cfUsFetch requires product Worker streaming-scrape-us-preview (SCRAPE_US) — survey does not deploy/teardown it." -ForegroundColor Cyan
+	}
 
 	$resp = Invoke-WebRequest `
 		-Uri "$base/ops/streaming-scrape-survey" `
@@ -208,19 +197,21 @@ try {
 		Write-Host $resp.Content
 		$exitCode = 1
 	} else {
-		$md = @("| service | azure | cfFetch | cfBr | cfUsFetch | recommend | assumed |", "|---------|:-----:|:------:|:----:|:--------:|-----------|---------|")
+		$md = @("| service | azure | cfFetch | cfBr | cfUsFetch | prefer | recommend | geoFallback | assumed |", "|---------|:-----:|:------:|:----:|:--------:|--------|-----------|-------------|---------|")
 		foreach ($r in @($j.rows)) {
 			$az = if ($null -eq $r.azure) { "—" } elseif ($r.azure) { "✓" } else { "✗" }
 			$ff = if ($null -eq $r.cfFetch) { "—" } elseif ($r.cfFetch) { "✓" } else { "✗" }
 			$br = if ($null -eq $r.cfBr) { "—" } elseif ($r.cfBr) { "✓" } else { "✗" }
 			$uf = if ($null -eq $r.cfUsFetch) { "—" } elseif ($r.cfUsFetch) { "✓" } else { "✗" }
-			$md += "| $($r.service) | $az | $ff | $br | $uf | $($r.recommend) | $($r.assumed) |"
+			$gf = if ($null -eq $r.geoFallback) { "—" } else { $r.geoFallback }
+			$pref = if ($null -eq $r.prefer) { $r.recommend } else { $r.prefer }
+			$md += "| $($r.service) | $az | $ff | $br | $uf | $pref | $($r.recommend) | $gf | $($r.assumed) |"
 		}
 		($md -join "`n") + "`n" | Set-Content (Join-Path $outDir "survey-summary.md") -Encoding utf8
 		($j | ConvertTo-Json -Depth 8) | Set-Content (Join-Path $outDir "survey-summary.json") -Encoding utf8
 
 		Write-Host "`n=== SURVEY OK ===" -ForegroundColor Green
-		$j.rows | Select-Object service, azure, cfFetch, cfBr, cfUsFetch, recommend, assumed | Format-Table -AutoSize | Out-Host
+		$j.rows | Select-Object service, azure, cfFetch, cfBr, cfUsFetch, prefer, recommend, geoFallback, assumed | Format-Table -AutoSize | Out-Host
 		Write-Host "Wrote out/survey-summary.md"
 
 		if (-not $SkipContractCompare) {
@@ -233,30 +224,6 @@ try {
 } catch {
 	Write-Host $_.Exception.Message -ForegroundColor Red
 	$exitCode = 1
-} finally {
-	if ($scrapeStarted -and -not $KeepScrapeWorker) {
-		try {
-			& (Join-Path $here "teardown-scrape-us-preview.ps1")
-		} catch {
-			Write-Host "WARN: scrape teardown failed: $($_.Exception.Message)" -ForegroundColor Yellow
-		}
-	} elseif ($scrapeStarted -and $KeepScrapeWorker) {
-		Write-Host "Keeping streaming-scrape-us-preview (-KeepScrapeWorker)." -ForegroundColor Yellow
-	}
-
-	# Always report whether the survey preview Worker is gone (even if IncludeUsFetch was false).
-	& (Join-Path $here "assert-scrape-us-preview-stopped.ps1")
-	$stoppedExit = $LASTEXITCODE
-	if ($KeepScrapeWorker) {
-		if ($stoppedExit -eq 0) {
-			Write-Host "NOTE: -KeepScrapeWorker set but Worker is absent." -ForegroundColor Yellow
-		} else {
-			Write-Host "SURVEY_WORKERS: KEPT_RUNNING (-KeepScrapeWorker) — tear down with npm run survey:scrape-us:teardown when done." -ForegroundColor Yellow
-		}
-	} elseif ($stoppedExit -ne 0) {
-		Write-Host "FAIL: streaming-scrape-us-preview still running after survey — run: npm run survey:scrape-us:teardown" -ForegroundColor Red
-		if ($exitCode -eq 0) { $exitCode = 1 }
-	}
 }
 
 exit $exitCode

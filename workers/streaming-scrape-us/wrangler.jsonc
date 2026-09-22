@@ -1,9 +1,0 @@
-{
-	"$schema": "../../node_modules/wrangler/config-schema.json",
-	"_comment": "Deprecated path — use repo-root wrangler.streaming-scrape-us.jsonc so shared src/ imports resolve under Workers Builds.",
-	"name": "streaming-scrape-us",
-	"main": "src/index.ts",
-	"compatibility_date": "2025-09-01",
-	"compatibility_flags": ["nodejs_compat"],
-	"account_id": "bae3f835f19899c6eee1ec48f2d658cf"
-}

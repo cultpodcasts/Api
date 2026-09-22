@@ -7,6 +7,10 @@
   Exit 1 when drift is found (or survey summary missing).
   Exit 2 when survey was contaminated / incomplete.
 
+  Uses row.recommend (contract technique), not row.prefer (Azure-first this run).
+  When assumedTechnique is scrapeUsFetch and cfUsFetch succeeded, recommend stays
+  scrapeUsFetch even if prefer is azurePrepare — deliberate geo fallback.
+
   Technique mapping (survey recommend → contract expectation):
     azurePrepare     → not US scrapeProfiles; not defaultBrowserRenderingServices
     scrapeUsFetch    → scrapeProfiles[key] = { mode: directHttp, region: us }; not BR-for-geo
@@ -76,10 +80,15 @@ foreach ($r in $rows) {
 	$rec = [string]$r.recommend
 	$assumed = if ($null -eq $r.assumed) { "" } else { [string]$r.assumed }
 	$contractTech = Get-ContractTechnique $svc
+	$cfUs = $r.cfUsFetch
 
 	if ($rec -eq "blocked" -or $rec -eq "unknown-run-with-azure") {
 		[void]$problems.Add("$svc`: survey recommend=$rec (fix prepare path or specimen URL)")
 		continue
+	}
+
+	if ($assumed -eq "scrapeUsFetch" -and $cfUs -eq $false) {
+		[void]$problems.Add("$svc`: assumedTechnique=scrapeUsFetch but cfUsFetch failed — geo profile not validated this run (prefer=$($r.prefer))")
 	}
 
 	if ($assumed -and $assumed -ne $rec) {
@@ -89,7 +98,11 @@ foreach ($r in $rows) {
 	if ($contractTech -ne $rec) {
 		[void]$problems.Add("$svc`: contract implies $contractTech but survey recommend=$rec — update scrapeProfiles / defaultBrowserRenderingServices (or re-check specimens)")
 	} else {
-		[void]$ok.Add("$svc`: recommend=$rec matches contract")
+		$note = ""
+		if ($r.prefer -and $r.prefer -ne $rec) {
+			$note = " (prefer=$($r.prefer) this run; geoFallback=$($r.geoFallback))"
+		}
+		[void]$ok.Add("$svc`: recommend=$rec matches contract$note")
 	}
 
 	# Hard safety: never encode geo as BR

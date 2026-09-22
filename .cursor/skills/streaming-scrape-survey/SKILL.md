@@ -1,18 +1,17 @@
 ---
 name: streaming-scrape-survey
 description: >-
-  Run the Api-orchestrated streaming scrape survey against deployed api-preview,
-  tear down streaming-scrape-us-preview afterward, and flag contract drift
-  (scrapeProfiles / defaultBrowserRenderingServices vs survey recommend).
-  Use when adding a streaming service, verifying prepare strategy, or when
-  survey findings disagree with the contract.
+  Run the Api-orchestrated streaming scrape survey against deployed api-preview
+  and flag contract drift (scrapeProfiles / defaultBrowserRenderingServices vs
+  survey recommend). Use when adding a streaming service, verifying prepare
+  strategy, or when survey findings disagree with the contract.
 ---
 
 # Streaming scrape survey (Api)
 
 **Authority for prepare strategy.** Do not invent BR / US geo / azurePrepare for a
 new `ServiceKey` from vibes — run this survey (or `-Service <key>` on a specimen)
-and set contract + plugin from **`recommend`**.
+and set contract + plugin from **`recommend`** (not `prefer`).
 
 ## When to use
 
@@ -25,31 +24,11 @@ and set contract + plugin from **`recommend`**.
 | Need | Notes |
 |------|--------|
 | Deployed **api-preview** with `POST /ops/streaming-scrape-survey` | PR Builds; not localhost |
-| Staging Auth0 **M2M** | `CULT_AUTH0_M2M_CLIENT_ID` / `SECRET` in gitignored `scripts/local-secrets.preview.env` (staging tenant `auth-staging…`) |
+| Auth0 Bearer with **submit or curate** | SPA token via `CULT_API_BEARER`, or optional staging M2M in gitignored `scripts/local-secrets.preview.env` |
 | Specimen URL | Add to `scripts/streaming-scrape-survey/survey-urls.json` when probing a new service |
+| **streaming-scrape-us-preview** for `-IncludeUsFetch` | Product preview twin — keep deployed (`npm run deploy:scrape-us:preview`). Survey does **not** deploy/teardown it. |
 
-**Never** leave `streaming-scrape-us-preview` running between surveys. `run-survey.ps1`
-deploys it for `-IncludeUsFetch` and deletes it in `finally` (unless `-KeepScrapeWorker`).
-Production `streaming-scrape-us` is product traffic — do not delete it for surveys.
-
-## When starting (HARD)
-
-Before (or as the first lines of) the survey run, confirm the preview scrape Worker was
-**already stopped**. A live Worker means the **previous** survey/use failed to tear down.
-
-1. `run-survey.ps1` prints this automatically; or run:
-
-```powershell
-npm run survey:scrape-us:assert-start
-```
-
-2. Interpret:
-   - `SURVEY_WORKERS_START: CLEAN` — OK
-   - `SURVEY_WORKERS_START: NOT_STOPPED` — **previous-run failure**; tell the user; survey may continue and should still tear down at the end
-   - `SURVEY_WORKERS_START: UNKNOWN` — say verification failed; do not claim clean
-
-3. Opening reply (or first status after kickoff) **must** state start status: clean **or**
-   leftover from previous run.
+Survey = Api route only (ephemeral isolates). Abandoned experiment = old `br-field-probe*` US probes.
 
 ## Run (full matrix)
 
@@ -80,14 +59,9 @@ Outputs (gitignored under `out/`):
 - `survey-summary.md` / `.json`
 - `survey-contract-drift.md` (unless `-SkipContractCompare`)
 
-Manual scrape lifecycle:
-
-```powershell
-npm run survey:scrape-us:ensure
-npm run survey:scrape-us:teardown
-```
-
 ## Interpret `recommend` → contract
+
+Rows expose **`prefer`** (Azure-first this run), **`recommend`** (contract technique), and **`geoFallback`**.
 
 | `recommend` | Contract change |
 |-------------|-----------------|
@@ -97,7 +71,7 @@ npm run survey:scrape-us:teardown
 | `scrapeUsFetch` | `scrapeProfiles[key] = { mode: "directHttp", region: "us" }` — **never BR for geo** |
 | `blocked` | Do not ship; fix specimen or accept unsupported |
 
-Azure-first: if `azure === true`, recommend is `azurePrepare` even when US fetch also works.
+When `assumedTechnique` is `scrapeUsFetch` and `cfUsFetch` succeeds, **`recommend` stays `scrapeUsFetch`** even if `prefer` is `azurePrepare` (deliberate geo fallback — do not flip the contract from intermittent Azure success).
 
 ## Identify problems (drift)
 
@@ -105,6 +79,7 @@ After a successful survey, `compare-survey-to-contract.ps1` exits **1** when:
 
 - Survey `recommend` ≠ technique implied by `scrapeProfiles` / `defaultBrowserRenderingServices`
 - `assumedTechnique` in `survey-urls.json` ≠ `recommend`
+- Assumed geo but `cfUsFetch` failed (profile not validated this run)
 - Geo encoded as BR (`scrapeUsFetch` + BR allowlist, or BR + `region: us`)
 
 Re-run compare alone:
@@ -116,40 +91,12 @@ npm run survey:compare-contract
 **Act on drift:** update the fixture (`tests/fixtures/streaming-submit-contract.ts` + `.json`),
 sync website/RPP copies, bump Api semver — or fix bad specimens / re-run survey.
 
-## Before finishing (HARD)
-
-After every survey run (success, contaminated, or failed), **confirm survey Workers
-are stopped** and tell the user in the closing message.
-
-1. Prefer the survey script’s final line:
-   - `SURVEY_WORKERS: STOPPED (streaming-scrape-us-preview absent)` — good
-   - `SURVEY_WORKERS: STILL_RUNNING …` — bad; tear down immediately
-   - `SURVEY_WORKERS: KEPT_RUNNING (-KeepScrapeWorker)` — only OK if the user asked to keep it; remind them to tear down
-2. If the log is unclear, run:
-
-```powershell
-npm run survey:scrape-us:assert-stopped
-```
-
-   Accept only `SURVEY_WORKERS: STOPPED`. Treat `UNKNOWN` or `STILL_RUNNING` as not stopped.
-3. If still running and the user did **not** pass `-KeepScrapeWorker`:
-
-```powershell
-npm run survey:scrape-us:teardown
-npm run survey:scrape-us:assert-stopped
-```
-
-4. Closing reply **must** state explicitly: survey Workers stopped **or** still running
-   (and what you did). Do not end the turn without that confirmation.
-
-Do **not** delete production `streaming-scrape-us`.
-
 ## Safety
 
-- No Api / website `wrangler deploy` except `deploy:scrape-us:preview` via survey scripts
-- Never commit M2M secrets or `out/`
+- No Api / website `wrangler deploy` unless the user names that exact deploy
+- Never commit secrets or `out/`
 - Contaminated (exit 2): ignore results; fix PoP (`ExpectedUsColos IAD`, not `loc=US`)
-- Never leave `streaming-scrape-us-preview` running after the skill finishes (unless user asked `-KeepScrapeWorker`)
+- Do **not** delete production `streaming-scrape-us` or the preview twin for survey hygiene
 
 ## Related
 

@@ -8,10 +8,10 @@ Rules for **streaming** catalogue URL ingest across Cloudflare Worker (Api), Azu
 |----------|------|
 | [`tests/fixtures/streaming-submit-contract.ts`](../tests/fixtures/streaming-submit-contract.ts) | Source of truth (TypeScript) |
 | [`tests/fixtures/streaming-submit-contract.json`](../tests/fixtures/streaming-submit-contract.json) | Same payload for RPP / tooling |
-| **GitHub Packages** `@cultpodcasts/streaming-submit-contract` | Published from Workers Builds (`latest` = production, `staging` = api-preview) — [`contract-publish.md`](./contract-publish.md) |
-| Website / RPP copies | Legacy byte-identical copies until package install is wired |
+| **GitHub Packages** `@cultpodcasts/streaming-submit-contract` | **Deferred** (billing) — see [`contract-publish.md`](./contract-publish.md). Until unblocked, use sibling byte-copies. |
+| Website / RPP copies | Canonical consumers until Packages is enabled |
 
-Publish (CF Builds): [`docs/contract-publish.md`](./contract-publish.md).
+Prefer sibling contract copies until Packages publish is unblocked. Do **not** wire Builds to `deploy:*:with-contract`.
 
 Legacy assert copies (sibling checkouts):
 
@@ -23,7 +23,7 @@ pwsh ./scripts/assert-streaming-submit-contract-copy.ps1
 pwsh ./scripts/assert-streaming-submit-contract-copy.ps1
 ```
 
-Do **not** invent a parallel streamer enum or membership shape on the website or in RPP docs. Extend the Api fixture, then publish (and re-copy if still on copies).
+Do **not** invent a parallel streamer enum or membership shape on the website or in RPP docs. Extend the Api fixture, then re-copy siblings (and publish later when Packages is unblocked).
 
 ## Wire enums (stable strings)
 

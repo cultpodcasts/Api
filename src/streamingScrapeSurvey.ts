@@ -17,6 +17,7 @@ import {
 	canCallAzureSubmitBackend,
 	azureSubmitBackendDenialStatus
 } from "./submitAccess";
+import { surveyRecommendation } from "./streamingScrapeSurveyRecommend";
 
 export const SURVEY_LEGS = ["azure", "cfFetch", "cfBr", "cfUsFetch"] as const;
 export type SurveyLeg = (typeof SURVEY_LEGS)[number];
@@ -53,31 +54,6 @@ function titleFromHtml(html: string): string {
 	}
 	const doc = html.match(/<title>([^<]*)<\/title>/i);
 	return doc?.[1]?.trim() ?? "";
-}
-
-function recommend(row: {
-	azure: boolean | null;
-	cfFetch: boolean | null;
-	cfBr: boolean | null;
-	cfUsFetch: boolean | null;
-	azureSkip?: boolean;
-}): string {
-	if (row.azure === true) {
-		return "azurePrepare";
-	}
-	if (row.cfUsFetch === true) {
-		return "scrapeUsFetch";
-	}
-	if (row.cfFetch === true) {
-		return "cfDirectHttp";
-	}
-	if (row.cfBr === true) {
-		return "browserRendering";
-	}
-	if (row.azureSkip) {
-		return "unknown-run-with-azure";
-	}
-	return "blocked";
 }
 
 async function workerFetchTrace(): Promise<CdnCgiTrace> {
@@ -420,12 +396,13 @@ export async function streamingScrapeSurvey(c: Auth0ActionContext): Promise<Resp
 			? await cfUsFetchLeg(c, pageUrl, service)
 			: { ok: null, skip: true, detail: "skipped" };
 
-		const rec = recommend({
+		const ranking = surveyRecommendation({
 			azure: azure.ok,
 			cfFetch: cfFetch.ok,
 			cfBr: cfBr.ok,
 			cfUsFetch: cfUsFetch.ok,
-			azureSkip: azure.skip
+			azureSkip: azure.skip,
+			assumedTechnique: t.assumedTechnique
 		});
 
 		rows.push({
@@ -441,7 +418,9 @@ export async function streamingScrapeSurvey(c: Auth0ActionContext): Promise<Resp
 			cfBrDetail: cfBr.detail,
 			cfUsFetch: cfUsFetch.ok,
 			cfUsFetchDetail: cfUsFetch.detail,
-			recommend: rec
+			prefer: ranking.prefer,
+			recommend: ranking.recommend,
+			geoFallback: ranking.geoFallback
 		});
 	}
 

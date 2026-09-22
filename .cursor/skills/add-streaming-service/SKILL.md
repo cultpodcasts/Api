@@ -32,8 +32,8 @@ Api owns the **wire-key contract**. Full plugin procedure lives in sibling RPP s
 5. After contract edits, `npm run survey:compare-contract` must be clean for that service
    (or the full matrix).
 
-`streaming-scrape-us-preview` is **survey-only**: the survey script deploys and tears it
-down. Do not leave it running. Production `streaming-scrape-us` stays for live geo prepare.
+`streaming-scrape-us-preview` is the **product** preview twin for geo prepare (`SCRAPE_US`),
+kept deployed like api-preview. Survey does not deploy or tear it down.
 
 ## Steps (this repo)
 
@@ -42,7 +42,7 @@ down. Do not leave it running. Production `streaming-scrape-us` stays for live g
      secret `browserRenderingServices` under PR **`## Config / secrets`** for
      `api-preview` **and** top-level Worker **`api`** (names only).
    - `scrapeUsFetch` → `scrapeProfiles` entry `{ mode: "directHttp", region: "us" }`
-     (binding `SCRAPE_US` → `streaming-scrape-us` / preview twin during survey only).
+     (binding `SCRAPE_US` → `streaming-scrape-us` / `streaming-scrape-us-preview`).
    - `azurePrepare` / `cfDirectHttp` → no US profile; not BR.
 2. Edit `tests/fixtures/streaming-submit-contract.ts` and sibling `.json`:
    - Add the key to `streamingServiceKeys` and a matching specimen in `streamingSpecimenUrls`

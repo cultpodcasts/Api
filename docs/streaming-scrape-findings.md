@@ -23,7 +23,8 @@ npm run survey:streaming-scrape -- `
   -IncludeUsFetch -ExpectedUsColos IAD
 ```
 
-`-IncludeUsFetch` deploys then **deletes** `streaming-scrape-us-preview`. Compare to contract:
+`-IncludeUsFetch` requires the product Worker **`streaming-scrape-us-preview`** already
+deployed (survey does not ensure/teardown it). Compare to contract:
 `npm run survey:compare-contract`. Skill: [`.cursor/skills/streaming-scrape-survey/SKILL.md`](../.cursor/skills/streaming-scrape-survey/SKILL.md).
 
 See [`scripts/streaming-scrape-survey/README.md`](../scripts/streaming-scrape-survey/README.md).

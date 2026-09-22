@@ -2,9 +2,9 @@
 
 Hosts change. Re-run when prepare regresses or before changing `scrapeProfiles`.
 
-**No permanent probe Workers.** Survey is `POST /ops/streaming-scrape-survey` on deployed **Api**.
-**`streaming-scrape-us-preview`** is deployed only for the survey run (`-IncludeUsFetch`) and
-**deleted afterward** unless `-KeepScrapeWorker`. Production `streaming-scrape-us` stays up for live geo prepare.
+**No permanent probe Workers.** Survey is `POST /ops/streaming-scrape-survey` on deployed **Api** (ephemeral isolates only).
+
+**`streaming-scrape-us` / `streaming-scrape-us-preview`** are **product** regional scrape Workers for geo prepare (`SCRAPE_US`). Keep the preview twin deployed like api-preview. Survey does **not** deploy or tear them down. Abandoned geo-probe experiment = old `br-field-probe*` US configs (removed).
 
 **PoP preflight is mandatory** — outside `expectedPop` → **409 contaminated**.
 
@@ -12,14 +12,12 @@ Ops run the survey **from local** against deployed Api (prefer preview/workers.d
 
 ## Auth
 
-Auth0 Bearer with **`submit` or `curate`** (staging M2M for api-preview). Put in gitignored secrets:
+Auth0 Bearer with **`submit` or `curate`** (SPA action token is enough). Optional staging M2M credentials are a convenience for scripts only — not required by the route:
 
 ```
-CULT_AUTH0_M2M_CLIENT_ID=...
-CULT_AUTH0_M2M_CLIENT_SECRET=...
+CULT_API_BEARER=...   # preferred for SPA tokens
+# or CULT_AUTH0_M2M_CLIENT_ID / SECRET + audience/issuer in local-secrets.preview.env
 ```
-
-(plus `auth0Audience` / `auth0Issuer` already in `local-secrets.preview.env`)
 
 ## Legs
 
@@ -30,10 +28,12 @@ CULT_AUTH0_M2M_CLIENT_SECRET=...
 | `cfBr` | Api `browserRenderingHtml` | **Hydration only** (ITVX-class) — not geo |
 | `cfUsFetch` | `SCRAPE_US` + **directHttp** | **Geo soft-wall** (Hulu-class) — **never BR** |
 
+Response rows include **`prefer`** (Azure-first this run), **`recommend`** (contract technique), and **`geoFallback`**. When `assumedTechnique` is `scrapeUsFetch` and the US leg succeeds, `recommend` stays `scrapeUsFetch` even if Azure also returned a title.
+
 ## Prerequisites
 
 1. Api with the survey route deployed (api-preview via PR Builds).
-2. For `-IncludeUsFetch`: script deploys/tears down scrape preview — no manual step.
+2. For `-IncludeUsFetch`: product Worker `streaming-scrape-us-preview` already deployed and bound as `SCRAPE_US` (`npm run deploy:scrape-us:preview` when needed — not part of the survey script).
 
 ## Run
 
@@ -53,14 +53,6 @@ After success, compare runs automatically → `out/survey-contract-drift.md`. Al
 
 ```powershell
 npm run survey:compare-contract
-```
-
-End of every run prints `SURVEY_WORKERS: STOPPED` or `STILL_RUNNING`. Start of every run
-prints `SURVEY_WORKERS_START: CLEAN` or `NOT_STOPPED` (leftover = previous teardown failure).
-
-```powershell
-npm run survey:scrape-us:assert-start
-npm run survey:scrape-us:assert-stopped
 ```
 
 ## Contaminated

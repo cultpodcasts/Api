@@ -1,30 +1,29 @@
 # Workers Builds (Api)
 
-Api Builds only publishes Api. Survey / US scrape preview is **local ops**.
+Api Builds only publishes Api. US scrape Workers are separate local/ops deploys (one Builds project = one Worker name).
 
 | Worker | Typical deploy command |
 |--------|------------------------|
 | **api** | `npx wrangler deploy` or `npm run deploy` |
 | **api-preview** | `npx wrangler deploy --env preview` or `npm run deploy -- --env preview` |
 
-## US scrape
+Do **not** wire `deploy:*:with-contract` into Builds — GitHub Packages publish is deferred ([`contract-publish.md`](./contract-publish.md)).
 
-| Worker | When |
+## US scrape (product geo prepare)
+
+| Worker | Role |
 |--------|------|
-| **streaming-scrape-us** (prod) | Product geo prepare — keep deployed |
-| **streaming-scrape-us-preview** | Survey / preview geo only — **do not leave running** |
+| **streaming-scrape-us** (prod) | Live geo prepare for top-level **`api`** (`SCRAPE_US`) — keep deployed |
+| **streaming-scrape-us-preview** | Preview twin for **`api-preview`** — keep deployed like api-preview |
 
-Survey with `-IncludeUsFetch` deploys then deletes the preview twin. Manual:
+Survey (`POST /ops/streaming-scrape-survey`) does **not** deploy or tear down these Workers. They are product regional scrape Workers, not survey-only.
 
 ```powershell
-npm run survey:scrape-us:ensure
-npm run survey:scrape-us:teardown
-npm run deploy:scrape-us   # production only when needed
+npm run deploy:scrape-us:preview   # preview twin (before api-preview needs SCRAPE_US)
+npm run deploy:scrape-us           # production — only when explicitly requested
 ```
 
 Config: root `wrangler.streaming-scrape-us.jsonc`.
-
-**Note:** api-preview Builds that bind `SCRAPE_US` fail if the preview scrape Worker is missing. Run survey (or `survey:scrape-us:ensure`) before that deploy, then tear down after.
 
 ## Survey (local → deployed Api)
 
@@ -36,4 +35,4 @@ npm run survey:streaming-scrape -- `
   -IncludeUsFetch -ExpectedUsColos IAD
 ```
 
-Compare: `npm run survey:compare-contract`. Skill: `.cursor/skills/streaming-scrape-survey/SKILL.md`.
+`-IncludeUsFetch` requires `streaming-scrape-us-preview` already bound as `SCRAPE_US` on api-preview. Compare: `npm run survey:compare-contract`. Skill: `.cursor/skills/streaming-scrape-survey/SKILL.md`.

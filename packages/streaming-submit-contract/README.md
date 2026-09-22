@@ -7,9 +7,14 @@ Source of truth remains Api fixtures:
 - `tests/fixtures/streaming-submit-contract.ts`
 - `tests/fixtures/streaming-submit-contract.json`
 
-This package is **assembled and published** during Cloudflare Workers Builds (not hand-edited). See [`docs/contract-publish.md`](../../docs/contract-publish.md).
+**GitHub Packages publish is deferred** (billing). Do **not** treat Workers Builds as
+assembling/publishing this package yet — see [`docs/contract-publish.md`](../../docs/contract-publish.md).
+Until unblocked, keep sibling byte-copies in website / RPP.
 
-## Install (consumers)
+Manual publish scripts exist for when Packages works (`npm run publish:contract:staging` /
+`publish:contract:production`) — **do not** wire them into Builds until then.
+
+## Install (consumers) — when Packages is enabled
 
 GitHub Packages auth (`.npmrc`):
 
