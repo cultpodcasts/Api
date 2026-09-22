@@ -1,41 +1,29 @@
-# Workers Builds deploy (Api + US scrape)
+# Workers Builds (Api)
 
-## Api
+Api Builds only publishes Api. Survey / US scrape is **local ops**.
 
-| Worker | Deploy command |
-|--------|----------------|
-| **api** | `npm run deploy` |
-| **api-preview** | `npm run deploy -- --env preview` |
+| Worker | Typical deploy command |
+|--------|------------------------|
+| **api** | `npx wrangler deploy` or `npm run deploy` |
+| **api-preview** | `npx wrangler deploy --env preview` or `npm run deploy -- --env preview` |
 
-Under **Workers Builds**, `npm run deploy` only publishes **Api**. Cloudflare binds each Builds project to one Worker name and rejects publishing `streaming-scrape-us(-preview)` from the Api connection.
+## US scrape (local)
 
-## US scrape (required for `SCRAPE_US`)
-
-Pick one:
-
-### A — One-off / ops (fastest)
+Before api-preview can bind `SCRAPE_US`, publish once from a machine with wrangler auth:
 
 ```powershell
 npm run deploy:scrape-us:preview
+# production twin when needed:
 npm run deploy:scrape-us
 ```
 
-### B — Automatic: second Builds project
+Config: root `wrangler.streaming-scrape-us.jsonc`.
 
-Connect the same `cultpodcasts/Api` repo to a **new** Worker Builds for `streaming-scrape-us` / `streaming-scrape-us-preview`:
-
-| Target Worker | Deploy command |
-|---------------|----------------|
-| streaming-scrape-us-preview | `npx wrangler deploy -c ./wrangler.streaming-scrape-us.jsonc --env preview` |
-| streaming-scrape-us | `npx wrangler deploy -c ./wrangler.streaming-scrape-us.jsonc` |
-
-Build command: `./build.sh` (or empty). Root directory `/`.
-
-Deploy scrape **before** Api when both build on the same push (or accept a failed Api build until scrape exists once).
-
-## Survey
+## Survey (local → deployed Api)
 
 ```powershell
+npm run deploy:scrape-us:preview   # if scrape Worker missing / stale
+# wait for api-preview Builds with survey route, then:
 npm run survey:streaming-scrape -- `
   -ApiBaseUrl https://api-preview.jonbreen.workers.dev `
   -SecretsFile ./scripts/local-secrets.preview.env `

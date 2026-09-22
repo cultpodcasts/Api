@@ -4,6 +4,8 @@ Hosts change. Re-run when prepare regresses or before changing `scrapeProfiles`.
 
 **No probe Workers.** The survey is `POST /ops/streaming-scrape-survey` on deployed **Api**. Isolates are ephemeral. **PoP preflight is mandatory** — if `cdn-cgi/trace` for a CF leg is outside `expectedPop`, the Api returns **409 contaminated** and does not scrape catalogues.
 
+Ops run the survey **from local** against a deployed Api host (prefer preview/workers.dev).
+
 ## Auth
 
 Auth0 Bearer with **`submit` or `curate`** (ops: M2M `client_credentials` on the Api audience).
@@ -17,7 +19,14 @@ Auth0 Bearer with **`submit` or `curate`** (ops: M2M `client_credentials` on the
 | `cfBr` | Api `browserRenderingHtml` | **Hydration only** (ITVX-class) — not geo |
 | `cfUsFetch` | `SCRAPE_US` + **directHttp** | **Geo soft-wall** (Hulu-class) — **never BR** |
 
-BR is **not** region-pinnable. Geo surveys use placed **fetch** only, with fetch-trace preflight.
+## Prerequisites
+
+1. Api with the survey route deployed (e.g. api-preview via PR Builds).
+2. Matching scrape Worker if using `-IncludeUsFetch`:
+
+```powershell
+npm run deploy:scrape-us:preview
+```
 
 ## Run
 
@@ -34,13 +43,11 @@ npm run survey:streaming-scrape -- `
   -ExpectedUsLocs US
 ```
 
-Requires Api **already deployed** with this route. Prefer Builds using `npm run deploy -- --env preview` so scrape-us-preview is published first — [`docs/workers-builds-deploy.md`](../../docs/workers-builds-deploy.md).
-
-Prefer preview/workers.dev Api host if apex Bot Fight challenges M2M (see `docs/hero-curation-m2m-edge.md`).
+Prefer preview/workers.dev if apex Bot Fight challenges M2M (see `docs/hero-curation-m2m-edge.md`).
 
 ## Contaminated
 
-Exit code `2` / HTTP 409 — do **not** trust or publish results; fix PoP expectations or retry when the network path matches.
+Exit code `2` / HTTP 409 — do **not** trust results; fix PoP expectations or retry.
 
 ## Specimens
 
@@ -49,4 +56,5 @@ Exit code `2` / HTTP 409 — do **not** trust or publish results; fix PoP expect
 ## Related
 
 - [`docs/streaming-scrape-findings.md`](../../docs/streaming-scrape-findings.md)
-- Prepare smoke: `scripts/submit-prepare-field-smoke.ps1`
+- [`docs/workers-builds-deploy.md`](../../docs/workers-builds-deploy.md)
+- [`workers/streaming-scrape-us/README.md`](../../workers/streaming-scrape-us/README.md)

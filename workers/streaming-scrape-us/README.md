@@ -9,19 +9,16 @@ US-placed regional scrape Worker (`placement.region: aws:us-east-1`). Called onl
 | Top-level **`api`** (production) | **`streaming-scrape-us`** |
 | **`api-preview`** (`--env preview`) | **`streaming-scrape-us-preview`** |
 
-## Automatic deploy
+## Deploy (local ops)
 
-Chained from Api’s `npm run deploy` via root config `wrangler.streaming-scrape-us.jsonc` (must be at repo root so `src/` imports resolve in CI):
-
-- `npm run deploy` → scrape-us + api  
-- `npm run deploy -- --env preview` → scrape-us-preview + api-preview  
-
-## Manual
+Not part of Api Workers Builds (one Builds project = one Worker name). From repo root:
 
 ```powershell
 npm run deploy:scrape-us:preview
 npm run deploy:scrape-us
 ```
+
+Uses `wrangler.streaming-scrape-us.jsonc` at the repo root so shared `src/` imports resolve.
 
 ## Geo note
 
