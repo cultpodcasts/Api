@@ -18,9 +18,9 @@ JWT **`permissions[]`** and OAuth **`scope`** are checked via `hasPermission` (n
 
 ## Planned catalogue content types epic (not scheduled)
 
-Separate TvShow / Movie / News Cosmos containers + unified search `contentKind` facet. Worker search passthrough and new proxy routes — **planning only** until a phase is explicitly started.
+Separate TvShow / **Film** (made-as-film one-off, cinema or TV; no parent) / News Cosmos containers + unified search `contentKind` (`Episode | TvShowEpisode | Film | NewsReport`). Worker search passthrough, kind-aware page-details/shortener, and new proxy routes — **planning only** until a phase is explicitly started. Phase 0 sign-off 2026-09-23. Do not use product name Movie.
 
-Intended RPP docs (not on `main` yet — land with a sibling RPP PR; do not treat as live links):
+RPP docs:
 
 - Epic: `RedditPodcastPoster/docs/catalogue-content-types-epic.md`
 - Search storage impact: `RedditPodcastPoster/docs/catalogue-content-types-search-storage-impact.md`
