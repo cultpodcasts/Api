@@ -18,6 +18,7 @@ import {
 	type OgPlatformSource
 } from "./ogCardPlatforms";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
+import { playableCardTitle, playableLookupFilters, playableLookupPrefersSeries } from "./playableSearchFields";
 
 /**
  * Page-details for SSR / OG tags.
@@ -84,9 +85,21 @@ async function lookupSearchEpisode(
 	podcastName: string,
 	episodeId: string
 ): Promise<{ status: number; episode?: Record<string, unknown> }> {
+	const [seriesFilter, legacyFilter] = playableLookupFilters(podcastName, episodeId);
+	const bySeries = await runFilter(c, seriesFilter);
+	if (playableLookupPrefersSeries(bySeries)) {
+		return bySeries;
+	}
+	return runFilter(c, legacyFilter);
+}
+
+async function runFilter(
+	c: ActionContext,
+	filter: string
+): Promise<{ status: number; episode?: Record<string, unknown> }> {
 	const search: oDataSearchModel = {
 		search: "",
-		filter: `(podcastName eq '${podcastName.replaceAll("'", "''")}') and (id eq '${episodeId}')`,
+		filter,
 		orderby: "release desc",
 		skip: "0"
 	};
@@ -175,7 +188,7 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
 				})
 			);
 			const shortnerRecord: ShortnerRecord = {
-				episodeTitle: String(episode.episodeTitle ?? ""),
+				episodeTitle: playableCardTitle(episode),
 				releaseDate: releaseDate,
 				duration: typeof episode.duration === "string" ? episode.duration : undefined,
 				image: storage?.image,
