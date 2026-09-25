@@ -7,6 +7,14 @@ export function playableLookupFilters(name: string, id: string): readonly [strin
 	];
 }
 
+/**
+ * Keep the seriesName result on a hit or a 200 with no document.
+ * Query podcastName only when the seriesName query failed (the field is missing on the live index).
+ */
+export function playableLookupPrefersSeries(series: { status: number; episode?: unknown }): boolean {
+	return series.episode != null || series.status === 200;
+}
+
 export function playableCardTitle(episode: Record<string, unknown>): string {
 	const title = episode["title"];
 	if (typeof title === "string" && title.length > 0) {

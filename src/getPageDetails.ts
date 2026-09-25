@@ -18,7 +18,7 @@ import {
 	type OgPlatformSource
 } from "./ogCardPlatforms";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
-import { playableCardTitle, playableLookupFilters } from "./playableSearchFields";
+import { playableCardTitle, playableLookupFilters, playableLookupPrefersSeries } from "./playableSearchFields";
 
 /**
  * Page-details for SSR / OG tags.
@@ -87,11 +87,8 @@ async function lookupSearchEpisode(
 ): Promise<{ status: number; episode?: Record<string, unknown> }> {
 	const [seriesFilter, legacyFilter] = playableLookupFilters(podcastName, episodeId);
 	const bySeries = await runFilter(c, seriesFilter);
-	if (bySeries.episode) {
+	if (playableLookupPrefersSeries(bySeries)) {
 		return bySeries;
-	}
-	if (bySeries.status !== 200) {
-		return runFilter(c, legacyFilter);
 	}
 	return runFilter(c, legacyFilter);
 }
