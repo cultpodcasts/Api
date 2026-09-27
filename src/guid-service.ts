@@ -6,10 +6,13 @@ export class GuidService {
 
     /** Film, TV, and News shares. Podcast episodes stay unprefixed via toBase64. */
     public toCatalogueShortId(guid: string, contentKind?: string | null): string {
-        const prefix = cataloguePrefix(contentKind);
         const guidBytes = this.guidToBytes(guid);
-        if (!prefix) {
+        if (contentKind == null || contentKind === "Episode") {
             return this.toUrlBase64(guidBytes);
+        }
+        const prefix = cataloguePrefix(contentKind);
+        if (!prefix) {
+            throw new Error(`Unknown catalogue content kind "${contentKind}".`);
         }
         return this.toUrlBase64([prefix.charCodeAt(0), ...guidBytes]);
     }
@@ -97,7 +100,8 @@ export class GuidService {
     }
 }
 
-function cataloguePrefix(contentKind?: string | null): string | null {
+/** Prefix for Film, TV, and News. Null means the kind is not one of those. */
+function cataloguePrefix(contentKind: string): string | null {
     switch (contentKind) {
         case "Film":
             return "f";
