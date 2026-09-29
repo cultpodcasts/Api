@@ -1,5 +1,6 @@
 // pragma: allowlist secret
 import { z } from "zod";
+import { CatalogueParentKind } from "./catalogueParentKind";
 import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contract";
 
 /**
@@ -272,6 +273,19 @@ export const languagesResponseSchema = z.record(z.string(), z.string());
 
 /** GET /bookmarks — episode ids for the authenticated user. */
 export const bookmarksListResponseSchema = z.array(z.string().uuid());
+
+export const catalogueParentKindSchema = z.nativeEnum(CatalogueParentKind);
+
+export const podcastKindTransferRequestSchema = z.object({
+	targetKind: catalogueParentKindSchema
+});
+
+export const podcastKindTransferResponseSchema = z.object({
+	parentId: z.string().uuid().optional().nullable(),
+	targetKind: catalogueParentKindSchema.optional().nullable(),
+	playableCount: z.number().int().optional(),
+	failureIndexingPlayables: z.boolean().optional()
+});
 
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)

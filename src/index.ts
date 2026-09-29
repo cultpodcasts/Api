@@ -72,6 +72,7 @@ import {
 	UpdateEpisodeRoute,
 	UpdatePersonRoute,
 	UpdatePodcastEpisodeRoute,
+	TransferPodcastKindRoute,
 	UpdatePodcastPostRoute,
 	UpdatePodcastPutRoute,
 	UpdateSubjectRoute
@@ -353,6 +354,7 @@ openapi.delete('/episode/:id', DeleteEpisodeRoute);
 openapi.get('/episodes/outgoing', GetOutgoingRoute);
 openapi.get('/podcast/:name', GetPodcastByNameRoute);
 openapi.get('/podcast/:name/:id', GetPodcastByNameAndEpisodeIdRoute);
+openapi.post('/podcast/:id/kind', TransferPodcastKindRoute);
 openapi.post('/podcast/:id', UpdatePodcastPostRoute);
 openapi.put('/podcast/:id', UpdatePodcastPutRoute);
 openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);

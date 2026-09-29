@@ -84,6 +84,8 @@ import {
 	personDtoSchema,
 	podcastChangeRequestSchema,
 	podcastDtoSchema,
+	podcastKindTransferRequestSchema,
+	podcastKindTransferResponseSchema,
 	podcastRenameRequestSchema,
 	podcastRenameResponseSchema,
 	publicEpisodeDtoSchema,
@@ -118,6 +120,7 @@ import { submitDiscovery } from "./submitDiscovery";
 import { updateEpisode, updatePodcastEpisode } from "./updateEpisode";
 import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
+import { transferPodcastKind } from "./transferPodcastKind";
 import { updateSubject } from "./updateSubject";
 
 export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupRoute, SubmitPrepareRoute, SubmitRoute };
@@ -370,6 +373,23 @@ export const GetOutgoingRoute = createOpenApiRoute(getOutgoing, {
         summary: "Get outgoing episodes",
         responses: {
             200: { description: "Outgoing episodes", ...contentJson(episodeListResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, {
+    auth: true,
+    schema: {
+        tags: ["Podcasts"],
+        summary: "Transfer a podcast to a TV show or news organisation (keeps guids)",
+        request: { params: idParam, body: jsonBody(podcastKindTransferRequestSchema) },
+        responses: {
+            202: { description: "Accepted", ...contentJson(podcastKindTransferResponseSchema) },
+            400: { description: "Invalid target kind" },
+            409: { description: "Target parent already exists at this id", ...contentJson(podcastKindTransferResponseSchema) },
+            ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
         }
