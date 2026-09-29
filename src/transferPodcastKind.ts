@@ -1,7 +1,7 @@
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Endpoint } from "./Endpoint";
-import { ProxyToAzureOptions, proxyToAzure } from "./proxyToAzure";
+import { proxyToAzure } from "./proxyToAzure";
 
 export async function transferPodcastKind(c: Auth0ActionContext): Promise<Response> {
 	const id = c.req.param("id");

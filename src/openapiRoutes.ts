@@ -387,7 +387,7 @@ export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, 
         request: { params: idParam, body: jsonBody(podcastKindTransferRequestSchema) },
         responses: {
             202: { description: "Accepted", ...contentJson(podcastKindTransferResponseSchema) },
-            400: { description: "Invalid target kind" },
+            400: { description: "Invalid target kind", ...contentJson(errorSchema) },
             409: { description: "Target parent already exists at this id", ...contentJson(podcastKindTransferResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,

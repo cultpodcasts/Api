@@ -21,6 +21,8 @@ import {
 	ogImageQuerySchema,
 	pageDetailsResponseSchema,
 	podcastChangeRequestSchema,
+	podcastKindTransferRequestSchema,
+	podcastKindTransferResponseSchema,
 	podcastRenameRequestSchema,
 	preProcessedHomepageResponseSchema,
 	publicEpisodeDtoSchema,
@@ -474,6 +476,38 @@ describe("openapi Zod schemas", () => {
 			totalDuration: "01:00:00"
 		});
 		expect(parsed.recentEpisodes[0].language).toBeUndefined();
+	});
+
+	it("accepts podcast kind transfer TvShow and NewsOrganisation and rejects Film Movie 0 and omitted targetKind", () => {
+		expect(podcastKindTransferRequestSchema.parse({ targetKind: "TvShow" }).targetKind).toBe("TvShow");
+		expect(podcastKindTransferRequestSchema.parse({ targetKind: "NewsOrganisation" }).targetKind).toBe(
+			"NewsOrganisation"
+		);
+		expect(() => podcastKindTransferRequestSchema.parse({ targetKind: "Film" })).toThrow();
+		expect(() => podcastKindTransferRequestSchema.parse({ targetKind: "Movie" })).toThrow();
+		expect(() => podcastKindTransferRequestSchema.parse({ targetKind: 0 })).toThrow();
+		expect(() => podcastKindTransferRequestSchema.parse({})).toThrow();
+	});
+
+	it("accepts 202 podcast kind transfer body with uuid parentId, int playableCount, bool failureIndexingPlayables", () => {
+		const parsed = podcastKindTransferResponseSchema.parse({
+			parentId: "550e8400-e29b-41d4-a716-446655440000",
+			targetKind: "TvShow",
+			playableCount: 3,
+			failureIndexingPlayables: false
+		});
+		expect(parsed.parentId).toBe("550e8400-e29b-41d4-a716-446655440000");
+		expect(parsed.playableCount).toBe(3);
+		expect(parsed.failureIndexingPlayables).toBe(false);
+		const news = podcastKindTransferResponseSchema.parse({
+			parentId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			targetKind: "NewsOrganisation",
+			playableCount: 0,
+			failureIndexingPlayables: true
+		});
+		expect(news.parentId).toBe("6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+		expect(news.playableCount).toBe(0);
+		expect(news.failureIndexingPlayables).toBe(true);
 	});
 
 	it("accepts PreProcessedHomePageModel for homepage-ssr JSON", () => {
