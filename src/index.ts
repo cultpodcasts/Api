@@ -75,7 +75,13 @@ import {
 	TransferPodcastKindRoute,
 	UpdatePodcastPostRoute,
 	UpdatePodcastPutRoute,
-	UpdateSubjectRoute
+	UpdateSubjectRoute,
+	GetTvShowRoute,
+	UpdateTvShowRoute,
+	GetTvShowEpisodeRoute,
+	UpdateTvShowEpisodeRoute,
+	GetFilmRoute,
+	UpdateFilmRoute
 } from './openapiRoutes';
 const app = new Hono<{ Bindings: Env }>();
 const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
@@ -357,6 +363,12 @@ openapi.get('/podcast/:name/:id', GetPodcastByNameAndEpisodeIdRoute);
 openapi.post('/podcast/:id/kind', TransferPodcastKindRoute);
 openapi.post('/podcast/:id', UpdatePodcastPostRoute);
 openapi.put('/podcast/:id', UpdatePodcastPutRoute);
+openapi.get('/tvshow/:identifier', GetTvShowRoute);
+openapi.post('/tvshow/:id', UpdateTvShowRoute);
+openapi.get('/tvshowepisode/:id', GetTvShowEpisodeRoute);
+openapi.post('/tvshowepisode/:id', UpdateTvShowEpisodeRoute);
+openapi.get('/film/:identifier', GetFilmRoute);
+openapi.post('/film/:id', UpdateFilmRoute);
 openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);
 openapi.get('/subject/:name', GetSubjectByNameRoute);
 openapi.post('/subject/:id', UpdateSubjectRoute);

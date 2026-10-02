@@ -40,6 +40,24 @@ export function getEndpoint(endpoint: Endpoint, env: Env): URL {
             url = peopleUrl;
             break;
         }
+        case Endpoint.tvShow: {
+            const podcastUrl = new URL(env.securePodcastEndpoint);
+            podcastUrl.pathname = podcastUrl.pathname.replace(/\/podcast\/?$/, '/tvshow');
+            url = podcastUrl;
+            break;
+        }
+        case Endpoint.tvShowEpisode: {
+            const episodeUrl = new URL(env.secureEpisodeEndpoint);
+            episodeUrl.pathname = episodeUrl.pathname.replace(/\/episode\/?$/, '/tvshowepisode');
+            url = episodeUrl;
+            break;
+        }
+        case Endpoint.film: {
+            const podcastUrl = new URL(env.securePodcastEndpoint);
+            podcastUrl.pathname = podcastUrl.pathname.replace(/\/podcast\/?$/, '/film');
+            url = podcastUrl;
+            break;
+        }
         case Endpoint.publishHomepage:
             url = new URL(env.secureAdminPublishHomepageEndpoint);
             break;

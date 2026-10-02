@@ -833,3 +833,33 @@ export const preProcessedHomepageResponseSchema = z.object({
 	episodesThisWeek: z.number(),
 	episodeCount: z.number()
 });
+
+export const tvShowDtoSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	imdb: z.string().url().optional().nullable(),
+	tvdb: z.string().url().optional().nullable()
+});
+
+export const tvShowEpisodeDtoSchema = z.object({
+	id: z.string().uuid(),
+	tvShowId: z.string().uuid(),
+	title: z.string(),
+	imdb: z.string().url().optional().nullable(),
+	tvdb: z.string().url().optional().nullable()
+});
+
+export const tvShowChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable(),
+	tvdb: z.string().optional().nullable()
+});
+
+export const filmDtoSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	imdb: z.string().url().optional().nullable()
+});
+
+export const filmChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable()
+});
