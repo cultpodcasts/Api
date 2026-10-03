@@ -17,7 +17,6 @@ export function jwtPayload(partial: Partial<Auth0JwtPayload> = {}): Auth0JwtPayl
 }
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
-	const url = (path: string) => new URL(`https://azure.example/api/${path}`);
 	return {
 		shortner: {} as KVNamespace,
 		Curated: {} as KVNamespace,
@@ -26,22 +25,7 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
 		auth0ClientId: "client",
 		apihost: "https://search.example/",
 		apikey: "key",
-		secureSubmitEndpoint: url("SubmitUrl"),
-		secureEpisodeEndpoint: url("episode"),
-		securePublicEpisodeEndpoint: url("public-episode"),
-		secureEpisodePublishEndpoint: url("episode-publish"),
-		secureDiscoveryCurationEndpoint: url("DiscoveryCuration"),
-		securePodcastIndexEndpoint: url("podcast-index"),
-		securePodcastEndpoint: url("podcast"),
-		secureSubjectEndpoint: url("subject"),
-		securePeopleEndpoint: url("people"),
-		secureEpisodesOutgoingEndpoint: url("episodes-outgoing"),
-		secureAdminSearchIndexerEndpoint: url("search-indexer"),
-		secureAdminPublishHomepageEndpoint: url("publish-homepage"),
-		secureDiscoveryScheduleEndpoint: url("discovery-schedule"),
-		secureSupportedLanguagesEndpoint: url("supported-languages"),
-		secureTitleCasingRulesEndpoint: url("title-casing-rules"),
-		securePushSubscriptionEndpoint: url("push"),
+		azureApiOrigin: "https://azure.example",
 		stagingHostSuffix: ".pages.dev",
 		PROFILE_DURABLE_OBJECT: {} as Env["PROFILE_DURABLE_OBJECT"],
 		HERO_CURATION_DURABLE_OBJECT: {} as Env["HERO_CURATION_DURABLE_OBJECT"],

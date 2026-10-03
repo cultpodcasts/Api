@@ -1,6 +1,6 @@
 # Sets Cloudflare Worker secrets for the preview env via wrangler.
 #
-# NEVER put real secrets or Azure Function endpoint URLs in this script.
+# NEVER put real secrets or Azure Function host URLs in this script.
 # Load them from a gitignored local file (preferred) or process env vars.
 #
 # Preferred: copy the example and fill real values locally:
@@ -10,7 +10,7 @@
 # File format (KEY=VALUE, one wrangler secret name per line):
 #   apikey=...
 #   auth0ClientId=...
-#   secureEpisodeEndpoint=https://....azurewebsites.net/api/episode
+#   azureApiOrigin=https://....azurewebsites.net
 #   ...
 #
 # Optional: process env vars override file values (same KEY names).
@@ -75,22 +75,7 @@ try {
         'auth0Audience'
         'auth0Issuer'
         'overrideHost'
-        'secureAdminPublishHomepageEndpoint'
-        'secureAdminSearchIndexerEndpoint'
-        'secureDiscoveryCurationEndpoint'
-        'secureDiscoveryScheduleEndpoint'
-        'secureSupportedLanguagesEndpoint'
-        'secureTitleCasingRulesEndpoint'
-        'secureEpisodeEndpoint'
-        'secureEpisodePublishEndpoint'
-        'secureEpisodesOutgoingEndpoint'
-        'securePodcastEndpoint'
-        'securePodcastIndexEndpoint'
-        'securePublicEpisodeEndpoint'
-        'securePushSubscriptionEndpoint'
-        'secureSubjectEndpoint'
-        'securePeopleEndpoint'
-        'secureSubmitEndpoint'
+        'azureApiOrigin'
         'stagingHostSuffix'
         'auth0ClientId'
         'browserRenderingServices'
@@ -98,12 +83,7 @@ try {
 
     $mustBeNonEmpty = @(
         'apihost', 'apikey', 'auth0Audience', 'auth0Issuer',
-        'secureAdminPublishHomepageEndpoint', 'secureAdminSearchIndexerEndpoint',
-        'secureDiscoveryCurationEndpoint', 'secureDiscoveryScheduleEndpoint',
-        'secureSupportedLanguagesEndpoint', 'secureTitleCasingRulesEndpoint',
-        'secureEpisodeEndpoint', 'secureEpisodePublishEndpoint', 'secureEpisodesOutgoingEndpoint',
-        'securePodcastEndpoint', 'securePodcastIndexEndpoint', 'securePublicEpisodeEndpoint',
-        'securePushSubscriptionEndpoint', 'secureSubjectEndpoint', 'securePeopleEndpoint', 'secureSubmitEndpoint',
+        'azureApiOrigin',
         'stagingHostSuffix', 'auth0ClientId'
     )
 

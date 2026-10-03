@@ -18,10 +18,7 @@ const ambiguousIds = [
 ];
 
 function catalogueEnv() {
-	return testEnv({
-		securePodcastEndpoint: new URL("https://functions.example/api/podcast"),
-		secureEpisodeEndpoint: new URL("https://functions.example/api/episode")
-	});
+	return testEnv();
 }
 
 type TestHttpMethod = "get" | "post";

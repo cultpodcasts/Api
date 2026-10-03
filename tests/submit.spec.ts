@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Auth0JwtPayload } from "../src/Auth0JwtPayload";
+import { Endpoint } from "../src/Endpoint";
+import { getEndpoint } from "../src/endpoints";
 import { submit } from "../src/submit";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
@@ -80,7 +82,7 @@ describe("submit", () => {
 		expect(await resp.json()).toEqual(conflictIds);
 		expect(submissionsCreate).not.toHaveBeenCalled();
 		expect(fetchMock).toHaveBeenCalledOnce();
-		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(env.secureSubmitEndpoint.toString());
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(getEndpoint(Endpoint.submit, env).toString());
 		expect(warnSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				event: "submit.azure_client_error",
@@ -259,7 +261,7 @@ describe("submit", () => {
 		expect(resp.status).toBe(409);
 		expect(await resp.json()).toEqual(conflictIds);
 		expect(fetchMock).toHaveBeenCalledOnce();
-		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(env.secureSubmitEndpoint.toString());
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(getEndpoint(Endpoint.submit, env).toString());
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
@@ -284,7 +286,7 @@ describe("submit", () => {
 		expect(resp.status).toBe(409);
 		expect(await resp.json()).toEqual(conflictIds);
 		expect(fetchMock).toHaveBeenCalledOnce();
-		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(env.secureSubmitEndpoint.toString());
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(getEndpoint(Endpoint.submit, env).toString());
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 

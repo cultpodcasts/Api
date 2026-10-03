@@ -8,9 +8,7 @@ const route = "/episode/:podcastId/:episodeId";
 const requestPath = `/episode/${podcastId}/${episodeId}`;
 
 function episodeEnv() {
-	return testEnv({
-		secureEpisodeEndpoint: new URL("https://functions.example/api/episode")
-	});
+	return testEnv();
 }
 
 describe("POST /episode/:podcastId/:episodeId", () => {

@@ -4,12 +4,12 @@
 
 ## Config / secrets
 
-<!-- Required when this PR adds or depends on new Cloudflare Worker secrets / endpoint URLs.
+<!-- Required when this PR adds or depends on new Cloudflare Worker secrets.
      List **names only** (never values). Tick both environments before merge/release. -->
 
 - [ ] No new Worker secrets / endpoint env keys
 - [ ] **Or** new secret **names** (preview + production):
-  - Preview (`api-preview`): `<!-- e.g. secureExampleEndpoint -->`
+  - Preview (`api-preview`): `<!-- e.g. azureApiOrigin -->`
   - Production (top-level Worker `api` — **not** `--env production`): `<!-- same names -->`
 - [ ] Tracked examples updated: `scripts/local-secrets.preview.env.example` + `scripts/local-secrets.production.env.example`
 - [ ] Upload scripts updated: `set-secrets-preview.ps1` + `set-secrets-production.ps1`

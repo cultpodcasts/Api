@@ -1,6 +1,6 @@
 # Cloudflare Worker secrets (Api)
 
-Worker secrets (Search API key, Auth0 client id, Azure Function endpoint URLs, etc.) must **never** be committed to git.
+Worker secrets (Search API key, Auth0 client id, Azure Functions origin, etc.) must **never** be committed to git.
 
 ## Preview ↔ production parity (required)
 
@@ -55,7 +55,7 @@ Process environment variables with the same key names override file values if se
 
 ## Local Wrangler / Pages vars
 
-- `.dev.vars` — local Worker secrets for `wrangler dev` (gitignored). Copy keys from `scripts/local-secrets.preview.env.example` (includes `secureDiscoveryScheduleEndpoint`, `secureSupportedLanguagesEndpoint`, `secureTitleCasingRulesEndpoint`, and other Azure Function proxy URLs).
+- `.dev.vars` — local Worker secrets for `wrangler dev` (gitignored). Copy keys from `scripts/local-secrets.preview.env.example` (includes `azureApiOrigin`; Azure Function *paths* are in `src/azureResources.ts`).
 - `.env` — also gitignored; do not commit.
 
 ## Gitignore
@@ -68,6 +68,37 @@ These paths are ignored (do not track):
 - `scripts/local-secrets.*.env` (real values only; `*.env.example` is tracked)
 
 Tracked scripts (`set-secrets-*.ps1` / `.cmd`) contain **no** real secrets or `*.azurewebsites.net` hosts — only loaders and placeholder examples.
+
+## Azure Functions origin
+
+The Worker does **not** store per-route Function URLs as secrets. RPP already publishes HTTP `Route` values.
+
+| Secret | Role |
+|--------|------|
+| `azureApiOrigin` | Function app origin only, e.g. `https://api-infra.azurewebsites.net` (no path) |
+| `overrideHost` | Optional host override (local Azure Functions). Empty in preview/production |
+
+Lookup: `getEndpoint(Endpoint.tvShow, env)` → origin + `AzureResourcePaths` then `overrideHost` if set.
+
+New catalogue types: add a path in `src/azureResources.ts`. Do **not** add another `secure*Endpoint` secret.
+
+Azure HTTP is authenticated with the forwarded Auth0 JWT (Function URLs are not key-in-query). `apihost` / `apikey` remain Azure **Search**, not Functions. There is no `azureApiKey` secret — do not add one.
+
+## Retired Cloudflare secrets
+
+Worker source does not read `azureApiKey`, `gatewayKey`, `secureAdminTermsEndpoint`, or `securePodcastsEndpoint`. Delete them with:
+
+```powershell
+.\scripts\delete-retired-worker-secrets.ps1
+```
+
+Per-route `secure*Endpoint` URLs stay on Cloudflare until the origin-catalog Worker is **deployed**. After that deploy:
+
+```powershell
+.\scripts\delete-retired-worker-secrets.ps1 -AfterOriginCutover
+```
+
+That second pass must **not** run while live `api` still builds Azure URLs from `secureEpisodeEndpoint` / `securePodcastEndpoint` / …. It never deletes `apikey`, `apihost`, `azureApiOrigin`, Auth0, or `overrideHost`.
 
 ## After a historical plaintext leak
 

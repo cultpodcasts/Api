@@ -10,6 +10,8 @@ import {
 import { fetchHtmlWithBrowserRendering } from "./browserRenderingHtml";
 import { fetchCatalogHtml, titleFromCatalogHtml } from "./catalogHtmlPrepare";
 import { buildFetchHeaders } from "./buildFetchHeaders";
+import { Endpoint } from "./Endpoint";
+import { getEndpoint } from "./endpoints";
 import { isMarketingShellHtml } from "./marketingShellReject";
 import { LogCollector } from "./LogCollector";
 import { scrapeViaRegionalWorker } from "./regionalScrape";
@@ -153,20 +155,14 @@ async function runPopPreflight(
 }
 
 function submitPrepareUrl(env: Auth0ActionContext["env"]): URL {
-	const base = new URL(env.secureSubmitEndpoint.toString());
-	if (!base.pathname.endsWith("/")) {
-		base.pathname = `${base.pathname}/`;
-	}
-	base.pathname = `${base.pathname}prepare`;
+	const base = getEndpoint(Endpoint.submit, env);
+	base.pathname = `${base.pathname.replace(/\/$/, "")}/prepare`;
 	return base;
 }
 
 function submitExtractUrl(env: Auth0ActionContext["env"]): URL {
-	const base = new URL(env.secureSubmitEndpoint.toString());
-	if (!base.pathname.endsWith("/")) {
-		base.pathname = `${base.pathname}/`;
-	}
-	base.pathname = `${base.pathname}extract`;
+	const base = getEndpoint(Endpoint.submit, env);
+	base.pathname = `${base.pathname.replace(/\/$/, "")}/extract`;
 	return base;
 }
 

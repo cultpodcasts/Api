@@ -1,62 +1,43 @@
 import { describe, expect, it } from "vitest";
+import { AzureResourcePaths } from "../src/azureResources";
 import { Endpoint } from "../src/Endpoint";
-import { getEndpoint, rewriteTrailingSegment } from "../src/endpoints";
+import { getEndpoint } from "../src/endpoints";
 import { testEnv } from "./honoTestApp";
 
-function catalogueEnv(overrides: {
-	securePodcastEndpoint?: URL;
-	secureEpisodeEndpoint?: URL;
-} = {}) {
-	return testEnv({
-		securePodcastEndpoint: new URL("https://functions.example/api/podcast"),
-		secureEpisodeEndpoint: new URL("https://functions.example/api/episode"),
-		...overrides
-	});
-}
-
-describe("catalogue Azure endpoint rewrite", () => {
-	it.each([
-		["https://functions.example/api/podcast", "podcast", "tvshow", "/api/tvshow"],
-		["https://functions.example/api/podcast/", "podcast", "tvshow", "/api/tvshow"],
-		["https://functions.example/api/podcast", "podcast", "film", "/api/film"],
-		["https://functions.example/api/podcast/", "podcast", "film", "/api/film"],
-		["https://functions.example/api/episode", "episode", "tvshowepisode", "/api/tvshowepisode"],
-		["https://functions.example/api/episode/", "episode", "tvshowepisode", "/api/tvshowepisode"]
-	] as const)("rewrites %s %s -> %s", (source, from, to, pathname) => {
-		expect(rewriteTrailingSegment(source, from, to).pathname).toBe(pathname);
-	});
-
-	it("getEndpoint maps podcast/episode secrets to catalogue pathnames", () => {
-		const env = catalogueEnv();
-		expect(getEndpoint(Endpoint.tvShow, env).pathname).toBe("/api/tvshow");
-		expect(getEndpoint(Endpoint.film, env).pathname).toBe("/api/film");
-		expect(getEndpoint(Endpoint.tvShowEpisode, env).pathname).toBe("/api/tvshowepisode");
-	});
-
-	it("getEndpoint rewrites trailing-slash podcast and episode secrets", () => {
-		const env = catalogueEnv({
-			securePodcastEndpoint: new URL("https://functions.example/api/podcast/"),
-			secureEpisodeEndpoint: new URL("https://functions.example/api/episode/")
-		});
-		expect(getEndpoint(Endpoint.tvShow, env).pathname).toBe("/api/tvshow");
-		expect(getEndpoint(Endpoint.film, env).pathname).toBe("/api/film");
-		expect(getEndpoint(Endpoint.tvShowEpisode, env).pathname).toBe("/api/tvshowepisode");
-	});
-
-	it("throws when the podcast secret path is unchanged", () => {
-		const env = catalogueEnv({
-			securePodcastEndpoint: new URL("https://functions.example/api/Podcast")
-		});
-		expect(() => getEndpoint(Endpoint.film, env)).toThrow(/Cannot derive \/film Azure URL/);
-		expect(() => getEndpoint(Endpoint.tvShow, env)).toThrow(/Cannot derive \/tvshow Azure URL/);
-	});
-
-	it("throws when the episode secret path is unchanged", () => {
-		const env = catalogueEnv({
-			secureEpisodeEndpoint: new URL("https://functions.example/api/episodes")
-		});
-		expect(() => getEndpoint(Endpoint.tvShowEpisode, env)).toThrow(
-			/Cannot derive \/tvshowepisode Azure URL/
+describe("Azure endpoint registry", () => {
+	it("builds catalogue paths from azureApiOrigin without rewriting podcast/episode secrets", () => {
+		const env = testEnv({ azureApiOrigin: "https://functions.example" });
+		expect(getEndpoint(Endpoint.tvShow, env).href).toBe("https://functions.example/api/tvshow");
+		expect(getEndpoint(Endpoint.film, env).href).toBe("https://functions.example/api/film");
+		expect(getEndpoint(Endpoint.tvShowEpisode, env).href).toBe(
+			"https://functions.example/api/tvshowepisode"
 		);
+		expect(getEndpoint(Endpoint.person, env).href).toBe("https://functions.example/api/person");
+		expect(getEndpoint(Endpoint.podcast, env).href).toBe("https://functions.example/api/podcast");
+		expect(getEndpoint(Endpoint.episode, env).href).toBe("https://functions.example/api/episode");
+	});
+
+	it("strips an accidental path on azureApiOrigin", () => {
+		const env = testEnv({ azureApiOrigin: "https://functions.example/api/podcast" });
+		expect(getEndpoint(Endpoint.film, env).href).toBe("https://functions.example/api/film");
+	});
+
+	it("applies overrideHost and keeps the catalog path", () => {
+		const env = testEnv({
+			azureApiOrigin: "https://functions.example",
+			overrideHost: "127.0.0.1:7071"
+		});
+		const url = getEndpoint(Endpoint.submit, env);
+		expect(url.host).toBe("127.0.0.1:7071");
+		expect(url.protocol).toBe("https:");
+		expect(url.pathname).toBe("/api/SubmitUrl");
+	});
+
+	it("registers every Endpoint enum member", () => {
+		const members = Object.values(Endpoint).filter((v): v is Endpoint => typeof v === "number");
+		for (const endpoint of members) {
+			expect(AzureResourcePaths[endpoint]).toMatch(/^\/api\//);
+			expect(() => getEndpoint(endpoint, testEnv())).not.toThrow();
+		}
 	});
 });
