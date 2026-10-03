@@ -1,6 +1,28 @@
 import { Endpoint } from "./Endpoint";
 import { Env } from "./Env";
 
+/**
+ * Derive a Catalogue Azure Function URL from podcast/episode secrets by replacing
+ * the last path segment. Fail closed if the source path does not end with `fromSegment`
+ * so we never POST film/TV bodies at the podcast/episode Function.
+ */
+export function rewriteTrailingSegment(
+	source: string | URL,
+	fromSegment: string,
+	toSegment: string
+): URL {
+	const url = new URL(source);
+	const originalPath = url.pathname;
+	const rewritten = originalPath.replace(new RegExp(`/${fromSegment}/?$`), `/${toSegment}`);
+	if (rewritten === originalPath) {
+		throw new Error(
+			`Cannot derive /${toSegment} Azure URL from '${originalPath}': expected a trailing /${fromSegment} segment`
+		);
+	}
+	url.pathname = rewritten;
+	return url;
+}
+
 export function getEndpoint(endpoint: Endpoint, env: Env): URL {
     let url: URL;
     switch (endpoint) {
@@ -40,24 +62,15 @@ export function getEndpoint(endpoint: Endpoint, env: Env): URL {
             url = peopleUrl;
             break;
         }
-        case Endpoint.tvShow: {
-            const podcastUrl = new URL(env.securePodcastEndpoint);
-            podcastUrl.pathname = podcastUrl.pathname.replace(/\/podcast\/?$/, '/tvshow');
-            url = podcastUrl;
+        case Endpoint.tvShow:
+            url = rewriteTrailingSegment(env.securePodcastEndpoint, "podcast", "tvshow");
             break;
-        }
-        case Endpoint.tvShowEpisode: {
-            const episodeUrl = new URL(env.secureEpisodeEndpoint);
-            episodeUrl.pathname = episodeUrl.pathname.replace(/\/episode\/?$/, '/tvshowepisode');
-            url = episodeUrl;
+        case Endpoint.tvShowEpisode:
+            url = rewriteTrailingSegment(env.secureEpisodeEndpoint, "episode", "tvshowepisode");
             break;
-        }
-        case Endpoint.film: {
-            const podcastUrl = new URL(env.securePodcastEndpoint);
-            podcastUrl.pathname = podcastUrl.pathname.replace(/\/podcast\/?$/, '/film');
-            url = podcastUrl;
+        case Endpoint.film:
+            url = rewriteTrailingSegment(env.securePodcastEndpoint, "podcast", "film");
             break;
-        }
         case Endpoint.publishHomepage:
             url = new URL(env.secureAdminPublishHomepageEndpoint);
             break;

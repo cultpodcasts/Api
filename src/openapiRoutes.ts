@@ -2,6 +2,7 @@ import { contentJson } from "chanfana";
 import { z } from "zod";
 import {
 	authResponses,
+	ambiguousCatalogueNameConflict,
 	ambiguousPodcastNameConflict,
 	createOpenApiRoute,
 	episodeIdParam,
@@ -100,6 +101,7 @@ import {
 	subjectsNameListResponseSchema,
 	tvShowChangeRequestSchema,
 	tvShowDtoSchema,
+	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	filmChangeRequestSchema,
 	filmDtoSchema
@@ -146,7 +148,7 @@ export const GetTvShowRoute = createOpenApiRoute(getTvShow, {
 		request: { params: identifierParam },
 		responses: {
 			200: { description: "TV show", ...contentJson(tvShowDtoSchema) },
-			409: ambiguousPodcastNameConflict,
+			409: ambiguousCatalogueNameConflict,
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -174,7 +176,7 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Patch TV-show episode IMDb/TheTVDB identity URIs",
-		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
+		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
 			202: { description: "TV-show episode updated (empty body)" },
 			400: { description: "Invalid URL", ...contentJson(errorSchema) },
@@ -209,7 +211,7 @@ export const GetFilmRoute = createOpenApiRoute(getFilm, {
 		request: { params: identifierParam },
 		responses: {
 			200: { description: "Film", ...contentJson(filmDtoSchema) },
-			409: ambiguousPodcastNameConflict,
+			409: ambiguousCatalogueNameConflict,
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
