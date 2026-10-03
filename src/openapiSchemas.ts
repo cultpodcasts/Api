@@ -37,8 +37,12 @@ export const searchRequestSchema = z.object({
 	orderby: z.string().optional()
 });
 
-/** UUID list returned on ambiguous podcast-name 409 (GET /podcast/{name} and POST /submit). */
-export const ambiguousPodcastIdsSchema = z.array(z.string().uuid());
+/**
+ * UUID list returned on ambiguous GET-by-name 409 for podcast, TV show, and film
+ * (Azure `Conflict(AmbiguousIds)`). POST /submit uses the same array shape.
+ */
+export const ambiguousIdsSchema = z.array(z.string().uuid());
+export const ambiguousPodcastIdsSchema = ambiguousIdsSchema;
 
 export const submitUrlRequestSchema = z.object({
 	url: z.string().url(),
@@ -832,4 +836,40 @@ export const preProcessedHomepageResponseSchema = z.object({
 	hasNext: z.boolean(),
 	episodesThisWeek: z.number(),
 	episodeCount: z.number()
+});
+
+export const tvShowDtoSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	imdb: z.string().url().optional().nullable(),
+	tvdb: z.string().url().optional().nullable()
+});
+
+export const tvShowEpisodeDtoSchema = z.object({
+	id: z.string().uuid(),
+	tvShowId: z.string().uuid(),
+	title: z.string(),
+	imdb: z.string().url().optional().nullable(),
+	tvdb: z.string().url().optional().nullable()
+});
+
+export const tvShowChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable(),
+	tvdb: z.string().optional().nullable()
+});
+
+/** Same Azure `TvShowChangeRequest` wire shape (imdb/tvdb strings). Distinct object so Swagger is kind-accurate. */
+export const tvShowEpisodeChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable(),
+	tvdb: z.string().optional().nullable()
+});
+
+export const filmDtoSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	imdb: z.string().url().optional().nullable()
+});
+
+export const filmChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable()
 });

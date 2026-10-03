@@ -16,5 +16,8 @@ export enum Endpoint {
     searchIndexer,
     discoverySchedule,
     supportedLanguages,
-    titleCasingRules
+    titleCasingRules,
+    tvShow,
+    tvShowEpisode,
+    film
 }

@@ -7,11 +7,7 @@ export type TestHttpMethod = "get" | "post" | "put" | "delete";
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
 	return {
-		secureSubmitEndpoint: new URL("https://functions.example/api/SubmitUrl"),
-		secureDiscoveryCurationEndpoint: new URL("https://functions.example/api/DiscoveryCuration"),
-		securePeopleEndpoint: new URL("https://functions.example/api/People"),
-		secureSupportedLanguagesEndpoint: new URL("https://functions.example/api/SupportedLanguages"),
-		secureTitleCasingRulesEndpoint: new URL("https://functions.example/api/TitleCasingRules"),
+		azureApiOrigin: "https://functions.example",
 		stagingHostSuffix: "",
 		apiDB: {} as D1Database,
 		Content: { get: async () => null } as unknown as R2Bucket,

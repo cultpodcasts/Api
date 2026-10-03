@@ -1,7 +1,7 @@
 import { OpenAPIRoute, OpenAPIRouteSchema, contentJson } from "chanfana";
 import { z } from "zod";
 import { Auth0Middleware } from "./Auth0Middleware";
-import { ambiguousPodcastIdsSchema, errorSchema } from "./openapiSchemas";
+import { ambiguousIdsSchema, errorSchema } from "./openapiSchemas";
 
 type RouteHandler = (c: any) => Promise<Response>;
 
@@ -65,11 +65,17 @@ export const serverErrorResponse = {
 
 export const ambiguousPodcastNameConflict = {
 	description: "Ambiguous podcast name",
-	...contentJson(ambiguousPodcastIdsSchema)
+	...contentJson(ambiguousIdsSchema)
+};
+
+export const ambiguousCatalogueNameConflict = {
+	description: "Ambiguous TV show or film name",
+	...contentJson(ambiguousIdsSchema)
 };
 
 export const idParam = z.object({ id: z.string() });
 export const nameParam = z.object({ name: z.string() });
+export const identifierParam = z.object({ identifier: z.string() });
 export const episodeIdParam = z.object({ episodeId: z.string().uuid() });
 export const podcastAndEpisodeParam = z.object({ podcastName: z.string(), episodeId: z.string() });
 export const podcastIdAndEpisodeParam = z.object({ podcastId: z.string(), episodeId: z.string() });

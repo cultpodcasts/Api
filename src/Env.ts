@@ -16,22 +16,8 @@ export type Env = {
 	auth0ClientId: string;
 	apihost: string;
 	apikey: string;
-	secureSubmitEndpoint: URL;
-	secureEpisodeEndpoint: URL;
-	securePublicEpisodeEndpoint: URL;
-	secureEpisodePublishEndpoint: URL;
-	secureDiscoveryCurationEndpoint: URL;
-	securePodcastIndexEndpoint: URL;
-	securePodcastEndpoint: URL;
-	secureSubjectEndpoint: URL;
-	securePeopleEndpoint: URL;
-	secureEpisodesOutgoingEndpoint: URL;
-	secureAdminSearchIndexerEndpoint: URL;
-	secureAdminPublishHomepageEndpoint: URL;
-	secureDiscoveryScheduleEndpoint: URL;
-	secureSupportedLanguagesEndpoint: URL;
-	secureTitleCasingRulesEndpoint: URL;
-	securePushSubscriptionEndpoint: URL;
+	/** Azure Functions origin only (`https://api-infra.azurewebsites.net`). Paths live in `AzureResourcePaths`. */
+	azureApiOrigin: string;
 	stagingHostSuffix: string;
 	/**
 	 * CSV of streaming ServiceKeys that use CF Browser Rendering on prepare (e.g. `itvx`).

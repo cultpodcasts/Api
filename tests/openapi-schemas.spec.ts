@@ -31,7 +31,13 @@ import {
 	subjectChangeRequestSchema,
 	subjectsNameListResponseSchema,
 	submitUrlRequestSchema,
-	submitUrlResponseSchema
+	submitUrlResponseSchema,
+	filmChangeRequestSchema,
+	filmDtoSchema,
+	tvShowChangeRequestSchema,
+	tvShowDtoSchema,
+	tvShowEpisodeChangeRequestSchema,
+	tvShowEpisodeDtoSchema
 } from "../src/openapiSchemas";
 
 describe("openapi Zod schemas", () => {
@@ -530,5 +536,67 @@ describe("openapi Zod schemas", () => {
 		});
 		expect(parsed.totalDurationDays).toBe(2200);
 		expect(Object.keys(parsed.episodesByDay)).toHaveLength(1);
+	});
+
+	it("accepts film/TV/episode GET DTOs with nullable https identity URIs", () => {
+		const film = filmDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Catalogue Film Title",
+			imdb: "https://www.imdb.com/title/tt0111161/"
+		});
+		expect(film.name).toBe("Catalogue Film Title");
+		expect(
+			tvShowDtoSchema.parse({
+				id: "550e8400-e29b-41d4-a716-446655440000",
+				name: "Catalogue Show Title",
+				imdb: null,
+				tvdb: "https://thetvdb.com/series/123"
+			}).tvdb
+		).toContain("thetvdb.com");
+		const episode = tvShowEpisodeDtoSchema.parse({
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			tvShowId: "550e8400-e29b-41d4-a716-446655440000",
+			title: "Episode Title",
+			imdb: null,
+			tvdb: null
+		});
+		expect(episode.title).toBe("Episode Title");
+		expect(episode.tvShowId).toBe("550e8400-e29b-41d4-a716-446655440000");
+	});
+
+	it("rejects non-URL imdb on Catalogue GET DTO schemas", () => {
+		expect(() =>
+			filmDtoSchema.parse({
+				id: "550e8400-e29b-41d4-a716-446655440000",
+				name: "Catalogue Film Title",
+				imdb: "not-a-url"
+			})
+		).toThrow();
+		expect(() =>
+			tvShowDtoSchema.parse({
+				id: "550e8400-e29b-41d4-a716-446655440000",
+				name: "Catalogue Show Title",
+				imdb: "not-a-url"
+			})
+		).toThrow();
+		expect(() =>
+			tvShowEpisodeDtoSchema.parse({
+				id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				tvShowId: "550e8400-e29b-41d4-a716-446655440000",
+				title: "Episode Title",
+				imdb: "not-a-url"
+			})
+		).toThrow();
+	});
+
+	it("parses Catalogue change requests as unconstrained strings matching Azure string?", () => {
+		expect(
+			tvShowChangeRequestSchema.parse({ imdb: null, tvdb: "not-a-url" })
+		).toEqual({ imdb: null, tvdb: "not-a-url" });
+		expect(
+			tvShowEpisodeChangeRequestSchema.parse({ imdb: null, tvdb: "not-a-url" })
+		).toEqual({ imdb: null, tvdb: "not-a-url" });
+		expect(filmChangeRequestSchema.parse({ imdb: "not-a-url" }).imdb).toBe("not-a-url");
+		expect(filmChangeRequestSchema.parse({ imdb: null }).imdb).toBeNull();
 	});
 });

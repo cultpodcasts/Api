@@ -16,7 +16,7 @@
   Api origin (preview/workers.dev recommended — Bot Fight on apex).
 
 .PARAMETER SecretsFile
-  local-secrets.*.env for secureSubmitEndpoint / auth0Audience / auth0Issuer /
+  local-secrets.*.env for azureApiOrigin / auth0Audience / auth0Issuer /
   optional CULT_AUTH0_M2M_CLIENT_ID / CULT_AUTH0_M2M_CLIENT_SECRET, or use
   CULT_API_BEARER (SPA submit/curate token is enough for the survey route).
 

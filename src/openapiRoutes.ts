@@ -2,9 +2,12 @@ import { contentJson } from "chanfana";
 import { z } from "zod";
 import {
 	authResponses,
+	ambiguousCatalogueNameConflict,
+	ambiguousPodcastNameConflict,
 	createOpenApiRoute,
 	episodeIdParam,
 	idParam,
+	identifierParam,
 	nameParam,
 	notFoundResponse,
 	podcastAndEpisodeParam,
@@ -95,7 +98,13 @@ import {
 	searchResponseSchema,
 	subjectChangeRequestSchema,
 	subjectDtoSchema,
-	subjectsNameListResponseSchema
+	subjectsNameListResponseSchema,
+	tvShowChangeRequestSchema,
+	tvShowDtoSchema,
+	tvShowEpisodeChangeRequestSchema,
+	tvShowEpisodeDtoSchema,
+	filmChangeRequestSchema,
+	filmDtoSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -122,8 +131,109 @@ import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { transferPodcastKind } from "./transferPodcastKind";
 import { updateSubject } from "./updateSubject";
+import { getTvShow } from "./getTvShow";
+import { updateTvShow } from "./updateTvShow";
+import { getTvShowEpisode } from "./getTvShowEpisode";
+import { updateTvShowEpisode } from "./updateTvShowEpisode";
+import { getFilm } from "./getFilm";
+import { updateFilm } from "./updateFilm";
 
 export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupRoute, SubmitPrepareRoute, SubmitRoute };
+
+export const GetTvShowRoute = createOpenApiRoute(getTvShow, {
+	auth: true,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Get TV show by id or name",
+		request: { params: identifierParam },
+		responses: {
+			200: { description: "TV show", ...contentJson(tvShowDtoSchema) },
+			409: ambiguousCatalogueNameConflict,
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const GetTvShowEpisodeRoute = createOpenApiRoute(getTvShowEpisode, {
+	auth: true,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Get TV-show episode by id",
+		request: { params: idParam },
+		responses: {
+			200: { description: "TV-show episode", ...contentJson(tvShowEpisodeDtoSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, {
+	auth: true,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Patch TV-show episode IMDb/TheTVDB identity URIs",
+		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
+		responses: {
+			202: { description: "TV-show episode updated (empty body)" },
+			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
+	auth: true,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Patch TV show IMDb/TheTVDB identity URIs",
+		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
+		responses: {
+			202: { description: "TV show updated (empty body)" },
+			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const GetFilmRoute = createOpenApiRoute(getFilm, {
+	auth: true,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Get film by id or name",
+		request: { params: identifierParam },
+		responses: {
+			200: { description: "Film", ...contentJson(filmDtoSchema) },
+			409: ambiguousCatalogueNameConflict,
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
+	auth: true,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Patch film IMDb identity URI",
+		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
+		responses: {
+			202: { description: "Film updated (empty body)" },
+			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
 
 export const HomepageRoute = createOpenApiRoute(homepage, {
     schema: {
