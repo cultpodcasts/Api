@@ -3,21 +3,26 @@
 # Default: leftovers unused by BOTH the live Worker and origin-catalog code
 #   (gatewayKey, secureAdminTermsEndpoint, securePodcastsEndpoint, azureApiKey).
 #
-# After the origin-catalog Worker is deployed, pass -AfterOriginCutover to
-# remove per-route secure*Endpoint URLs. Do NOT do that while production still
-# runs the old getEndpoint(secret URL) Worker.
+# After the origin-catalog Worker is live on a target, pass -AfterOriginCutover
+# to remove per-route secure*Endpoint URLs. Do NOT do that on an environment
+# that still builds Azure URLs from those secrets. Default targets both
+# api-preview and top-level api; use -PreviewOnly or -ProductionOnly for one.
 #
 # Never deletes apikey / apihost / azureApiOrigin / Auth0 / overrideHost.
 #
 # Usage:
 #   .\scripts\delete-retired-worker-secrets.ps1
 #   .\scripts\delete-retired-worker-secrets.ps1 -AfterOriginCutover
+#   .\scripts\delete-retired-worker-secrets.ps1 -AfterOriginCutover -PreviewOnly
+#   .\scripts\delete-retired-worker-secrets.ps1 -AfterOriginCutover -ProductionOnly
 #
 # See docs/worker-secrets.md
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [switch] $AfterOriginCutover
+    [switch] $AfterOriginCutover,
+    [switch] $PreviewOnly,
+    [switch] $ProductionOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,10 +63,17 @@ if ($AfterOriginCutover) {
     foreach ($n in $originCutoverSecrets) { $names.Add($n) }
 }
 
-$targets = @(
-    @{ Label = "preview api-preview"; Args = @('--env', 'preview') }
-    @{ Label = "production top-level api"; Args = @('--env=') }
-)
+if ($PreviewOnly -and $ProductionOnly) {
+    throw "Use only one of -PreviewOnly / -ProductionOnly"
+}
+
+$targets = @()
+if (-not $ProductionOnly) {
+    $targets += @{ Label = "preview api-preview"; Args = @('--env', 'preview') }
+}
+if (-not $PreviewOnly) {
+    $targets += @{ Label = "production top-level api"; Args = @('--env=') }
+}
 
 function Remove-WorkerSecret([string]$Name, [string[]]$WranglerArgs, [string]$Label) {
     Write-Host "Deleting $Name on $Label (ignore if missing)..."
