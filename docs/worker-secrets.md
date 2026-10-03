@@ -92,13 +92,18 @@ Worker source does not read `azureApiKey`, `gatewayKey`, `secureAdminTermsEndpoi
 .\scripts\delete-retired-worker-secrets.ps1
 ```
 
-Per-route `secure*Endpoint` URLs stay on Cloudflare until the origin-catalog Worker is **deployed**. After that deploy:
+After the origin-catalog Worker (`azureApiOrigin` + `src/azureResources.ts`) is live on an environment, drop leftover `secure*Endpoint` secrets there. Re-runs are safe (wrangler “not found” is ignored). It never deletes `apikey`, `apihost`, `azureApiOrigin`, Auth0, or `overrideHost`.
 
 ```powershell
+# Both api-preview and top-level api
 .\scripts\delete-retired-worker-secrets.ps1 -AfterOriginCutover
+
+# One target
+.\scripts\delete-retired-worker-secrets.ps1 -AfterOriginCutover -PreviewOnly
+.\scripts\delete-retired-worker-secrets.ps1 -AfterOriginCutover -ProductionOnly
 ```
 
-That second pass must **not** run while live `api` still builds Azure URLs from `secureEpisodeEndpoint` / `securePodcastEndpoint` / …. It never deletes `apikey`, `apihost`, `azureApiOrigin`, Auth0, or `overrideHost`.
+Oct 2026: preview and production both run the origin catalog; `secure*` delete already ran on both. Do **not** pass `-AfterOriginCutover` for an environment that still builds Azure URLs from `secureEpisodeEndpoint` / `securePodcastEndpoint` / ….
 
 ## After a historical plaintext leak
 
