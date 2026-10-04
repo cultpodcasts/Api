@@ -682,6 +682,8 @@ export const submitUrlResponseSchema = z.object({
 		episodeId: z.string().uuid().optional().nullable(),
 		podcastId: z.string().uuid().optional().nullable(),
 		podcast: submitUrlItemStateSchema,
+		contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"]).optional().nullable(),
+		playableId: z.string().uuid().optional().nullable(),
 		episodeDetails: z.object({
 			spotify: z.boolean(),
 			apple: z.boolean(),

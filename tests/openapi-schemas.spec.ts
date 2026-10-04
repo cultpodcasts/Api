@@ -291,9 +291,28 @@ describe("openapi Zod schemas", () => {
 			}
 		});
 		expect(parsed.success?.episode).toBe("Created");
+		expect(parsed.success?.contentKind).toBeUndefined();
+		expect(parsed.success?.playableId).toBeUndefined();
 		expect(parsed.success?.episodeDetails?.extraServiceKeys).toEqual(["vimeo"]);
 		expect(parsed.success?.episodeDetails?.people).toEqual([]);
 		expect(parsed.success?.episodeDetails?.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
+	});
+
+	it("accepts SubmitUrlResponse catalogue contentKind and playableId without podcast ids", () => {
+		const parsed = submitUrlResponseSchema.parse({
+			success: {
+				episode: "Created",
+				podcast: "Created",
+				episodeId: null,
+				podcastId: null,
+				contentKind: "TvShowEpisode",
+				playableId: "550e8400-e29b-41d4-a716-446655440000"
+			}
+		});
+		expect(parsed.success?.contentKind).toBe("TvShowEpisode");
+		expect(parsed.success?.playableId).toBe("550e8400-e29b-41d4-a716-446655440000");
+		expect(parsed.success?.episodeId).toBeNull();
+		expect(parsed.success?.podcastId).toBeNull();
 	});
 
 	it("accepts SubmitUrlResponse extraServiceKeys omit, null, empty array, and bbcIplayer", () => {
