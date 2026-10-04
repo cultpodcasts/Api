@@ -195,12 +195,36 @@ describe("submit", () => {
 		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
-	it("D1-queues when Azure returns 500 so public submit still accepts the URL", async () => {
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async () => new Response("upstream failure", { status: 500 }))
+	it("retries Azure once after 500 and does not D1-queue when the retry succeeds", async () => {
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response("upstream failure", { status: 500 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({ message: "ok" }), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions("/submit", "post", submit, ["curate"]);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({
+					url: "https://example.com/episode",
+					podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+					podcastName: "Example Show"
+				})
+			},
+			testEnv()
 		);
-		submissionsCreate.mockResolvedValue({});
+
+		expect(resp.status).toBe(200);
+		expect(resp.headers.get("X-Origin")).toBe("true");
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("returns Azure 500 after retry and does not D1-queue as Submitted when the caller has submit/curate", async () => {
+		const fetchMock = vi.fn(async () => new Response("upstream failure", { status: 500 }));
+		vi.stubGlobal("fetch", fetchMock);
 		const app = appWithPermissions("/submit", "post", submit, ["curate", "submit"]);
 
 		const resp = await app.request(
@@ -208,14 +232,45 @@ describe("submit", () => {
 			{
 				method: "POST",
 				headers: authJsonHeaders,
-				body: JSON.stringify({ url: "https://example.com/episode" })
+				body: JSON.stringify({
+					url: "https://example.com/episode",
+					podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+					podcastName: "Example Show"
+				})
 			},
 			testEnv()
 		);
 
-		expect(resp.status).toBe(200);
-		expect(await resp.json()).toEqual({ success: "Submitted" });
-		expect(submissionsCreate).toHaveBeenCalledOnce();
+		expect(resp.status).toBe(500);
+		expect(await resp.json()).toEqual({ error: "Error" });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+
+	it("does not D1-queue attach-by-id as Submitted when the caller is unauthenticated", async () => {
+		submissionsCreate.mockResolvedValue({});
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithAuthPayload("/submit", "post", submit, null);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					url: "https://example.com/episode",
+					podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+					podcastName: "Example Show"
+				})
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(401);
+		expect(await resp.json()).toEqual({ error: "Unauthorised" });
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(submissionsCreate).not.toHaveBeenCalled();
 	});
 
 	it("D1-queues when the caller is unauthenticated", async () => {
