@@ -682,8 +682,18 @@ export const submitUrlResponseSchema = z.object({
 		episodeId: z.string().uuid().optional().nullable(),
 		podcastId: z.string().uuid().optional().nullable(),
 		podcast: submitUrlItemStateSchema,
-		contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"]).optional().nullable(),
-		playableId: z.string().uuid().optional().nullable(),
+		contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"])
+			.optional()
+			.nullable()
+			.describe(
+				"Azure catalogue persist kind (Episode, TvShowEpisode, Film, NewsReport). The Worker proxies this field and does not parse the 200 body."
+			),
+		playableId: z.string().uuid()
+			.optional()
+			.nullable()
+			.describe(
+				"Azure persist playable id (UUID). The Worker proxies this field and does not parse the 200 body."
+			),
 		episodeDetails: z.object({
 			spotify: z.boolean(),
 			apple: z.boolean(),

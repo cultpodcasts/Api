@@ -299,20 +299,37 @@ describe("openapi Zod schemas", () => {
 	});
 
 	it("accepts SubmitUrlResponse catalogue contentKind and playableId without podcast ids", () => {
-		const parsed = submitUrlResponseSchema.parse({
+		const playableId = "550e8400-e29b-41d4-a716-446655440000";
+		for (const contentKind of ["Episode", "TvShowEpisode", "Film", "NewsReport"] as const) {
+			const parsed = submitUrlResponseSchema.parse({
+				success: {
+					episode: "Created",
+					podcast: "Created",
+					episodeId: null,
+					podcastId: null,
+					contentKind,
+					playableId
+				}
+			});
+			expect(parsed.success?.contentKind).toBe(contentKind);
+			expect(parsed.success?.playableId).toBe(playableId);
+			expect(parsed.success?.episodeId).toBeNull();
+			expect(parsed.success?.podcastId).toBeNull();
+		}
+	});
+
+	it("rejects SubmitUrlResponse invalid contentKind and non-UUID playableId", () => {
+		const envelope = (success: Record<string, unknown>) => ({
 			success: {
 				episode: "Created",
 				podcast: "Created",
 				episodeId: null,
 				podcastId: null,
-				contentKind: "TvShowEpisode",
-				playableId: "550e8400-e29b-41d4-a716-446655440000"
+				...success
 			}
 		});
-		expect(parsed.success?.contentKind).toBe("TvShowEpisode");
-		expect(parsed.success?.playableId).toBe("550e8400-e29b-41d4-a716-446655440000");
-		expect(parsed.success?.episodeId).toBeNull();
-		expect(parsed.success?.podcastId).toBeNull();
+		expect(() => submitUrlResponseSchema.parse(envelope({ contentKind: "Movie" }))).toThrow();
+		expect(() => submitUrlResponseSchema.parse(envelope({ playableId: "not-a-uuid" }))).toThrow();
 	});
 
 	it("accepts SubmitUrlResponse extraServiceKeys omit, null, empty array, and bbcIplayer", () => {
