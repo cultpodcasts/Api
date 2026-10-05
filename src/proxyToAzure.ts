@@ -6,6 +6,14 @@ import { getEndpoint } from "./endpoints";
 import { hasPermission } from "./hasPermission";
 import { LogCollector } from "./LogCollector";
 
+/** Upstream result before this proxy rewrites non-forwarded statuses to Worker 500. */
+export type AzureProxyAttempt = {
+	/** HTTP status from `fetch`. Absent when `fetch` threw. */
+	upstreamStatus?: number;
+	/** True when `fetch` threw before an HTTP response. */
+	fetchThrew: boolean;
+};
+
 export type ProxyToAzureOptions = {
 	/** Required permission. Omit to allow any authenticated principal. */
 	permission?: string;
@@ -22,6 +30,12 @@ export type ProxyToAzureOptions = {
 	body?: string;
 	appendRequestSearch?: boolean;
 	logName: string;
+	/**
+	 * Raw upstream result, invoked before success / forward / Worker-500 mapping.
+	 * Not invoked when the call is denied before `fetch`.
+	 * A thrown `fetch` is `{ fetchThrew: true }` with no status — that is not an upstream HTTP 500.
+	 */
+	observeAttempt?: (attempt: AzureProxyAttempt) => void;
 };
 
 /**
@@ -70,7 +84,18 @@ export async function proxyToAzure(
 				init.body = opts.body;
 			}
 
-			const resp = await fetch(url, init);
+			let resp: Response;
+			try {
+				resp = await fetch(url, init);
+			} catch {
+				opts.observeAttempt?.({ fetchThrew: true });
+				logCollector.emitError({
+					event: "proxy.exception",
+					outcome: "error"
+				});
+				return c.json({ error: "An error occurred" }, 500);
+			}
+			opts.observeAttempt?.({ fetchThrew: false, upstreamStatus: resp.status });
 			logCollector.add({ status: resp.status });
 
 			if (successStatuses.includes(resp.status)) {
