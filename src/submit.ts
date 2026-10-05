@@ -5,7 +5,7 @@ import { Auth0JwtPayload } from "./Auth0JwtPayload";
 import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Endpoint } from "./Endpoint";
 import { LogCollector } from "./LogCollector";
-import { proxyToAzure } from "./proxyToAzure";
+import { AzureProxyAttempt, proxyToAzure } from "./proxyToAzure";
 import {
 	azureSubmitBackendDenialStatus,
 	azureSubmitProxyPermission,
@@ -121,6 +121,28 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	return c.json({ success: "Submitted" });
 }
 
+/**
+ * One retry, and only when the first POST did not receive an Isolated HTTP response
+ * that might already have committed:
+ *
+ * ```
+ * fetch throws          → retry once (no upstream status)
+ * upstream 502 / 503    → retry once (gateway; body not an Isolated disposition)
+ * upstream 500          → return Worker 500 once (handler may already have persisted)
+ * upstream 4xx incl 422 → forward once (422 is RequiresCurator)
+ * ```
+ *
+ * `proxyToAzure` rewrites every non-forwarded status to Worker 500, so the decision
+ * reads `AzureProxyAttempt` before that rewrite. The second call is not observed,
+ * so a repeated gateway failure is not posted a third time.
+ */
+function isSubmitGatewayRetry(attempt: AzureProxyAttempt): boolean {
+	if (attempt.fetchThrew) {
+		return true;
+	}
+	return attempt.upstreamStatus === 502 || attempt.upstreamStatus === 503;
+}
+
 async function proxySubmitToAzure(
 	c: Auth0ActionContext,
 	auth0Payload: Auth0JwtPayload,
@@ -133,13 +155,19 @@ async function proxySubmitToAzure(
 		method: "POST" as const,
 		body: JSON.stringify(azureBody),
 		successStatuses: [200],
-		forwardStatuses: [400, 404, 409],
+		forwardStatuses: [400, 404, 409, 422],
 		logName: "secure-submit-endpoint"
 	};
-	const first = await proxyToAzure(c, opts);
-	if (first.status !== 500 && first.status !== 502 && first.status !== 503) {
+	let attempt: AzureProxyAttempt | undefined;
+	const first = await proxyToAzure(c, {
+		...opts,
+		observeAttempt: (seen) => {
+			attempt = seen;
+		}
+	});
+	if (attempt == null || !isSubmitGatewayRetry(attempt)) {
 		return first;
 	}
-	logCollector.addMessage("submit.azure_retry_after_upstream_5xx");
+	logCollector.addMessage("submit.azure_retry_after_gateway");
 	return proxyToAzure(c, opts);
 }

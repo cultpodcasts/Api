@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Endpoint } from "../src/Endpoint";
-import { proxyToAzure } from "../src/proxyToAzure";
+import { AzureProxyAttempt, proxyToAzure } from "../src/proxyToAzure";
 import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
 describe("proxyToAzure", () => {
@@ -144,5 +144,79 @@ describe("proxyToAzure", () => {
 
 		expect(resp.status).toBe(400);
 		expect(await resp.json()).toEqual({ error: "Required property 'Url'" });
+	});
+
+	it("reports upstream 502 before rewriting it to Worker 500", async () => {
+		const seen: AzureProxyAttempt[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("bad gateway", { status: 502 }))
+		);
+		const app = appWithPermissions(
+			"/",
+			"post",
+			(c) =>
+				proxyToAzure(c, {
+					permission: "submit",
+					endpoint: Endpoint.submit,
+					method: "POST",
+					body: "{}",
+					successStatuses: [200],
+					forwardStatuses: [400, 404, 409],
+					logName: "secure-submit-endpoint",
+					observeAttempt: (attempt) => {
+						seen.push(attempt);
+					}
+				}),
+			["submit"]
+		);
+
+		const resp = await app.request(
+			"/",
+			{ method: "POST", headers: authJsonHeaders, body: "{}" },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(500);
+		expect(await resp.json()).toEqual({ error: "Error" });
+		expect(seen).toEqual([{ fetchThrew: false, upstreamStatus: 502 }]);
+	});
+
+	it("reports a thrown fetch separately from an upstream HTTP status", async () => {
+		const seen: AzureProxyAttempt[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				throw new TypeError("network");
+			})
+		);
+		const app = appWithPermissions(
+			"/",
+			"post",
+			(c) =>
+				proxyToAzure(c, {
+					permission: "submit",
+					endpoint: Endpoint.submit,
+					method: "POST",
+					body: "{}",
+					successStatuses: [200],
+					forwardStatuses: [400, 404, 409],
+					logName: "secure-submit-endpoint",
+					observeAttempt: (attempt) => {
+						seen.push(attempt);
+					}
+				}),
+			["submit"]
+		);
+
+		const resp = await app.request(
+			"/",
+			{ method: "POST", headers: authJsonHeaders, body: "{}" },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(500);
+		expect(await resp.json()).toEqual({ error: "An error occurred" });
+		expect(seen).toEqual([{ fetchThrew: true }]);
 	});
 });
