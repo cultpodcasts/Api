@@ -1,6 +1,6 @@
 {
   "name": "cultpodcasts-api",
-  "version": "1.1.58",
+  "version": "1.1.60",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
@@ -20,21 +20,21 @@
     "assert:secrets-parity": "pwsh ./scripts/assert-secrets-example-parity.ps1"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.18.7",
-    "@cloudflare/workers-types": "^5.20260723.1",
+    "@cloudflare/vitest-pool-workers": "^0.18.8",
+    "@cloudflare/workers-types": "^5.20261006.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.0",
-    "wrangler": "^4.113.0"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.146.0"
   },
   "dependencies": {
     "@cfworker/jwt": "^4.0.6",
-    "@cloudflare/puppeteer": "^1.0.2",
+    "@cloudflare/puppeteer": "^1.4.0",
     "@prisma/adapter-d1": "^5.13.0",
     "@prisma/client": "^5.13.0",
-    "chanfana": "^3.0.0",
-    "hono": "^4.2.9",
+    "chanfana": "^3.4.0",
+    "hono": "^4.13.13",
     "prisma": "^5.13.0",
-    "workers-og": "^0.0.25",
+    "workers-og": "^0.0.27",
     "yoga-wasm-web": "^0.3.3"
   }
 }
