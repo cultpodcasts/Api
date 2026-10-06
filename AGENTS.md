@@ -37,9 +37,9 @@ Any new Worker secret for preview/staging **must** also be planned for productio
 
 ## CQRS (HARD)
 
-The Worker follows the Azure API command/query split. A command acknowledgement is an empty 202. A command outcome body describes what the command did. A query returns the resource.
+A command changes state and returns an acknowledgement (empty 202) or a command outcome. It does not return the resource read model. A query returns the read model and changes nothing.
 
-Subject and person create are pure proxies (`proxyToAzure`). Their OpenAPI 202 is an empty body, not `SubjectDto` or `PersonDto`. Do not document or require a resource body on those 202s. The website loads the resource with GET after 202.
+The Worker proxies that contract. OpenAPI for an acknowledgement is an empty body. Do not document or require a resource body on an acknowledgement. A proxied command that returns the resource is a CQRS breach. After an acknowledgement, the client GETs the resource.
 
 Authoritative: `RedditPodcastPoster/Cloud/Api/architecture.md` § CQRS.
 
@@ -49,7 +49,7 @@ Cross-repo streaming ingest (membership `service`, prepare HTML fetch, BR allowl
 
 ## Version
 
-Semver patch (or higher) in `package.json` + `package-lock.json` on every shipping PR. A newly adopted cross-client contract, such as CQRS, is a **minor** bump.
+Semver patch (or higher) in `package.json` + `package-lock.json` on every shipping PR. A new cross-client contract is a **minor** bump.
 
 ## Cursor Cloud specific instructions <!-- pragma: allowlist secret -->
 
