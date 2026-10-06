@@ -13,7 +13,7 @@ export async function createSubject(c: Auth0ActionContext): Promise<Response> {
 		method: "PUT",
 		body,
 		successStatuses: [202],
-		forwardStatuses: [409],
+		forwardStatuses: [409, 400],
 		logName: "secure-subject-endpoint"
 	});
 }

@@ -30,4 +30,28 @@ describe("create subject and person acknowledgements", () => {
 		expect(await resp.text()).toBe("");
 		expect(fetchMock).toHaveBeenCalledOnce();
 	});
+
+	it.each([400, 409] as const)(
+		"PUT /subject forwards Azure %s and the JSON body",
+		async (status) => {
+			const payload = { error: "Name is required" };
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => new Response(JSON.stringify(payload), { status }))
+			);
+			const app = appWithPermissions("/subject", "put", createSubject, ["curate"]);
+			const resp = await app.request(
+				"/subject",
+				{
+					method: "PUT",
+					headers: authJsonHeaders,
+					body: JSON.stringify({ name: "Alpha Beta" })
+				},
+				testEnv()
+			);
+
+			expect(resp.status).toBe(status);
+			expect(await resp.json()).toEqual(payload);
+		}
+	);
 });
