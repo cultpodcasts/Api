@@ -35,13 +35,21 @@ Any new Worker secret for preview/staging **must** also be planned for productio
 - Parity check: `pwsh ./scripts/assert-secrets-example-parity.ps1`
 - Live production secrets go on top-level Worker **`api`** (`set-secrets-production.ps1` / `--env=`). Do **not** use `--env production` (that is `api-production`, not serving `api.cultpodcasts.com`).
 
+## CQRS (HARD)
+
+The Worker follows the Azure API command/query split. A command acknowledgement is an empty 202. A command outcome body describes what the command did. A query returns the resource.
+
+Subject and person create are pure proxies (`proxyToAzure`). Their OpenAPI 202 is an empty body, not `SubjectDto` or `PersonDto`. Do not document or require a resource body on those 202s. The website loads the resource with GET after 202.
+
+Authoritative: `RedditPodcastPoster/Cloud/Api/architecture.md` § CQRS.
+
 ## Streaming submit orchestration (contracts)
 
 Cross-repo streaming ingest (membership `service`, prepare HTML fetch, BR allowlist): canonical fixture + rules in [`docs/streaming-submit-orchestration.md`](docs/streaming-submit-orchestration.md). Prefer GitHub Packages `@cultpodcasts/streaming-submit-contract` ([`docs/contract-publish.md`](docs/contract-publish.md)); do not fork enums.
 
 ## Version
 
-Semver patch (or higher) in `package.json` + `package-lock.json` on every shipping PR.
+Semver patch (or higher) in `package.json` + `package-lock.json` on every shipping PR. A newly adopted cross-client contract, such as CQRS, is a **minor** bump.
 
 ## Cursor Cloud specific instructions <!-- pragma: allowlist secret -->
 
