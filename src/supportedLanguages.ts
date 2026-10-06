@@ -42,7 +42,8 @@ export async function postSupportedLanguages(c: Auth0ActionContext): Promise<Res
 		endpoint: Endpoint.supportedLanguages,
 		method: "POST",
 		body,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "supported-languages-post"
 	});
@@ -57,7 +58,8 @@ export async function deleteSupportedLanguages(c: Auth0ActionContext): Promise<R
 		endpoint: Endpoint.supportedLanguages,
 		method: "DELETE",
 		pathSuffix: `/${encodeURIComponent(code)}`,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "supported-languages-delete"
 	});

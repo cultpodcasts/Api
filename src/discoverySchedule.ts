@@ -26,7 +26,8 @@ export async function putDiscoverySchedule(c: Auth0ActionContext): Promise<Respo
 		endpoint: Endpoint.discoverySchedule,
 		method: "PUT",
 		body,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "discovery-schedule-put"
 	});

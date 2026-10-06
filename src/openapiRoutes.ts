@@ -688,7 +688,7 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
         summary: "Update Discovery UK schedule",
         request: { body: jsonBody(discoveryScheduleUpdateRequestSchema) },
         responses: {
-            200: { description: "Schedule updated", ...contentJson(discoveryScheduleResponseSchema) },
+            202: { description: "Schedule updated (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -729,7 +729,7 @@ export const PostSupportedLanguagesRoute = createOpenApiRoute(postSupportedLangu
         summary: "Add one supported language by culture name",
         request: { body: jsonBody(supportedLanguageAddRequestSchema) },
         responses: {
-            200: { description: "Supported languages after add", ...contentJson(supportedLanguagesResponseSchema) },
+            202: { description: "Supported language added (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -744,7 +744,7 @@ export const DeleteSupportedLanguagesRoute = createOpenApiRoute(deleteSupportedL
         summary: "Remove one supported language by code",
         request: { params: z.object({ code: z.string().min(1) }) },
         responses: {
-            200: { description: "Supported languages after delete", ...contentJson(supportedLanguagesResponseSchema) },
+            202: { description: "Supported language removed (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -777,7 +777,7 @@ export const PostTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(postTit
             body: jsonBody(titleCasingRulesAddLowerCaseTermRequestSchema)
         },
         responses: {
-            200: { description: "Title casing rules after add", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            202: { description: "Lower-case term added (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -794,7 +794,7 @@ export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(delet
             params: z.object({ language: z.string().min(1), term: z.string().min(1) })
         },
         responses: {
-            200: { description: "Title casing rules after delete", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            202: { description: "Lower-case term removed (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -812,7 +812,7 @@ export const PostTitleCasingRulesKnownTermRoute = createOpenApiRoute(postTitleCa
             body: jsonBody(titleCasingRulesKnownTermRequestSchema)
         },
         responses: {
-            200: { description: "Title casing rules after upsert", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            202: { description: "Known term saved (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -829,7 +829,7 @@ export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute(deleteTit
             params: z.object({ language: z.string().min(1), literal: z.string().min(1) })
         },
         responses: {
-            200: { description: "Title casing rules after delete", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            202: { description: "Known term removed (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -847,7 +847,7 @@ export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(postTi
             body: jsonBody(titleCasingRulesAddIgnoredSubjectRequestSchema)
         },
         responses: {
-            200: { description: "Title casing rules after add", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            202: { description: "Ignored subject added (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -864,7 +864,7 @@ export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(dele
             params: z.object({ language: z.string().min(1), term: z.string().min(1) })
         },
         responses: {
-            200: { description: "Title casing rules after delete", ...contentJson(languageTitleCasingRulesResponseSchema) },
+            202: { description: "Ignored subject removed (empty body)" },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses

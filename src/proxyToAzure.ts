@@ -25,6 +25,11 @@ export type ProxyToAzureOptions = {
 	forwardStatuses?: number[];
 	/** Status codes treated as success (default: [200]). */
 	successStatuses?: number[];
+	/**
+	 * Command acknowledgement. A success status is returned as 202 with an empty body.
+	 * The upstream resource is not forwarded.
+	 */
+	emptyAcknowledgement?: boolean;
 	/** If true, any non-success status is forwarded (body + status) instead of Worker 500. */
 	passthroughOtherStatuses?: boolean;
 	body?: string;
@@ -103,6 +108,9 @@ export async function proxyToAzure(
 					event: "proxy.success",
 					outcome: "success"
 				});
+				if (opts.emptyAcknowledgement) {
+					return c.newResponse(null, 202);
+				}
 				return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 			}
 
