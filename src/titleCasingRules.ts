@@ -34,7 +34,8 @@ export async function postTitleCasingRulesLowerCaseTerm(c: Auth0ActionContext): 
 		method: "POST",
 		pathSuffix: `/${encodeURIComponent(language)}/lower-case-terms`,
 		body,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "title-casing-rules-post-lower-case-term"
 	});
@@ -50,7 +51,8 @@ export async function deleteTitleCasingRulesLowerCaseTerm(c: Auth0ActionContext)
 		endpoint: Endpoint.titleCasingRules,
 		method: "DELETE",
 		pathSuffix: `/${encodeURIComponent(language)}/lower-case-terms/${encodeURIComponent(term)}`,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "title-casing-rules-delete-lower-case-term"
 	});
@@ -68,7 +70,8 @@ export async function postTitleCasingRulesKnownTerm(c: Auth0ActionContext): Prom
 		method: "POST",
 		pathSuffix: `/${encodeURIComponent(language)}/known-terms`,
 		body,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "title-casing-rules-post-known-term"
 	});
@@ -84,7 +87,8 @@ export async function deleteTitleCasingRulesKnownTerm(c: Auth0ActionContext): Pr
 		endpoint: Endpoint.titleCasingRules,
 		method: "DELETE",
 		pathSuffix: `/${encodeURIComponent(language)}/known-terms/${encodeURIComponent(literal)}`,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "title-casing-rules-delete-known-term"
 	});
@@ -102,7 +106,8 @@ export async function postTitleCasingRulesIgnoredSubject(c: Auth0ActionContext):
 		method: "POST",
 		pathSuffix: `/${encodeURIComponent(language)}/ignored-subjects`,
 		body,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "title-casing-rules-post-ignored-subject"
 	});
@@ -118,7 +123,8 @@ export async function deleteTitleCasingRulesIgnoredSubject(c: Auth0ActionContext
 		endpoint: Endpoint.titleCasingRules,
 		method: "DELETE",
 		pathSuffix: `/${encodeURIComponent(language)}/ignored-subjects/${encodeURIComponent(term)}`,
-		successStatuses: [200],
+		successStatuses: [200, 202],
+		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
 		logName: "title-casing-rules-delete-ignored-subject"
 	});

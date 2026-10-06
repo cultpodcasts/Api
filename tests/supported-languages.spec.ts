@@ -52,26 +52,47 @@ describe("supported-languages", () => {
 		);
 
 		const env = testEnv();
-		const responses = [
-			await getApp.request("/supported-languages", { method: "GET", headers: authJsonHeaders }, env),
-			await culturesApp.request(
-				"/supported-languages/cultures",
-				{ method: "GET", headers: authJsonHeaders },
-				env
-			),
-			await postApp.request(
-				"/supported-languages",
-				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ name: "French" }) },
-				env
-			),
-			await deleteApp.request("/supported-languages/fr", { method: "DELETE", headers: authJsonHeaders }, env)
-		];
+		const getResp = await getApp.request("/supported-languages", { method: "GET", headers: authJsonHeaders }, env);
+		const culturesResp = await culturesApp.request(
+			"/supported-languages/cultures",
+			{ method: "GET", headers: authJsonHeaders },
+			env
+		);
+		const postResp = await postApp.request(
+			"/supported-languages",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ name: "French" }) },
+			env
+		);
+		const deleteResp = await deleteApp.request(
+			"/supported-languages/fr",
+			{ method: "DELETE", headers: authJsonHeaders },
+			env
+		);
 
-		for (const resp of responses) {
+		for (const resp of [getResp, culturesResp]) {
 			expect(resp.status).toBe(200);
 			expect(resp.headers.get("Cache-Control")).toBe("no-store");
 			expect(await resp.json()).toEqual(azureList);
 		}
+		for (const resp of [postResp, deleteResp]) {
+			expect(resp.status).toBe(202);
+			expect(resp.headers.get("Cache-Control")).toBe("no-store");
+			expect(await resp.text()).toBe("");
+		}
 		expect(fetchMock).toHaveBeenCalledTimes(4);
+	});
+
+	it("POST forwards Azure 400 and does not turn it into an acknowledgement", async () => {
+		const payload = { error: "Unknown culture" };
+		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(payload), { status: 400 })));
+		const app = appWithPermissions("/supported-languages", "post", postSupportedLanguages, ["admin"]);
+		const resp = await app.request(
+			"/supported-languages",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ name: "French" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(400);
+		expect(await resp.json()).toEqual(payload);
 	});
 });

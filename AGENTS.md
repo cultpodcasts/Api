@@ -35,13 +35,21 @@ Any new Worker secret for preview/staging **must** also be planned for productio
 - Parity check: `pwsh ./scripts/assert-secrets-example-parity.ps1`
 - Live production secrets go on top-level Worker **`api`** (`set-secrets-production.ps1` / `--env=`). Do **not** use `--env production` (that is `api-production`, not serving `api.cultpodcasts.com`).
 
+## CQRS (HARD)
+
+A command changes state and returns an acknowledgement (empty 202) or a command outcome. It does not return the resource read model. A query returns the read model and changes nothing.
+
+The Worker proxies that contract. OpenAPI for an acknowledgement is an empty body. Do not document or require a resource body on an acknowledgement. A proxied command that returns the resource is a CQRS breach. After an acknowledgement, the client GETs the resource.
+
+Authoritative: `RedditPodcastPoster/Cloud/Api/architecture.md` § CQRS.
+
 ## Streaming submit orchestration (contracts)
 
 Cross-repo streaming ingest (membership `service`, prepare HTML fetch, BR allowlist): canonical fixture + rules in [`docs/streaming-submit-orchestration.md`](docs/streaming-submit-orchestration.md). Prefer GitHub Packages `@cultpodcasts/streaming-submit-contract` ([`docs/contract-publish.md`](docs/contract-publish.md)); do not fork enums.
 
 ## Version
 
-Semver patch (or higher) in `package.json` + `package-lock.json` on every shipping PR.
+Semver patch (or higher) in `package.json` + `package-lock.json` on every shipping PR. A new cross-client contract is a **minor** bump.
 
 ## Cursor Cloud specific instructions <!-- pragma: allowlist secret -->
 

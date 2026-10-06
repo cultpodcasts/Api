@@ -95,8 +95,8 @@ describe("title-casing-rules", () => {
 		);
 
 		const env = testEnv();
-		const responses = [
-			await getApp.request("/title-casing-rules/en", { method: "GET", headers: authJsonHeaders }, env),
+		const getResp = await getApp.request("/title-casing-rules/en", { method: "GET", headers: authJsonHeaders }, env);
+		const commands = [
 			await postLower.request(
 				"/title-casing-rules/en/lower-case-terms",
 				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ term: "the" }) },
@@ -129,11 +129,33 @@ describe("title-casing-rules", () => {
 			)
 		];
 
-		for (const resp of responses) {
-			expect(resp.status).toBe(200);
+		expect(getResp.status).toBe(200);
+		expect(getResp.headers.get("Cache-Control")).toBe("no-store");
+		expect(await getResp.json()).toEqual(azureOk);
+		for (const resp of commands) {
+			expect(resp.status).toBe(202);
 			expect(resp.headers.get("Cache-Control")).toBe("no-store");
-			expect(await resp.json()).toEqual(azureOk);
+			expect(await resp.text()).toBe("");
 		}
 		expect(fetchMock).toHaveBeenCalledTimes(7);
+	});
+
+	it("POST lower-case term forwards Azure 400", async () => {
+		const payload = { error: "Term is required" };
+		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(payload), { status: 400 })));
+		const app = appWithPermissions(
+			"/title-casing-rules/:language/lower-case-terms",
+			"post",
+			postTitleCasingRulesLowerCaseTerm,
+			["admin"]
+		);
+		const resp = await app.request(
+			"/title-casing-rules/en/lower-case-terms",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ term: "the" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(400);
+		expect(await resp.json()).toEqual(payload);
 	});
 });
