@@ -340,7 +340,7 @@ export const CreatePersonRoute = createOpenApiRoute(createPerson, {
         summary: "Create person",
         request: { body: jsonBody(personChangeRequestSchema) },
         responses: {
-            202: { description: "Person created", ...contentJson(personDtoSchema) },
+            202: { description: "Person created (empty body)" },
             400: { description: "Validation error", ...contentJson(errorSchema) },
             409: { description: "Conflict", ...contentJson(errorSchema) },
             ...serverErrorResponse,
@@ -589,7 +589,7 @@ export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
         summary: "Create subject",
         request: { body: jsonBody(subjectChangeRequestSchema) },
         responses: {
-            202: { description: "Subject created", ...contentJson(subjectDtoSchema) },
+            202: { description: "Subject created (empty body)" },
             400: { description: "Validation error", ...contentJson(errorSchema) },
             409: { description: "Conflict", ...contentJson(errorSchema) },
             ...serverErrorResponse,
