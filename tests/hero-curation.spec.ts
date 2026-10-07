@@ -170,7 +170,7 @@ describe("hero-curation", () => {
 			env
 		);
 		expect(conflict.status).toBe(409);
-		expect(await conflict.json()).toEqual({ error: "Conflict" });
+		expect(await conflict.text()).toBe("");
 	});
 
 	it("DELETE calls Durable Object removeEpisodes", async () => {

@@ -90,7 +90,7 @@ export async function putHeroCuration(c: Auth0ActionContext): Promise<Response> 
 		});
 		if (!result.ok) {
 			logCollector.emitWarn({ event: "hero_curation.put_conflict", outcome: "error" });
-			return c.json({ error: "Conflict" }, 409);
+			return c.newResponse(null, 409);
 		}
 
 		logCollector.emit({ event: "hero_curation.put_ok", outcome: "success" });

@@ -892,7 +892,7 @@ export const PutHeroCurationRoute = createOpenApiRoute(putHeroCuration, {
         responses: {
             202: { description: "Hero curation updated (empty body). Reload with GET /hero-curation." },
             400: { description: "Bad request", ...contentJson(errorSchema) },
-            409: { description: "Compare-and-swap lost. Reload with GET /hero-curation.", ...contentJson(errorSchema) },
+            409: { description: "Compare-and-swap lost (empty body). Reload with GET /hero-curation." },
             ...serverErrorResponse,
             ...authResponses
         }
