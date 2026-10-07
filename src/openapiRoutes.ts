@@ -890,9 +890,9 @@ export const PutHeroCurationRoute = createOpenApiRoute(putHeroCuration, {
         summary: "Update curated hero episode IDs and/or pinned rail subjects",
         request: { body: jsonBody(heroCurationUpdateRequestSchema) },
         responses: {
-            200: { description: "Hero curation updated", ...contentJson(heroCurationResponseSchema) },
+            202: { description: "Hero curation updated (empty body). Reload with GET /hero-curation." },
             400: { description: "Bad request", ...contentJson(errorSchema) },
-            409: { description: "Conflict — expectedUpdatedAt mismatch", ...contentJson(heroCurationResponseSchema) },
+            409: { description: "Compare-and-swap lost. Reload with GET /hero-curation.", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
         }
@@ -906,7 +906,7 @@ export const AppendHeroCurationEpisodesRoute = createOpenApiRoute(appendHeroCura
         summary: "Append episode IDs to curated hero list (indexer auto-promote)",
         request: { body: jsonBody(heroCurationAppendRequestSchema) },
         responses: {
-            200: { description: "Hero curation after append", ...contentJson(heroCurationResponseSchema) },
+            202: { description: "Hero episodes appended (empty body). Reload with GET /hero-curation." },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses
@@ -921,7 +921,7 @@ export const DeleteHeroCurationEpisodesRoute = createOpenApiRoute(deleteHeroCura
         summary: "Remove episode IDs from curated hero list (demote / unstar)",
         request: { body: jsonBody(heroCurationDeleteEpisodesRequestSchema) },
         responses: {
-            200: { description: "Hero curation after remove", ...contentJson(heroCurationResponseSchema) },
+            202: { description: "Hero episodes removed (empty body). Reload with GET /hero-curation." },
             400: { description: "Bad request", ...contentJson(errorSchema) },
             ...serverErrorResponse,
             ...authResponses

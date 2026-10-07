@@ -73,6 +73,14 @@ Invoke-WebRequest `
 
 Challenge HTML / `cf-mitigated: challenge` = still blocked at the edge.
 
+## Command response
+
+`PUT /hero-curation`, `POST /hero-curation/episodes`, and `DELETE /hero-curation/episodes` change the Durable Object and return **202 with an empty body**. They do not return `episodeIds`, `railSubjects`, or `updatedAt`.
+
+A compare-and-swap loss on PUT is **409** `{ "error": "Conflict" }`. That body is the command outcome. It is not the stored document. The current lists and `updatedAt` are `GET /hero-curation`.
+
+Indexer auto-promote only checks that POST succeeded. 202 is success. It does not need a response document.
+
 ## Related
 
 RedditPodcastPoster: `docs/deployment.md` (§ Edge API endpoint), `Infrastructure/functions.bicep` / `functions.bicepparam` (`Api-Endpoint` secret).

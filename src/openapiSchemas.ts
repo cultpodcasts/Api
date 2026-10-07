@@ -211,7 +211,7 @@ export const heroCurationAppendRequestSchema = z.object({
 /** Alias — same body shape for DELETE demote. */
 export const heroCurationDeleteEpisodesRequestSchema = heroCurationAppendRequestSchema;
 
-/** GET/PUT /hero-curation — curated hero episode IDs and pinned homepage rails. */
+/** GET /hero-curation — curated hero episode IDs and pinned homepage rails. */
 export const heroCurationResponseSchema = z.object({
 	episodeIds: z.array(z.string().uuid()),
 	railSubjects: z.array(z.string()),

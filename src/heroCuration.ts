@@ -90,16 +90,11 @@ export async function putHeroCuration(c: Auth0ActionContext): Promise<Response> 
 		});
 		if (!result.ok) {
 			logCollector.emitWarn({ event: "hero_curation.put_conflict", outcome: "error" });
-			return c.json({
-				error: "Conflict",
-				episodeIds: result.state.episodeIds,
-				railSubjects: result.state.railSubjects,
-				updatedAt: result.state.updatedAt
-			}, 409);
+			return c.json({ error: "Conflict" }, 409);
 		}
 
 		logCollector.emit({ event: "hero_curation.put_ok", outcome: "success" });
-		return c.json(result.state, 200);
+		return c.newResponse(null, 202);
 	} catch {
 		logCollector.emitError({ event: "hero_curation.put_failed", outcome: "error" });
 		return c.json({ error: "Failed to save hero curation" }, 500);
@@ -138,7 +133,7 @@ export async function appendHeroCurationEpisodes(c: Auth0ActionContext): Promise
 			`Hero auto-promote: ${requested.length} requested, ${state.episodeIds.length} total`
 		);
 		logCollector.emit({ event: "hero_curation.append_ok", outcome: "success" });
-		return c.json(state, 200);
+		return c.newResponse(null, 202);
 	} catch {
 		logCollector.emitError({ event: "hero_curation.append_failed", outcome: "error" });
 		return c.json({ error: "Failed to append hero episodes" }, 500);
@@ -177,7 +172,7 @@ export async function deleteHeroCurationEpisodes(c: Auth0ActionContext): Promise
 			`Hero demote: ${requested.length} requested, ${state.episodeIds.length} total`
 		);
 		logCollector.emit({ event: "hero_curation.delete_ok", outcome: "success" });
-		return c.json(state, 200);
+		return c.newResponse(null, 202);
 	} catch {
 		logCollector.emitError({ event: "hero_curation.delete_failed", outcome: "error" });
 		return c.json({ error: "Failed to remove hero episodes" }, 500);

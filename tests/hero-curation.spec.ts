@@ -130,7 +130,8 @@ describe("hero-curation", () => {
 			{ method: "PUT", headers: authJsonHeaders, body: JSON.stringify({ episodeIds: [episodeA] }) },
 			envWithHero(stub)
 		);
-		expect(resp.status).toBe(200);
+		expect(resp.status).toBe(202);
+		expect(await resp.text()).toBe("");
 		expect(stub.replace).toHaveBeenCalledOnce();
 	});
 
@@ -169,7 +170,7 @@ describe("hero-curation", () => {
 			env
 		);
 		expect(conflict.status).toBe(409);
-		expect(await conflict.json()).toMatchObject({ error: "Conflict", episodeIds: [episodeA] });
+		expect(await conflict.json()).toEqual({ error: "Conflict" });
 	});
 
 	it("DELETE calls Durable Object removeEpisodes", async () => {
@@ -192,7 +193,8 @@ describe("hero-curation", () => {
 			{ method: "DELETE", headers: authJsonHeaders, body: JSON.stringify({ episodeIds: [episodeB] }) },
 			envWithHero(stub)
 		);
-		expect(resp.status).toBe(200);
+		expect(resp.status).toBe(202);
+		expect(await resp.text()).toBe("");
 		expect(stub.removeEpisodes).toHaveBeenCalledWith([episodeB]);
 	});
 
@@ -216,7 +218,8 @@ describe("hero-curation", () => {
 			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ episodeIds: [episodeB] }) },
 			envWithHero(stub)
 		);
-		expect(resp.status).toBe(200);
+		expect(resp.status).toBe(202);
+		expect(await resp.text()).toBe("");
 		expect(stub.appendEpisodes).toHaveBeenCalledWith([episodeB]);
 	});
 });
