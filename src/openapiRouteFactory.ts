@@ -121,8 +121,16 @@ export function registerBearerAuthScheme(registry: {
 	});
 }
 
+/** Shallow copy so auth metadata is not written onto the caller's schema object. */
+function copyOpenApiSchema(schema: OpenAPIRouteSchema): OpenAPIRouteSchema {
+	return {
+		...schema,
+		responses: schema.responses == null ? schema.responses : { ...schema.responses }
+	};
+}
+
 export function createOpenApiRoute(handler: RouteHandler, options: RouteFactoryOptions = {}) {
-	const schema: OpenAPIRouteSchema = options.schema ?? {};
+	const schema = copyOpenApiSchema(options.schema ?? {});
 	applyOpenApiAuth(schema, options.auth);
 	const requiresAuth = Boolean(options.auth);
 

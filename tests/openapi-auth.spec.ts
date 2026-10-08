@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("workers-og", () => ({
 	ImageResponse: class ImageResponse {}
 }));
+import { putHeroCurationOpenApiSchema } from "../src/heroCurationOpenApi";
 import {
 	AddBookmarkRoute,
 	CreatePersonRoute,
@@ -13,7 +14,8 @@ import {
 	GetLanguagesRoute,
 	GetPeopleRoute,
 	HomepageRoute,
-	PublicGetEpisodeRoute
+	PublicGetEpisodeRoute,
+	PutHeroCurationRoute
 } from "../src/openapiRoutes";
 import { registerBearerAuthScheme } from "../src/openapiRouteFactory";
 import { SubmitLookupRoute, SubmitRoute } from "../src/openapiSubmitPodcastRoutes";
@@ -109,6 +111,20 @@ describe("OpenAPI auth and response contracts", () => {
 		expect(episode.description).toMatch(/Any valid token/);
 		expect(episode.responses?.["403"]).toBeUndefined();
 		expect(episode.responses?.["200"]?.content?.["application/json"]).toBeTruthy();
+	});
+
+	it("leaves the exported hero schema unchanged when the route is built", () => {
+		expect(putHeroCurationOpenApiSchema.security).toBeUndefined();
+		expect(putHeroCurationOpenApiSchema.description).not.toMatch(/Requires an Auth0 access token/);
+		expect(putHeroCurationOpenApiSchema.responses?.[202]).toEqual({
+			description: "Hero curation updated (empty body)"
+		});
+		expect(putHeroCurationOpenApiSchema.responses?.[409]).not.toHaveProperty("content");
+		expect(PutHeroCurationRoute.openApiSchema).not.toBe(putHeroCurationOpenApiSchema);
+		expect(PutHeroCurationRoute.openApiSchema.responses).not.toBe(putHeroCurationOpenApiSchema.responses);
+		expect(PutHeroCurationRoute.openApiSchema.security).toEqual([{ bearerAuth: [] }]);
+		expect(PutHeroCurationRoute.openApiSchema.description).toMatch(/Requires an Auth0 access token/);
+		expect(PutHeroCurationRoute.openApiSchema.description).toMatch(/send null/);
 	});
 
 	it("keeps person create as an empty 202 and documents optional submit auth", () => {

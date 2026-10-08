@@ -140,6 +140,19 @@ describe("title-casing-rules", () => {
 			expect(await resp.text()).toBe("");
 		}
 		expect(fetchMock).toHaveBeenCalledTimes(7);
+		const knownPut = fetchMock.mock.calls.find((call) => {
+			const url = String(call[0]);
+			const init = call[1] as { body?: string } | undefined;
+			return url.includes("/known-terms/AI") && init?.body != null;
+		});
+		expect(knownPut).toBeTruthy();
+		const knownUrl = String(knownPut![0]);
+		const knownInit = knownPut![1] as { method?: string; body?: string };
+		expect(knownInit.method).toBe("PUT");
+		expect(knownUrl).toMatch(/\/title-casing-rules\/en\/known-terms\/AI$/);
+		const knownBody = JSON.parse(knownInit.body ?? "");
+		expect(knownBody).toEqual({ pattern: "AI", options: null });
+		expect(knownBody).not.toHaveProperty("literal");
 	});
 
 	it("POST lower-case term forwards Azure 400", async () => {
