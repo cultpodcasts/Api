@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	appendHeroCurationEpisodesOpenApiSchema,
+	deleteHeroCurationEpisodesOpenApiSchema,
+	getHeroCurationOpenApiSchema,
+	putHeroCurationOpenApiSchema
+} from "../src/heroCurationOpenApi";
+import {
 	GetPodcastByNameAndEpisodeIdRoute,
 	GetPodcastByNameRoute,
 	SubmitLookupRoute,
@@ -7,6 +13,10 @@ import {
 	SubmitRoute
 } from "../src/openapiSubmitPodcastRoutes";
 import {
+	heroCurationAppendRequestSchema,
+	heroCurationDeleteEpisodesRequestSchema,
+	heroCurationResponseSchema,
+	heroCurationUpdateRequestSchema,
 	submitUrlLookupQuerySchema,
 	submitUrlLookupResponseSchema,
 	submitUrlRequestSchema
@@ -144,5 +154,57 @@ describe("OpenAPI route contracts", () => {
 		expect(description).toMatch(/fetch\/extract miss/i);
 		expect(description).toMatch(/Tubi/);
 		expect(description).toMatch(/catalogue HTML/);
+	});
+
+	it("documents hero curation as one resource: GET is the document, commands are empty acknowledgements", () => {
+		for (const schema of [
+			getHeroCurationOpenApiSchema,
+			putHeroCurationOpenApiSchema,
+			appendHeroCurationEpisodesOpenApiSchema,
+			deleteHeroCurationEpisodesOpenApiSchema
+		]) {
+			expect(schema.tags).toEqual(["Hero curation"]);
+		}
+
+		expect(getHeroCurationOpenApiSchema.description).toMatch(/Query/);
+		expect(getHeroCurationOpenApiSchema.description).toMatch(/No authentication/);
+		expect(getHeroCurationOpenApiSchema.description).toMatch(/max-age=60/);
+		const getOk = getHeroCurationOpenApiSchema.responses?.[200] as {
+			content?: { "application/json"?: { schema?: unknown } };
+		};
+		expect(getOk.content?.["application/json"]?.schema).toBe(heroCurationResponseSchema);
+
+		expect(putHeroCurationOpenApiSchema.description).toMatch(/Command/);
+		expect(putHeroCurationOpenApiSchema.description).toMatch(/curate/);
+		expect(putHeroCurationOpenApiSchema.description).toMatch(/expectedUpdatedAt/);
+		expect(putHeroCurationOpenApiSchema.description).toMatch(/send null/);
+		expect(putHeroCurationOpenApiSchema.description).toMatch(/GET \/hero-curation/);
+		expect(putHeroCurationOpenApiSchema.responses?.[202]).toEqual({
+			description: "Hero curation updated (empty body)"
+		});
+		expect(putHeroCurationOpenApiSchema.responses?.[409]).toEqual({
+			description: "Compare-and-swap lost (empty body)"
+		});
+		expect(putHeroCurationOpenApiSchema.responses?.[202]).not.toHaveProperty("content");
+		expect(putHeroCurationOpenApiSchema.responses?.[409]).not.toHaveProperty("content");
+
+		expect(appendHeroCurationEpisodesOpenApiSchema.responses?.[202]).toEqual({
+			description: "Hero episodes appended (empty body)"
+		});
+		expect(appendHeroCurationEpisodesOpenApiSchema.responses?.[202]).not.toHaveProperty("content");
+		expect(deleteHeroCurationEpisodesOpenApiSchema.responses?.[202]).toEqual({
+			description: "Hero episodes removed (empty body)"
+		});
+		expect(deleteHeroCurationEpisodesOpenApiSchema.responses?.[202]).not.toHaveProperty("content");
+
+		const putBody = putHeroCurationOpenApiSchema.request?.body as {
+			content?: { "application/json"?: { schema?: unknown } };
+		};
+		expect(putBody.content?.["application/json"]?.schema).toBe(heroCurationUpdateRequestSchema);
+		expect(heroCurationUpdateRequestSchema.shape.expectedUpdatedAt.description).toMatch(/409/);
+		expect(heroCurationUpdateRequestSchema.shape.expectedUpdatedAt.description).toMatch(/send null/);
+		expect(heroCurationAppendRequestSchema.shape.episodeIds.description).toMatch(/front/);
+		expect(heroCurationDeleteEpisodesRequestSchema.shape.episodeIds.description).toMatch(/ignored/);
+		expect(heroCurationResponseSchema.shape.updatedAt.description).toMatch(/compare-and-swap/);
 	});
 });

@@ -38,7 +38,7 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
 	};
 }
 
-type RouteMethod = "get" | "post" | "put" | "delete";
+type RouteMethod = "get" | "post" | "put" | "patch" | "delete";
 
 export function handlerApp(
 	method: RouteMethod,

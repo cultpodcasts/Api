@@ -6,7 +6,7 @@ import {
 	deleteTitleCasingRulesLowerCaseTerm,
 	getTitleCasingRulesByLanguage,
 	postTitleCasingRulesIgnoredSubject,
-	postTitleCasingRulesKnownTerm,
+	putTitleCasingRulesKnownTerm,
 	postTitleCasingRulesLowerCaseTerm
 } from "../src/titleCasingRules";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
@@ -19,8 +19,10 @@ describe("title-casing-rules", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("does not export PUT handlers", () => {
-		expect(Object.keys(titleCasingHandlers).filter((k) => /^put/i.test(k))).toEqual([]);
+	it("exports a PUT handler for known terms", () => {
+		expect(Object.keys(titleCasingHandlers).filter((k) => /^put/i.test(k))).toEqual([
+			"putTitleCasingRulesKnownTerm"
+		]);
 	});
 
 	it("GET requires admin; curate is 403 and missing auth is 401", async () => {
@@ -69,10 +71,10 @@ describe("title-casing-rules", () => {
 			deleteTitleCasingRulesLowerCaseTerm,
 			["admin"]
 		);
-		const postKnown = appWithPermissions(
-			"/title-casing-rules/:language/known-terms",
-			"post",
-			postTitleCasingRulesKnownTerm,
+		const putKnown = appWithPermissions(
+			"/title-casing-rules/:language/known-terms/:literal",
+			"put",
+			putTitleCasingRulesKnownTerm,
 			["admin"]
 		);
 		const deleteKnown = appWithPermissions(
@@ -107,9 +109,9 @@ describe("title-casing-rules", () => {
 				{ method: "DELETE", headers: authJsonHeaders },
 				env
 			),
-			await postKnown.request(
-				"/title-casing-rules/en/known-terms",
-				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ literal: "AI", display: "AI" }) },
+			await putKnown.request(
+				"/title-casing-rules/en/known-terms/AI",
+				{ method: "PUT", headers: authJsonHeaders, body: JSON.stringify({ pattern: "AI", options: null }) },
 				env
 			),
 			await deleteKnown.request(
@@ -138,6 +140,19 @@ describe("title-casing-rules", () => {
 			expect(await resp.text()).toBe("");
 		}
 		expect(fetchMock).toHaveBeenCalledTimes(7);
+		const knownPut = fetchMock.mock.calls.find((call) => {
+			const url = String(call[0]);
+			const init = call[1] as { body?: string } | undefined;
+			return url.includes("/known-terms/AI") && init?.body != null;
+		});
+		expect(knownPut).toBeTruthy();
+		const knownUrl = String(knownPut![0]);
+		const knownInit = knownPut![1] as { method?: string; body?: string };
+		expect(knownInit.method).toBe("PUT");
+		expect(knownUrl).toMatch(/\/title-casing-rules\/en\/known-terms\/AI$/);
+		const knownBody = JSON.parse(knownInit.body ?? "");
+		expect(knownBody).toEqual({ pattern: "AI", options: null });
+		expect(knownBody).not.toHaveProperty("literal");
 	});
 
 	it("POST lower-case term forwards Azure 400", async () => {

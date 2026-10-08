@@ -4,13 +4,13 @@ import { Endpoint } from "./Endpoint";
 import { proxyToAzure } from "./proxyToAzure";
 
 export async function createPerson(c: Auth0ActionContext): Promise<Response> {
-	AddResponseHeaders(c, { methods: ["POST", "GET", "PUT", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	const data: unknown = await c.req.json();
 	const body = JSON.stringify(data);
 	return proxyToAzure(c, {
 		permission: "curate",
 		endpoint: Endpoint.person,
-		method: "PUT",
+		method: "POST",
 		body,
 		successStatuses: [202],
 		forwardStatuses: [409, 400],

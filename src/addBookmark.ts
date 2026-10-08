@@ -10,7 +10,7 @@ export async function addBookmark(c: Auth0ActionContext): Promise<Response> {
 	const logCollector = new LogCollector();
 	logCollector.collectRequest(c);
 	logCollector.add({ route: "addBookmark" });
-	AddResponseHeaders(c, { methods: ["POST", "DELETE", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["PUT", "DELETE", "OPTIONS"] });
 	if (auth0Payload && auth0Payload.sub) {
 		const episodeId = c.req.param("episodeId");
 		if (uuidPattern.test(episodeId)) {
@@ -18,14 +18,12 @@ export async function addBookmark(c: Auth0ActionContext): Promise<Response> {
 			let stub = c.env.PROFILE_DURABLE_OBJECT.get(id);
 			let result: addBookmarkResponse = await stub.addBookmark(auth0Payload.sub, episodeId);
 			logCollector.addMessage(`result= ${result}`);
-			if (result == addBookmarkResponse.created) {
+			if (result == addBookmarkResponse.created || result == addBookmarkResponse.duplicateUserBookmark) {
 				logCollector.emit({ event: "bookmark.add_ok", outcome: "success" });
 				return c.json({ message: "Success" });
 			}
 			logCollector.emitError({ event: "bookmark.add_failed", outcome: "error" });
-			if (result == addBookmarkResponse.duplicateUserBookmark) {
-				return c.json({ message: "Bookmark exists" }, { status: 409 });
-			} else if (result == addBookmarkResponse.unableToCreateUser) {
+			if (result == addBookmarkResponse.unableToCreateUser) {
 				return c.json({ message: "Unable to create user" }, { status: 400 });
 			} else if (result == addBookmarkResponse.unableToCreateBookmark) {
 				return c.json({ message: "Unable to create bookmark" }, { status: 400 });

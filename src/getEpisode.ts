@@ -7,7 +7,7 @@ export async function getEpisode(c: Auth0ActionContext): Promise<Response> {
 	const id = c.req.param("id");
 	AddResponseHeaders(c, {
 		omitCacheControlHeader: true,
-		methods: ["POST", "GET", "OPTIONS", "DELETE"]
+		methods: ["GET", "OPTIONS"]
 	});
 	return proxyToAzure(c, {
 		permission: "curate",

@@ -1,10 +1,17 @@
 import { contentJson } from "chanfana";
 import { z } from "zod";
 import {
+	adminAuth,
 	authResponses,
 	ambiguousCatalogueNameConflict,
 	ambiguousPodcastNameConflict,
+	bookmarkAuth,
 	createOpenApiRoute,
+	curateAuth,
+	curateOrAdminAuth,
+	curatePermissionsClaimAuth,
+	signedInAuth,
+	submitOrCurateAuth,
 	episodeIdParam,
 	idParam,
 	identifierParam,
@@ -26,7 +33,7 @@ import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
 import { deleteBookmark } from "./deleteBookmark";
-import { deleteEpisode, deletePodcastEpisode } from "./deleteEpisode";
+import { deletePodcastEpisode } from "./deleteEpisode";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
@@ -59,10 +66,6 @@ import {
 	titleCasingRulesAddIgnoredSubjectRequestSchema,
 	titleCasingRulesKnownTermRequestSchema,
 	discoverySubmitRequestSchema,
-	heroCurationResponseSchema,
-	heroCurationUpdateRequestSchema,
-	heroCurationAppendRequestSchema,
-	heroCurationDeleteEpisodesRequestSchema,
 	discoverySubmitResponseSchema,
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
@@ -115,18 +118,24 @@ import {
 	getTitleCasingRulesByLanguage,
 	postTitleCasingRulesLowerCaseTerm,
 	deleteTitleCasingRulesLowerCaseTerm,
-	postTitleCasingRulesKnownTerm,
+	putTitleCasingRulesKnownTerm,
 	deleteTitleCasingRulesKnownTerm,
 	postTitleCasingRulesIgnoredSubject,
 	deleteTitleCasingRulesIgnoredSubject
 } from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
+import {
+	appendHeroCurationEpisodesOpenApiSchema,
+	deleteHeroCurationEpisodesOpenApiSchema,
+	getHeroCurationOpenApiSchema,
+	putHeroCurationOpenApiSchema
+} from "./heroCurationOpenApi";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
 import { search } from "./search";
 import { submitDiscovery } from "./submitDiscovery";
-import { updateEpisode, updatePodcastEpisode } from "./updateEpisode";
+import { updatePodcastEpisode } from "./updateEpisode";
 import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { transferPodcastKind } from "./transferPodcastKind";
@@ -141,7 +150,7 @@ import { updateFilm } from "./updateFilm";
 export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupRoute, SubmitPrepareRoute, SubmitRoute };
 
 export const GetTvShowRoute = createOpenApiRoute(getTvShow, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Get TV show by id or name",
@@ -157,7 +166,7 @@ export const GetTvShowRoute = createOpenApiRoute(getTvShow, {
 });
 
 export const GetTvShowEpisodeRoute = createOpenApiRoute(getTvShowEpisode, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Get TV-show episode by id",
@@ -172,7 +181,7 @@ export const GetTvShowEpisodeRoute = createOpenApiRoute(getTvShowEpisode, {
 });
 
 export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Patch TV-show episode IMDb/TheTVDB identity URIs",
@@ -188,7 +197,7 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 });
 
 export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Patch TV show IMDb/TheTVDB identity URIs",
@@ -204,7 +213,7 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 });
 
 export const GetFilmRoute = createOpenApiRoute(getFilm, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Get film by id or name",
@@ -220,7 +229,7 @@ export const GetFilmRoute = createOpenApiRoute(getFilm, {
 });
 
 export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Patch film IMDb identity URI",
@@ -282,21 +291,26 @@ export const SearchSuggestionsRoute = createOpenApiRoute(searchSuggestions, {
 });
 
 export const GetSubjectsRoute = createOpenApiRoute(getSubjects, {
-    auth: true,
+    auth: curatePermissionsClaimAuth,
     schema: {
         tags: ["Subjects"],
         summary: "List subjects",
-        responses: { 200: { description: "Subjects (R2 name list)", ...contentJson(subjectsNameListResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Subjects (R2 name list)", ...contentJson(subjectsNameListResponseSchema) },
+            404: { description: "Subjects list is missing" },
+            ...authResponses
+        }
     }
 });
 
 export const GetPeopleRoute = createOpenApiRoute(getPeople, {
-    auth: true,
+    auth: curatePermissionsClaimAuth,
     schema: {
         tags: ["People"],
         summary: "List people",
         responses: {
             200: { description: "People", ...contentJson(peopleListResponseSchema) },
+            404: { description: "People list is missing" },
             ...serverErrorResponse,
             ...authResponses
         }
@@ -304,7 +318,7 @@ export const GetPeopleRoute = createOpenApiRoute(getPeople, {
 });
 
 export const GetPersonByNameRoute = createOpenApiRoute(getPersonByName, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["People"],
         summary: "Get person by name",
@@ -319,10 +333,10 @@ export const GetPersonByNameRoute = createOpenApiRoute(getPersonByName, {
 });
 
 export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["People"],
-        summary: "Update person by id",
+        summary: "Patch person by id",
         request: { params: idParam, body: jsonBody(personChangeRequestSchema) },
         responses: {
             202: { description: "Person updated (empty body)" },
@@ -334,7 +348,7 @@ export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
 });
 
 export const CreatePersonRoute = createOpenApiRoute(createPerson, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["People"],
         summary: "Create person",
@@ -350,11 +364,15 @@ export const CreatePersonRoute = createOpenApiRoute(createPerson, {
 });
 
 export const GetFlairsRoute = createOpenApiRoute(getFlairs, {
-    auth: true,
+    auth: curatePermissionsClaimAuth,
     schema: {
         tags: ["Subjects"],
         summary: "List flairs",
-        responses: { 200: { description: "Flairs", ...contentJson(flairsResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Flairs", ...contentJson(flairsResponseSchema) },
+            404: { description: "Flairs list is missing" },
+            ...authResponses
+        }
     }
 });
 
@@ -368,7 +386,7 @@ export const SearchRoute = createOpenApiRoute(search, {
 });
 
 export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Episodes"],
         summary: "Get episode by id",
@@ -383,7 +401,7 @@ export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
 });
 
 export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Episodes"],
         summary: "Get podcast episode by podcast name and episode id",
@@ -397,26 +415,11 @@ export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
     }
 });
 
-export const UpdateEpisodeRoute = createOpenApiRoute(updateEpisode, {
-    auth: true,
-    schema: {
-        tags: ["Episodes"],
-        summary: "Update episode by id",
-        request: { params: idParam, body: jsonBody(episodeChangeRequestSchema) },
-        responses: {
-            202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
 export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Episodes"],
-        summary: "Update podcast episode by podcast id and episode id",
+        summary: "Patch podcast episode by podcast id and episode id",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: {
             202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
@@ -427,25 +430,8 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
     }
 });
 
-export const DeleteEpisodeRoute = createOpenApiRoute(deleteEpisode, {
-    auth: true,
-    schema: {
-        tags: ["Episodes"],
-        summary: "Delete episode by id",
-        request: { params: idParam },
-        responses: {
-            200: { description: "Deleted (empty body)" },
-            400: { description: "Delete blocked when episode is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
-            409: { description: "Conflict" },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
 export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Episodes"],
         summary: "Delete podcast episode by podcast id and episode id",
@@ -462,7 +448,7 @@ export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode
 });
 
 export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpisode, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Publishing"],
         summary: "Publish podcast episode by podcast id and episode id",
@@ -477,7 +463,7 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
 });
 
 export const GetOutgoingRoute = createOpenApiRoute(getOutgoing, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Episodes"],
         summary: "Get outgoing episodes",
@@ -490,7 +476,7 @@ export const GetOutgoingRoute = createOpenApiRoute(getOutgoing, {
 });
 
 export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Podcasts"],
         summary: "Transfer a podcast to a TV show or news organisation (keeps guids)",
@@ -506,26 +492,11 @@ export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, 
     }
 });
 
-export const UpdatePodcastPostRoute = createOpenApiRoute(updatePodcast, {
-    auth: true,
+export const UpdatePodcastRoute = createOpenApiRoute(updatePodcast, {
+    auth: curateAuth,
     schema: {
         tags: ["Podcasts"],
-        summary: "Update podcast by id (POST)",
-        request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
-        responses: {
-            202: { description: "Accepted (empty or indexing failure fields)" },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
-export const UpdatePodcastPutRoute = createOpenApiRoute(updatePodcast, {
-    auth: true,
-    schema: {
-        tags: ["Podcasts"],
-        summary: "Update podcast by id (PUT)",
+        summary: "Patch podcast by id",
         request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
         responses: {
             202: { description: "Accepted (empty or indexing failure fields)" },
@@ -537,7 +508,7 @@ export const UpdatePodcastPutRoute = createOpenApiRoute(updatePodcast, {
 });
 
 export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Podcasts"],
         summary: "Reindex podcast by name",
@@ -553,7 +524,7 @@ export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
 });
 
 export const GetSubjectByNameRoute = createOpenApiRoute(getSubjectByName, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Subjects"],
         summary: "Get subject by name",
@@ -568,10 +539,10 @@ export const GetSubjectByNameRoute = createOpenApiRoute(getSubjectByName, {
 });
 
 export const UpdateSubjectRoute = createOpenApiRoute(updateSubject, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Subjects"],
-        summary: "Update subject by id",
+        summary: "Patch subject by id",
         request: { params: idParam, body: jsonBody(subjectChangeRequestSchema) },
         responses: {
             202: { description: "Accepted (empty body)" },
@@ -583,7 +554,7 @@ export const UpdateSubjectRoute = createOpenApiRoute(updateSubject, {
 });
 
 export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Subjects"],
         summary: "Create subject",
@@ -599,7 +570,7 @@ export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
 });
 
 export const GetDiscoveryReportsRoute = createOpenApiRoute(getDiscoveryReports, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Discovery"],
         summary: "Get discovery curation reports",
@@ -614,7 +585,7 @@ export const GetDiscoveryReportsRoute = createOpenApiRoute(getDiscoveryReports, 
 });
 
 export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
-    auth: true,
+    auth: curateAuth,
     schema: {
         tags: ["Discovery"],
         summary: "Submit discovery curation",
@@ -632,16 +603,20 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
 });
 
 export const GetDiscoveryInfoRoute = createOpenApiRoute(getDiscoveryInfo, {
-    auth: true,
+    auth: curatePermissionsClaimAuth,
     schema: {
         tags: ["Discovery"],
         summary: "Get discovery info",
-        responses: { 200: { description: "Discovery info", ...contentJson(discoveryInfoResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Discovery info", ...contentJson(discoveryInfoResponseSchema) },
+            404: { description: "Discovery info object is missing" },
+            ...authResponses
+        }
     }
 });
 
 export const RunSearchIndexerRoute = createOpenApiRoute(runSearchIndexer, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Run search indexer",
@@ -655,7 +630,7 @@ export const RunSearchIndexerRoute = createOpenApiRoute(runSearchIndexer, {
 });
 
 export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Publishing"],
         summary: "Publish homepage",
@@ -669,7 +644,7 @@ export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
 });
 
 export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Discovery"],
         summary: "Get Discovery UK schedule",
@@ -682,7 +657,7 @@ export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule
 });
 
 export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Discovery"],
         summary: "Update Discovery UK schedule",
@@ -697,7 +672,7 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
 });
 
 export const GetSupportedLanguagesRoute = createOpenApiRoute(getSupportedLanguages, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Get supported languages config",
@@ -710,7 +685,7 @@ export const GetSupportedLanguagesRoute = createOpenApiRoute(getSupportedLanguag
 });
 
 export const GetNeutralCulturesRoute = createOpenApiRoute(getNeutralCultures, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "List .NET neutral culture names/codes for supported-language Add validation",
@@ -723,7 +698,7 @@ export const GetNeutralCulturesRoute = createOpenApiRoute(getNeutralCultures, {
 });
 
 export const PostSupportedLanguagesRoute = createOpenApiRoute(postSupportedLanguages, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Add one supported language by culture name",
@@ -738,7 +713,7 @@ export const PostSupportedLanguagesRoute = createOpenApiRoute(postSupportedLangu
 });
 
 export const DeleteSupportedLanguagesRoute = createOpenApiRoute(deleteSupportedLanguages, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Remove one supported language by code",
@@ -753,7 +728,7 @@ export const DeleteSupportedLanguagesRoute = createOpenApiRoute(deleteSupportedL
 });
 
 export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute(getTitleCasingRulesByLanguage, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Get title casing rules for a language",
@@ -768,7 +743,7 @@ export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute(getTitleCas
 });
 
 export const PostTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(postTitleCasingRulesLowerCaseTerm, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Add one lower-case term for a language",
@@ -786,7 +761,7 @@ export const PostTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(postTit
 });
 
 export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(deleteTitleCasingRulesLowerCaseTerm, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Remove one lower-case term for a language",
@@ -802,13 +777,13 @@ export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(delet
     }
 });
 
-export const PostTitleCasingRulesKnownTermRoute = createOpenApiRoute(postTitleCasingRulesKnownTerm, {
-    auth: true,
+export const PutTitleCasingRulesKnownTermRoute = createOpenApiRoute(putTitleCasingRulesKnownTerm, {
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
-        summary: "Add or replace one known term for a language (keyed by literal)",
+        summary: "Add or replace one known term for a language (literal in the path)",
         request: {
-            params: z.object({ language: z.string().min(1) }),
+            params: z.object({ language: z.string().min(1), literal: z.string().min(1) }),
             body: jsonBody(titleCasingRulesKnownTermRequestSchema)
         },
         responses: {
@@ -821,7 +796,7 @@ export const PostTitleCasingRulesKnownTermRoute = createOpenApiRoute(postTitleCa
 });
 
 export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute(deleteTitleCasingRulesKnownTerm, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Remove one known term for a language by literal",
@@ -838,7 +813,7 @@ export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute(deleteTit
 });
 
 export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(postTitleCasingRulesIgnoredSubject, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Add one ignored subject for a non-English language",
@@ -856,7 +831,7 @@ export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(postTi
 });
 
 export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(deleteTitleCasingRulesIgnoredSubject, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Admin"],
         summary: "Remove one ignored subject for a non-English language",
@@ -873,64 +848,26 @@ export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(dele
 });
 
 export const GetHeroCurationRoute = createOpenApiRoute(getHeroCuration, {
-    schema: {
-        tags: ["Public"],
-        summary: "Get curated hero episode IDs and pinned rail subjects",
-        responses: {
-            200: { description: "Hero episode IDs and rail subjects", ...contentJson(heroCurationResponseSchema) },
-            ...serverErrorResponse
-        }
-    }
+    schema: getHeroCurationOpenApiSchema
 });
 
 export const PutHeroCurationRoute = createOpenApiRoute(putHeroCuration, {
-    auth: true,
-    schema: {
-        tags: ["Curation"],
-        summary: "Update curated hero episode IDs and/or pinned rail subjects",
-        request: { body: jsonBody(heroCurationUpdateRequestSchema) },
-        responses: {
-            200: { description: "Hero curation updated", ...contentJson(heroCurationResponseSchema) },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            409: { description: "Conflict — expectedUpdatedAt mismatch", ...contentJson(heroCurationResponseSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
+    auth: curateAuth,
+    schema: putHeroCurationOpenApiSchema
 });
 
 export const AppendHeroCurationEpisodesRoute = createOpenApiRoute(appendHeroCurationEpisodes, {
-    auth: true,
-    schema: {
-        tags: ["Curation"],
-        summary: "Append episode IDs to curated hero list (indexer auto-promote)",
-        request: { body: jsonBody(heroCurationAppendRequestSchema) },
-        responses: {
-            200: { description: "Hero curation after append", ...contentJson(heroCurationResponseSchema) },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
+    auth: curateAuth,
+    schema: appendHeroCurationEpisodesOpenApiSchema
 });
 
 export const DeleteHeroCurationEpisodesRoute = createOpenApiRoute(deleteHeroCurationEpisodes, {
-    auth: true,
-    schema: {
-        tags: ["Curation"],
-        summary: "Remove episode IDs from curated hero list (demote / unstar)",
-        request: { body: jsonBody(heroCurationDeleteEpisodesRequestSchema) },
-        responses: {
-            200: { description: "Hero curation after remove", ...contentJson(heroCurationResponseSchema) },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
+    auth: curateAuth,
+    schema: deleteHeroCurationEpisodesOpenApiSchema
 });
 
 export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Podcasts"],
         summary: "Rename podcast",
@@ -947,7 +884,7 @@ export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
 });
 
 export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {
-    auth: true,
+    auth: adminAuth,
     schema: {
         tags: ["Notifications"],
         summary: "Create push subscription",
@@ -974,22 +911,21 @@ export const GetOgShareImageRoute = createOpenApiRoute(getOgShareImage, {
 });
 
 export const AddBookmarkRoute = createOpenApiRoute(addBookmark, {
-    auth: true,
+    auth: bookmarkAuth,
     schema: {
         tags: ["Bookmarks"],
-        summary: "Add bookmark by episode id",
+        summary: "Save bookmark by episode id",
         request: { params: episodeIdParam },
         responses: {
-            200: { description: "Bookmark added", ...contentJson(messageResponseSchema) },
+            200: { description: "Bookmark saved", ...contentJson(messageResponseSchema) },
             400: { description: "Unable to create", ...contentJson(messageResponseSchema) },
-            409: { description: "Duplicate bookmark", ...contentJson(messageResponseSchema) },
             ...authResponses
         }
     }
 });
 
 export const DeleteBookmarkRoute = createOpenApiRoute(deleteBookmark, {
-    auth: true,
+    auth: bookmarkAuth,
     schema: {
         tags: ["Bookmarks"],
         summary: "Delete bookmark by episode id",
@@ -1003,19 +939,23 @@ export const DeleteBookmarkRoute = createOpenApiRoute(deleteBookmark, {
 });
 
 export const GetBookmarksRoute = createOpenApiRoute(getBookmarks, {
-    auth: true,
+    auth: bookmarkAuth,
     schema: {
         tags: ["Bookmarks"],
         summary: "List current user bookmarks",
-        responses: { 200: { description: "Bookmarks", ...contentJson(bookmarksListResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Bookmarks", ...contentJson(bookmarksListResponseSchema) },
+            500: { description: "Could not retrieve bookmarks", ...contentJson(messageResponseSchema) },
+            ...authResponses
+        }
     }
 });
 
 export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
-    auth: true,
+    auth: signedInAuth,
     schema: {
         tags: ["Episodes"],
-        summary: "Get public episode by id",
+        summary: "Get episode read model by id",
         request: { params: idParam },
         responses: {
             200: { description: "Public episode", ...contentJson(publicEpisodeDtoSchema) },
@@ -1027,15 +967,19 @@ export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
 });
 
 export const GetLanguagesRoute = createOpenApiRoute(getLanguages, {
-    auth: true,
+    auth: curateOrAdminAuth,
     schema: {
         tags: ["Metadata"],
         summary: "List languages",
-        responses: { 200: { description: "Languages", ...contentJson(languagesResponseSchema) }, ...authResponses }
+        responses: {
+            200: { description: "Languages", ...contentJson(languagesResponseSchema) },
+            404: { description: "Languages object is missing" },
+            ...authResponses
+        }
     }
 });
 export const StreamingScrapeSurveyRoute = createOpenApiRoute(streamingScrapeSurvey, {
-	auth: true,
+	auth: submitOrCurateAuth,
 	schema: {
 		tags: ["Ops"],
 		summary: "Streaming scrape survey (PoP-gated)",

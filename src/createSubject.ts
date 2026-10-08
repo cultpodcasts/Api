@@ -10,7 +10,7 @@ export async function createSubject(c: Auth0ActionContext): Promise<Response> {
 	return proxyToAzure(c, {
 		permission: "curate",
 		endpoint: Endpoint.subject,
-		method: "PUT",
+		method: "POST",
 		body,
 		successStatuses: [202],
 		forwardStatuses: [409, 400],

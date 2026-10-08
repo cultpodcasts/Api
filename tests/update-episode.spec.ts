@@ -11,7 +11,7 @@ function episodeEnv() {
 	return testEnv();
 }
 
-describe("POST /episode/:podcastId/:episodeId", () => {
+describe("PATCH /episode/:podcastId/:episodeId", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
 		vi.restoreAllMocks();
@@ -23,12 +23,14 @@ describe("POST /episode/:podcastId/:episodeId", () => {
 			"fetch",
 			vi.fn(async () => new Response(JSON.stringify(azureBody), { status: 500 }))
 		);
-		const app = appWithPermissions(route, "post", updatePodcastEpisode, ["curate"]);
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(azureBody), { status: 500 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions(route, "patch", updatePodcastEpisode, ["curate"]);
 
 		const resp = await app.request(
 			requestPath,
 			{
-				method: "POST",
+				method: "PATCH",
 				headers: authJsonHeaders,
 				body: JSON.stringify({ guests: ["Guest Name"] })
 			},
@@ -36,17 +38,20 @@ describe("POST /episode/:podcastId/:episodeId", () => {
 		);
 
 		expect(resp.status).toBe(500);
+		const init = fetchMock.mock.calls[0][1] as { method?: string };
+		expect(init.method).toBe("PATCH");
 		expect(await resp.json()).toEqual(azureBody);
 	});
 
 	it("returns 202 from Azure success", async () => {
-		vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 202 })));
-		const app = appWithPermissions(route, "post", updatePodcastEpisode, ["curate"]);
+		const fetchMock = vi.fn(async () => new Response("{}", { status: 202 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions(route, "patch", updatePodcastEpisode, ["curate"]);
 
 		const resp = await app.request(
 			requestPath,
 			{
-				method: "POST",
+				method: "PATCH",
 				headers: authJsonHeaders,
 				body: JSON.stringify({ guests: ["Guest Name"] })
 			},
@@ -54,5 +59,7 @@ describe("POST /episode/:podcastId/:episodeId", () => {
 		);
 
 		expect(resp.status).toBe(202);
+		const init = fetchMock.mock.calls[0][1] as { method?: string };
+		expect(init.method).toBe("PATCH");
 	});
 });

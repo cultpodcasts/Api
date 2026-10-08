@@ -106,27 +106,13 @@ describe("transfer podcast kind", () => {
 });
 
 describe("podcast kind route registration order", () => {
-	it("registers openapi.post /podcast/:id/kind before generic openapi.post /podcast/:id", () => {
+	it("registers openapi.post /podcast/:id/kind before generic openapi.patch /podcast/:id", () => {
 		const src = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
 		const kindIdx = src.indexOf("openapi.post('/podcast/:id/kind'");
-		const genericIdx = src.indexOf("openapi.post('/podcast/:id'");
+		const genericIdx = src.indexOf("openapi.patch('/podcast/:id'");
 		expect(kindIdx).toBeGreaterThan(-1);
 		expect(genericIdx).toBeGreaterThan(-1);
-		let genericNotKindIdx = -1;
-		let from = 0;
-		while (from < src.length) {
-			const i = src.indexOf("openapi.post('/podcast/:id'", from);
-			if (i === -1) {
-				break;
-			}
-			if (!src.startsWith("openapi.post('/podcast/:id/kind'", i)) {
-				genericNotKindIdx = i;
-				break;
-			}
-			from = i + 1;
-		}
-		expect(genericNotKindIdx).toBeGreaterThan(-1);
-		expect(kindIdx).toBeLessThan(genericNotKindIdx);
+		expect(kindIdx).toBeLessThan(genericIdx);
 	});
 
 	it("documents TransferPodcastKindRoute request body as podcastKindTransferRequestSchema", () => {
