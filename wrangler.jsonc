@@ -79,6 +79,19 @@
       }
     ]
   },
+  // `npx wrangler deploy` (no --env) applies this list to Worker `api`.
+  // v1 already created ProfileDurableObject and must not be rewritten.
+  // A later new_sqlite_classes entry for that same class is illegal
+  // ("Cannot apply new_sqlite_classes migration to existing class").
+  // v2 matches preview-v2: rename the existing class to
+  // ProfileDurableObjectLegacy, then create a SQLite class named
+  // ProfileDurableObject. The old v3 tag repeated that illegal create and
+  // is omitted. Do not add deleted_classes for ProfileDurableObjectLegacy
+  // here — preview deletes that class only in a later migration, after the
+  // legacy binding is already gone. v4 stays a new SQLite class for
+  // HeroCurationDurableObject. Do not append a tag that renames or deletes
+  // ProfileDurableObject: Worker `api` is already on migration tag v4, and
+  // that namespace is the live SQLite profile store.
   "migrations": [
     {
       "tag": "v1",
@@ -88,12 +101,12 @@
     },
     {
       "tag": "v2",
-      "new_sqlite_classes": [
-        "ProfileDurableObject"
-      ]
-    },
-    {
-      "tag": "v3",
+      "renamed_classes": [
+        {
+          "from": "ProfileDurableObject",
+          "to": "ProfileDurableObjectLegacy"
+        }
+      ],
       "new_sqlite_classes": [
         "ProfileDurableObject"
       ]

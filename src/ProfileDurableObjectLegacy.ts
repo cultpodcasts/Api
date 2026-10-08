@@ -2,10 +2,11 @@ import { DurableObject } from "cloudflare:workers";
 import { Env } from "./Env";
 
 /**
- * Temporary migration target for renaming the KV-backed ProfileDurableObject
- * aside (preview-v2 / production-v2) before creating a SQLite-backed class with
- * the original name. Safe to delete from the codebase after preview-v3 /
- * production-v3 have been applied to every named env that needed the cutover.
+ * Rename target for the existing ProfileDurableObject (preview-v2,
+ * production-v2, and top-level v2) before a SQLite class reuses the original
+ * name. Do not delete this class in the same migration that creates the
+ * SQLite class. A delete is only legal after a later deploy has removed the
+ * legacy binding. Top-level Worker `api` does not include that delete.
  */
 export class ProfileDurableObjectLegacy extends DurableObject {
 	constructor(ctx: DurableObjectState, env: Env) {
