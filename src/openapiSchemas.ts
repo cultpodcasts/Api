@@ -204,7 +204,7 @@ export const heroCurationUpdateRequestSchema = z.object({
 		"Ordered homepage rails. Each entry is a subject name or a relative day slot (day:0 is newest). Omit to leave the stored rails unchanged. Subject names are capped at 12. Day slots are kept."
 	),
 	expectedUpdatedAt: z.string().datetime({ offset: true }).optional().nullable().describe(
-		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 with offset). When set, a mismatch is 409 with an empty body. Omit to write without compare-and-swap."
+		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 with offset). A non-null value that does not equal updatedAt is 409 with an empty body. Omit this field or send null to write without compare-and-swap."
 	)
 });
 

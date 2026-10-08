@@ -177,6 +177,7 @@ describe("OpenAPI route contracts", () => {
 		expect(putHeroCurationOpenApiSchema.description).toMatch(/Command/);
 		expect(putHeroCurationOpenApiSchema.description).toMatch(/curate/);
 		expect(putHeroCurationOpenApiSchema.description).toMatch(/expectedUpdatedAt/);
+		expect(putHeroCurationOpenApiSchema.description).toMatch(/send null/);
 		expect(putHeroCurationOpenApiSchema.description).toMatch(/GET \/hero-curation/);
 		expect(putHeroCurationOpenApiSchema.responses?.[202]).toEqual({
 			description: "Hero curation updated (empty body)"
@@ -201,6 +202,7 @@ describe("OpenAPI route contracts", () => {
 		};
 		expect(putBody.content?.["application/json"]?.schema).toBe(heroCurationUpdateRequestSchema);
 		expect(heroCurationUpdateRequestSchema.shape.expectedUpdatedAt.description).toMatch(/409/);
+		expect(heroCurationUpdateRequestSchema.shape.expectedUpdatedAt.description).toMatch(/send null/);
 		expect(heroCurationAppendRequestSchema.shape.episodeIds.description).toMatch(/front/);
 		expect(heroCurationDeleteEpisodesRequestSchema.shape.episodeIds.description).toMatch(/ignored/);
 		expect(heroCurationResponseSchema.shape.updatedAt.description).toMatch(/compare-and-swap/);
