@@ -7,6 +7,7 @@ import { formatCurateAuthzClaims } from "./jwtAuthzLog";
 import { LogCollector } from "./LogCollector";
 import {
 	heroCurationAppendRequestSchema,
+	heroCurationDeleteEpisodesRequestSchema,
 	heroCurationUpdateRequestSchema
 } from "./openapiSchemas";
 import { heroCurationStub } from "./HeroCurationDurableObject";
@@ -159,7 +160,7 @@ export async function deleteHeroCurationEpisodes(c: Auth0ActionContext): Promise
 		return c.json({ error: "Bad request" }, 400);
 	}
 
-	const parsed = heroCurationAppendRequestSchema.safeParse(body);
+	const parsed = heroCurationDeleteEpisodesRequestSchema.safeParse(body);
 	if (!parsed.success || parsed.data.episodeIds.length === 0) {
 		logCollector.emitError({ event: "hero_curation.delete_invalid_body", outcome: "error" });
 		return c.json({ error: "Bad request" }, 400);

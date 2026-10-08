@@ -190,32 +190,47 @@ export const languageTitleCasingRulesResponseSchema = z.object({
 	isDefault: z.boolean()
 });
 
+const heroEpisodeIdList = z.array(z.string().uuid()).min(1);
+
 /**
- * PUT /hero-curation — ordered hero episode UUIDs and/or ordered homepage rails.
- * `railSubjects` is a mixed list of pinned subject names and relative day slots
- * (`day:0` = newest / n, `day:1` = n−1, …). Both members are optional so a caller
- * can update one without clobbering the other; the handler merges, dedupes, and
- * caps each list.
+ * PUT /hero-curation command. Omit a list to leave that list stored.
+ * At least one of episodeIds or railSubjects is required.
  */
 export const heroCurationUpdateRequestSchema = z.object({
-	episodeIds: z.array(z.string().uuid()).optional(),
-	railSubjects: z.array(z.string().min(1).max(200)).optional(),
-	expectedUpdatedAt: z.string().datetime({ offset: true }).optional().nullable()
+	episodeIds: z.array(z.string().uuid()).optional().describe(
+		"Ordered episode UUIDs. Omit to leave the stored hero list unchanged. Duplicates are removed. The list is capped at 50."
+	),
+	railSubjects: z.array(z.string().min(1).max(200)).optional().describe(
+		"Ordered homepage rails. Each entry is a subject name or a relative day slot (day:0 is newest). Omit to leave the stored rails unchanged. Subject names are capped at 12. Day slots are kept."
+	),
+	expectedUpdatedAt: z.string().datetime({ offset: true }).optional().nullable().describe(
+		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 with offset). When set, a mismatch is 409 with an empty body. Omit to write without compare-and-swap."
+	)
 });
 
-/** POST/DELETE /hero-curation/episodes — append or remove episode IDs (no CAS). */
+/** POST /hero-curation/episodes command. No compare-and-swap. */
 export const heroCurationAppendRequestSchema = z.object({
-	episodeIds: z.array(z.string().uuid()).min(1)
+	episodeIds: heroEpisodeIdList.describe(
+		"Episode UUIDs to add. An id already in the list stays in place. New ids are inserted at the front."
+	)
 });
 
-/** Alias — same body shape for DELETE demote. */
-export const heroCurationDeleteEpisodesRequestSchema = heroCurationAppendRequestSchema;
+/** DELETE /hero-curation/episodes command. Same JSON shape as append. No compare-and-swap. */
+export const heroCurationDeleteEpisodesRequestSchema = z.object({
+	episodeIds: heroEpisodeIdList.describe(
+		"Episode UUIDs to remove. An id that is not in the list is ignored."
+	)
+});
 
-/** GET /hero-curation — curated hero episode IDs and pinned homepage rails. */
+/** GET /hero-curation query. The read model for this resource. */
 export const heroCurationResponseSchema = z.object({
-	episodeIds: z.array(z.string().uuid()),
-	railSubjects: z.array(z.string()),
-	updatedAt: z.string().nullable()
+	episodeIds: z.array(z.string().uuid()).describe("Ordered hero episode UUIDs."),
+	railSubjects: z.array(z.string()).describe(
+		"Ordered homepage rails: subject names and relative day slots (day:0 is newest)."
+	),
+	updatedAt: z.string().nullable().describe(
+		"ISO-8601 compare-and-swap token for PUT /hero-curation. Null when the store has no timestamp."
+	)
 });
 
 /** GET /discovery-curation — mirrors Api.Dtos.DiscoveryResponse. */

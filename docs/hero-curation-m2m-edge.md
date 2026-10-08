@@ -75,11 +75,13 @@ Challenge HTML / `cf-mitigated: challenge` = still blocked at the edge.
 
 ## Command response
 
-`PUT /hero-curation`, `POST /hero-curation/episodes`, and `DELETE /hero-curation/episodes` change the Durable Object and return **202 with an empty body**. They do not return `episodeIds`, `railSubjects`, or `updatedAt`.
+`PUT /hero-curation`, `POST /hero-curation/episodes`, and `DELETE /hero-curation/episodes` change the Durable Object and return **202 with an empty body**.
 
 A compare-and-swap loss on PUT is **409 with an empty body**. The current lists and `updatedAt` are `GET /hero-curation`.
 
-Indexer auto-promote only checks that POST succeeded. 202 is success. It does not need a response document.
+OpenAPI tags these four routes **Hero curation**. Each command description states the permission, whether compare-and-swap applies, and that the stored document is the GET. Response lines use the same shape as the other empty acknowledgements on this API (`Schedule updated (empty body)`).
+
+Indexer auto-promote treats POST 202 as success.
 
 ## Related
 

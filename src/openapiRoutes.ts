@@ -59,10 +59,6 @@ import {
 	titleCasingRulesAddIgnoredSubjectRequestSchema,
 	titleCasingRulesKnownTermRequestSchema,
 	discoverySubmitRequestSchema,
-	heroCurationResponseSchema,
-	heroCurationUpdateRequestSchema,
-	heroCurationAppendRequestSchema,
-	heroCurationDeleteEpisodesRequestSchema,
 	discoverySubmitResponseSchema,
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
@@ -121,6 +117,12 @@ import {
 	deleteTitleCasingRulesIgnoredSubject
 } from "./titleCasingRules";
 import { appendHeroCurationEpisodes, deleteHeroCurationEpisodes, getHeroCuration, putHeroCuration } from "./heroCuration";
+import {
+	appendHeroCurationEpisodesOpenApiSchema,
+	deleteHeroCurationEpisodesOpenApiSchema,
+	getHeroCurationOpenApiSchema,
+	putHeroCurationOpenApiSchema
+} from "./heroCurationOpenApi";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
@@ -873,60 +875,22 @@ export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(dele
 });
 
 export const GetHeroCurationRoute = createOpenApiRoute(getHeroCuration, {
-    schema: {
-        tags: ["Public"],
-        summary: "Get curated hero episode IDs and pinned rail subjects",
-        responses: {
-            200: { description: "Hero episode IDs and rail subjects", ...contentJson(heroCurationResponseSchema) },
-            ...serverErrorResponse
-        }
-    }
+    schema: getHeroCurationOpenApiSchema
 });
 
 export const PutHeroCurationRoute = createOpenApiRoute(putHeroCuration, {
     auth: true,
-    schema: {
-        tags: ["Curation"],
-        summary: "Update curated hero episode IDs and/or pinned rail subjects",
-        request: { body: jsonBody(heroCurationUpdateRequestSchema) },
-        responses: {
-            202: { description: "Hero curation updated (empty body). Reload with GET /hero-curation." },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            409: { description: "Compare-and-swap lost (empty body). Reload with GET /hero-curation." },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
+    schema: putHeroCurationOpenApiSchema
 });
 
 export const AppendHeroCurationEpisodesRoute = createOpenApiRoute(appendHeroCurationEpisodes, {
     auth: true,
-    schema: {
-        tags: ["Curation"],
-        summary: "Append episode IDs to curated hero list (indexer auto-promote)",
-        request: { body: jsonBody(heroCurationAppendRequestSchema) },
-        responses: {
-            202: { description: "Hero episodes appended (empty body). Reload with GET /hero-curation." },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
+    schema: appendHeroCurationEpisodesOpenApiSchema
 });
 
 export const DeleteHeroCurationEpisodesRoute = createOpenApiRoute(deleteHeroCurationEpisodes, {
     auth: true,
-    schema: {
-        tags: ["Curation"],
-        summary: "Remove episode IDs from curated hero list (demote / unstar)",
-        request: { body: jsonBody(heroCurationDeleteEpisodesRequestSchema) },
-        responses: {
-            202: { description: "Hero episodes removed (empty body). Reload with GET /hero-curation." },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
+    schema: deleteHeroCurationEpisodesOpenApiSchema
 });
 
 export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
