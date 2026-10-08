@@ -108,12 +108,28 @@ describe("openapi Zod schemas", () => {
 			enabled: true,
 			isDefault: false,
 			nextRuns: [{
-				slotId: "slot-1",
+				slotId: "2026-10-08 22:30 UK",
+				slotStartUtc: "2026-10-08T21:30:00+00:00",
+				slotStartUk: "2026-10-08T22:30:00+01:00"
+			}, {
+				slotId: "slot-z",
 				slotStartUtc: "2026-07-23T08:00:00Z",
-				slotStartUk: "2026-07-23T09:00:00+01:00"
+				slotStartUk: "2026-07-23T09:00:00.000Z"
 			}]
 		});
-		expect(parsed.nextRuns).toHaveLength(1);
+		expect(parsed.nextRuns).toHaveLength(2);
+		expect(parsed.nextRuns[0].slotId).toBe("2026-10-08 22:30 UK");
+		expect(() => discoveryScheduleResponseSchema.parse({
+			runTimes: ["09:00"],
+			timeZoneId: "Europe/London",
+			enabled: true,
+			isDefault: false,
+			nextRuns: [{
+				slotId: "2026-10-08 22:30 UK",
+				slotStartUtc: "string",
+				slotStartUk: "2026-10-08T22:30:00+01:00"
+			}]
+		})).toThrow();
 	});
 
 	it("accepts hero curation update request and response", () => {

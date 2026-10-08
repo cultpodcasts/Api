@@ -9,6 +9,7 @@ import {
 	AddBookmarkRoute,
 	CreatePersonRoute,
 	DeletePodcastEpisodeRoute,
+	GetDiscoveryScheduleRoute,
 	GetLanguagesRoute,
 	GetPeopleRoute,
 	HomepageRoute,
@@ -36,6 +37,7 @@ describe("OpenAPI auth and response contracts", () => {
 	);
 	api.get("/people", GetPeopleRoute);
 	api.get("/homepage", HomepageRoute);
+	api.get("/discovery-schedule", GetDiscoveryScheduleRoute);
 	api.get("/languages", GetLanguagesRoute);
 	api.get("/public/episode/:id", PublicGetEpisodeRoute);
 	api.put("/bookmark/:episodeId", AddBookmarkRoute);
@@ -68,6 +70,15 @@ describe("OpenAPI auth and response contracts", () => {
 		expect(people.responses?.["403"]?.description).toMatch(/without `curate`/);
 		expect(people.responses?.["404"]?.description).toMatch(/missing/);
 		expect(people.responses?.["404"]).not.toHaveProperty("content");
+	});
+
+	it("types discovery schedule instants as date-time and leaves the slot label a string", () => {
+		const schedule = operation(doc, "/discovery-schedule", "get");
+		const schema = JSON.stringify(schedule.responses?.["200"]?.content?.["application/json"]);
+		expect(schema).toMatch(/"slotStartUtc"[\s\S]*?"format":"date-time"/);
+		expect(schema).toMatch(/"slotStartUk"[\s\S]*?"format":"date-time"/);
+		expect(schema).not.toMatch(/"slotId"[\s\S]{0,80}"format":"date-time"/);
+		expect(schema).not.toMatch(/"runTimes"[\s\S]{0,120}"format":"date-time"/);
 	});
 
 	it("leaves the homepage public and JSON", () => {

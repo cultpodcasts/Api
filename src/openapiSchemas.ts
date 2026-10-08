@@ -14,6 +14,12 @@ export const errorSchema = z.object({
 	message: z.string().optional()
 });
 
+/**
+ * ISO-8601 instant. Accepts `Z` and a numeric offset (`+00:00`).
+ * OpenAPI format is `date-time`.
+ */
+const isoDateTime = z.string().datetime({ offset: true });
+
 /** Simple `{ message }` success/error bodies (bookmarks, etc.). */
 export const messageResponseSchema = z.object({
 	message: z.string()
@@ -140,9 +146,9 @@ export const discoveryScheduleResponseSchema = z.object({
 	enabled: z.boolean(),
 	isDefault: z.boolean(),
 	nextRuns: z.array(z.object({
-		slotId: z.string(),
-		slotStartUtc: z.string(),
-		slotStartUk: z.string()
+		slotId: z.string().describe("Display label such as `2026-10-08 22:30 UK`. Not an ISO-8601 timestamp."),
+		slotStartUtc: isoDateTime,
+		slotStartUk: isoDateTime
 	}))
 });
 
@@ -206,7 +212,7 @@ export const heroCurationUpdateRequestSchema = z.object({
 	railSubjects: z.array(z.string().min(1).max(200)).optional().describe(
 		"Ordered homepage rails. Each entry is a subject name or a relative day slot (day:0 is newest). Omit to leave the stored rails unchanged. Subject names are capped at 12. Day slots are kept."
 	),
-	expectedUpdatedAt: z.string().datetime({ offset: true }).optional().nullable().describe(
+	expectedUpdatedAt: isoDateTime.optional().nullable().describe(
 		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 with offset). A non-null value that does not equal updatedAt is 409 with an empty body. Omit this field or send null to write without compare-and-swap."
 	)
 });
@@ -231,7 +237,7 @@ export const heroCurationResponseSchema = z.object({
 	railSubjects: z.array(z.string()).describe(
 		"Ordered homepage rails: subject names and relative day slots (day:0 is newest)."
 	),
-	updatedAt: z.string().nullable().describe(
+	updatedAt: isoDateTime.nullable().describe(
 		"ISO-8601 compare-and-swap token for PUT /hero-curation. Null when the store has no timestamp."
 	)
 });
@@ -257,7 +263,7 @@ const discoveryCurationItemSchema = z.object({
 	showName: z.string().optional().nullable(),
 	episodeDescription: z.string().optional().nullable(),
 	showDescription: z.string().optional().nullable(),
-	released: z.string(),
+	released: isoDateTime,
 	duration: z.string().optional().nullable(),
 	urls: discoveryResultUrlsSchema,
 	subjects: z.array(z.string()),
@@ -394,7 +400,7 @@ export const episodeChangeRequestSchema = z.object({
 	ignored: z.boolean().optional().nullable(),
 	removed: z.boolean().optional().nullable(),
 	explicit: z.boolean().optional().nullable(),
-	release: z.string().optional().nullable(),
+	release: isoDateTime.optional().nullable(),
 	duration: z.string().optional().nullable(),
 	urls: serviceUrlsChangeSchema.optional().nullable(),
 	images: serviceImageUrlsChangeSchema.optional().nullable(),
@@ -526,7 +532,7 @@ export const episodeDtoSchema = z.object({
 	displayTitle: z.string().optional(),
 	description: z.string(),
 	displayDescription: z.string().optional(),
-	release: z.string(),
+	release: isoDateTime,
 	duration: z.string(),
 	explicit: z.boolean(),
 	posted: z.boolean(),
@@ -566,7 +572,7 @@ export const publicEpisodeDtoSchema = z.object({
 	podcastName: z.string(),
 	title: z.string(),
 	description: z.string(),
-	release: z.string(),
+	release: isoDateTime,
 	duration: z.string(),
 	explicit: z.boolean(),
 	subjects: z.array(z.string()),
@@ -751,7 +757,7 @@ export const subjectsNameListResponseSchema = z.array(z.object({
 export const discoveryInfoResponseSchema = z.object({
 	documentCount: z.number(),
 	numberOfResults: z.number().optional().nullable(),
-	discoveryBegan: z.string().optional().nullable()
+	discoveryBegan: isoDateTime.optional().nullable()
 });
 
 /** Worker IPageDetails / getPageDetails. */
@@ -790,7 +796,7 @@ export const episodeSearchHitSchema = z.object({
 	episodeTitle: z.string(),
 	podcastName: z.string(),
 	episodeDescription: z.string(),
-	release: z.string(),
+	release: isoDateTime,
 	duration: z.string(),
 	spotifyId: z.string().optional().nullable(),
 	appleId: z.string().optional().nullable(),
@@ -821,7 +827,7 @@ export const homepageEpisodeSchema = z.object({
 	episodeDescription: z.string(),
 	length: z.string().optional(),
 	duration: z.string(),
-	release: z.string(),
+	release: isoDateTime,
 	releaseDayDisplay: z.string().optional(),
 	ids: episodeIdsSchema.optional().nullable(),
 	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
@@ -852,7 +858,7 @@ export const searchSuggestionEntrySchema = z.object({
 
 /** R2 `search-suggestions` — flat typeahead match index. */
 export const searchSuggestionsResponseSchema = z.object({
-	generatedAtUtc: z.string(),
+	generatedAtUtc: isoDateTime,
 	entries: z.array(searchSuggestionEntrySchema)
 });
 
