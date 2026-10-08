@@ -13,6 +13,7 @@ import { HeroCurationDurableObject } from './HeroCurationDurableObject';
 import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
 import { openApiDocumentVersion, openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
+import { registerBearerAuthScheme } from './openapiRouteFactory';
 import {
 	AddBookmarkRoute,
 	CreatePersonRoute,
@@ -323,6 +324,11 @@ const openapi = fromHono(app, {
 		}
 	}
 });
+registerBearerAuthScheme(
+	(openapi as unknown as {
+		registry: Parameters<typeof registerBearerAuthScheme>[0];
+	}).registry
+);
 
 openapi.get('/homepage', HomepageRoute);
 openapi.get('/homepage-ssr', HomepageSsrRoute);

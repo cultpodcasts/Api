@@ -5,6 +5,9 @@ import {
 	ambiguousPodcastNameConflict,
 	authResponses,
 	createOpenApiRoute,
+	curateAuth,
+	optionalSubmitAuth,
+	submitOrCurateAuth,
 	nameParam,
 	notFoundResponse,
 	podcastNameAndIdParam,
@@ -26,7 +29,7 @@ import { submitLookup } from "./submitLookup";
 import { submitPrepare } from "./submitPrepare";
 
 export const SubmitRoute = createOpenApiRoute(submit, {
-	auth: true,
+	auth: optionalSubmitAuth,
 	schema: {
 		tags: ["Submission"],
 		summary: "Submit episode URL",
@@ -47,7 +50,7 @@ export const SubmitRoute = createOpenApiRoute(submit, {
 });
 
 export const SubmitPrepareRoute = createOpenApiRoute(submitPrepare, {
-	auth: true,
+	auth: submitOrCurateAuth,
 	schema: {
 		tags: ["Submission"],
 		summary: "Prepare streaming URL meta (HTML fetch + extract)",
@@ -79,7 +82,7 @@ export const SubmitPrepareRoute = createOpenApiRoute(submitPrepare, {
 });
 
 export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
-	auth: true,
+	auth: submitOrCurateAuth,
 	schema: {
 		tags: ["Submission"],
 		summary: "Look up series membership for an episode URL",
@@ -120,7 +123,7 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 });
 
 export const GetPodcastByNameRoute = createOpenApiRoute(getPodcastByName, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Podcasts"],
 		summary: "Get podcast by name",
@@ -136,7 +139,7 @@ export const GetPodcastByNameRoute = createOpenApiRoute(getPodcastByName, {
 });
 
 export const GetPodcastByNameAndEpisodeIdRoute = createOpenApiRoute(getPodcastByNameAndEpisodeId, {
-	auth: true,
+	auth: curateAuth,
 	schema: {
 		tags: ["Podcasts"],
 		summary: "Get podcast by name and episode id",
