@@ -3,7 +3,7 @@ import type { Env } from "../src/Env";
 import type { Auth0ActionContext } from "../src/Auth0ActionContext";
 import type { Auth0JwtPayload } from "../src/Auth0JwtPayload";
 
-export type TestHttpMethod = "get" | "post" | "put" | "delete";
+export type TestHttpMethod = "get" | "post" | "put" | "patch" | "delete";
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
 	return {

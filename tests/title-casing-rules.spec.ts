@@ -6,7 +6,7 @@ import {
 	deleteTitleCasingRulesLowerCaseTerm,
 	getTitleCasingRulesByLanguage,
 	postTitleCasingRulesIgnoredSubject,
-	postTitleCasingRulesKnownTerm,
+	putTitleCasingRulesKnownTerm,
 	postTitleCasingRulesLowerCaseTerm
 } from "../src/titleCasingRules";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
@@ -19,8 +19,10 @@ describe("title-casing-rules", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("does not export PUT handlers", () => {
-		expect(Object.keys(titleCasingHandlers).filter((k) => /^put/i.test(k))).toEqual([]);
+	it("exports a PUT handler for known terms", () => {
+		expect(Object.keys(titleCasingHandlers).filter((k) => /^put/i.test(k))).toEqual([
+			"putTitleCasingRulesKnownTerm"
+		]);
 	});
 
 	it("GET requires admin; curate is 403 and missing auth is 401", async () => {
@@ -69,10 +71,10 @@ describe("title-casing-rules", () => {
 			deleteTitleCasingRulesLowerCaseTerm,
 			["admin"]
 		);
-		const postKnown = appWithPermissions(
-			"/title-casing-rules/:language/known-terms",
-			"post",
-			postTitleCasingRulesKnownTerm,
+		const putKnown = appWithPermissions(
+			"/title-casing-rules/:language/known-terms/:literal",
+			"put",
+			putTitleCasingRulesKnownTerm,
 			["admin"]
 		);
 		const deleteKnown = appWithPermissions(
@@ -107,9 +109,9 @@ describe("title-casing-rules", () => {
 				{ method: "DELETE", headers: authJsonHeaders },
 				env
 			),
-			await postKnown.request(
-				"/title-casing-rules/en/known-terms",
-				{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ literal: "AI", display: "AI" }) },
+			await putKnown.request(
+				"/title-casing-rules/en/known-terms/AI",
+				{ method: "PUT", headers: authJsonHeaders, body: JSON.stringify({ pattern: "AI", options: null }) },
 				env
 			),
 			await deleteKnown.request(

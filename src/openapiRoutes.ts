@@ -26,7 +26,7 @@ import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
 import { deleteBookmark } from "./deleteBookmark";
-import { deleteEpisode, deletePodcastEpisode } from "./deleteEpisode";
+import { deletePodcastEpisode } from "./deleteEpisode";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
@@ -111,7 +111,7 @@ import {
 	getTitleCasingRulesByLanguage,
 	postTitleCasingRulesLowerCaseTerm,
 	deleteTitleCasingRulesLowerCaseTerm,
-	postTitleCasingRulesKnownTerm,
+	putTitleCasingRulesKnownTerm,
 	deleteTitleCasingRulesKnownTerm,
 	postTitleCasingRulesIgnoredSubject,
 	deleteTitleCasingRulesIgnoredSubject
@@ -128,7 +128,7 @@ import { renamePodcast } from "./renamePodcast";
 import { runSearchIndexer } from "./runSearchIndexer";
 import { search } from "./search";
 import { submitDiscovery } from "./submitDiscovery";
-import { updateEpisode, updatePodcastEpisode } from "./updateEpisode";
+import { updatePodcastEpisode } from "./updateEpisode";
 import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { transferPodcastKind } from "./transferPodcastKind";
@@ -324,7 +324,7 @@ export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
     auth: true,
     schema: {
         tags: ["People"],
-        summary: "Update person by id",
+        summary: "Patch person by id",
         request: { params: idParam, body: jsonBody(personChangeRequestSchema) },
         responses: {
             202: { description: "Person updated (empty body)" },
@@ -399,46 +399,14 @@ export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
     }
 });
 
-export const UpdateEpisodeRoute = createOpenApiRoute(updateEpisode, {
-    auth: true,
-    schema: {
-        tags: ["Episodes"],
-        summary: "Update episode by id",
-        request: { params: idParam, body: jsonBody(episodeChangeRequestSchema) },
-        responses: {
-            202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
 export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode, {
     auth: true,
     schema: {
         tags: ["Episodes"],
-        summary: "Update podcast episode by podcast id and episode id",
+        summary: "Patch podcast episode by podcast id and episode id",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: {
             202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
-export const DeleteEpisodeRoute = createOpenApiRoute(deleteEpisode, {
-    auth: true,
-    schema: {
-        tags: ["Episodes"],
-        summary: "Delete episode by id",
-        request: { params: idParam },
-        responses: {
-            200: { description: "Deleted (empty body)" },
-            400: { description: "Delete blocked when episode is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
-            409: { description: "Conflict" },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -508,26 +476,11 @@ export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, 
     }
 });
 
-export const UpdatePodcastPostRoute = createOpenApiRoute(updatePodcast, {
+export const UpdatePodcastRoute = createOpenApiRoute(updatePodcast, {
     auth: true,
     schema: {
         tags: ["Podcasts"],
-        summary: "Update podcast by id (POST)",
-        request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
-        responses: {
-            202: { description: "Accepted (empty or indexing failure fields)" },
-            ...notFoundResponse,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
-export const UpdatePodcastPutRoute = createOpenApiRoute(updatePodcast, {
-    auth: true,
-    schema: {
-        tags: ["Podcasts"],
-        summary: "Update podcast by id (PUT)",
+        summary: "Patch podcast by id",
         request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
         responses: {
             202: { description: "Accepted (empty or indexing failure fields)" },
@@ -573,7 +526,7 @@ export const UpdateSubjectRoute = createOpenApiRoute(updateSubject, {
     auth: true,
     schema: {
         tags: ["Subjects"],
-        summary: "Update subject by id",
+        summary: "Patch subject by id",
         request: { params: idParam, body: jsonBody(subjectChangeRequestSchema) },
         responses: {
             202: { description: "Accepted (empty body)" },
@@ -804,13 +757,13 @@ export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(delet
     }
 });
 
-export const PostTitleCasingRulesKnownTermRoute = createOpenApiRoute(postTitleCasingRulesKnownTerm, {
+export const PutTitleCasingRulesKnownTermRoute = createOpenApiRoute(putTitleCasingRulesKnownTerm, {
     auth: true,
     schema: {
         tags: ["Admin"],
-        summary: "Add or replace one known term for a language (keyed by literal)",
+        summary: "Add or replace one known term for a language (literal in the path)",
         request: {
-            params: z.object({ language: z.string().min(1) }),
+            params: z.object({ language: z.string().min(1), literal: z.string().min(1) }),
             body: jsonBody(titleCasingRulesKnownTermRequestSchema)
         },
         responses: {
@@ -941,12 +894,11 @@ export const AddBookmarkRoute = createOpenApiRoute(addBookmark, {
     auth: true,
     schema: {
         tags: ["Bookmarks"],
-        summary: "Add bookmark by episode id",
+        summary: "Save bookmark by episode id",
         request: { params: episodeIdParam },
         responses: {
-            200: { description: "Bookmark added", ...contentJson(messageResponseSchema) },
+            200: { description: "Bookmark saved", ...contentJson(messageResponseSchema) },
             400: { description: "Unable to create", ...contentJson(messageResponseSchema) },
-            409: { description: "Duplicate bookmark", ...contentJson(messageResponseSchema) },
             ...authResponses
         }
     }

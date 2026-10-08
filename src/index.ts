@@ -18,7 +18,6 @@ import {
 	CreatePersonRoute,
 	CreateSubjectRoute,
 	DeleteBookmarkRoute,
-	DeleteEpisodeRoute,
 	DeletePodcastEpisodeRoute,
 	GetBookmarksRoute,
 	GetDiscoveryInfoRoute,
@@ -49,7 +48,7 @@ import {
 	GetTitleCasingRulesByLanguageRoute,
 	PostTitleCasingRulesLowerCaseTermRoute,
 	DeleteTitleCasingRulesLowerCaseTermRoute,
-	PostTitleCasingRulesKnownTermRoute,
+	PutTitleCasingRulesKnownTermRoute,
 	DeleteTitleCasingRulesKnownTermRoute,
 	PostTitleCasingRulesIgnoredSubjectRoute,
 	DeleteTitleCasingRulesIgnoredSubjectRoute,
@@ -69,12 +68,10 @@ import {
 	SubmitPrepareRoute,
 	SubmitRoute,
 	StreamingScrapeSurveyRoute,
-	UpdateEpisodeRoute,
 	UpdatePersonRoute,
 	UpdatePodcastEpisodeRoute,
 	TransferPodcastKindRoute,
-	UpdatePodcastPostRoute,
-	UpdatePodcastPutRoute,
+	UpdatePodcastRoute,
 	UpdateSubjectRoute,
 	GetTvShowRoute,
 	UpdateTvShowRoute,
@@ -333,8 +330,8 @@ openapi.get('/search-suggestions', SearchSuggestionsRoute);
 openapi.get('/subjects', GetSubjectsRoute);
 openapi.get('/people', GetPeopleRoute);
 openapi.get('/person/:name', GetPersonByNameRoute);
-openapi.post('/person/:id', UpdatePersonRoute);
-openapi.put('/person', CreatePersonRoute);
+openapi.patch('/person/:id', UpdatePersonRoute);
+openapi.post('/person', CreatePersonRoute);
 openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
 openapi.get('/submit/lookup', SubmitLookupRoute);
@@ -345,13 +342,11 @@ openapi.post('/episode/publish/:podcastId/:episodeId', PublishPodcastEpisodeRout
 // \New Episode Publish Endpoint
 // New Episode Endpoints
 openapi.get('/episode/:podcastName/:episodeId', GetPodcastEpisodeRoute);
-openapi.post('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
+openapi.patch('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
 openapi.delete('/episode/:podcastId/:episodeId', DeletePodcastEpisodeRoute);
 // \New Episode Endpoints
 // Old Episode Endpoints
 openapi.get('/episode/:id', GetEpisodeRoute);
-openapi.post('/episode/:id', UpdateEpisodeRoute);
-openapi.delete('/episode/:id', DeleteEpisodeRoute);
 // \Old Episode Endpoints
 // Old Episode Publish Endpoint
 //openapi.post('/episode/publish/:id', PublishEpisodeRoute);
@@ -361,18 +356,17 @@ openapi.get('/episodes/outgoing', GetOutgoingRoute);
 openapi.get('/podcast/:name', GetPodcastByNameRoute);
 openapi.get('/podcast/:name/:id', GetPodcastByNameAndEpisodeIdRoute);
 openapi.post('/podcast/:id/kind', TransferPodcastKindRoute);
-openapi.post('/podcast/:id', UpdatePodcastPostRoute);
-openapi.put('/podcast/:id', UpdatePodcastPutRoute);
+openapi.patch('/podcast/:id', UpdatePodcastRoute);
 openapi.get('/tvshow/:identifier', GetTvShowRoute);
-openapi.post('/tvshow/:id', UpdateTvShowRoute);
+openapi.patch('/tvshow/:id', UpdateTvShowRoute);
 openapi.get('/tvshowepisode/:id', GetTvShowEpisodeRoute);
-openapi.post('/tvshowepisode/:id', UpdateTvShowEpisodeRoute);
+openapi.patch('/tvshowepisode/:id', UpdateTvShowEpisodeRoute);
 openapi.get('/film/:identifier', GetFilmRoute);
-openapi.post('/film/:id', UpdateFilmRoute);
+openapi.patch('/film/:id', UpdateFilmRoute);
 openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);
 openapi.get('/subject/:name', GetSubjectByNameRoute);
-openapi.post('/subject/:id', UpdateSubjectRoute);
-openapi.put('/subject', CreateSubjectRoute);
+openapi.patch('/subject/:id', UpdateSubjectRoute);
+openapi.post('/subject', CreateSubjectRoute);
 openapi.get('/discovery-curation', GetDiscoveryReportsRoute);
 openapi.post('/discovery-curation', SubmitDiscoveryRoute);
 openapi.get('/discovery-info', GetDiscoveryInfoRoute);
@@ -387,7 +381,7 @@ openapi.delete('/supported-languages/:code', DeleteSupportedLanguagesRoute);
 openapi.get('/title-casing-rules/:language', GetTitleCasingRulesByLanguageRoute);
 openapi.post('/title-casing-rules/:language/lower-case-terms', PostTitleCasingRulesLowerCaseTermRoute);
 openapi.delete('/title-casing-rules/:language/lower-case-terms/:term', DeleteTitleCasingRulesLowerCaseTermRoute);
-openapi.post('/title-casing-rules/:language/known-terms', PostTitleCasingRulesKnownTermRoute);
+openapi.put('/title-casing-rules/:language/known-terms/:literal', PutTitleCasingRulesKnownTermRoute);
 openapi.delete('/title-casing-rules/:language/known-terms/:literal', DeleteTitleCasingRulesKnownTermRoute);
 openapi.post('/title-casing-rules/:language/ignored-subjects', PostTitleCasingRulesIgnoredSubjectRoute);
 openapi.delete('/title-casing-rules/:language/ignored-subjects/:term', DeleteTitleCasingRulesIgnoredSubjectRoute);
@@ -399,7 +393,7 @@ openapi.post('/podcast/name/:name', RenamePodcastRoute);
 openapi.post('/pushsubscription', PushSubscriptionRoute);
 openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);
 openapi.get('/og-image', GetOgShareImageRoute);
-openapi.post('/bookmark/:episodeId', AddBookmarkRoute);
+openapi.put('/bookmark/:episodeId', AddBookmarkRoute);
 openapi.delete('/bookmark/:episodeId', DeleteBookmarkRoute);
 openapi.get('/bookmarks', GetBookmarksRoute);
 openapi.get('/public/episode/:id', PublicGetEpisodeRoute);

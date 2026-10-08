@@ -21,7 +21,7 @@ function catalogueEnv() {
 	return testEnv();
 }
 
-type TestHttpMethod = "get" | "post";
+type TestHttpMethod = "get" | "post" | "patch";
 
 function appFor(
 	path: string,
@@ -63,9 +63,9 @@ describe("catalogue Azure proxies", () => {
 	);
 
 	it.each([
-		["POST", "/tvshow/:id", `/tvshow/${id}`, "post", updateTvShow],
-		["POST", "/film/:id", `/film/${id}`, "post", updateFilm],
-		["POST", "/tvshowepisode/:id", `/tvshowepisode/${id}`, "post", updateTvShowEpisode]
+		["PATCH", "/tvshow/:id", `/tvshow/${id}`, "patch", updateTvShow],
+		["PATCH", "/film/:id", `/film/${id}`, "patch", updateFilm],
+		["PATCH", "/tvshowepisode/:id", `/tvshowepisode/${id}`, "patch", updateTvShowEpisode]
 	] as const)(
 		"%s %s returns 403 without curate and does not call Azure",
 		async (_methodLabel, route, requestPath, method, handler) => {
@@ -75,7 +75,7 @@ describe("catalogue Azure proxies", () => {
 			const resp = await app.request(
 				requestPath,
 				{
-					method: "POST",
+					method: "PATCH",
 					headers: authJsonHeaders,
 					body: JSON.stringify({ imdb: "https://www.imdb.com/title/tt0111161/" })
 				},
@@ -134,20 +134,21 @@ describe("catalogue Azure proxies", () => {
 		["/tvshow/:id", `/tvshow/${id}`, updateTvShow, "/tvshow/"],
 		["/film/:id", `/film/${id}`, updateFilm, "/film/"],
 		["/tvshowepisode/:id", `/tvshowepisode/${id}`, updateTvShowEpisode, "/tvshowepisode/"]
-	] as const)("POST %s returns 202 empty, forwards 400/404, hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
+	] as const)("PATCH %s returns 202 empty, forwards 400/404, hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
 		const fetch202 = vi.fn(async () => new Response(null, { status: 202 }));
 		vi.stubGlobal("fetch", fetch202);
-		const app = appFor(route, "post", handler, ["curate"]);
+		const app = appFor(route, "patch", handler, ["curate"]);
 		const patchBody = JSON.stringify({ imdb: "https://www.imdb.com/title/tt0111161/" });
 		const accepted = await app.request(
 			requestPath,
-			{ method: "POST", headers: authJsonHeaders, body: patchBody },
+			{ method: "PATCH", headers: authJsonHeaders, body: patchBody },
 			catalogueEnv()
 		);
 		expect(accepted.status).toBe(202);
 		expect(await accepted.text()).toBe("");
-		const [url] = fetch202.mock.calls[0] as [URL | string];
+		const [url, init] = fetch202.mock.calls[0] as [URL | string, { method?: string }];
 		expect(String(url).endsWith(`${azurePrefix}${encodeURIComponent(id)}`)).toBe(true);
+		expect(init.method).toBe("PATCH");
 
 		for (const status of [400, 404] as const) {
 			vi.unstubAllGlobals();
@@ -157,7 +158,7 @@ describe("catalogue Azure proxies", () => {
 			);
 			const forwarded = await app.request(
 				requestPath,
-				{ method: "POST", headers: authJsonHeaders, body: patchBody },
+				{ method: "PATCH", headers: authJsonHeaders, body: patchBody },
 				catalogueEnv()
 			);
 			expect(forwarded.status).toBe(status);

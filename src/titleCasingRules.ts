@@ -3,7 +3,7 @@ import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Endpoint } from "./Endpoint";
 import { proxyToAzure } from "./proxyToAzure";
 
-const adminMethods = ["GET", "POST", "DELETE", "OPTIONS"] as const;
+const adminMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"] as const;
 
 export async function getTitleCasingRulesByLanguage(c: Auth0ActionContext): Promise<Response> {
 	const language = c.req.param("language");
@@ -58,8 +58,9 @@ export async function deleteTitleCasingRulesLowerCaseTerm(c: Auth0ActionContext)
 	});
 }
 
-export async function postTitleCasingRulesKnownTerm(c: Auth0ActionContext): Promise<Response> {
+export async function putTitleCasingRulesKnownTerm(c: Auth0ActionContext): Promise<Response> {
 	const language = c.req.param("language");
+	const literal = c.req.param("literal");
 	AddResponseHeaders(c, { methods: [...adminMethods], omitCacheControlHeader: true });
 	c.header("Cache-Control", "no-store");
 	const data: unknown = await c.req.json();
@@ -67,13 +68,13 @@ export async function postTitleCasingRulesKnownTerm(c: Auth0ActionContext): Prom
 	return proxyToAzure(c, {
 		permission: "admin",
 		endpoint: Endpoint.titleCasingRules,
-		method: "POST",
-		pathSuffix: `/${encodeURIComponent(language)}/known-terms`,
+		method: "PUT",
+		pathSuffix: `/${encodeURIComponent(language)}/known-terms/${encodeURIComponent(literal)}`,
 		body,
 		successStatuses: [200, 202],
 		emptyAcknowledgement: true,
 		passthroughOtherStatuses: true,
-		logName: "title-casing-rules-post-known-term"
+		logName: "title-casing-rules-put-known-term"
 	});
 }
 

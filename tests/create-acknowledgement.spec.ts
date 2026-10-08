@@ -12,14 +12,14 @@ describe("create subject and person acknowledgements", () => {
 	it.each([
 		["/subject", createSubject],
 		["/person", createPerson]
-	] as const)("PUT %s forwards an empty 202", async (path, handler) => {
+	] as const)("POST %s forwards an empty 202", async (path, handler) => {
 		const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
 		vi.stubGlobal("fetch", fetchMock);
-		const app = appWithPermissions(path, "put", handler, ["curate"]);
+		const app = appWithPermissions(path, "post", handler, ["curate"]);
 		const resp = await app.request(
 			path,
 			{
-				method: "PUT",
+				method: "POST",
 				headers: authJsonHeaders,
 				body: JSON.stringify({ name: "Alpha Beta" })
 			},
@@ -29,21 +29,23 @@ describe("create subject and person acknowledgements", () => {
 		expect(resp.status).toBe(202);
 		expect(await resp.text()).toBe("");
 		expect(fetchMock).toHaveBeenCalledOnce();
+		const init = fetchMock.mock.calls[0][1] as { method?: string };
+		expect(init.method).toBe("POST");
 	});
 
 	it.each([400, 409] as const)(
-		"PUT /subject forwards Azure %s and the JSON body",
+		"POST /subject forwards Azure %s and the JSON body",
 		async (status) => {
 			const payload = { error: "Name is required" };
 			vi.stubGlobal(
 				"fetch",
 				vi.fn(async () => new Response(JSON.stringify(payload), { status }))
 			);
-			const app = appWithPermissions("/subject", "put", createSubject, ["curate"]);
+			const app = appWithPermissions("/subject", "post", createSubject, ["curate"]);
 			const resp = await app.request(
 				"/subject",
 				{
-					method: "PUT",
+					method: "POST",
 					headers: authJsonHeaders,
 					body: JSON.stringify({ name: "Alpha Beta" })
 				},

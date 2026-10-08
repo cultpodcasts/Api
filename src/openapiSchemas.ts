@@ -176,7 +176,10 @@ export const titleCasingRulesAddLowerCaseTermRequestSchema = z.object({
 	term: z.string().min(1)
 });
 
-export const titleCasingRulesKnownTermRequestSchema = knownTermSchema;
+export const titleCasingRulesKnownTermRequestSchema = z.object({
+	pattern: z.string(),
+	options: z.string().optional().nullable()
+});
 
 export const titleCasingRulesAddIgnoredSubjectRequestSchema = z.object({
 	term: z.string().min(1)
