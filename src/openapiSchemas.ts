@@ -257,6 +257,13 @@ const discoveryMatchingPodcastSchema = z.object({
 	visibleEpisodes: z.number()
 });
 
+/** Api.Dtos.SubjectMatchDto — why a subject matched; `source` serialises as the enum name. */
+const episodeSubjectMatchSchema = z.object({
+	subject: z.string(),
+	term: z.string(),
+	source: z.enum(["Title", "Description", "PodcastDefault"])
+}).describe("Why a subject matched: the subject, the term (subject name or alias) that matched, and where it matched.");
+
 const discoveryCurationItemSchema = z.object({
 	id: z.string().uuid(),
 	episodeName: z.string().optional().nullable(),
@@ -267,6 +274,9 @@ const discoveryCurationItemSchema = z.object({
 	duration: z.string().optional().nullable(),
 	urls: discoveryResultUrlsSchema,
 	subjects: z.array(z.string()),
+	subjectMatches: z.array(episodeSubjectMatchSchema).optional().nullable().describe(
+		"Why each subject matched. null = historic result recorded before match reasons existed; [] = no subject matches."
+	),
 	youTubeViews: z.number().optional().nullable(),
 	youTubeChannelMembers: z.number().optional().nullable(),
 	imageUrl: z.string().url().optional().nullable(),
@@ -517,11 +527,6 @@ const episodeGuestSuggestionSchema = z.object({
 	matchResults: z.array(episodeGuestMatchResultSchema)
 });
 
-const episodeSubjectMatchSchema = z.object({
-	subject: z.string().optional(),
-	term: z.string().optional(),
-	source: z.string().optional()
-});
 
 /** Api.Dtos.EpisodeDto — TimeSpan `duration` serialises as string (e.g. "01:30:00"). */
 export const episodeDtoSchema = z.object({
