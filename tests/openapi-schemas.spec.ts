@@ -89,6 +89,7 @@ describe("openapi Zod schemas", () => {
 				duration: "01:30:00",
 				urls: { spotify: "https://open.spotify.com/episode/abc" },
 				subjects: ["comedy"],
+				subjectMatches: [{ subject: "comedy", term: "standup", source: "Description" }],
 				discoverService: ["Spotify", "YouTube"],
 				enrichedTimeFromApple: false,
 				enrichedUrlFromSpotify: true,
@@ -99,6 +100,28 @@ describe("openapi Zod schemas", () => {
 		});
 		expect(parsed.results).toHaveLength(1);
 		expect(parsed.hiddenCount).toBe(2);
+		expect(parsed.results[0].subjectMatches?.[0].term).toBe("standup");
+	});
+
+	it("accepts discovery subjectMatches null (historic) and [] (no matches), rejects unknown source", () => {
+		const base = {
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			released: "2026-07-01T12:00:00Z",
+			urls: {},
+			subjects: [],
+			discoverService: ["Spotify"],
+			enrichedTimeFromApple: false,
+			enrichedUrlFromSpotify: false,
+			autoHidden: false
+		};
+		const parse = (subjectMatches: unknown) =>
+			discoveryCurationResponseSchema.parse({ ids: [], hiddenCount: 0, results: [{ ...base, subjectMatches }] });
+		expect(parse(null).results[0].subjectMatches).toBeNull();
+		expect(parse([]).results[0].subjectMatches).toEqual([]);
+		for (const source of ["Title", "Description", "PodcastDefault"]) {
+			expect(parse([{ subject: "cult", term: "cult", source }]).results[0].subjectMatches?.[0].source).toBe(source);
+		}
+		expect(() => parse([{ subject: "cult", term: "cult", source: "title" }])).toThrow();
 	});
 
 	it("accepts discovery schedule response", () => {
@@ -214,7 +237,7 @@ describe("openapi Zod schemas", () => {
 			urls: { spotify: "https://open.spotify.com/episode/x" },
 			subjects: ["cult"],
 			hashTag: "#ScenarioTag",
-			matches: [{ subject: "cult", term: "cult", source: "title" }],
+			matches: [{ subject: "cult", term: "cult", source: "Title" }],
 			guestSuggestions: [{
 				person: { id: "550e8400-e29b-41d4-a716-446655440001", name: "Guest" },
 				matchResults: [{ term: "Guest", matches: 2 }]
