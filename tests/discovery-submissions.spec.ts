@@ -228,4 +228,42 @@ describe("discovery-submissions proxy", () => {
 		expect(resp.status).toBe(403);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
+
+	describe("permission matrix", () => {
+		type Handler = (c: Parameters<typeof getDiscoverySubmissions>[0]) => Promise<Response>;
+		const routes: { name: string; method: "get" | "put" | "post"; route: string; url: string; handler: Handler; allowed: string[]; success?: number }[] = [
+			{ name: "list", method: "get", route: "/discovery-submissions", url: "/discovery-submissions", handler: getDiscoverySubmissions, allowed: ["curate:supervised", "supervise", "admin"] },
+			{ name: "get", method: "get", route: "/discovery-submissions/:id", url: `/discovery-submissions/${id}`, handler: getDiscoverySubmission, allowed: ["curate:supervised", "supervise", "admin"] },
+			{ name: "review", method: "put", route: "/discovery-submissions/:id/review", url: `/discovery-submissions/${id}/review`, handler: putDiscoverySubmissionReview, allowed: ["supervise", "admin"], success: 202 },
+			{ name: "apply", method: "post", route: "/discovery-submissions/:id/apply", url: `/discovery-submissions/${id}/apply`, handler: postDiscoverySubmissionApply, allowed: ["supervise", "admin"] },
+			{ name: "retry", method: "post", route: "/discovery-submissions/:id/retry", url: `/discovery-submissions/${id}/retry`, handler: postDiscoverySubmissionRetry, allowed: ["supervise", "admin"] },
+			{ name: "release", method: "post", route: "/discovery-submissions/:id/release", url: `/discovery-submissions/${id}/release`, handler: postDiscoverySubmissionRelease, allowed: ["supervise", "admin"] },
+			{ name: "report release", method: "post", route: "/discovery-reports/:id/release", url: `/discovery-reports/${id}/release`, handler: postDiscoveryReportRelease, allowed: ["admin"] }
+		];
+		const permissions = ["curate", "curate:supervised", "supervise", "admin"];
+		const cases = routes.flatMap((r) => permissions.map((p) => [r.name, p, r.allowed.includes(p), r] as const));
+
+		it.each(cases)("%s with %s → allowed=%s", async (_name, permission, allowed, r) => {
+			const fetchMock = stubAzure(r.success ?? 200, { ok: true });
+			const app = appWithPermissions(r.route, r.method, r.handler, [permission]);
+
+			const resp = await app.request(
+				r.url,
+				{
+					method: r.method.toUpperCase(),
+					headers: authJsonHeaders,
+					...(r.method === "get" ? {} : { body: JSON.stringify({ etag: "e" }) })
+				},
+				testEnv()
+			);
+
+			if (allowed) {
+				expect(resp.status).toBe(r.success ?? 200);
+				expect(fetchMock).toHaveBeenCalledTimes(1);
+			} else {
+				expect(resp.status).toBe(403);
+				expect(fetchMock).not.toHaveBeenCalled();
+			}
+		});
+	});
 });

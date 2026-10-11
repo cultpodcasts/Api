@@ -78,6 +78,7 @@ import {
 	discoveryReportReleaseResponseSchema,
 	discoverySubmissionHeldResponseSchema,
 	discoverySubmitConflictSchema,
+	discoverySubmitBadRequestSchema,
 	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
@@ -612,13 +613,13 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
     schema: {
         tags: ["Discovery"],
         summary: "Submit discovery curation",
-        description: "Requires `curate`. A caller whose token also has `curate:supervised` has the submit held for a supervisor: Azure returns 202 with `{submissionId, status: \"Pending\"}` and applies nothing. Supervised curators keep `curate` (the Worker gates on it). Supervisor review/apply routes are not yet proxied.",
+        description: "Requires `curate`. A caller whose token also has `curate:supervised` has the submit held for a supervisor: Azure returns 202 with `{submissionId, status: \"Pending\"}` and applies nothing. Supervised curators keep `curate` (the Worker gates on it). Held submissions are reviewed and applied via `/discovery-submissions`.",
         request: { body: jsonBody(discoverySubmitRequestSchema) },
         responses: {
             200: { description: "Discovery curation applied", ...contentJson(discoverySubmitResponseSchema) },
             202: { description: "Held for supervisor review (curate:supervised caller)", ...contentJson(discoverySubmissionHeldResponseSchema) },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            409: { description: "A requested report is awaiting supervisor review or otherwise not curatable. Supervised hold path lists `documentIds`.", ...contentJson(discoverySubmitConflictSchema) },
+            400: { description: "Bad request. Supervised hold path lists `resultIds` not in the named reports.", ...contentJson(z.union([discoverySubmitBadRequestSchema, errorSchema])) },
+            409: { description: "A requested report is awaiting supervisor review or otherwise not curatable; `documentIds` lists them (normal and supervised paths).", ...contentJson(discoverySubmitConflictSchema) },
             422: { description: "Unprocessable", ...contentJson(errorSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
@@ -628,10 +629,12 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
 });
 
 const submissionIdParam = z.object({ id: z.string().uuid() });
+/** Submission command routes: Azure returns the command outcome (with `ids`/`message`/`etag`) on 400/404/409; Worker errors use errorSchema. */
+const discoverySubmissionCommandOrError = z.union([discoverySubmissionCommandResponseSchema, errorSchema]);
 const discoverySubmissionErrors = {
-    400: { description: "Bad request (e.g. result ids outside the held reports, comment over 4000 chars, missing subject)", ...contentJson(errorSchema) },
-    ...notFoundResponse,
-    409: { description: "Stale etag, submission already applied (review), or a report no longer PendingSupervisor / concurrent apply (apply). Nothing ingested.", ...contentJson(errorSchema) }
+    400: { description: "Invalid command (e.g. result ids outside the held reports or not Failed, listed in `ids`; comment over 4000 chars; missing subject)", ...contentJson(discoverySubmissionCommandOrError) },
+    404: { description: "Unknown submission", ...contentJson(discoverySubmissionCommandOrError) },
+    409: { description: "Stale etag, wrong submission state, or a report no longer PendingSupervisor / concurrent apply. Nothing ingested.", ...contentJson(discoverySubmissionCommandOrError) }
 };
 
 export const GetDiscoverySubmissionsRoute = createOpenApiRoute(getDiscoverySubmissions, {

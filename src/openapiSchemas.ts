@@ -667,11 +667,19 @@ export const discoverySubmissionHeldResponseSchema = z.object({
 	status: z.literal("Pending")
 }).describe("Submission held for supervisor review; nothing was applied.");
 
-/** 409 body from POST /discovery-curation. Supervised hold path includes `documentIds`. */
+/** 409 body from POST /discovery-curation (camelCase DTO per RPP #1023). */
 export const discoverySubmitConflictSchema = z.object({
 	message: z.string(),
 	documentIds: z.array(z.string().uuid()).optional().describe(
-		"Supervised hold only: report ids not available for curation (e.g. already PendingSupervisor or processed)."
+		"Report ids not available for curation (e.g. PendingSupervisor or already processed). Sent on both the normal and supervised submit paths."
+	)
+});
+
+/** 400 body from POST /discovery-curation (camelCase DTO per RPP #1023). */
+export const discoverySubmitBadRequestSchema = z.object({
+	message: z.string(),
+	resultIds: z.array(z.string().uuid()).optional().describe(
+		"Supervised hold path: result ids that are not in the named reports."
 	)
 });
 
