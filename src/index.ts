@@ -65,6 +65,10 @@ import {
 	RunSearchIndexerRoute,
 	SearchRoute,
 	SubmitDiscoveryRoute,
+	GetDiscoverySubmissionsRoute,
+	GetDiscoverySubmissionRoute,
+	PutDiscoverySubmissionReviewRoute,
+	PostDiscoverySubmissionApplyRoute,
 	SubmitLookupRoute,
 	SubmitPrepareRoute,
 	SubmitRoute,
@@ -375,6 +379,10 @@ openapi.patch('/subject/:id', UpdateSubjectRoute);
 openapi.post('/subject', CreateSubjectRoute);
 openapi.get('/discovery-curation', GetDiscoveryReportsRoute);
 openapi.post('/discovery-curation', SubmitDiscoveryRoute);
+openapi.get('/discovery-submissions', GetDiscoverySubmissionsRoute);
+openapi.get('/discovery-submissions/:id', GetDiscoverySubmissionRoute);
+openapi.put('/discovery-submissions/:id/review', PutDiscoverySubmissionReviewRoute);
+openapi.post('/discovery-submissions/:id/apply', PostDiscoverySubmissionApplyRoute);
 openapi.get('/discovery-info', GetDiscoveryInfoRoute);
 openapi.post('/searchindex/run', RunSearchIndexerRoute);
 openapi.post('/publish/homepage', PublishHomepageRoute);

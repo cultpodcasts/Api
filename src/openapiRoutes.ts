@@ -10,6 +10,8 @@ import {
 	curateAuth,
 	curateOrAdminAuth,
 	curatePermissionsClaimAuth,
+	discoverySubmissionViewAuth,
+	discoverySuperviseAuth,
 	signedInAuth,
 	submitOrCurateAuth,
 	episodeIdParam,
@@ -37,6 +39,12 @@ import { deletePodcastEpisode } from "./deleteEpisode";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
+import {
+	getDiscoverySubmission,
+	getDiscoverySubmissions,
+	postDiscoverySubmissionApply,
+	putDiscoverySubmissionReview
+} from "./discoverySubmissions";
 import { getEpisode, getPodcastEpisode } from "./getEpisode";
 import { getFlairs } from "./getFlairs";
 import { getLanguages } from "./getLanguages";
@@ -55,6 +63,11 @@ import { indexPodcastByName } from "./indexPodcastByName";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
+	discoverySubmissionApplyRequestSchema,
+	discoverySubmissionCommandResponseSchema,
+	discoverySubmissionDetailResponseSchema,
+	discoverySubmissionListResponseSchema,
+	discoverySubmissionReviewRequestSchema,
 	discoverySubmissionHeldResponseSchema,
 	discoverySubmitConflictSchema,
 	discoveryInfoResponseSchema,
@@ -601,6 +614,76 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
             422: { description: "Unprocessable", ...contentJson(errorSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+const submissionIdParam = z.object({ id: z.string().uuid() });
+const discoverySubmissionErrors = {
+    400: { description: "Bad request (e.g. result ids outside the held reports, comment over 4000 chars, missing subject)", ...contentJson(errorSchema) },
+    ...notFoundResponse,
+    409: { description: "Stale etag, submission already applied (review), or a report no longer PendingSupervisor / concurrent apply (apply). Nothing ingested.", ...contentJson(errorSchema) }
+};
+
+export const GetDiscoverySubmissionsRoute = createOpenApiRoute(getDiscoverySubmissions, {
+    auth: discoverySubmissionViewAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "List supervised discovery submissions",
+        description: "`supervise`/`admin`: reviewable queue. `curate:supervised`: the caller's own submissions. Azure returns 403 for a permitted caller not allowed this view.",
+        responses: {
+            200: { description: "Submissions", ...contentJson(discoverySubmissionListResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetDiscoverySubmissionRoute = createOpenApiRoute(getDiscoverySubmission, {
+    auth: discoverySubmissionViewAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Get a supervised discovery submission",
+        description: "Submitter or an allowed supervisor/admin; otherwise 403. Returns the `etag` to send on review/apply.",
+        request: { params: submissionIdParam },
+        responses: {
+            200: { description: "Submission with held reports and history", ...contentJson(discoverySubmissionDetailResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PutDiscoverySubmissionReviewRoute = createOpenApiRoute(putDiscoverySubmissionReview, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Save a supervisor review (draft)",
+        description: "Command. Saves comments and the supervisor's accepted set; nothing is ingested. Only mapped supervisors (or admin) may review; nobody but an admin may review their own submission (403).",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReviewRequestSchema) },
+        responses: {
+            202: { description: "Review saved (command outcome, not the read model; GET to rebind)", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionApplyRoute = createOpenApiRoute(postDiscoverySubmissionApply, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Apply a supervised discovery submission",
+        description: "Command. Moves held reports PendingSupervisor → Processed (all-or-nothing) then ingests the final accepted set. Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`).",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionApplyRequestSchema) },
+        responses: {
+            200: { description: "Applied; `outcome` carries the ingest result", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            500: { description: "Ingest failed: `status: \"ApplyFailed\"` and `message`; reports returned to PendingSupervisor for retry with a fresh etag. Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
             ...authResponses
         }
     }

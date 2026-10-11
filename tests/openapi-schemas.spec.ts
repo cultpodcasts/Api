@@ -3,6 +3,11 @@ import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
 	discoverySubmissionHeldResponseSchema,
+	discoverySubmissionListResponseSchema,
+	discoverySubmissionDetailResponseSchema,
+	discoverySubmissionReviewRequestSchema,
+	discoverySubmissionApplyRequestSchema,
+	discoverySubmissionCommandResponseSchema,
 	discoverySubmitConflictSchema,
 	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
@@ -144,6 +149,47 @@ describe("openapi Zod schemas", () => {
 		expect(() => discoverySubmissionHeldResponseSchema.parse({ submissionId: "550e8400-e29b-41d4-a716-446655440000", status: "Applied" })).toThrow();
 		expect(discoverySubmitConflictSchema.parse({ message: "busy", documentIds: ["6ba7b810-9dad-11d1-80b4-00c04fd430c8"] }).documentIds).toHaveLength(1);
 		expect(discoverySubmitConflictSchema.parse({ message: "One or more reports are awaiting supervisor review." }).documentIds).toBeUndefined();
+	});
+
+	it("accepts supervised discovery submission DTOs (RPP #1023)", () => {
+		const id = "550e8400-e29b-41d4-a716-446655440000";
+		const list = discoverySubmissionListResponseSchema.parse({
+			view: "supervisor", pendingCount: 1,
+			submissions: [{
+				id, status: "Pending", submitterSubject: "auth0|a", submittedAt: "2026-10-11T09:00:00Z",
+				discoveryResultsDocumentIds: [id], submitterAcceptedCount: 3, supervisorSubject: null,
+				appliedAt: null, reportComment: null, itemCommentCount: 0, applyError: null
+			}]
+		});
+		expect(list.submissions[0].status).toBe("Pending");
+		expect(() => discoverySubmissionListResponseSchema.parse({ view: "other", pendingCount: 0, submissions: [] })).toThrow();
+
+		const detail = discoverySubmissionDetailResponseSchema.parse({
+			id, status: "Pending", etag: "\"abc\"", canReview: true, submitterSubject: "auth0|a",
+			submittedAt: "2026-10-11T09:00:00Z", submitterAcceptedResultIds: [id],
+			supervisorAcceptedResultIds: null, addedBySupervisorResultIds: null, removedBySupervisorResultIds: null,
+			reportComment: null, itemComments: [{ resultId: id, comment: "why?" }],
+			supervisorSubject: null, appliedAt: null, applyError: null, erroredResultIds: null,
+			reports: [{
+				id, discoveryBegan: "2026-10-10T09:00:00Z", state: "PendingSupervisor",
+				results: [{
+					id, released: "2026-07-01T12:00:00Z", urls: {}, subjects: [], discoverService: ["Spotify"],
+					enrichedTimeFromApple: false, enrichedUrlFromSpotify: false, autoHidden: true
+				}]
+			}],
+			history: [{ at: "2026-10-11T09:00:00Z", actorSubject: "auth0|a", action: "Submitted" }]
+		});
+		expect(detail.etag).toBe("\"abc\"");
+
+		expect(discoverySubmissionReviewRequestSchema.parse({ etag: "e", reportComment: "", itemComments: [], acceptedResultIds: [id] }).etag).toBe("e");
+		expect(() => discoverySubmissionReviewRequestSchema.parse({ reportComment: "x" })).toThrow();
+		expect(discoverySubmissionApplyRequestSchema.parse({ etag: "e" }).acceptedResultIds).toBeUndefined();
+
+		const applied = discoverySubmissionCommandResponseSchema.parse({
+			submissionId: id, status: "Applied", etag: "e2", addedBySupervisorResultIds: [], removedBySupervisorResultIds: [],
+			message: null, outcome: { message: "ok", errorsOccurred: false, results: [], searchIndexerState: "Executed" }
+		});
+		expect(applied.status).toBe("Applied");
 	});
 
 	it("accepts discovery schedule response", () => {

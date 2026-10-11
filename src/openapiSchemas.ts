@@ -687,6 +687,104 @@ export const discoverySubmitResponseSchema = z.object({
 	searchIndexerState: searchIndexerStateSchema
 });
 
+const nullableUuidArray = z.array(z.string().uuid()).nullable().optional();
+
+export const discoverySubmissionStatusSchema = z.enum(["Pending", "Applied", "ApplyFailed"]);
+
+/** Api.Dtos.DiscoverySubmissionSummaryDto */
+export const discoverySubmissionSummarySchema = z.object({
+	id: z.string().uuid(),
+	status: discoverySubmissionStatusSchema,
+	submitterSubject: z.string(),
+	submittedAt: isoDateTime,
+	discoveryResultsDocumentIds: z.array(z.string().uuid()),
+	submitterAcceptedCount: z.number().int(),
+	supervisorSubject: z.string().nullable().optional(),
+	appliedAt: isoDateTime.nullable().optional(),
+	reportComment: z.string().nullable().optional(),
+	itemCommentCount: z.number().int(),
+	applyError: z.string().nullable().optional()
+});
+
+/** Api.Dtos.DiscoverySubmissionListResponse — GET /discovery-submissions. */
+export const discoverySubmissionListResponseSchema = z.object({
+	view: z.enum(["supervisor", "submitter"]).describe(
+		"supervisor = reviewable queue (Pending + ApplyFailed the caller may review, oldest first); submitter = caller's own submissions (any status, newest first)."
+	),
+	pendingCount: z.number().int().describe("Badge count. Supervisor: queue length. Submitter: own Pending."),
+	submissions: z.array(discoverySubmissionSummarySchema)
+});
+
+/** Api.Dtos.DiscoverySubmissionItemCommentDto */
+export const discoverySubmissionItemCommentSchema = z.object({
+	resultId: z.string().uuid(),
+	comment: z.string()
+});
+
+/** Api.Dtos.DiscoverySubmissionReportDto */
+export const discoverySubmissionReportSchema = z.object({
+	id: z.string().uuid(),
+	discoveryBegan: isoDateTime,
+	state: z.enum(["Unprocessed", "PendingSupervisor", "Processed"]),
+	results: z.array(discoveryCurationItemSchema).describe("Every result in the report (same item shape as GET /discovery-curation), including auto-hidden.")
+});
+
+/** Api.Dtos.DiscoverySubmissionHistoryDto */
+export const discoverySubmissionHistorySchema = z.object({
+	at: isoDateTime,
+	actorSubject: z.string().nullable().optional(),
+	action: z.enum(["Submitted", "ReviewSaved", "ApplyStarted", "Applied", "ApplyFailed", "ApplyConflict"])
+});
+
+/** Api.Dtos.DiscoverySubmissionDetailResponse — GET /discovery-submissions/{id}. */
+export const discoverySubmissionDetailResponseSchema = z.object({
+	id: z.string().uuid(),
+	status: discoverySubmissionStatusSchema,
+	etag: z.string().describe("Opaque concurrency token; send back on review/apply."),
+	canReview: z.boolean().describe("True when the caller may save a review / apply this submission now."),
+	submitterSubject: z.string(),
+	submittedAt: isoDateTime,
+	submitterAcceptedResultIds: z.array(z.string().uuid()),
+	supervisorAcceptedResultIds: nullableUuidArray.describe("null until a supervisor saves a review or applies."),
+	addedBySupervisorResultIds: nullableUuidArray,
+	removedBySupervisorResultIds: nullableUuidArray,
+	reportComment: z.string().nullable().optional(),
+	itemComments: z.array(discoverySubmissionItemCommentSchema),
+	supervisorSubject: z.string().nullable().optional(),
+	appliedAt: isoDateTime.nullable().optional(),
+	applyError: z.string().nullable().optional(),
+	erroredResultIds: nullableUuidArray,
+	reports: z.array(discoverySubmissionReportSchema),
+	history: z.array(discoverySubmissionHistorySchema)
+});
+
+/** Api.Dtos.DiscoverySubmissionReviewRequestDto — PUT /discovery-submissions/{id}/review. Omitted (null) members are unchanged. */
+export const discoverySubmissionReviewRequestSchema = z.object({
+	etag: z.string().describe("Required, from GET."),
+	reportComment: z.string().nullable().optional().describe("Report-level comment. Empty string clears it."),
+	itemComments: z.array(discoverySubmissionItemCommentSchema).nullable().optional().describe("Replaces all item comments; [] clears. Max 4000 chars per comment."),
+	acceptedResultIds: z.array(z.string().uuid()).nullable().optional().describe("Supervisor's final accepted set: any result ids within the held reports.")
+});
+
+/** Api.Dtos.DiscoverySubmissionApplyRequestDto — POST /discovery-submissions/{id}/apply. */
+export const discoverySubmissionApplyRequestSchema = z.object({
+	etag: z.string(),
+	acceptedResultIds: z.array(z.string().uuid()).nullable().optional().describe(
+		"Optional final accepted set; when omitted the saved review set (else the submitter's set) applies."
+	)
+});
+
+/** Api.Dtos.DiscoverySubmissionCommandResponse — command outcome for review (202) / apply (200, 500 on ApplyFailed). Not the read model. */
+export const discoverySubmissionCommandResponseSchema = z.object({
+	submissionId: z.string().uuid(),
+	status: discoverySubmissionStatusSchema,
+	etag: z.string().nullable().optional().describe("New concurrency token."),
+	addedBySupervisorResultIds: nullableUuidArray,
+	removedBySupervisorResultIds: nullableUuidArray,
+	message: z.string().nullable().optional(),
+	outcome: discoverySubmitResponseSchema.nullable().optional().describe("Apply only: the POST /discovery-curation response body for the ingest.")
+});
+
 /** Api.Dtos.PublishHomepageResponse */
 export const publishHomepageResponseSchema = z.object({
 	homepagePublished: z.boolean(),
