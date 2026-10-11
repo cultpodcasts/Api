@@ -682,14 +682,15 @@ export const discoverySubmitResponseSchema = z.object({
 		discoveryItemId: z.string().uuid(),
 		podcastId: z.string().uuid().optional().nullable(),
 		episodeId: z.string().uuid().optional().nullable(),
-		message: z.string()
+		message: z.string(),
+		error: z.string().nullable().optional().describe("Why the item failed (exception type and message). null on success.")
 	})),
 	searchIndexerState: searchIndexerStateSchema
 });
 
 const nullableUuidArray = z.array(z.string().uuid()).nullable().optional();
 
-export const discoverySubmissionStatusSchema = z.enum(["Pending", "Applied", "ApplyFailed"]);
+export const discoverySubmissionStatusSchema = z.enum(["Pending", "Applied", "PartiallyApplied", "ApplyFailed", "Released"]);
 
 /** Api.Dtos.DiscoverySubmissionSummaryDto */
 export const discoverySubmissionSummarySchema = z.object({
@@ -703,7 +704,12 @@ export const discoverySubmissionSummarySchema = z.object({
 	appliedAt: isoDateTime.nullable().optional(),
 	reportComment: z.string().nullable().optional(),
 	itemCommentCount: z.number().int(),
-	applyError: z.string().nullable().optional()
+	applyError: z.string().nullable().optional(),
+	failedCount: z.number().int().nullable().optional().describe("Items that failed to ingest and await retry/abandon. null until an apply attempted ingestion."),
+	succeededCount: z.number().int().nullable().optional(),
+	abandonedCount: z.number().int().nullable().optional(),
+	releasedAt: isoDateTime.nullable().optional(),
+	releaseReason: z.string().nullable().optional()
 });
 
 /** Api.Dtos.DiscoverySubmissionListResponse — GET /discovery-submissions. */
@@ -729,11 +735,26 @@ export const discoverySubmissionReportSchema = z.object({
 	results: z.array(discoveryCurationItemSchema).describe("Every result in the report (same item shape as GET /discovery-curation), including auto-hidden.")
 });
 
+/** Api.Dtos.DiscoverySubmissionItemOutcomeDto */
+export const discoverySubmissionItemOutcomeSchema = z.object({
+	resultId: z.string().uuid(),
+	state: z.enum(["Succeeded", "Failed", "Abandoned"]),
+	episodeId: z.string().uuid().nullable().optional(),
+	podcastId: z.string().uuid().nullable().optional(),
+	message: z.string().nullable().optional().describe("Submit outcome from the ingester (e.g. Created, Enriched, Error)."),
+	error: z.string().nullable().optional().describe("Why it failed. null unless the last attempt failed."),
+	attempts: z.number().int(),
+	lastAttemptAt: isoDateTime.nullable().optional()
+});
+
 /** Api.Dtos.DiscoverySubmissionHistoryDto */
 export const discoverySubmissionHistorySchema = z.object({
 	at: isoDateTime,
 	actorSubject: z.string().nullable().optional(),
-	action: z.enum(["Submitted", "ReviewSaved", "ApplyStarted", "Applied", "ApplyFailed", "ApplyConflict"])
+	action: z.enum([
+		"Submitted", "ReviewSaved", "ApplyStarted", "Applied", "PartiallyApplied", "ApplyFailed", "ApplyConflict",
+		"RetryStarted", "ItemsAbandoned", "ReleaseStarted", "Released"
+	])
 });
 
 /** Api.Dtos.DiscoverySubmissionDetailResponse — GET /discovery-submissions/{id}. */
@@ -754,6 +775,9 @@ export const discoverySubmissionDetailResponseSchema = z.object({
 	appliedAt: isoDateTime.nullable().optional(),
 	applyError: z.string().nullable().optional(),
 	erroredResultIds: nullableUuidArray,
+	itemOutcomes: z.array(discoverySubmissionItemOutcomeSchema).nullable().optional().describe("Per-result apply/retry outcome with failure reasons. null until an apply attempted ingestion."),
+	releasedAt: isoDateTime.nullable().optional(),
+	releaseReason: z.string().nullable().optional(),
 	reports: z.array(discoverySubmissionReportSchema),
 	history: z.array(discoverySubmissionHistorySchema)
 });
@@ -782,7 +806,34 @@ export const discoverySubmissionCommandResponseSchema = z.object({
 	addedBySupervisorResultIds: nullableUuidArray,
 	removedBySupervisorResultIds: nullableUuidArray,
 	message: z.string().nullable().optional(),
-	outcome: discoverySubmitResponseSchema.nullable().optional().describe("Apply only: the POST /discovery-curation response body for the ingest.")
+	ids: z.array(z.string().uuid()).nullable().optional().describe("Ids the command could not act on (invalid result ids, unheld reports, …). null when none."),
+	outcome: discoverySubmitResponseSchema.nullable().optional().describe("Apply/retry: this run's per-result ingest outcome (same shape as the POST /discovery-curation response)."),
+	itemOutcomes: z.array(discoverySubmissionItemOutcomeSchema).nullable().optional().describe("Apply/retry: cumulative per-result outcomes with failure reasons. null otherwise.")
+});
+
+/** Api.Dtos.DiscoverySubmissionRetryRequestDto — POST /discovery-submissions/{id}/retry. */
+export const discoverySubmissionRetryRequestSchema = z.object({
+	etag: z.string(),
+	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying.")
+});
+
+/** Api.Dtos.DiscoverySubmissionReleaseRequestDto — POST /discovery-submissions/{id}/release. */
+export const discoverySubmissionReleaseRequestSchema = z.object({
+	etag: z.string(),
+	reason: z.string().nullable().optional()
+});
+
+/** Api.Dtos.DiscoveryReportReleaseRequestDto — POST /discovery-reports/{id}/release (admin). */
+export const discoveryReportReleaseRequestSchema = z.object({
+	reason: z.string().nullable().optional().describe("Logged.")
+});
+
+/** Api.Dtos.DiscoveryReportReleaseResponse — admin stuck-report release command outcome. */
+export const discoveryReportReleaseResponseSchema = z.object({
+	documentId: z.string().uuid(),
+	status: z.enum(["Released", "Conflict", "NotFound", "Forbidden"]),
+	message: z.string().nullable().optional(),
+	submissionIds: z.array(z.string().uuid()).nullable().optional().describe("On conflict: live submission ids still holding the report.")
 });
 
 /** Api.Dtos.PublishHomepageResponse */

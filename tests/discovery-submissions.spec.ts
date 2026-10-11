@@ -3,6 +3,9 @@ import {
 	getDiscoverySubmission,
 	getDiscoverySubmissions,
 	postDiscoverySubmissionApply,
+	postDiscoverySubmissionRelease,
+	postDiscoverySubmissionRetry,
+	postDiscoveryReportRelease,
 	putDiscoverySubmissionReview
 } from "../src/discoverySubmissions";
 import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
@@ -120,5 +123,109 @@ describe("discovery-submissions proxy", () => {
 		const [url, init] = fetchMock.mock.calls[0];
 		expect(String(url)).toBe(`https://functions.example/api/DiscoverySubmissions/${id}/apply`);
 		expect(init?.method).toBe("POST");
+	});
+
+	it.each([
+		["retry", postDiscoverySubmissionRetry, { etag: "\"abc\"", abandonResultIds: [id] }],
+		["release", postDiscoverySubmissionRelease, { etag: "\"abc\"", reason: "stale" }]
+	] as const)("posts %s to Azure for a supervisor and forwards body", async (action, handler, request) => {
+		const outcome = { submissionId: id, status: action === "release" ? "Released" : "Applied" };
+		const fetchMock = stubAzure(200, outcome);
+		const app = appWithPermissions(`/discovery-submissions/:id/${action}`, "post", handler, ["supervise"]);
+
+		const resp = await app.request(
+			`/discovery-submissions/${id}/${action}`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify(request) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(outcome);
+		const [url, init] = fetchMock.mock.calls[0];
+		expect(String(url)).toBe(`https://functions.example/api/DiscoverySubmissions/${id}/${action}`);
+		expect(init?.method).toBe("POST");
+		expect(JSON.parse(String(init?.body))).toEqual(request);
+	});
+
+	it.each([
+		["retry", postDiscoverySubmissionRetry],
+		["release", postDiscoverySubmissionRelease]
+	] as const)("denies %s to curate:supervised without calling Azure", async (action, handler) => {
+		const fetchMock = stubAzure(200, {});
+		const app = appWithPermissions(`/discovery-submissions/:id/${action}`, "post", handler, ["curate:supervised", "curate"]);
+
+		const resp = await app.request(
+			`/discovery-submissions/${id}/${action}`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "x" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(403);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		[400, { message: "not Failed", ids: [id] }],
+		[409, { message: "nothing to retry" }],
+		[500, { submissionId: id, status: "ApplyFailed", itemOutcomes: [] }]
+	])("passes Azure retry %i and body through", async (status, body) => {
+		stubAzure(status, body);
+		const app = appWithPermissions("/discovery-submissions/:id/retry", "post", postDiscoverySubmissionRetry, ["admin"]);
+
+		const resp = await app.request(
+			`/discovery-submissions/${id}/retry`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "e" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(status);
+		expect(await resp.json()).toEqual(body);
+	});
+
+	it("admin releases a stuck report via DiscoveryReports", async () => {
+		const body = { documentId: id, status: "Released", message: "ok" };
+		const fetchMock = stubAzure(200, body);
+		const app = appWithPermissions("/discovery-reports/:id/release", "post", postDiscoveryReportRelease, ["admin"]);
+
+		const resp = await app.request(
+			`/discovery-reports/${id}/release`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ reason: "stuck" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(body);
+		const [url, init] = fetchMock.mock.calls[0];
+		expect(String(url)).toBe(`https://functions.example/api/DiscoveryReports/${id}/release`);
+		expect(JSON.parse(String(init?.body))).toEqual({ reason: "stuck" });
+	});
+
+	it.each([404, 409])("passes Azure report release %i through", async (status) => {
+		const body = { documentId: id, status: status === 404 ? "NotFound" : "Conflict", submissionIds: [id] };
+		stubAzure(status, body);
+		const app = appWithPermissions("/discovery-reports/:id/release", "post", postDiscoveryReportRelease, ["admin"]);
+
+		const resp = await app.request(
+			`/discovery-reports/${id}/release`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({}) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(status);
+		expect(await resp.json()).toEqual(body);
+	});
+
+	it("denies report release to supervise without calling Azure", async () => {
+		const fetchMock = stubAzure(200, {});
+		const app = appWithPermissions("/discovery-reports/:id/release", "post", postDiscoveryReportRelease, ["supervise", "curate"]);
+
+		const resp = await app.request(
+			`/discovery-reports/${id}/release`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({}) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(403);
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });

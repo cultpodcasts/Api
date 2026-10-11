@@ -56,17 +56,37 @@ export async function putDiscoverySubmissionReview(c: Auth0ActionContext): Promi
 	});
 }
 
-export async function postDiscoverySubmissionApply(c: Auth0ActionContext): Promise<Response> {
+async function postSubmissionCommand(c: Auth0ActionContext, action: "apply" | "retry" | "release"): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });
 	const body = JSON.stringify(await c.req.json());
 	return proxyToAzure(c, {
 		permission: discoverySupervisePermissions,
 		endpoint: Endpoint.discoverySubmissions,
 		method: "POST",
-		pathSuffix: idSuffix(c, "apply"),
+		pathSuffix: idSuffix(c, action),
 		body,
 		successStatuses: [200],
 		forwardStatuses,
 		logName
+	});
+}
+
+export const postDiscoverySubmissionApply = (c: Auth0ActionContext) => postSubmissionCommand(c, "apply");
+export const postDiscoverySubmissionRetry = (c: Auth0ActionContext) => postSubmissionCommand(c, "retry");
+export const postDiscoverySubmissionRelease = (c: Auth0ActionContext) => postSubmissionCommand(c, "release");
+
+/** Admin only: release a report stuck in PendingSupervisor with no live submission. */
+export async function postDiscoveryReportRelease(c: Auth0ActionContext): Promise<Response> {
+	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });
+	const body = JSON.stringify(await c.req.json());
+	return proxyToAzure(c, {
+		permission: "admin",
+		endpoint: Endpoint.discoveryReports,
+		method: "POST",
+		pathSuffix: `/${encodeURIComponent(c.req.param("id") ?? "")}/release`,
+		body,
+		successStatuses: [200],
+		forwardStatuses,
+		logName: "secure-discovery-reports-endpoint"
 	});
 }

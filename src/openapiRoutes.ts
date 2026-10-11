@@ -12,6 +12,7 @@ import {
 	curatePermissionsClaimAuth,
 	discoverySubmissionViewAuth,
 	discoverySuperviseAuth,
+	discoveryReportReleaseAuth,
 	signedInAuth,
 	submitOrCurateAuth,
 	episodeIdParam,
@@ -43,6 +44,9 @@ import {
 	getDiscoverySubmission,
 	getDiscoverySubmissions,
 	postDiscoverySubmissionApply,
+	postDiscoverySubmissionRelease,
+	postDiscoverySubmissionRetry,
+	postDiscoveryReportRelease,
 	putDiscoverySubmissionReview
 } from "./discoverySubmissions";
 import { getEpisode, getPodcastEpisode } from "./getEpisode";
@@ -68,6 +72,10 @@ import {
 	discoverySubmissionDetailResponseSchema,
 	discoverySubmissionListResponseSchema,
 	discoverySubmissionReviewRequestSchema,
+	discoverySubmissionRetryRequestSchema,
+	discoverySubmissionReleaseRequestSchema,
+	discoveryReportReleaseRequestSchema,
+	discoveryReportReleaseResponseSchema,
 	discoverySubmissionHeldResponseSchema,
 	discoverySubmitConflictSchema,
 	discoveryInfoResponseSchema,
@@ -678,12 +686,62 @@ export const PostDiscoverySubmissionApplyRoute = createOpenApiRoute(postDiscover
     schema: {
         tags: ["Discovery"],
         summary: "Apply a supervised discovery submission",
-        description: "Command. Moves held reports PendingSupervisor → Processed (all-or-nothing) then ingests the final accepted set. Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`).",
+        description: "Command. Moves held reports PendingSupervisor → Processed (all-or-nothing) then ingests the final accepted set. 200 `status` Applied or PartiallyApplied, with `outcome` (this run) and `itemOutcomes` (cumulative). Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`). Apply on PartiallyApplied, or ApplyFailed with outcomes, is 409 (use retry).",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionApplyRequestSchema) },
         responses: {
             200: { description: "Applied; `outcome` carries the ingest result", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             500: { description: "Ingest failed: `status: \"ApplyFailed\"` and `message`; reports returned to PendingSupervisor for retry with a fresh etag. Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionRetryRoute = createOpenApiRoute(postDiscoverySubmissionRetry, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Retry failed items of a supervised discovery submission",
+        description: "Command. For PartiallyApplied, or ApplyFailed with `itemOutcomes`. Re-ingests Failed items; `abandonResultIds` drops them instead. Abandoning all failed items closes the submission as Applied without ingesting. 400 when abandoning an id that is not Failed (`ids`); 409 stale etag or nothing to retry.",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionRetryRequestSchema) },
+        responses: {
+            200: { description: "Retried; same command outcome as apply", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            500: { description: "Every retried item failed (`status: \"ApplyFailed\"`, see `itemOutcomes`). Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscoverySubmissionRelease, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Release a supervised discovery submission",
+        description: "Command (never `curate:supervised`). For a submission that has ingested nothing: moves each held report PendingSupervisor → Unprocessed, sets status Released with `releasedAt`/`releaseReason`. Ingests nothing. `ids` lists reports that were not held (left unchanged). 409 stale etag or submission already ingested/terminal.",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReleaseRequestSchema) },
+        responses: {
+            200: { description: "Released", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoveryReportReleaseRoute = createOpenApiRoute(postDiscoveryReportRelease, {
+    auth: discoveryReportReleaseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Release a stuck discovery report (admin)",
+        description: "Command. Releases a report stuck in PendingSupervisor with no live submission back to Unprocessed.",
+        request: { params: submissionIdParam, body: jsonBody(discoveryReportReleaseRequestSchema) },
+        responses: {
+            200: { description: "Released", ...contentJson(discoveryReportReleaseResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            404: { description: "Unknown report", ...contentJson(z.union([discoveryReportReleaseResponseSchema, errorSchema])) },
+            409: { description: "Report not PendingSupervisor, or still held by a live submission (`submissionIds`)", ...contentJson(z.union([discoveryReportReleaseResponseSchema, errorSchema])) },
+            ...serverErrorResponse,
             ...authResponses
         }
     }
