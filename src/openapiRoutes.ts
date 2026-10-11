@@ -46,6 +46,7 @@ import {
 	postDiscoverySubmissionApply,
 	postDiscoverySubmissionRelease,
 	postDiscoverySubmissionRetry,
+	postDiscoverySubmissionRecover,
 	postDiscoveryReportRelease,
 	putDiscoverySubmissionReview
 } from "./discoverySubmissions";
@@ -73,6 +74,7 @@ import {
 	discoverySubmissionListResponseSchema,
 	discoverySubmissionReviewRequestSchema,
 	discoverySubmissionRetryRequestSchema,
+	discoverySubmissionRecoverRequestSchema,
 	discoverySubmissionReleaseRequestSchema,
 	discoveryReportReleaseRequestSchema,
 	discoveryReportReleaseResponseSchema,
@@ -727,6 +729,22 @@ export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscov
             200: { description: "Released", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionRecoverRoute = createOpenApiRoute(postDiscoverySubmissionRecover, {
+    auth: discoveryReportReleaseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Recover a submission stuck in Applying (admin)",
+        description: "Command. Allowed only when the submission has been Applying for more than 30 minutes (409 otherwise). Reconciles from report state: an Apply with reports still PendingSupervisor returns to the previous status; an Apply with reports Processed, or a Retry, marks in-flight results without a Succeeded outcome Failed (ApplyFailed/PartiallyApplied); a Release moves remaining PendingSupervisor reports to Unprocessed (Released). Records a `Recovered` history entry.",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionRecoverRequestSchema) },
+        responses: {
+            200: { description: "Recovered", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            500: { description: "Failure", ...contentJson(discoverySubmissionCommandOrError) },
             ...authResponses
         }
     }

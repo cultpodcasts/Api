@@ -5,6 +5,7 @@ import {
 	postDiscoverySubmissionApply,
 	postDiscoverySubmissionRelease,
 	postDiscoverySubmissionRetry,
+	postDiscoverySubmissionRecover,
 	postDiscoveryReportRelease,
 	putDiscoverySubmissionReview
 } from "../src/discoverySubmissions";
@@ -238,6 +239,7 @@ describe("discovery-submissions proxy", () => {
 			{ name: "apply", method: "post", route: "/discovery-submissions/:id/apply", url: `/discovery-submissions/${id}/apply`, handler: postDiscoverySubmissionApply, allowed: ["supervise", "admin"] },
 			{ name: "retry", method: "post", route: "/discovery-submissions/:id/retry", url: `/discovery-submissions/${id}/retry`, handler: postDiscoverySubmissionRetry, allowed: ["supervise", "admin"] },
 			{ name: "release", method: "post", route: "/discovery-submissions/:id/release", url: `/discovery-submissions/${id}/release`, handler: postDiscoverySubmissionRelease, allowed: ["supervise", "admin"] },
+			{ name: "recover", method: "post", route: "/discovery-submissions/:id/recover", url: `/discovery-submissions/${id}/recover`, handler: postDiscoverySubmissionRecover, allowed: ["admin"] },
 			{ name: "report release", method: "post", route: "/discovery-reports/:id/release", url: `/discovery-reports/${id}/release`, handler: postDiscoveryReportRelease, allowed: ["admin"] }
 		];
 		const permissions = ["curate", "curate:supervised", "supervise", "admin"];
@@ -265,5 +267,38 @@ describe("discovery-submissions proxy", () => {
 				expect(fetchMock).not.toHaveBeenCalled();
 			}
 		});
+	});
+
+	it("admin recovers a stuck submission, forwarding etag", async () => {
+		const outcome = { submissionId: id, status: "PartiallyApplied", etag: "\"n\"" };
+		const fetchMock = stubAzure(200, outcome);
+		const app = appWithPermissions("/discovery-submissions/:id/recover", "post", postDiscoverySubmissionRecover, ["admin"]);
+
+		const resp = await app.request(
+			`/discovery-submissions/${id}/recover`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "\"e\"" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(outcome);
+		const [url, init] = fetchMock.mock.calls[0];
+		expect(String(url)).toBe(`https://functions.example/api/DiscoverySubmissions/${id}/recover`);
+		expect(JSON.parse(String(init?.body))).toEqual({ etag: "\"e\"" });
+	});
+
+	it("passes Azure recover 409 (not stuck long enough) through", async () => {
+		const body = { submissionId: id, status: "Applying", message: "Not stuck." };
+		stubAzure(409, body);
+		const app = appWithPermissions("/discovery-submissions/:id/recover", "post", postDiscoverySubmissionRecover, ["admin"]);
+
+		const resp = await app.request(
+			`/discovery-submissions/${id}/recover`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "e" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(body);
 	});
 });

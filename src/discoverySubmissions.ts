@@ -75,6 +75,22 @@ export const postDiscoverySubmissionApply = (c: Auth0ActionContext) => postSubmi
 export const postDiscoverySubmissionRetry = (c: Auth0ActionContext) => postSubmissionCommand(c, "retry");
 export const postDiscoverySubmissionRelease = (c: Auth0ActionContext) => postSubmissionCommand(c, "release");
 
+/** Admin only: recover a submission stuck in Applying (> 30 min). */
+export async function postDiscoverySubmissionRecover(c: Auth0ActionContext): Promise<Response> {
+	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });
+	const body = JSON.stringify(await c.req.json());
+	return proxyToAzure(c, {
+		permission: "admin",
+		endpoint: Endpoint.discoverySubmissions,
+		method: "POST",
+		pathSuffix: idSuffix(c, "recover"),
+		body,
+		successStatuses: [200],
+		forwardStatuses,
+		logName
+	});
+}
+
 /** Admin only: release a report stuck in PendingSupervisor with no live submission. */
 export async function postDiscoveryReportRelease(c: Auth0ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });

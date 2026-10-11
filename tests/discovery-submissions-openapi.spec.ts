@@ -6,6 +6,7 @@ vi.mock("workers-og", () => ({
 
 import {
 	PostDiscoverySubmissionApplyRoute,
+	PostDiscoverySubmissionRecoverRoute,
 	PostDiscoverySubmissionReleaseRoute,
 	PostDiscoverySubmissionRetryRoute,
 	PutDiscoverySubmissionReviewRoute
@@ -17,7 +18,8 @@ describe("discovery submission command route error schemas", () => {
 		review: PutDiscoverySubmissionReviewRoute,
 		apply: PostDiscoverySubmissionApplyRoute,
 		retry: PostDiscoverySubmissionRetryRoute,
-		release: PostDiscoverySubmissionReleaseRoute
+		release: PostDiscoverySubmissionReleaseRoute,
+		recover: PostDiscoverySubmissionRecoverRoute
 	};
 
 	function responseSchema(route: { openApiSchema: any }, status: number): { parse: (v: unknown) => unknown } {
@@ -30,6 +32,7 @@ describe("discovery submission command route error schemas", () => {
 				const command = { submissionId: id, status: "Pending", etag: "\"e\"", message: "stale etag", ids: [id] };
 				expect(responseSchema(route, status).parse(command)).toEqual(command);
 				expect(responseSchema(route, status).parse({ error: "Error" })).toEqual({ error: "Error" });
+				expect(responseSchema(route, status).parse({ message: "Not found" })).toEqual({ message: "Not found" });
 			});
 		}
 	}

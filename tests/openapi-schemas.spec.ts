@@ -9,6 +9,8 @@ import {
 	discoverySubmissionApplyRequestSchema,
 	discoverySubmissionCommandResponseSchema,
 	discoverySubmissionRetryRequestSchema,
+	discoverySubmissionRecoverRequestSchema,
+	discoveryErrorResponseSchema,
 	discoverySubmissionReleaseRequestSchema,
 	discoveryReportReleaseRequestSchema,
 	discoveryReportReleaseResponseSchema,
@@ -239,6 +241,30 @@ describe("openapi Zod schemas", () => {
 		expect(discoverySubmissionReleaseRequestSchema.parse({ etag: "e" }).reason).toBeUndefined();
 		expect(discoveryReportReleaseRequestSchema.parse({}).reason).toBeUndefined();
 		expect(discoveryReportReleaseResponseSchema.parse({ documentId: id, status: "Conflict", message: "held", submissionIds: [id] }).submissionIds).toHaveLength(1);
+	});
+
+	it("accepts Applying with inProgress fields, Recovered history, recover request and error DTOs (RPP #1023 5ea3cec)", () => {
+		const id = "550e8400-e29b-41d4-a716-446655440000";
+		const list = discoverySubmissionListResponseSchema.parse({
+			view: "supervisor", pendingCount: 0,
+			submissions: [{
+				id, status: "Applying", submitterSubject: "auth0|a", submittedAt: "2026-10-11T09:00:00Z",
+				discoveryResultsDocumentIds: [id], submitterAcceptedCount: 1, itemCommentCount: 0,
+				inProgressOperation: "Retry", inProgressSince: "2026-10-11T09:05:00Z"
+			}]
+		});
+		expect(list.submissions[0].inProgressOperation).toBe("Retry");
+		const detail = discoverySubmissionDetailResponseSchema.parse({
+			id, status: "Applying", etag: "e", canReview: false, submitterSubject: "auth0|a",
+			submittedAt: "2026-10-11T09:00:00Z", submitterAcceptedResultIds: [], itemComments: [], reports: [],
+			inProgressOperation: "Release", inProgressSince: "2026-10-11T09:05:00Z",
+			history: [{ at: "2026-10-11T10:00:00Z", action: "Recovered" }]
+		});
+		expect(detail.inProgressOperation).toBe("Release");
+		expect(() => discoverySubmissionDetailResponseSchema.parse({ ...detail, inProgressOperation: "Review" })).toThrow();
+		expect(discoverySubmissionRecoverRequestSchema.parse({ etag: "e" }).etag).toBe("e");
+		expect(() => discoverySubmissionRecoverRequestSchema.parse({})).toThrow();
+		expect(discoveryErrorResponseSchema.parse({ message: "Missing subject." }).message).toBe("Missing subject.");
 	});
 
 	it("accepts discovery schedule response", () => {

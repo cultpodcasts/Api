@@ -667,6 +667,11 @@ export const discoverySubmissionHeldResponseSchema = z.object({
 	status: z.literal("Pending")
 }).describe("Submission held for supervisor review; nothing was applied.");
 
+/** Api.Dtos.DiscoveryErrorResponse — `{message}` for missing subject (400), forbidden (403), not found (404), failure (500). */
+export const discoveryErrorResponseSchema = z.object({
+	message: z.string()
+});
+
 /** 409 body from POST /discovery-curation (camelCase DTO per RPP #1023). */
 export const discoverySubmitConflictSchema = z.object({
 	message: z.string(),
@@ -698,7 +703,7 @@ export const discoverySubmitResponseSchema = z.object({
 
 const nullableUuidArray = z.array(z.string().uuid()).nullable().optional();
 
-export const discoverySubmissionStatusSchema = z.enum(["Pending", "Applied", "PartiallyApplied", "ApplyFailed", "Released"]);
+export const discoverySubmissionStatusSchema = z.enum(["Pending", "Applied", "PartiallyApplied", "ApplyFailed", "Applying", "Released"]);
 
 /** Api.Dtos.DiscoverySubmissionSummaryDto */
 export const discoverySubmissionSummarySchema = z.object({
@@ -717,7 +722,9 @@ export const discoverySubmissionSummarySchema = z.object({
 	succeededCount: z.number().int().nullable().optional(),
 	abandonedCount: z.number().int().nullable().optional(),
 	releasedAt: isoDateTime.nullable().optional(),
-	releaseReason: z.string().nullable().optional()
+	releaseReason: z.string().nullable().optional(),
+	inProgressOperation: z.enum(["Apply", "Retry", "Release"]).nullable().optional().describe("While status is Applying: the operation holding the submission. null otherwise."),
+	inProgressSince: isoDateTime.nullable().optional()
 });
 
 /** Api.Dtos.DiscoverySubmissionListResponse — GET /discovery-submissions. */
@@ -761,7 +768,7 @@ export const discoverySubmissionHistorySchema = z.object({
 	actorSubject: z.string().nullable().optional(),
 	action: z.enum([
 		"Submitted", "ReviewSaved", "ApplyStarted", "Applied", "PartiallyApplied", "ApplyFailed", "ApplyConflict",
-		"RetryStarted", "ItemsAbandoned", "ReleaseStarted", "Released"
+		"RetryStarted", "ItemsAbandoned", "ReleaseStarted", "Released", "Recovered"
 	])
 });
 
@@ -786,6 +793,8 @@ export const discoverySubmissionDetailResponseSchema = z.object({
 	itemOutcomes: z.array(discoverySubmissionItemOutcomeSchema).nullable().optional().describe("Per-result apply/retry outcome with failure reasons. null until an apply attempted ingestion."),
 	releasedAt: isoDateTime.nullable().optional(),
 	releaseReason: z.string().nullable().optional(),
+	inProgressOperation: z.enum(["Apply", "Retry", "Release"]).nullable().optional().describe("While status is Applying: the operation holding the submission. null otherwise."),
+	inProgressSince: isoDateTime.nullable().optional(),
 	reports: z.array(discoverySubmissionReportSchema),
 	history: z.array(discoverySubmissionHistorySchema)
 });
@@ -823,6 +832,11 @@ export const discoverySubmissionCommandResponseSchema = z.object({
 export const discoverySubmissionRetryRequestSchema = z.object({
 	etag: z.string(),
 	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying.")
+});
+
+/** Api.Dtos.DiscoverySubmissionRecoverRequestDto — POST /discovery-submissions/{id}/recover (admin). */
+export const discoverySubmissionRecoverRequestSchema = z.object({
+	etag: z.string()
 });
 
 /** Api.Dtos.DiscoverySubmissionReleaseRequestDto — POST /discovery-submissions/{id}/release. */
