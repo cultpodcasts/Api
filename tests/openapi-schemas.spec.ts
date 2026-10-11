@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
+	discoverySubmissionHeldResponseSchema,
+	discoverySubmitConflictSchema,
 	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoverySubmitRequestSchema,
@@ -122,6 +124,26 @@ describe("openapi Zod schemas", () => {
 			expect(parse([{ subject: "cult", term: "cult", source }]).results[0].subjectMatches?.[0].source).toBe(source);
 		}
 		expect(() => parse([{ subject: "cult", term: "cult", source: "title" }])).toThrow();
+	});
+
+	it("accepts discovery curation awaitingReview (DiscoveryAwaitingReviewDto)", () => {
+		const parsed = discoveryCurationResponseSchema.parse({
+			ids: [],
+			hiddenCount: 0,
+			results: [],
+			awaitingReview: [{ id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8", discoveryBegan: "2026-10-10T09:00:00Z", resultCount: 12 }]
+		});
+		expect(parsed.awaitingReview?.[0].resultCount).toBe(12);
+		expect(() => discoveryCurationResponseSchema.parse({
+			ids: [], hiddenCount: 0, results: [], awaitingReview: [{ id: "x", discoveryBegan: "2026-10-10T09:00:00Z", resultCount: 1 }]
+		})).toThrow();
+	});
+
+	it("accepts discovery submit held 202 and 409 conflict bodies", () => {
+		expect(discoverySubmissionHeldResponseSchema.parse({ submissionId: "550e8400-e29b-41d4-a716-446655440000", status: "Pending" }).status).toBe("Pending");
+		expect(() => discoverySubmissionHeldResponseSchema.parse({ submissionId: "550e8400-e29b-41d4-a716-446655440000", status: "Applied" })).toThrow();
+		expect(discoverySubmitConflictSchema.parse({ message: "busy", documentIds: ["6ba7b810-9dad-11d1-80b4-00c04fd430c8"] }).documentIds).toHaveLength(1);
+		expect(discoverySubmitConflictSchema.parse({ message: "One or more reports are awaiting supervisor review." }).documentIds).toBeUndefined();
 	});
 
 	it("accepts discovery schedule response", () => {

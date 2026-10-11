@@ -55,6 +55,8 @@ import { indexPodcastByName } from "./indexPodcastByName";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
+	discoverySubmissionHeldResponseSchema,
+	discoverySubmitConflictSchema,
 	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
@@ -589,11 +591,13 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
     schema: {
         tags: ["Discovery"],
         summary: "Submit discovery curation",
+        description: "Requires `curate`. A caller whose token also has `curate:supervised` has the submit held for a supervisor: Azure returns 202 with `{submissionId, status: \"Pending\"}` and applies nothing. Supervised curators keep `curate` (the Worker gates on it). Supervisor review/apply routes are not yet proxied.",
         request: { body: jsonBody(discoverySubmitRequestSchema) },
         responses: {
-            200: { description: "Discovery curation submitted", ...contentJson(discoverySubmitResponseSchema) },
+            200: { description: "Discovery curation applied", ...contentJson(discoverySubmitResponseSchema) },
+            202: { description: "Held for supervisor review (curate:supervised caller)", ...contentJson(discoverySubmissionHeldResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
-            409: { description: "Conflict", ...contentJson(errorSchema) },
+            409: { description: "A requested report is awaiting supervisor review or otherwise not curatable. Supervised hold path lists `documentIds`.", ...contentJson(discoverySubmitConflictSchema) },
             422: { description: "Unprocessable", ...contentJson(errorSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,

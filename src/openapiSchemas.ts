@@ -290,10 +290,20 @@ const discoveryCurationItemSchema = z.object({
 	guests: z.array(z.string()).optional().nullable()
 });
 
+/** Api.Dtos.DiscoveryAwaitingReviewDto — a report held for supervisor review. */
+export const discoveryAwaitingReviewSchema = z.object({
+	id: z.string().uuid(),
+	discoveryBegan: isoDateTime,
+	resultCount: z.number().int()
+}).describe("A discovery report held by a supervised curator's submission (state PendingSupervisor). Its results are excluded from `results`.");
+
 export const discoveryCurationResponseSchema = z.object({
 	ids: z.array(z.string().uuid()),
 	results: z.array(discoveryCurationItemSchema),
-	hiddenCount: z.number()
+	hiddenCount: z.number(),
+	awaitingReview: z.array(discoveryAwaitingReviewSchema).optional().describe(
+		"Reports held for supervisor review (PendingSupervisor). Their results are excluded from `results`."
+	)
 });
 
 /** GET /flairs — R2 map keyed by Reddit flair template id (Guid). */
@@ -651,6 +661,20 @@ export const podcastDtoSchema = z.object({
 });
 
 /** Api.Dtos.DiscoverySubmitResponse */
+/** Api.Dtos.DiscoverySubmissionHeldResponse — 202 command outcome for a `curate:supervised` caller. */
+export const discoverySubmissionHeldResponseSchema = z.object({
+	submissionId: z.string().uuid(),
+	status: z.literal("Pending")
+}).describe("Submission held for supervisor review; nothing was applied.");
+
+/** 409 body from POST /discovery-curation. Supervised hold path includes `documentIds`. */
+export const discoverySubmitConflictSchema = z.object({
+	message: z.string(),
+	documentIds: z.array(z.string().uuid()).optional().describe(
+		"Supervised hold only: report ids not available for curation (e.g. already PendingSupervisor or processed)."
+	)
+});
+
 export const discoverySubmitResponseSchema = z.object({
 	message: z.string(),
 	errorsOccurred: z.boolean(),
