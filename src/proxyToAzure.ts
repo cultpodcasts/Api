@@ -15,8 +15,8 @@ export type AzureProxyAttempt = {
 };
 
 export type ProxyToAzureOptions = {
-	/** Required permission. Omit to allow any authenticated principal. */
-	permission?: string;
+	/** Required permission, or a list where any one suffices. Omit to allow any authenticated principal. */
+	permission?: string | readonly string[];
 	endpoint: Endpoint;
 	method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 	/** Appended to the endpoint base URL (e.g. `/${id}`). */
@@ -62,7 +62,10 @@ export async function proxyToAzure(
 
 	const permitted =
 		auth0Payload != null &&
-		(opts.permission == null || hasPermission(auth0Payload, opts.permission));
+		(opts.permission == null ||
+			(typeof opts.permission === "string"
+				? hasPermission(auth0Payload, opts.permission)
+				: opts.permission.some((p) => hasPermission(auth0Payload, p))));
 
 	try {
 		if (permitted) {

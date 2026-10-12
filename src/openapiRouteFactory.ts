@@ -32,6 +32,12 @@ export const curatePermissionsClaimAuth: OpenApiAuth = {
 	anyOf: ["curate"],
 	claims: ["permissions"]
 };
+/** Supervised discovery: list/read submissions (RPP DiscoverySubmissionsController ViewRoles). */
+export const discoverySubmissionViewAuth: OpenApiAuth = { anyOf: ["supervise", "admin", "curate:supervised"] };
+/** Supervised discovery: save review / apply (RPP SuperviseRoles). */
+export const discoverySuperviseAuth: OpenApiAuth = { anyOf: ["supervise", "admin"] };
+/** Admin-only stuck-report release (RPP DiscoveryReportReleasePost). Same as adminAuth; named for intent. */
+export const discoveryReportReleaseAuth: OpenApiAuth = adminAuth;
 export const signedInAuth: OpenApiAuth = {};
 export const bookmarkAuth: OpenApiAuth = { unauthenticatedStatus: 403 };
 export const optionalSubmitAuth: OpenApiAuth = { optional: true };

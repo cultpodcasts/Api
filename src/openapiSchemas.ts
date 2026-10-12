@@ -290,10 +290,20 @@ const discoveryCurationItemSchema = z.object({
 	guests: z.array(z.string()).optional().nullable()
 });
 
+/** Api.Dtos.DiscoveryAwaitingReviewDto — a report held for supervisor review. */
+export const discoveryAwaitingReviewSchema = z.object({
+	id: z.string().uuid(),
+	discoveryBegan: isoDateTime,
+	resultCount: z.number().int()
+}).describe("A discovery report held by a supervised curator's submission (state PendingSupervisor). Its results are excluded from `results`.");
+
 export const discoveryCurationResponseSchema = z.object({
 	ids: z.array(z.string().uuid()),
 	results: z.array(discoveryCurationItemSchema),
-	hiddenCount: z.number()
+	hiddenCount: z.number(),
+	awaitingReview: z.array(discoveryAwaitingReviewSchema).optional().describe(
+		"Reports held for supervisor review (PendingSupervisor). Their results are excluded from `results`."
+	)
 });
 
 /** GET /flairs — R2 map keyed by Reddit flair template id (Guid). */
@@ -651,6 +661,33 @@ export const podcastDtoSchema = z.object({
 });
 
 /** Api.Dtos.DiscoverySubmitResponse */
+/** Api.Dtos.DiscoverySubmissionHeldResponse — 202 command outcome for a `curate:supervised` caller. */
+export const discoverySubmissionHeldResponseSchema = z.object({
+	submissionId: z.string().uuid(),
+	status: z.literal("Pending")
+}).describe("Submission held for supervisor review; nothing was applied.");
+
+/** Api.Dtos.DiscoveryErrorResponse — `{message}` for missing subject (400), forbidden (403), not found (404), failure (500). */
+export const discoveryErrorResponseSchema = z.object({
+	message: z.string()
+});
+
+/** 409 body from POST /discovery-curation (camelCase DTO per RPP #1023). */
+export const discoverySubmitConflictSchema = z.object({
+	message: z.string(),
+	documentIds: z.array(z.string().uuid()).optional().describe(
+		"Report ids not available for curation (e.g. PendingSupervisor or already processed). Sent on both the normal and supervised submit paths."
+	)
+});
+
+/** 400 body from POST /discovery-curation (camelCase DTO per RPP #1023). */
+export const discoverySubmitBadRequestSchema = z.object({
+	message: z.string(),
+	resultIds: z.array(z.string().uuid()).optional().describe(
+		"Supervised hold path: result ids that are not in the named reports."
+	)
+});
+
 export const discoverySubmitResponseSchema = z.object({
 	message: z.string(),
 	errorsOccurred: z.boolean(),
@@ -658,9 +695,175 @@ export const discoverySubmitResponseSchema = z.object({
 		discoveryItemId: z.string().uuid(),
 		podcastId: z.string().uuid().optional().nullable(),
 		episodeId: z.string().uuid().optional().nullable(),
-		message: z.string()
+		message: z.string(),
+		error: z.string().nullable().optional().describe("Why the item failed (exception type and message). null on success.")
 	})),
 	searchIndexerState: searchIndexerStateSchema
+});
+
+const nullableUuidArray = z.array(z.string().uuid()).nullable().optional();
+
+export const discoverySubmissionStatusSchema = z.enum(["Pending", "Applied", "PartiallyApplied", "ApplyFailed", "Applying", "Released"]);
+
+/** Api.Dtos.DiscoverySubmissionSummaryDto */
+export const discoverySubmissionSummarySchema = z.object({
+	id: z.string().uuid(),
+	status: discoverySubmissionStatusSchema,
+	submitterSubject: z.string(),
+	submittedAt: isoDateTime,
+	discoveryResultsDocumentIds: z.array(z.string().uuid()),
+	submitterAcceptedCount: z.number().int(),
+	supervisorSubject: z.string().nullable().optional(),
+	appliedAt: isoDateTime.nullable().optional(),
+	reportComment: z.string().nullable().optional(),
+	itemCommentCount: z.number().int(),
+	applyError: z.string().nullable().optional(),
+	failedCount: z.number().int().nullable().optional().describe("Items that failed to ingest and await retry/abandon. null until an apply attempted ingestion."),
+	succeededCount: z.number().int().nullable().optional(),
+	abandonedCount: z.number().int().nullable().optional(),
+	releasedAt: isoDateTime.nullable().optional(),
+	releaseReason: z.string().nullable().optional(),
+	inProgressOperation: z.enum(["Apply", "Retry", "Release"]).nullable().optional().describe("While status is Applying: the operation holding the submission. null otherwise."),
+	inProgressSince: isoDateTime.nullable().optional()
+});
+
+/** Api.Dtos.DiscoverySubmissionListResponse — GET /discovery-submissions. */
+export const discoverySubmissionListResponseSchema = z.object({
+	view: z.enum(["supervisor", "submitter"]).describe(
+		"supervisor = reviewable queue (Pending + ApplyFailed the caller may review, oldest first); submitter = caller's own submissions (any status, newest first)."
+	),
+	pendingCount: z.number().int().describe("Badge count. Supervisor: queue length. Submitter: own Pending."),
+	submissions: z.array(discoverySubmissionSummarySchema)
+});
+
+/** Api.Dtos.DiscoverySubmissionItemCommentDto */
+export const discoverySubmissionItemCommentSchema = z.object({
+	resultId: z.string().uuid(),
+	comment: z.string()
+});
+
+/** Api.Dtos.DiscoverySubmissionReportDto */
+export const discoverySubmissionReportSchema = z.object({
+	id: z.string().uuid(),
+	discoveryBegan: isoDateTime,
+	state: z.enum(["Unprocessed", "PendingSupervisor", "Processed"]),
+	results: z.array(discoveryCurationItemSchema).describe("Every result in the report (same item shape as GET /discovery-curation), including auto-hidden.")
+});
+
+/** Api.Dtos.DiscoverySubmissionItemOutcomeDto */
+export const discoverySubmissionItemOutcomeSchema = z.object({
+	resultId: z.string().uuid(),
+	state: z.enum(["Succeeded", "Failed", "Abandoned"]),
+	episodeId: z.string().uuid().nullable().optional(),
+	podcastId: z.string().uuid().nullable().optional(),
+	message: z.string().nullable().optional().describe("Submit outcome from the ingester (e.g. Created, Enriched, Error)."),
+	error: z.string().nullable().optional().describe("Why it failed. null unless the last attempt failed."),
+	attempts: z.number().int(),
+	lastAttemptAt: isoDateTime.nullable().optional()
+});
+
+/** Api.Dtos.DiscoverySubmissionHistoryDto */
+export const discoverySubmissionHistorySchema = z.object({
+	at: isoDateTime,
+	actorSubject: z.string().nullable().optional(),
+	action: z.enum([
+		"Submitted", "ReviewSaved", "ApplyStarted", "Applied", "PartiallyApplied", "ApplyFailed", "ApplyConflict",
+		"RetryStarted", "ItemsAbandoned", "ReleaseStarted", "Released", "StateChanged"
+	])
+,
+	fromStatus: discoverySubmissionStatusSchema.nullable().optional().describe("StateChanged only: previous status."),
+	toStatus: discoverySubmissionStatusSchema.nullable().optional().describe("StateChanged only: new status."),
+	reason: z.string().nullable().optional().describe("StateChanged only: admin's reason.")
+});
+
+/** Api.Dtos.DiscoverySubmissionDetailResponse — GET /discovery-submissions/{id}. */
+export const discoverySubmissionDetailResponseSchema = z.object({
+	id: z.string().uuid(),
+	status: discoverySubmissionStatusSchema,
+	etag: z.string().describe("Opaque concurrency token; send back on review/apply."),
+	canReview: z.boolean().describe("True when the caller may save a review / apply this submission now."),
+	submitterSubject: z.string(),
+	submittedAt: isoDateTime,
+	submitterAcceptedResultIds: z.array(z.string().uuid()),
+	supervisorAcceptedResultIds: nullableUuidArray.describe("null until a supervisor saves a review or applies."),
+	addedBySupervisorResultIds: nullableUuidArray,
+	removedBySupervisorResultIds: nullableUuidArray,
+	reportComment: z.string().nullable().optional(),
+	itemComments: z.array(discoverySubmissionItemCommentSchema),
+	supervisorSubject: z.string().nullable().optional(),
+	appliedAt: isoDateTime.nullable().optional(),
+	applyError: z.string().nullable().optional(),
+	erroredResultIds: nullableUuidArray,
+	itemOutcomes: z.array(discoverySubmissionItemOutcomeSchema).nullable().optional().describe("Per-result apply/retry outcome with failure reasons. null until an apply attempted ingestion."),
+	releasedAt: isoDateTime.nullable().optional(),
+	releaseReason: z.string().nullable().optional(),
+	inProgressOperation: z.enum(["Apply", "Retry", "Release"]).nullable().optional().describe("While status is Applying: the operation holding the submission. null otherwise."),
+	inProgressSince: isoDateTime.nullable().optional(),
+	reports: z.array(discoverySubmissionReportSchema),
+	history: z.array(discoverySubmissionHistorySchema)
+});
+
+/** Api.Dtos.DiscoverySubmissionReviewRequestDto — PUT /discovery-submissions/{id}/review. Omitted (null) members are unchanged. */
+export const discoverySubmissionReviewRequestSchema = z.object({
+	etag: z.string().describe("Required, from GET."),
+	reportComment: z.string().nullable().optional().describe("Report-level comment. Empty string clears it."),
+	itemComments: z.array(discoverySubmissionItemCommentSchema).nullable().optional().describe("Replaces all item comments; [] clears. Max 4000 chars per comment."),
+	acceptedResultIds: z.array(z.string().uuid()).nullable().optional().describe("Supervisor's final accepted set: any result ids within the held reports.")
+});
+
+/** Api.Dtos.DiscoverySubmissionApplyRequestDto — POST /discovery-submissions/{id}/apply. */
+export const discoverySubmissionApplyRequestSchema = z.object({
+	etag: z.string(),
+	acceptedResultIds: z.array(z.string().uuid()).nullable().optional().describe(
+		"Optional final accepted set; when omitted the saved review set (else the submitter's set) applies."
+	)
+});
+
+/** Api.Dtos.DiscoverySubmissionCommandResponse — command outcome for review (202) / apply (200, 500 on ApplyFailed). Not the read model. */
+export const discoverySubmissionCommandResponseSchema = z.object({
+	submissionId: z.string().uuid(),
+	status: discoverySubmissionStatusSchema,
+	etag: z.string().nullable().optional().describe("New concurrency token."),
+	addedBySupervisorResultIds: nullableUuidArray,
+	removedBySupervisorResultIds: nullableUuidArray,
+	message: z.string().nullable().optional(),
+	ids: z.array(z.string().uuid()).nullable().optional().describe("Ids the command could not act on (invalid result ids, unheld reports, …). null when none."),
+	outcome: discoverySubmitResponseSchema.nullable().optional().describe("Apply/retry: this run's per-result ingest outcome (same shape as the POST /discovery-curation response)."),
+	itemOutcomes: z.array(discoverySubmissionItemOutcomeSchema).nullable().optional().describe("Apply/retry: cumulative per-result outcomes with failure reasons. null otherwise.")
+});
+
+/** Api.Dtos.DiscoverySubmissionRetryRequestDto — POST /discovery-submissions/{id}/retry. */
+export const discoverySubmissionRetryRequestSchema = z.object({
+	etag: z.string(),
+	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying.")
+});
+
+/** Api.Dtos.DiscoverySubmissionSetStateRequestDto — POST /discovery-submissions/{id}/state (admin). */
+export const discoverySubmissionSetStateRequestSchema = z.object({
+	status: z.enum(["Pending", "Applied", "ApplyFailed", "PartiallyApplied", "Released"]).describe(
+		"Target DiscoverySubmissionStatus name (Azure matches case-insensitively). Applying cannot be set; None, numbers and unknown names are 400."
+	),
+	etag: z.string().describe("The submission's current ETag. Missing or stale is 409."),
+	reason: z.string().max(4000).nullable().optional().describe("Optional, at most 4000 characters (longer is 400).")
+});
+
+/** Api.Dtos.DiscoverySubmissionReleaseRequestDto — POST /discovery-submissions/{id}/release. */
+export const discoverySubmissionReleaseRequestSchema = z.object({
+	etag: z.string(),
+	reason: z.string().nullable().optional()
+});
+
+/** Api.Dtos.DiscoveryReportReleaseRequestDto — POST /discovery-reports/{id}/release (admin). */
+export const discoveryReportReleaseRequestSchema = z.object({
+	reason: z.string().nullable().optional().describe("Logged.")
+});
+
+/** Api.Dtos.DiscoveryReportReleaseResponse — admin stuck-report release command outcome. */
+export const discoveryReportReleaseResponseSchema = z.object({
+	documentId: z.string().uuid(),
+	status: z.enum(["Released", "Conflict", "NotFound", "Forbidden"]),
+	message: z.string().nullable().optional(),
+	submissionIds: z.array(z.string().uuid()).nullable().optional().describe("On conflict: live submission ids still holding the report.")
 });
 
 /** Api.Dtos.PublishHomepageResponse */

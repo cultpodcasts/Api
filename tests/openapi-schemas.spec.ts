@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
+	discoverySubmissionHeldResponseSchema,
+	discoverySubmissionListResponseSchema,
+	discoverySubmissionDetailResponseSchema,
+	discoverySubmissionReviewRequestSchema,
+	discoverySubmissionApplyRequestSchema,
+	discoverySubmissionCommandResponseSchema,
+	discoverySubmissionRetryRequestSchema,
+	discoverySubmissionSetStateRequestSchema,
+	discoveryErrorResponseSchema,
+	discoverySubmissionReleaseRequestSchema,
+	discoveryReportReleaseRequestSchema,
+	discoveryReportReleaseResponseSchema,
+	discoverySubmitConflictSchema,
+	discoverySubmitBadRequestSchema,
 	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoverySubmitRequestSchema,
@@ -122,6 +136,145 @@ describe("openapi Zod schemas", () => {
 			expect(parse([{ subject: "cult", term: "cult", source }]).results[0].subjectMatches?.[0].source).toBe(source);
 		}
 		expect(() => parse([{ subject: "cult", term: "cult", source: "title" }])).toThrow();
+	});
+
+	it("accepts discovery curation awaitingReview (DiscoveryAwaitingReviewDto)", () => {
+		const parsed = discoveryCurationResponseSchema.parse({
+			ids: [],
+			hiddenCount: 0,
+			results: [],
+			awaitingReview: [{ id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8", discoveryBegan: "2026-10-10T09:00:00Z", resultCount: 12 }]
+		});
+		expect(parsed.awaitingReview?.[0].resultCount).toBe(12);
+		expect(() => discoveryCurationResponseSchema.parse({
+			ids: [], hiddenCount: 0, results: [], awaitingReview: [{ id: "x", discoveryBegan: "2026-10-10T09:00:00Z", resultCount: 1 }]
+		})).toThrow();
+	});
+
+	it("accepts discovery submit held 202 and 409 conflict bodies", () => {
+		expect(discoverySubmissionHeldResponseSchema.parse({ submissionId: "550e8400-e29b-41d4-a716-446655440000", status: "Pending" }).status).toBe("Pending");
+		expect(() => discoverySubmissionHeldResponseSchema.parse({ submissionId: "550e8400-e29b-41d4-a716-446655440000", status: "Applied" })).toThrow();
+		expect(discoverySubmitConflictSchema.parse({ message: "busy", documentIds: ["6ba7b810-9dad-11d1-80b4-00c04fd430c8"] }).documentIds).toHaveLength(1);
+		expect(discoverySubmitConflictSchema.parse({ message: "One or more reports are awaiting supervisor review." }).documentIds).toBeUndefined();
+		expect(discoverySubmitBadRequestSchema.parse({ message: "bad ids", resultIds: ["6ba7b810-9dad-11d1-80b4-00c04fd430c8"] }).resultIds).toHaveLength(1);
+	});
+
+	it("accepts supervised discovery submission DTOs (RPP #1023)", () => {
+		const id = "550e8400-e29b-41d4-a716-446655440000";
+		const list = discoverySubmissionListResponseSchema.parse({
+			view: "supervisor", pendingCount: 1,
+			submissions: [{
+				id, status: "Pending", submitterSubject: "auth0|a", submittedAt: "2026-10-11T09:00:00Z",
+				discoveryResultsDocumentIds: [id], submitterAcceptedCount: 3, supervisorSubject: null,
+				appliedAt: null, reportComment: null, itemCommentCount: 0, applyError: null
+			}]
+		});
+		expect(list.submissions[0].status).toBe("Pending");
+		expect(() => discoverySubmissionListResponseSchema.parse({ view: "other", pendingCount: 0, submissions: [] })).toThrow();
+
+		const detail = discoverySubmissionDetailResponseSchema.parse({
+			id, status: "Pending", etag: "\"abc\"", canReview: true, submitterSubject: "auth0|a",
+			submittedAt: "2026-10-11T09:00:00Z", submitterAcceptedResultIds: [id],
+			supervisorAcceptedResultIds: null, addedBySupervisorResultIds: null, removedBySupervisorResultIds: null,
+			reportComment: null, itemComments: [{ resultId: id, comment: "why?" }],
+			supervisorSubject: null, appliedAt: null, applyError: null, erroredResultIds: null,
+			reports: [{
+				id, discoveryBegan: "2026-10-10T09:00:00Z", state: "PendingSupervisor",
+				results: [{
+					id, released: "2026-07-01T12:00:00Z", urls: {}, subjects: [], discoverService: ["Spotify"],
+					enrichedTimeFromApple: false, enrichedUrlFromSpotify: false, autoHidden: true
+				}]
+			}],
+			history: [{ at: "2026-10-11T09:00:00Z", actorSubject: "auth0|a", action: "Submitted" }]
+		});
+		expect(detail.etag).toBe("\"abc\"");
+
+		expect(discoverySubmissionReviewRequestSchema.parse({ etag: "e", reportComment: "", itemComments: [], acceptedResultIds: [id] }).etag).toBe("e");
+		expect(() => discoverySubmissionReviewRequestSchema.parse({ reportComment: "x" })).toThrow();
+		expect(discoverySubmissionApplyRequestSchema.parse({ etag: "e" }).acceptedResultIds).toBeUndefined();
+
+		const applied = discoverySubmissionCommandResponseSchema.parse({
+			submissionId: id, status: "Applied", etag: "e2", addedBySupervisorResultIds: [], removedBySupervisorResultIds: [],
+			message: null, outcome: { message: "ok", errorsOccurred: false, results: [], searchIndexerState: "Executed" }
+		});
+		expect(applied.status).toBe("Applied");
+	});
+
+	it("accepts supervised discovery retry/release DTOs and item outcomes (RPP #1023 f9e1be1)", () => {
+		const id = "550e8400-e29b-41d4-a716-446655440000";
+		const itemOutcome = {
+			resultId: id, state: "Failed", episodeId: null, podcastId: null, message: "Error",
+			error: "HttpRequestException: 503", attempts: 2, lastAttemptAt: "2026-10-11T09:00:00Z"
+		};
+		const partial = discoverySubmissionCommandResponseSchema.parse({
+			submissionId: id, status: "PartiallyApplied", etag: "e", ids: [id],
+			outcome: { message: "ok", errorsOccurred: true, searchIndexerState: "Executed",
+				results: [{ discoveryItemId: id, message: "Error", error: "HttpRequestException: 503" }] },
+			itemOutcomes: [itemOutcome]
+		});
+		expect(partial.itemOutcomes?.[0].attempts).toBe(2);
+		expect(partial.outcome?.results[0].error).toContain("503");
+		expect(() => discoverySubmissionCommandResponseSchema.parse({ submissionId: id, status: "Rejected" })).toThrow();
+
+		const summary = discoverySubmissionListResponseSchema.parse({
+			view: "supervisor", pendingCount: 1,
+			submissions: [{
+				id, status: "Released", submitterSubject: "auth0|a", submittedAt: "2026-10-11T09:00:00Z",
+				discoveryResultsDocumentIds: [id], submitterAcceptedCount: 1, itemCommentCount: 0,
+				failedCount: null, succeededCount: null, abandonedCount: null,
+				releasedAt: "2026-10-11T10:00:00Z", releaseReason: "stale"
+			}]
+		});
+		expect(summary.submissions[0].releaseReason).toBe("stale");
+
+		const detail = discoverySubmissionDetailResponseSchema.parse({
+			id, status: "PartiallyApplied", etag: "e", canReview: true, submitterSubject: "auth0|a",
+			submittedAt: "2026-10-11T09:00:00Z", submitterAcceptedResultIds: [id], itemComments: [],
+			itemOutcomes: [itemOutcome, { ...itemOutcome, state: "Succeeded", error: null, episodeId: id, podcastId: id }],
+			releasedAt: null, releaseReason: null, reports: [],
+			history: ["RetryStarted", "ItemsAbandoned", "ReleaseStarted", "Released", "PartiallyApplied"].map((action) => ({ at: "2026-10-11T09:00:00Z", action }))
+		});
+		expect(detail.itemOutcomes).toHaveLength(2);
+
+		expect(discoverySubmissionRetryRequestSchema.parse({ etag: "e", abandonResultIds: [id] }).abandonResultIds).toEqual([id]);
+		expect(() => discoverySubmissionRetryRequestSchema.parse({ abandonResultIds: [] })).toThrow();
+		expect(discoverySubmissionReleaseRequestSchema.parse({ etag: "e" }).reason).toBeUndefined();
+		expect(discoveryReportReleaseRequestSchema.parse({}).reason).toBeUndefined();
+		expect(discoveryReportReleaseResponseSchema.parse({ documentId: id, status: "Conflict", message: "held", submissionIds: [id] }).submissionIds).toHaveLength(1);
+	});
+
+	it("accepts Applying with inProgress fields, StateChanged history, set-state request and error DTOs (RPP #1023 5ea3cec)", () => {
+		const id = "550e8400-e29b-41d4-a716-446655440000";
+		const list = discoverySubmissionListResponseSchema.parse({
+			view: "supervisor", pendingCount: 0,
+			submissions: [{
+				id, status: "Applying", submitterSubject: "auth0|a", submittedAt: "2026-10-11T09:00:00Z",
+				discoveryResultsDocumentIds: [id], submitterAcceptedCount: 1, itemCommentCount: 0,
+				inProgressOperation: "Retry", inProgressSince: "2026-10-11T09:05:00Z"
+			}]
+		});
+		expect(list.submissions[0].inProgressOperation).toBe("Retry");
+		const detail = discoverySubmissionDetailResponseSchema.parse({
+			id, status: "Applying", etag: "e", canReview: false, submitterSubject: "auth0|a",
+			submittedAt: "2026-10-11T09:00:00Z", submitterAcceptedResultIds: [], itemComments: [], reports: [],
+			inProgressOperation: "Release", inProgressSince: "2026-10-11T09:05:00Z",
+			history: [
+				{ at: "2026-10-11T09:00:00Z", action: "Submitted", fromStatus: null, toStatus: null, reason: null },
+				{ at: "2026-10-11T10:00:00Z", actorSubject: "auth0|admin", action: "StateChanged", fromStatus: "Applying", toStatus: "Pending", reason: "crashed" }
+			]
+		});
+		expect(detail.inProgressOperation).toBe("Release");
+		expect(() => discoverySubmissionDetailResponseSchema.parse({ ...detail, inProgressOperation: "Review" })).toThrow();
+		expect(detail.history[1].toStatus).toBe("Pending");
+		expect(() => discoverySubmissionDetailResponseSchema.parse({ ...detail, history: [{ at: "2026-10-11T10:00:00Z", action: "Recovered" }] })).toThrow();
+		for (const status of ["Pending", "Applied", "ApplyFailed", "PartiallyApplied", "Released"]) {
+			expect(discoverySubmissionSetStateRequestSchema.parse({ status, etag: "e" }).status).toBe(status);
+		}
+		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "Applying", etag: "e" })).toThrow();
+		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "None", etag: "e" })).toThrow();
+		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "Pending" })).toThrow();
+		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "Pending", etag: "e", reason: "x".repeat(4001) })).toThrow();
+		expect(discoveryErrorResponseSchema.parse({ message: "Missing subject." }).message).toBe("Missing subject.");
 	});
 
 	it("accepts discovery schedule response", () => {

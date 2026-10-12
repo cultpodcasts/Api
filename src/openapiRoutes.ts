@@ -10,6 +10,9 @@ import {
 	curateAuth,
 	curateOrAdminAuth,
 	curatePermissionsClaimAuth,
+	discoverySubmissionViewAuth,
+	discoverySuperviseAuth,
+	discoveryReportReleaseAuth,
 	signedInAuth,
 	submitOrCurateAuth,
 	episodeIdParam,
@@ -37,6 +40,16 @@ import { deletePodcastEpisode } from "./deleteEpisode";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
+import {
+	getDiscoverySubmission,
+	getDiscoverySubmissions,
+	postDiscoverySubmissionApply,
+	postDiscoverySubmissionRelease,
+	postDiscoverySubmissionRetry,
+	postDiscoverySubmissionState,
+	postDiscoveryReportRelease,
+	putDiscoverySubmissionReview
+} from "./discoverySubmissions";
 import { getEpisode, getPodcastEpisode } from "./getEpisode";
 import { getFlairs } from "./getFlairs";
 import { getLanguages } from "./getLanguages";
@@ -55,6 +68,19 @@ import { indexPodcastByName } from "./indexPodcastByName";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
+	discoverySubmissionApplyRequestSchema,
+	discoverySubmissionCommandResponseSchema,
+	discoverySubmissionDetailResponseSchema,
+	discoverySubmissionListResponseSchema,
+	discoverySubmissionReviewRequestSchema,
+	discoverySubmissionRetryRequestSchema,
+	discoverySubmissionSetStateRequestSchema,
+	discoverySubmissionReleaseRequestSchema,
+	discoveryReportReleaseRequestSchema,
+	discoveryReportReleaseResponseSchema,
+	discoverySubmissionHeldResponseSchema,
+	discoverySubmitConflictSchema,
+	discoverySubmitBadRequestSchema,
 	discoveryInfoResponseSchema,
 	discoveryScheduleResponseSchema,
 	discoveryScheduleUpdateRequestSchema,
@@ -589,13 +615,155 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
     schema: {
         tags: ["Discovery"],
         summary: "Submit discovery curation",
+        description: "Requires `curate`. A caller whose token also has `curate:supervised` has the submit held for a supervisor: Azure returns 202 with `{submissionId, status: \"Pending\"}` and applies nothing. Supervised curators keep `curate` (the Worker gates on it). Held submissions are reviewed and applied via `/discovery-submissions`.",
         request: { body: jsonBody(discoverySubmitRequestSchema) },
         responses: {
-            200: { description: "Discovery curation submitted", ...contentJson(discoverySubmitResponseSchema) },
-            400: { description: "Bad request", ...contentJson(errorSchema) },
-            409: { description: "Conflict", ...contentJson(errorSchema) },
+            200: { description: "Discovery curation applied", ...contentJson(discoverySubmitResponseSchema) },
+            202: { description: "Held for supervisor review (curate:supervised caller)", ...contentJson(discoverySubmissionHeldResponseSchema) },
+            400: { description: "Bad request. Supervised hold path lists `resultIds` not in the named reports.", ...contentJson(z.union([discoverySubmitBadRequestSchema, errorSchema])) },
+            409: { description: "A requested report is awaiting supervisor review or otherwise not curatable; `documentIds` lists them (normal and supervised paths).", ...contentJson(discoverySubmitConflictSchema) },
             422: { description: "Unprocessable", ...contentJson(errorSchema) },
             ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+const submissionIdParam = z.object({ id: z.string().uuid() });
+/** Submission command routes: Azure returns the command outcome (with `ids`/`message`/`etag`) on 400/404/409; Worker errors use errorSchema. */
+const discoverySubmissionCommandOrError = z.union([discoverySubmissionCommandResponseSchema, errorSchema]);
+const discoverySubmissionErrors = {
+    400: { description: "Invalid command (e.g. result ids outside the held reports or not Failed, listed in `ids`; comment over 4000 chars; missing subject)", ...contentJson(discoverySubmissionCommandOrError) },
+    404: { description: "Unknown submission", ...contentJson(discoverySubmissionCommandOrError) },
+    409: { description: "Stale etag, wrong submission state, or a report no longer PendingSupervisor / concurrent apply. Nothing ingested.", ...contentJson(discoverySubmissionCommandOrError) }
+};
+
+export const GetDiscoverySubmissionsRoute = createOpenApiRoute(getDiscoverySubmissions, {
+    auth: discoverySubmissionViewAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "List supervised discovery submissions",
+        description: "`supervise`/`admin`: reviewable queue. `curate:supervised`: the caller's own submissions. Azure returns 403 for a permitted caller not allowed this view.",
+        responses: {
+            200: { description: "Submissions", ...contentJson(discoverySubmissionListResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetDiscoverySubmissionRoute = createOpenApiRoute(getDiscoverySubmission, {
+    auth: discoverySubmissionViewAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Get a supervised discovery submission",
+        description: "Submitter or an allowed supervisor/admin; otherwise 403. Returns the `etag` to send on review/apply.",
+        request: { params: submissionIdParam },
+        responses: {
+            200: { description: "Submission with held reports and history", ...contentJson(discoverySubmissionDetailResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PutDiscoverySubmissionReviewRoute = createOpenApiRoute(putDiscoverySubmissionReview, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Save a supervisor review (draft)",
+        description: "Command. Saves comments and the supervisor's accepted set; nothing is ingested. Only mapped supervisors (or admin) may review; nobody but an admin may review their own submission (403).",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReviewRequestSchema) },
+        responses: {
+            202: { description: "Review saved (command outcome, not the read model; GET to rebind)", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionApplyRoute = createOpenApiRoute(postDiscoverySubmissionApply, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Apply a supervised discovery submission",
+        description: "Command. Moves held reports PendingSupervisor → Processed (all-or-nothing) then ingests the final accepted set. 200 `status` Applied or PartiallyApplied, with `outcome` (this run) and `itemOutcomes` (cumulative). Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`). Apply on PartiallyApplied, or ApplyFailed with outcomes, is 409 (use retry).",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionApplyRequestSchema) },
+        responses: {
+            200: { description: "Applied; `outcome` carries the ingest result", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            500: { description: "Ingest failed: `status: \"ApplyFailed\"` and `message`; reports returned to PendingSupervisor for retry with a fresh etag. Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionRetryRoute = createOpenApiRoute(postDiscoverySubmissionRetry, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Retry failed items of a supervised discovery submission",
+        description: "Command. For PartiallyApplied, or ApplyFailed with `itemOutcomes`. Re-ingests Failed items; `abandonResultIds` drops them instead. Abandoning all failed items closes the submission as Applied without ingesting. 400 when abandoning an id that is not Failed (`ids`); 409 stale etag or nothing to retry.",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionRetryRequestSchema) },
+        responses: {
+            200: { description: "Retried; same command outcome as apply", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            500: { description: "Every retried item failed (`status: \"ApplyFailed\"`, see `itemOutcomes`). Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscoverySubmissionRelease, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Release a supervised discovery submission",
+        description: "Command (never `curate:supervised`). For a submission that has ingested nothing: moves each held report PendingSupervisor → Unprocessed, sets status Released with `releasedAt`/`releaseReason`. Ingests nothing. `ids` lists reports that were not held (left unchanged). 409 stale etag or submission already ingested/terminal.",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReleaseRequestSchema) },
+        responses: {
+            200: { description: "Released", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionStateRoute = createOpenApiRoute(postDiscoverySubmissionState, {
+    auth: discoveryReportReleaseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Set a submission's status (admin override)",
+        description: "Command. Sets `status`, clears `inProgressOperation`/`inProgressSince`, and appends a `StateChanged` history entry with `fromStatus`, `toStatus`, `actorSubject` and `reason`. Report states and item outcomes are not changed; fix those separately (e.g. POST /discovery-reports/{id}/release).",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionSetStateRequestSchema) },
+        responses: {
+            200: { description: "Status set", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            400: { description: "Applying, None, numeric or unknown status, or reason over 4000 chars", ...contentJson(discoverySubmissionCommandOrError) },
+            404: { description: "Unknown submission", ...contentJson(discoverySubmissionCommandOrError) },
+            409: { description: "Missing or stale etag", ...contentJson(discoverySubmissionCommandOrError) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoveryReportReleaseRoute = createOpenApiRoute(postDiscoveryReportRelease, {
+    auth: discoveryReportReleaseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Release a stuck discovery report (admin)",
+        description: "Command. Releases a report stuck in PendingSupervisor with no live submission back to Unprocessed.",
+        request: { params: submissionIdParam, body: jsonBody(discoveryReportReleaseRequestSchema) },
+        responses: {
+            200: { description: "Released", ...contentJson(discoveryReportReleaseResponseSchema) },
+            400: { description: "Bad request", ...contentJson(errorSchema) },
+            404: { description: "Unknown report", ...contentJson(z.union([discoveryReportReleaseResponseSchema, errorSchema])) },
+            409: { description: "Report not PendingSupervisor, or still held by a live submission (`submissionIds`)", ...contentJson(z.union([discoveryReportReleaseResponseSchema, errorSchema])) },
             ...serverErrorResponse,
             ...authResponses
         }

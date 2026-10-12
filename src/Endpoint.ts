@@ -19,5 +19,7 @@ export enum Endpoint {
     titleCasingRules,
     tvShow,
     tvShowEpisode,
-    film
+    film,
+    discoverySubmissions,
+    discoveryReports
 }
