@@ -768,8 +768,12 @@ export const discoverySubmissionHistorySchema = z.object({
 	actorSubject: z.string().nullable().optional(),
 	action: z.enum([
 		"Submitted", "ReviewSaved", "ApplyStarted", "Applied", "PartiallyApplied", "ApplyFailed", "ApplyConflict",
-		"RetryStarted", "ItemsAbandoned", "ReleaseStarted", "Released", "Recovered"
+		"RetryStarted", "ItemsAbandoned", "ReleaseStarted", "Released", "StateChanged"
 	])
+,
+	fromStatus: discoverySubmissionStatusSchema.nullable().optional().describe("StateChanged only: previous status."),
+	toStatus: discoverySubmissionStatusSchema.nullable().optional().describe("StateChanged only: new status."),
+	reason: z.string().nullable().optional().describe("StateChanged only: admin's reason.")
 });
 
 /** Api.Dtos.DiscoverySubmissionDetailResponse — GET /discovery-submissions/{id}. */
@@ -834,9 +838,13 @@ export const discoverySubmissionRetryRequestSchema = z.object({
 	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying.")
 });
 
-/** Api.Dtos.DiscoverySubmissionRecoverRequestDto — POST /discovery-submissions/{id}/recover (admin). */
-export const discoverySubmissionRecoverRequestSchema = z.object({
-	etag: z.string()
+/** Api.Dtos.DiscoverySubmissionSetStateRequestDto — POST /discovery-submissions/{id}/state (admin). */
+export const discoverySubmissionSetStateRequestSchema = z.object({
+	status: z.enum(["Pending", "Applied", "ApplyFailed", "PartiallyApplied", "Applying", "Released"]).describe(
+		"A DiscoverySubmissionStatus name (Azure matches case-insensitively). None, numbers and unknown names are 400."
+	),
+	etag: z.string().describe("The submission's current ETag. Missing or stale is 409."),
+	reason: z.string().max(4000).nullable().optional().describe("Optional, at most 4000 characters (longer is 400).")
 });
 
 /** Api.Dtos.DiscoverySubmissionReleaseRequestDto — POST /discovery-submissions/{id}/release. */

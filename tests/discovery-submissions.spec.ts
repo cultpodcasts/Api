@@ -5,7 +5,7 @@ import {
 	postDiscoverySubmissionApply,
 	postDiscoverySubmissionRelease,
 	postDiscoverySubmissionRetry,
-	postDiscoverySubmissionRecover,
+	postDiscoverySubmissionState,
 	postDiscoveryReportRelease,
 	putDiscoverySubmissionReview
 } from "../src/discoverySubmissions";
@@ -239,7 +239,7 @@ describe("discovery-submissions proxy", () => {
 			{ name: "apply", method: "post", route: "/discovery-submissions/:id/apply", url: `/discovery-submissions/${id}/apply`, handler: postDiscoverySubmissionApply, allowed: ["supervise", "admin"] },
 			{ name: "retry", method: "post", route: "/discovery-submissions/:id/retry", url: `/discovery-submissions/${id}/retry`, handler: postDiscoverySubmissionRetry, allowed: ["supervise", "admin"] },
 			{ name: "release", method: "post", route: "/discovery-submissions/:id/release", url: `/discovery-submissions/${id}/release`, handler: postDiscoverySubmissionRelease, allowed: ["supervise", "admin"] },
-			{ name: "recover", method: "post", route: "/discovery-submissions/:id/recover", url: `/discovery-submissions/${id}/recover`, handler: postDiscoverySubmissionRecover, allowed: ["admin"] },
+			{ name: "state", method: "post", route: "/discovery-submissions/:id/state", url: `/discovery-submissions/${id}/state`, handler: postDiscoverySubmissionState, allowed: ["admin"] },
 			{ name: "report release", method: "post", route: "/discovery-reports/:id/release", url: `/discovery-reports/${id}/release`, handler: postDiscoveryReportRelease, allowed: ["admin"] }
 		];
 		const permissions = ["curate", "curate:supervised", "supervise", "admin"];
@@ -269,36 +269,38 @@ describe("discovery-submissions proxy", () => {
 		});
 	});
 
-	it("admin recovers a stuck submission, forwarding etag", async () => {
-		const outcome = { submissionId: id, status: "PartiallyApplied", etag: "\"n\"" };
+	it("admin sets a submission state, forwarding status/etag/reason", async () => {
+		const outcome = { submissionId: id, status: "Pending", etag: "\"n\"" };
 		const fetchMock = stubAzure(200, outcome);
-		const app = appWithPermissions("/discovery-submissions/:id/recover", "post", postDiscoverySubmissionRecover, ["admin"]);
+		const app = appWithPermissions("/discovery-submissions/:id/state", "post", postDiscoverySubmissionState, ["admin"]);
+		const request = { status: "Pending", etag: "\"e\"", reason: "Apply crashed during claim" };
 
 		const resp = await app.request(
-			`/discovery-submissions/${id}/recover`,
-			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "\"e\"" }) },
+			`/discovery-submissions/${id}/state`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify(request) },
 			testEnv()
 		);
 
 		expect(resp.status).toBe(200);
 		expect(await resp.json()).toEqual(outcome);
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(String(url)).toBe(`https://functions.example/api/DiscoverySubmissions/${id}/recover`);
-		expect(JSON.parse(String(init?.body))).toEqual({ etag: "\"e\"" });
+		expect(String(url)).toBe(`https://functions.example/api/DiscoverySubmissions/${id}/state`);
+		expect(init?.method).toBe("POST");
+		expect(JSON.parse(String(init?.body))).toEqual(request);
 	});
 
-	it("passes Azure recover 409 (not stuck long enough) through", async () => {
-		const body = { submissionId: id, status: "Applying", message: "Not stuck." };
-		stubAzure(409, body);
-		const app = appWithPermissions("/discovery-submissions/:id/recover", "post", postDiscoverySubmissionRecover, ["admin"]);
+	it.each([400, 403, 404, 409])("passes Azure state %i command body through", async (status) => {
+		const body = { submissionId: id, status: "Applying", message: "nope" };
+		stubAzure(status, body);
+		const app = appWithPermissions("/discovery-submissions/:id/state", "post", postDiscoverySubmissionState, ["admin"]);
 
 		const resp = await app.request(
-			`/discovery-submissions/${id}/recover`,
-			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "e" }) },
+			`/discovery-submissions/${id}/state`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ status: "Pending", etag: "e" }) },
 			testEnv()
 		);
 
-		expect(resp.status).toBe(409);
+		expect(resp.status).toBe(status);
 		expect(await resp.json()).toEqual(body);
 	});
 });

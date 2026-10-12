@@ -6,7 +6,7 @@ vi.mock("workers-og", () => ({
 
 import {
 	PostDiscoverySubmissionApplyRoute,
-	PostDiscoverySubmissionRecoverRoute,
+	PostDiscoverySubmissionStateRoute,
 	PostDiscoverySubmissionReleaseRoute,
 	PostDiscoverySubmissionRetryRoute,
 	PutDiscoverySubmissionReviewRoute
@@ -19,7 +19,7 @@ describe("discovery submission command route error schemas", () => {
 		apply: PostDiscoverySubmissionApplyRoute,
 		retry: PostDiscoverySubmissionRetryRoute,
 		release: PostDiscoverySubmissionReleaseRoute,
-		recover: PostDiscoverySubmissionRecoverRoute
+		state: PostDiscoverySubmissionStateRoute
 	};
 
 	function responseSchema(route: { openApiSchema: any }, status: number): { parse: (v: unknown) => unknown } {

@@ -46,7 +46,7 @@ import {
 	postDiscoverySubmissionApply,
 	postDiscoverySubmissionRelease,
 	postDiscoverySubmissionRetry,
-	postDiscoverySubmissionRecover,
+	postDiscoverySubmissionState,
 	postDiscoveryReportRelease,
 	putDiscoverySubmissionReview
 } from "./discoverySubmissions";
@@ -74,7 +74,7 @@ import {
 	discoverySubmissionListResponseSchema,
 	discoverySubmissionReviewRequestSchema,
 	discoverySubmissionRetryRequestSchema,
-	discoverySubmissionRecoverRequestSchema,
+	discoverySubmissionSetStateRequestSchema,
 	discoverySubmissionReleaseRequestSchema,
 	discoveryReportReleaseRequestSchema,
 	discoveryReportReleaseResponseSchema,
@@ -734,17 +734,19 @@ export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscov
     }
 });
 
-export const PostDiscoverySubmissionRecoverRoute = createOpenApiRoute(postDiscoverySubmissionRecover, {
+export const PostDiscoverySubmissionStateRoute = createOpenApiRoute(postDiscoverySubmissionState, {
     auth: discoveryReportReleaseAuth,
     schema: {
         tags: ["Discovery"],
-        summary: "Recover a submission stuck in Applying (admin)",
-        description: "Command. Allowed only when the submission has been Applying for more than 30 minutes (409 otherwise). Reconciles from report state: an Apply with reports still PendingSupervisor returns to the previous status; an Apply with reports Processed, or a Retry, marks in-flight results without a Succeeded outcome Failed (ApplyFailed/PartiallyApplied); a Release moves remaining PendingSupervisor reports to Unprocessed (Released). Records a `Recovered` history entry.",
-        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionRecoverRequestSchema) },
+        summary: "Set a submission's status (admin override)",
+        description: "Command. Sets `status`, clears `inProgressOperation`/`inProgressSince`, and appends a `StateChanged` history entry with `fromStatus`, `toStatus`, `actorSubject` and `reason`. Report states and item outcomes are not changed; fix those separately (e.g. POST /discovery-reports/{id}/release).",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionSetStateRequestSchema) },
         responses: {
-            200: { description: "Recovered", ...contentJson(discoverySubmissionCommandResponseSchema) },
-            ...discoverySubmissionErrors,
-            500: { description: "Failure", ...contentJson(discoverySubmissionCommandOrError) },
+            200: { description: "Status set", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            400: { description: "Unknown/None/numeric status, or reason over 4000 chars", ...contentJson(discoverySubmissionCommandOrError) },
+            404: { description: "Unknown submission", ...contentJson(discoverySubmissionCommandOrError) },
+            409: { description: "Missing or stale etag", ...contentJson(discoverySubmissionCommandOrError) },
+            ...serverErrorResponse,
             ...authResponses
         }
     }
