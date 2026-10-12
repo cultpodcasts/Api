@@ -840,8 +840,8 @@ export const discoverySubmissionRetryRequestSchema = z.object({
 
 /** Api.Dtos.DiscoverySubmissionSetStateRequestDto — POST /discovery-submissions/{id}/state (admin). */
 export const discoverySubmissionSetStateRequestSchema = z.object({
-	status: z.enum(["Pending", "Applied", "ApplyFailed", "PartiallyApplied", "Applying", "Released"]).describe(
-		"A DiscoverySubmissionStatus name (Azure matches case-insensitively). None, numbers and unknown names are 400."
+	status: z.enum(["Pending", "Applied", "ApplyFailed", "PartiallyApplied", "Released"]).describe(
+		"Target DiscoverySubmissionStatus name (Azure matches case-insensitively). Applying cannot be set; None, numbers and unknown names are 400."
 	),
 	etag: z.string().describe("The submission's current ETag. Missing or stale is 409."),
 	reason: z.string().max(4000).nullable().optional().describe("Optional, at most 4000 characters (longer is 400).")

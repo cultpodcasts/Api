@@ -743,7 +743,7 @@ export const PostDiscoverySubmissionStateRoute = createOpenApiRoute(postDiscover
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionSetStateRequestSchema) },
         responses: {
             200: { description: "Status set", ...contentJson(discoverySubmissionCommandResponseSchema) },
-            400: { description: "Unknown/None/numeric status, or reason over 4000 chars", ...contentJson(discoverySubmissionCommandOrError) },
+            400: { description: "Applying, None, numeric or unknown status, or reason over 4000 chars", ...contentJson(discoverySubmissionCommandOrError) },
             404: { description: "Unknown submission", ...contentJson(discoverySubmissionCommandOrError) },
             409: { description: "Missing or stale etag", ...contentJson(discoverySubmissionCommandOrError) },
             ...serverErrorResponse,

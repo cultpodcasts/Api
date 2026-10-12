@@ -267,7 +267,10 @@ describe("openapi Zod schemas", () => {
 		expect(() => discoverySubmissionDetailResponseSchema.parse({ ...detail, inProgressOperation: "Review" })).toThrow();
 		expect(detail.history[1].toStatus).toBe("Pending");
 		expect(() => discoverySubmissionDetailResponseSchema.parse({ ...detail, history: [{ at: "2026-10-11T10:00:00Z", action: "Recovered" }] })).toThrow();
-		expect(discoverySubmissionSetStateRequestSchema.parse({ status: "Applying", etag: "e" }).reason).toBeUndefined();
+		for (const status of ["Pending", "Applied", "ApplyFailed", "PartiallyApplied", "Released"]) {
+			expect(discoverySubmissionSetStateRequestSchema.parse({ status, etag: "e" }).status).toBe(status);
+		}
+		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "Applying", etag: "e" })).toThrow();
 		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "None", etag: "e" })).toThrow();
 		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "Pending" })).toThrow();
 		expect(() => discoverySubmissionSetStateRequestSchema.parse({ status: "Pending", etag: "e", reason: "x".repeat(4001) })).toThrow();
