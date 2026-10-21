@@ -13,12 +13,28 @@ import {
 } from "./submitAccess";
 import { getStreamMeta, toPrefetchedMeta } from "./submitPrepareMeta";
 
-function hasSeriesAttachTarget(data: { podcastId?: unknown; podcastName?: unknown }): boolean {
-	const id = data.podcastId;
-	if (id != null && String(id).trim() !== "") {
-		return true;
-	}
-	return typeof data.podcastName === "string" && data.podcastName.trim() !== "";
+function nonBlank(value: unknown): boolean {
+	return value != null && String(value).trim() !== "";
+}
+
+/**
+ * True when the body names an attach target: a podcast (`podcastId` / `podcastName`) or a
+ * news organisation / TV show parent (`parentKind` / `parentId` / `parentName`, RPP #1054).
+ * An attach target needs a `submit`/`curate` caller (401/403 otherwise) and is only ever
+ * persisted by Azure, never by the D1 URL-only store.
+ *
+ * Every field uses the same rule: any non-null value whose string form is non-blank counts,
+ * whatever its JSON type (e.g. `parentId: 123`). Erring towards "attach" only means more
+ * bodies need auth; it never lets an attach reach D1.
+ */
+function hasAttachTarget(data: {
+	podcastId?: unknown;
+	podcastName?: unknown;
+	parentKind?: unknown;
+	parentId?: unknown;
+	parentName?: unknown;
+}): boolean {
+	return [data.podcastId, data.podcastName, data.parentKind, data.parentId, data.parentName].some(nonBlank);
 }
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
@@ -30,8 +46,8 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	const data = await c.req.json();
 	// Never trust client-supplied prefetchedMeta — only Worker KV cache.
 	delete data.prefetchedMeta;
-	const attachTarget = hasSeriesAttachTarget(data);
-	// podcastId/podcastName is Isolated persist only — D1 stores URL, not attach.
+	const attachTarget = hasAttachTarget(data);
+	// podcastId/podcastName and parentKind/parentId/parentName are Isolated persist only — D1 stores URL, not attach.
 	if (attachTarget && !canCallAzureSubmitBackend(auth0Payload)) {
 		const status = azureSubmitBackendDenialStatus(auth0Payload);
 		logCollector.emitError({

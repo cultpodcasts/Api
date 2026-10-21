@@ -53,7 +53,15 @@ export const ambiguousPodcastIdsSchema = ambiguousIdsSchema;
 export const submitUrlRequestSchema = z.object({
 	url: z.string().url(),
 	podcastId: z.string().uuid().optional().nullable(),
-	podcastName: z.string().optional().nullable()
+	podcastName: z.string().optional().nullable(),
+	parentKind: z
+		.string()
+		.regex(/^(NewsOrganisation|TvShow)$/i)
+		.optional()
+		.nullable()
+		.describe("Attach to a news organisation or TV show instead of a podcast (RPP #1054): `NewsOrganisation` or `TvShow`, case-insensitive. Requires `submit` or `curate`; never combined with `podcastId` / `podcastName` (400)."),
+	parentId: z.string().uuid().optional().nullable().describe("Guid of the `parentKind` row (404 when it is not one)."),
+	parentName: z.string().optional().nullable().describe("Parent name, a check and log aid; `parentId` decides the target.")
 });
 
 export const submitUrlPrepareRequestSchema = z.object({
