@@ -4,7 +4,8 @@ import { Endpoint } from "./Endpoint";
 import { proxyToAzure } from "./proxyToAzure";
 
 /**
- * Curator PATCH of a news report (command): 202 with an empty body on success.
+ * Curator PATCH of a news report (command): 202 on success, forwarding the episode-style
+ * `EpisodeUpdateResponse` body (tweetDeleted / blueskyPostDeleted / searchIndexerState) as-is.
  * Forwards 400/401/404/500 bodies.
  */
 export async function updateNewsReport(c: Auth0ActionContext): Promise<Response> {
