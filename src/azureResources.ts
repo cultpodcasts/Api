@@ -26,5 +26,7 @@ export const AzureResourcePaths = {
 	[Endpoint.tvShowEpisode]: "/api/tvshowepisode",
 	[Endpoint.film]: "/api/film",
 	[Endpoint.discoverySubmissions]: "/api/DiscoverySubmissions",
-	[Endpoint.discoveryReports]: "/api/DiscoveryReports"
+	[Endpoint.discoveryReports]: "/api/DiscoveryReports",
+	[Endpoint.newsOrganisation]: "/api/newsorganisation",
+	[Endpoint.newsReport]: "/api/newsreport"
 } as const satisfies Record<Endpoint, string>;
