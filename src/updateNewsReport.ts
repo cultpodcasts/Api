@@ -19,7 +19,6 @@ export async function updateNewsReport(c: Auth0ActionContext): Promise<Response>
 		pathSuffix: `/${encodeURIComponent(id)}`,
 		body,
 		successStatuses: [202],
-		emptyAcknowledgement: true,
 		forwardStatuses: [400, 401, 404, 500],
 		logName: "secure-newsreport-update-endpoint"
 	});

@@ -1088,6 +1088,9 @@ export const preProcessedHomepageResponseSchema = z.object({
 const publisherFieldsDtoShape = {
 	id: z.string().uuid(),
 	name: z.string(),
+	/** Publisher.PublisherName (Cosmos `publisher`): network / label / brand. */
+	publisher: z.string(),
+	description: z.string(),
 	language: z.string().optional().nullable(),
 	removed: z.boolean(),
 	twitterHandle: z.string(),
@@ -1105,9 +1108,16 @@ const publisherFieldsDtoShape = {
 
 /**
  * Omitted / null = unchanged; `""` clears a string, `[]` clears a list. `language` `""` or English is stored
- * as null. Name and removed (on news organisations and TV shows) are not editable here.
+ * as null. Name is not editable here.
+ * `removed` on a news organisation / TV show cascades: every child's `parentRemoved` is set / cleared (its own
+ * `removed` is untouched), and on removal every child's search document is deleted. On a film it deletes the film's
+ * own search document.
  */
 const publisherFieldsChangeShape = {
+	/** Publisher.PublisherName; trimmed, `""` clears. */
+	publisher: z.string().optional().nullable(),
+	description: z.string().optional().nullable(),
+	removed: z.boolean().optional().nullable(),
 	language: z.string().optional().nullable(),
 	twitterHandle: z.string().optional().nullable(),
 	blueskyHandle: z.string().optional().nullable(),
@@ -1137,6 +1147,7 @@ const playableFieldsDtoShape = {
 	explicit: z.boolean(),
 	ignored: z.boolean(),
 	removed: z.boolean(),
+	posted: z.boolean(),
 	tweeted: z.boolean(),
 	blueskyPosted: z.boolean(),
 	subjects: z.array(z.string()),
@@ -1151,6 +1162,17 @@ const playableFieldsDtoShape = {
 const guestsChange = z.array(z.string()).optional().nullable();
 
 /**
+ * Post status, as in the episode edit API (`episodeChangeRequestSchema`): `posted` sets the flag; `tweeted` sets the
+ * flag and true → false also deletes the tweet; `unBluesky: true` deletes the Bluesky post and clears the Bluesky
+ * state only when it is gone. Bluesky posted cannot be set to true.
+ */
+const postStatusChangeShape = {
+	posted: z.boolean().optional().nullable(),
+	tweeted: z.boolean().optional().nullable(),
+	unBluesky: z.boolean().optional().nullable()
+};
+
+/**
  * Api.Dtos.PlayableFieldsChangeRequest. Omitted / null = unchanged. Azure validates `release` (`yyyy-MM-dd` only)
  * and `duration` (non-negative TimeSpan) and returns 400 before applying anything. `removed: true` also deletes
  * the search document.
@@ -1163,6 +1185,7 @@ const playableFieldsChangeShape = {
 	explicit: z.boolean().optional().nullable(),
 	ignored: z.boolean().optional().nullable(),
 	removed: z.boolean().optional().nullable(),
+	...postStatusChangeShape,
 	subjects: z.array(z.string()).optional().nullable(),
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
@@ -1209,7 +1232,7 @@ export const tvShowEpisodeDtoSchema = z.object({
 
 /**
  * Api.Dtos.TvShowChangeRequest: canonical ids (absolute http(s) URL; `""` clears; anything else is a 400) plus the
- * shared publisher fields. `searchTerms` / `language` are also copied to every episode of the show.
+ * shared publisher fields. `searchTerms` / `language` / `removed` are also copied to every episode of the show (removal cascades).
  */
 export const tvShowChangeRequestSchema = z.object({
 	imdb: z.string().optional().nullable(),
@@ -1236,11 +1259,11 @@ export const filmDtoSchema = z.object({
 	tmdbId: z.number().int().optional().nullable(),
 	...optionalShape({
 		...publisherFieldsDtoExtras,
-		description: z.string(),
 		release: z.string().regex(/^\d{4}(-\d{2}-\d{2})?$/).optional().nullable(),
 		duration: z.string(),
 		explicit: z.boolean(),
 		ignored: z.boolean(),
+		posted: z.boolean(),
 		tweeted: z.boolean(),
 		blueskyPosted: z.boolean(),
 		subjects: z.array(z.string()),
@@ -1250,19 +1273,18 @@ export const filmDtoSchema = z.object({
 });
 
 /**
- * Api.Dtos.FilmChangeRequest: IMDb, the shared publisher fields (no propagation: films have no children), and the
- * film's playable fields. `release` is `yyyy` or `yyyy-MM-dd`, and `duration` is a non-negative TimeSpan; Azure
+ * Api.Dtos.FilmChangeRequest: IMDb, the shared publisher fields (publisher, description, removed …; no propagation:
+ * films have no children), the film's playable fields and the episode-style post status. `release` is `yyyy` or `yyyy-MM-dd`, and `duration` is a non-negative TimeSpan; Azure
  * returns 400 before applying anything. `removed: true` also deletes the film's search document.
  */
 export const filmChangeRequestSchema = z.object({
 	imdb: z.string().optional().nullable(),
 	...publisherFieldsChangeShape,
-	description: z.string().optional().nullable(),
 	release: z.string().optional().nullable(),
 	duration: z.string().optional().nullable(),
 	explicit: z.boolean().optional().nullable(),
 	ignored: z.boolean().optional().nullable(),
-	removed: z.boolean().optional().nullable(),
+	...postStatusChangeShape,
 	subjects: z.array(z.string()).optional().nullable(),
 	guests: guestsChange
 });
@@ -1270,7 +1292,7 @@ export const filmChangeRequestSchema = z.object({
 /** Api.Dtos.NewsOrganisationDto (RPP #1053). */
 export const newsOrganisationDtoSchema = z.object(publisherFieldsDtoShape);
 
-/** Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields. Search terms and language are copied to reports. */
+/** Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields. Search terms, language and removed are copied to reports (removal cascades). */
 export const newsOrganisationChangeRequestSchema = z.object(publisherFieldsChangeShape);
 
 /** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */

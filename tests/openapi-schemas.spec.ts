@@ -918,10 +918,47 @@ describe("openapi Zod schemas", () => {
 		expect(() => tvShowChangeRequestSchema.parse({ enrichmentHashTags: "#A" })).toThrow();
 	});
 
+	it("parses publisher, description, cascading removed and episode-style post status in news/TV/film change requests (synthetic)", () => {
+		const publisherEdit = { publisher: "Synthetic Studios", description: "", removed: true };
+		expect(newsOrganisationChangeRequestSchema.parse(publisherEdit)).toEqual(publisherEdit);
+		expect(tvShowChangeRequestSchema.parse(publisherEdit)).toEqual(publisherEdit);
+		expect(filmChangeRequestSchema.parse({ publisher: "Synthetic Pictures" })).toEqual({ publisher: "Synthetic Pictures" });
+		const postStatus = { posted: true, tweeted: false, unBluesky: true };
+		expect(newsReportChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
+		expect(tvShowEpisodeChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
+		expect(filmChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
+		expect(() => newsReportChangeRequestSchema.parse({ unBluesky: "yes" })).toThrow();
+		expect(() => tvShowChangeRequestSchema.parse({ removed: "true" })).toThrow();
+		expect(() => newsOrganisationChangeRequestSchema.parse({ publisher: 1 })).toThrow();
+	});
+
+	it("requires publisher/description on the news organisation DTO and posted on the news report DTO, and accepts them on TV and film", () => {
+		const org = {
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "Synthetic Broadcasting Corp",
+			description: "Synthetic",
+			removed: false,
+			twitterHandle: ""
+		};
+		expect(newsOrganisationDtoSchema.parse(org).publisher).toBe("Synthetic Broadcasting Corp");
+		const { publisher: _omitPublisher, ...orgWithoutPublisher } = org;
+		expect(() => newsOrganisationDtoSchema.parse(orgWithoutPublisher)).toThrow();
+		expect(tvShowDtoSchema.parse({ id: org.id, name: "Synthetic Show", publisher: "Synthetic Studios", description: "Synthetic" }).publisher).toBe(
+			"Synthetic Studios"
+		);
+		expect(filmDtoSchema.parse({ id: org.id, name: "Synthetic Film", publisher: "Synthetic Pictures", posted: true }).posted).toBe(true);
+		expect(
+			tvShowEpisodeDtoSchema.parse({ id: org.id, tvShowId: org.id, title: "Synthetic", posted: false, blueskyPosted: false }).posted
+		).toBe(false);
+	});
+
 	it("parses news organisation and news report GET DTOs (RPP #1053, synthetic)", () => {
 		const org = newsOrganisationDtoSchema.parse({
 			id: "550e8400-e29b-41d4-a716-446655440000",
 			name: "Synthetic News Org",
+			publisher: "Synthetic Broadcasting Corp",
+			description: "",
 			language: null,
 			removed: false,
 			twitterHandle: "@synthetic",
@@ -948,6 +985,7 @@ describe("openapi Zod schemas", () => {
 			explicit: false,
 			ignored: false,
 			removed: false,
+			posted: false,
 			tweeted: true,
 			blueskyPosted: false,
 			subjects: ["Synthetic Subject"],

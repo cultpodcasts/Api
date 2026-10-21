@@ -92,24 +92,24 @@ describe("catalogue Azure proxies", () => {
 			`/tvshow/${id}`,
 			updateTvShow,
 			"/tvshow/",
-			{ imdb: "", searchTerms: "synthetic", language: "fr", enrichmentHashTags: [], defaultSubject: "" }
+			{ imdb: "", searchTerms: "synthetic", language: "fr", enrichmentHashTags: [], defaultSubject: "", publisher: "Synthetic Studios", description: "", removed: true }
 		],
 		[
 			"/tvshowepisode/:id",
 			`/tvshowepisode/${id}`,
 			updateTvShowEpisode,
 			"/tvshowepisode/",
-			{ tvdb: null, title: "Synthetic", release: "2026-10-02", duration: "0:44:00", removed: true, guests: [] }
+			{ tvdb: null, title: "Synthetic", release: "2026-10-02", duration: "0:44:00", removed: true, guests: [], posted: true, tweeted: false, unBluesky: true }
 		],
 		[
 			"/film/:id",
 			`/film/${id}`,
 			updateFilm,
 			"/film/",
-			{ imdb: "https://www.imdb.com/title/tt0000003/", release: "1999", guests: ["Synthetic Director"], hashTag: "" }
+			{ imdb: "https://www.imdb.com/title/tt0000003/", release: "1999", guests: ["Synthetic Director"], hashTag: "", publisher: "Synthetic Pictures", tweeted: false, unBluesky: true }
 		]
 	] as const)(
-		"PATCH %s passes the RPP #1053 parity fields through to Azure unchanged and forwards 202",
+		"PATCH %s passes the RPP #1053 parity fields (incl. publisher / removed / post status) through to Azure unchanged and forwards 202",
 		async (route, requestPath, handler, azurePrefix, payload) => {
 			const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
 			vi.stubGlobal("fetch", fetchMock);
@@ -126,6 +126,22 @@ describe("catalogue Azure proxies", () => {
 			expect(JSON.parse(String(init.body))).toEqual(payload);
 		}
 	);
+
+	it.each([
+		["/tvshowepisode/:id", `/tvshowepisode/${id}`, updateTvShowEpisode],
+		["/film/:id", `/film/${id}`, updateFilm]
+	] as const)("PATCH %s forwards the episode-style 202 outcome body", async (route, requestPath, handler) => {
+		const outcome = { tweetDeleted: false, blueskyPostDeleted: true, searchIndexerState: null };
+		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(outcome), { status: 202 })));
+		const app = appFor(route, "patch", handler, ["curate"]);
+		const resp = await app.request(
+			requestPath,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify({ tweeted: false, unBluesky: true }) },
+			catalogueEnv()
+		);
+		expect(resp.status).toBe(202);
+		expect(await resp.json()).toEqual(outcome);
+	});
 
 	it.each([
 		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, { id, name: "Synthetic", searchTerms: "s", knownTerms: ["K"], removed: false }],

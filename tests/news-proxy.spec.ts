@@ -136,7 +136,7 @@ describe("news curation Azure proxies", () => {
 	});
 
 	it.each(patchRoutes)(
-		"PATCH %s returns 202 with no body, forwards the token and body to Azure %s{id}",
+		"PATCH %s returns 202, forwards the token and body to Azure %s{id}",
 		async (route, path, handler, azurePrefix, body) => {
 			const fetchMock = stubFetch(202, null);
 			const app = appWithPermissions(route, "patch", handler, ["curate"]);
@@ -146,7 +146,6 @@ describe("news curation Azure proxies", () => {
 				testEnv()
 			);
 			expect(resp.status).toBe(202);
-			expect(await resp.text()).toBe("");
 			const [url, init] = fetchMock.mock.calls[0];
 			expect(String(url)).toBe(`https://functions.example${azurePrefix}${encodeURIComponent(id)}`);
 			expect(init?.method).toBe("PATCH");
@@ -154,6 +153,29 @@ describe("news curation Azure proxies", () => {
 			expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-token");
 		}
 	);
+
+	it("PATCH /newsorganisation/:id acknowledges with an empty 202 while PATCH /newsreport/:id passes the episode-style outcome through", async () => {
+		const outcome = { tweetDeleted: true, blueskyPostDeleted: null, searchIndexerState: null };
+		const [orgRoute, orgPath, orgHandler] = patchRoutes[0];
+		const [reportRoute, reportPath, reportHandler] = patchRoutes[1];
+		stubFetch(202, outcome);
+		const org = await appWithPermissions(orgRoute, "patch", orgHandler, ["curate"]).request(
+			orgPath,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify({ removed: true }) },
+			testEnv()
+		);
+		expect(org.status).toBe(202);
+		expect(await org.text()).toBe("");
+		vi.unstubAllGlobals();
+		stubFetch(202, outcome);
+		const report = await appWithPermissions(reportRoute, "patch", reportHandler, ["curate"]).request(
+			reportPath,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify({ tweeted: false, unBluesky: true, posted: true }) },
+			testEnv()
+		);
+		expect(report.status).toBe(202);
+		expect(await report.json()).toEqual(outcome);
+	});
 
 	it.each(patchRoutes)("PATCH %s passes 400, 401, 404 and 500 bodies through", async (route, path, handler, _p, body) => {
 		const app = appWithPermissions(route, "patch", handler, ["curate"]);
@@ -200,7 +222,7 @@ describe("news curation OpenAPI contracts", () => {
 		expect(index).toContain("openapi.patch('/newsreport/:id', UpdateNewsReportRoute);");
 	});
 
-	it("uses a news-specific 409 only on GET news organisation, curate auth, and empty 202 acknowledgements", () => {
+	it("uses a news-specific 409 only on GET news organisation, curate auth, an empty org 202 and an outcome report 202", () => {
 		expect(ambiguousNewsOrganisationNameConflict).not.toBe(ambiguousCatalogueNameConflict);
 		expect(ambiguousNewsOrganisationNameConflict.description).toMatch(/news organisation/i);
 		const getOrg = block("export const GetNewsOrganisationRoute", "export const UpdateNewsOrganisationRoute");
@@ -215,6 +237,6 @@ describe("news curation OpenAPI contracts", () => {
 		expect(patchOrg).toContain("jsonBody(newsOrganisationChangeRequestSchema)");
 		expect(patchReport).toContain("jsonBody(newsReportChangeRequestSchema)");
 		expect(patchOrg).toMatch(/202: \{ description: "News organisation updated \(empty body\)" \}/);
-		expect(patchReport).toMatch(/202: \{ description: "News report updated \(empty body\)" \}/);
+		expect(patchReport).toContain('202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) }');
 	});
 });

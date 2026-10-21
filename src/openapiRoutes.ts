@@ -224,10 +224,11 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 		description:
 			"`id` is the episode guid. Omitted or null fields are unchanged. Same playable fields and rules as `PATCH /newsreport/{id}`, " +
 			"including `guests`, plus `imdb` / `tvdb`. The request is validated before anything is applied. " +
-			"`removed: true` also deletes the episode's search document (RPP #1053).",
+			"`removed: true` also deletes the episode's search document (RPP #1053)." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
-			202: { description: "TV-show episode updated (empty body)" },
+			202: { description: "TV-show episode updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
 			400: {
 				description: "Invalid URL, release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
@@ -246,7 +247,9 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 		summary: "Patch TV show publisher fields and IMDb/TheTVDB identity URIs",
 		description:
 			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields and rules as `PATCH /newsorganisation/{id}`, " +
-			"plus `imdb` / `tvdb`. `searchTerms` and `language` are also copied to every episode of the show (RPP #1053).",
+			"plus `imdb` / `tvdb`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
+			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
+			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
 		responses: {
 			202: { description: "TV show updated (empty body)" },
@@ -281,11 +284,12 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 		summary: "Patch film publisher and playable fields and IMDb identity URI",
 		description:
 			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
-			"(no propagation), plus `description`, `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, `removed`, " +
-			"`subjects`, `guests` and `imdb`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053).",
+			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, " +
+			"`subjects`, `guests` and `imdb`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
-			202: { description: "Film updated (empty body)" },
+			202: { description: "Film updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
 			400: {
 				description: "Invalid URL, release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
@@ -327,7 +331,9 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		summary: "Patch news organisation fields",
 		description:
 			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
-			"Changing `searchTerms` or `language` is copied to the organisation's reports.",
+			"Editable: `publisher`, `description`, `removed` and the other publisher fields. Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
+			"`removed` cascades like a podcast removal: each report's `parentRemoved` is set / cleared (its own `removed` is untouched) and on removal " +
+			"every report's search document is deleted; restored reports are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(newsOrganisationChangeRequestSchema) },
 		responses: {
 			202: { description: "News organisation updated (empty body)" },
@@ -362,10 +368,11 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 		description:
 			"`id` is the report guid. Omitted or null fields are unchanged. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the report's search document. `guests` follows the episode rule: it replaces the list, `[]` clears it, " +
-			"blank names are dropped and names trimmed.",
+			"blank names are dropped and names trimmed." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
 		responses: {
-			202: { description: "News report updated (empty body)" },
+			202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
 			400: {
 				description: "Invalid release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
