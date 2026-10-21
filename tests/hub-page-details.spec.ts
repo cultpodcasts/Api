@@ -1,10 +1,15 @@
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// openapiRoutes pulls in the og-image route; its wasm renderer is not needed here.
+vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
 import type { Env } from "../src/Env";
 import type { ActionContext } from "../src/ActionContext";
 import { getPageDetails } from "../src/getPageDetails";
 import { catalogueHubPageDetailsTarget, hubPageDetailsFilters } from "../src/hubPageDetails";
 import { testEnv } from "./honoTestApp";
+import { GetPageDetailsRoute } from "../src/openapiRoutes";
+import { pageDetailsParam } from "../src/openapiRouteFactory";
 
 const searchHost = "https://search.example/indexes/test/docs/search";
 const episodeUuid = "00112233-4455-4677-8899-aabbccddeeff";
@@ -150,5 +155,21 @@ describe("catalogueHubPageDetailsTarget", () => {
 			"(seriesName eq 'O''Neil') and (contentKind eq 'TvShowEpisode')",
 			"(podcastName eq 'O''Neil') and (contentKind eq 'TvShowEpisode')"
 		]);
+	});
+});
+
+describe("GET /pagedetails OpenAPI", () => {
+	const schema = (GetPageDetailsRoute as unknown as { openApiSchema: any }).openApiSchema;
+
+	it("documents the hub meaning of the path segments", () => {
+		expect(schema.request.params).toBe(pageDetailsParam);
+		expect(pageDetailsParam.shape.podcastName.description).toContain("`news` / `tv`");
+		expect(pageDetailsParam.shape.episodeId.description).toContain("outlet / show name");
+	});
+
+	it("documents the plain-text 400 next to the 200", () => {
+		expect(schema.responses[200].content["application/json"]).toBeDefined();
+		expect(schema.responses[400].content["text/plain"]).toBeDefined();
+		expect(schema.responses[400].description).toContain("No item found");
 	});
 });
