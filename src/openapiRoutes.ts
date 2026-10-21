@@ -549,10 +549,11 @@ export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
     auth: curateAuth,
     schema: {
         tags: ["Episodes"],
-        summary: "Get episode by id",
+        summary: "Get episode by id (any kind)",
+        description: "Resolves a podcast episode, news report, TV episode or film by id (curators also see removed items). The body is EpisodeDto plus contentKind, parentId, parentName, slug and path.",
         request: { params: idParam },
         responses: {
-            200: { description: "Episode", ...contentJson(episodeDtoSchema) },
+            200: { description: "Episode, news report, TV episode or film", ...contentJson(episodeDtoSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -565,6 +566,7 @@ export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
     schema: {
         tags: ["Episodes"],
         summary: "Get podcast episode by podcast name and episode id",
+        description: "Same Azure lookup as GET /episode/:id: when no podcast episode has the id (for example after the catalogue migration) it resolves the news report, TV episode or film by id. The body is EpisodeDto plus contentKind, parentId, parentName, slug and path.",
         request: { params: podcastAndEpisodeParam },
         responses: {
             200: { description: "Episode", ...contentJson(episodeDtoSchema) },
@@ -1306,10 +1308,11 @@ export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
     auth: signedInAuth,
     schema: {
         tags: ["Episodes"],
-        summary: "Get episode read model by id",
+        summary: "Get episode read model by id (any kind)",
+        description: "Resolves a podcast episode, news report, TV episode or film by id; 404 when it or its parent is removed. The body is PublicEpisodeDto plus contentKind, parentId, parentName, slug and path.",
         request: { params: idParam },
         responses: {
-            200: { description: "Public episode", ...contentJson(publicEpisodeDtoSchema) },
+            200: { description: "Public episode, news report, TV episode or film", ...contentJson(publicEpisodeDtoSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
