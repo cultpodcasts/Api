@@ -99,6 +99,25 @@ Episode GET still exposes posted state as `bluesky` on `EpisodeDto` — that is 
 
 Worker: `episodeChangeRequestSchema` in `src/openapiSchemas.ts`, used by update-episode routes in `openapiRoutes.ts`.
 
+## Catalogue curation proxies (curate)
+
+All curator-only (`curate` permission, `curateAuth`), bearer token forwarded to api-infra. PATCH is a command: **202, empty body**.
+
+| Worker route | Azure Function | C# DTO / request | Zod | Forwarded statuses |
+|---|---|---|---|---|
+| `GET /tvshow/:identifier` | `tvshow/{id or name}` | `TvShowDto` | `tvShowDtoSchema` | 200, 404, 409 |
+| `PATCH /tvshow/:id` | `tvshow/{id}` | `TvShowChangeRequest` | `tvShowChangeRequestSchema` | 202, 400, 404 |
+| `GET /tvshowepisode/:id` | `tvshowepisode/{id}` | `TvShowEpisodeDto` | `tvShowEpisodeDtoSchema` | 200, 404 |
+| `PATCH /tvshowepisode/:id` | `tvshowepisode/{id}` | `TvShowChangeRequest` | `tvShowEpisodeChangeRequestSchema` | 202, 400, 404 |
+| `GET /film/:identifier` | `film/{id or name}` | `FilmDto` | `filmDtoSchema` | 200, 404, 409 |
+| `PATCH /film/:id` | `film/{id}` | `FilmChangeRequest` | `filmChangeRequestSchema` | 202, 400, 404 |
+| `GET /newsorganisation/:identifier` | `NewsOrganisationGet`, `newsorganisation/{newsOrganisationIdentifier}` (guid or route-form name) | `NewsOrganisationDto` | `newsOrganisationDtoSchema` | 200, 401, 404, 409 (guid array), 500 |
+| `PATCH /newsorganisation/:id` | `NewsOrganisationPatch`, `newsorganisation/{newsOrganisationId:guid}` | `NewsOrganisationChangeRequest` | `newsOrganisationChangeRequestSchema` | 202 (empty), 400, 401, 404 (`{id}`), 500 |
+| `GET /newsreport/:id` | `NewsReportGet`, `newsreport/{reportId:guid}` | `NewsReportDto` (+ `ServiceLinkDto`) | `newsReportDtoSchema` | 200, 401, 404, 500 |
+| `PATCH /newsreport/:id` | `NewsReportPatch`, `newsreport/{reportId:guid}` | `NewsReportChangeRequest` | `newsReportChangeRequestSchema` | 202 (empty), 400, 401, 404 (`{id}`), 500 |
+
+TV and film rewrite any other status to a Worker 500. The news routes also forward Azure's own 401 (`{"Message":"Unauthorised"}`) and 500 bodies (RPP #1053). An unexpected 409 on `GET /newsreport` is still a Worker 500. The Worker's own 401 (no token) and 403 (no `curate`) are returned before Azure is called.
+
 ## Related files
 
 | File | Role |

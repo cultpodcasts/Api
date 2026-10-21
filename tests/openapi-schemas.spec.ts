@@ -51,7 +51,12 @@ import {
 	tvShowChangeRequestSchema,
 	tvShowDtoSchema,
 	tvShowEpisodeChangeRequestSchema,
-	tvShowEpisodeDtoSchema
+	tvShowEpisodeDtoSchema,
+	newsOrganisationChangeRequestSchema,
+	newsOrganisationDtoSchema,
+	newsReportChangeRequestSchema,
+	newsReportDtoSchema,
+	notFoundIdSchema
 } from "../src/openapiSchemas";
 
 describe("openapi Zod schemas", () => {
@@ -826,5 +831,61 @@ describe("openapi Zod schemas", () => {
 		).toEqual({ imdb: null, tvdb: "not-a-url" });
 		expect(filmChangeRequestSchema.parse({ imdb: "not-a-url" }).imdb).toBe("not-a-url");
 		expect(filmChangeRequestSchema.parse({ imdb: null }).imdb).toBeNull();
+	});
+	it("parses news organisation and news report GET DTOs (RPP #1053, synthetic)", () => {
+		const org = newsOrganisationDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			language: null,
+			removed: false,
+			twitterHandle: "@synthetic",
+			blueskyHandle: null,
+			hashTag: "#Synthetic",
+			enrichmentHashTags: ["#A"],
+			searchTerms: "synthetic terms",
+			knownTerms: null,
+			defaultSubject: null,
+			ignoredSubjects: ["S"],
+			ignoredAssociatedSubjects: null,
+			latestReleased: "2026-10-03T00:00:00Z",
+			lastIndexed: null
+		});
+		expect(org.twitterHandle).toBe("@synthetic");
+		const report = newsReportDtoSchema.parse({
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			newsOrganisationId: "550e8400-e29b-41d4-a716-446655440000",
+			newsOrganisationName: "Synthetic News Org",
+			title: "Synthetic report",
+			description: "",
+			release: "2026-10-03",
+			duration: "0:06:30",
+			explicit: false,
+			ignored: false,
+			removed: false,
+			tweeted: true,
+			blueskyPosted: false,
+			subjects: ["Synthetic Subject"],
+			searchTerms: null,
+			hashTag: null,
+			language: "de",
+			services: { youtube: { url: "https://www.youtube.com/watch?v=synthetic", lang: "de" } }
+		});
+		expect(report.services?.youtube?.lang).toBe("de");
+		expect(() => newsReportDtoSchema.parse({ ...report, release: "2026-10-03T10:00:00" })).toThrow();
+		expect(() => newsOrganisationDtoSchema.parse({ ...org, id: "not-a-guid" })).toThrow();
+	});
+
+	it("parses news change requests: omitted/null unchanged, empty string and empty list allowed", () => {
+		expect(newsOrganisationChangeRequestSchema.parse({})).toEqual({});
+		expect(
+			newsOrganisationChangeRequestSchema.parse({ language: "", searchTerms: "", knownTerms: [], hashTag: null })
+		).toEqual({ language: "", searchTerms: "", knownTerms: [], hashTag: null });
+		expect(
+			newsReportChangeRequestSchema.parse({ release: "2026-10-03", duration: "0:06:30", removed: true, subjects: [] })
+		).toEqual({ release: "2026-10-03", duration: "0:06:30", removed: true, subjects: [] });
+		expect(() => newsReportChangeRequestSchema.parse({ explicit: "yes" })).toThrow();
+		expect(notFoundIdSchema.parse({ id: "550e8400-e29b-41d4-a716-446655440000" }).id).toBe(
+			"550e8400-e29b-41d4-a716-446655440000"
+		);
 	});
 });

@@ -21,5 +21,7 @@ export enum Endpoint {
     tvShowEpisode,
     film,
     discoverySubmissions,
-    discoveryReports
+    discoveryReports,
+    newsOrganisation,
+    newsReport
 }

@@ -1116,3 +1116,91 @@ export const filmDtoSchema = z.object({
 export const filmChangeRequestSchema = z.object({
 	imdb: z.string().optional().nullable()
 });
+
+/** Api.Dtos.NewsOrganisationDto (RPP #1053). */
+export const newsOrganisationDtoSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	language: z.string().optional().nullable(),
+	removed: z.boolean(),
+	twitterHandle: z.string(),
+	blueskyHandle: z.string().optional().nullable(),
+	hashTag: z.string().optional().nullable(),
+	enrichmentHashTags: z.array(z.string()).optional().nullable(),
+	searchTerms: z.string().optional().nullable(),
+	knownTerms: z.array(z.string()).optional().nullable(),
+	defaultSubject: z.string().optional().nullable(),
+	ignoredSubjects: z.array(z.string()).optional().nullable(),
+	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable(),
+	latestReleased: z.string().optional().nullable(),
+	lastIndexed: z.string().optional().nullable()
+});
+
+/**
+ * Api.Dtos.NewsOrganisationChangeRequest. Omitted / null = unchanged; `""` clears a string,
+ * `[]` clears a list. `language` `""` or English is stored as null. Name and removed are not editable here.
+ */
+export const newsOrganisationChangeRequestSchema = z.object({
+	language: z.string().optional().nullable(),
+	twitterHandle: z.string().optional().nullable(),
+	blueskyHandle: z.string().optional().nullable(),
+	hashTag: z.string().optional().nullable(),
+	enrichmentHashTags: z.array(z.string()).optional().nullable(),
+	searchTerms: z.string().optional().nullable(),
+	knownTerms: z.array(z.string()).optional().nullable(),
+	defaultSubject: z.string().optional().nullable(),
+	ignoredSubjects: z.array(z.string()).optional().nullable(),
+	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable()
+});
+
+/** Api.Dtos.ServiceLinkDto (url, image, lang; nulls omitted). */
+export const serviceLinkDtoSchema = z.object({
+	url: z.string().url().optional().nullable(),
+	image: z.string().url().optional().nullable(),
+	lang: z.string().optional().nullable()
+});
+
+/** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
+export const newsReportDtoSchema = z.object({
+	id: z.string().uuid(),
+	newsOrganisationId: z.string().uuid(),
+	newsOrganisationName: z.string().optional().nullable(),
+	title: z.string(),
+	description: z.string(),
+	release: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+	duration: z.string(),
+	explicit: z.boolean(),
+	ignored: z.boolean(),
+	removed: z.boolean(),
+	tweeted: z.boolean(),
+	blueskyPosted: z.boolean(),
+	subjects: z.array(z.string()),
+	searchTerms: z.string().optional().nullable(),
+	hashTag: z.string().optional().nullable(),
+	language: z.string().optional().nullable(),
+	services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable()
+});
+
+/**
+ * Api.Dtos.NewsReportChangeRequest. Omitted / null = unchanged. Azure validates `release`
+ * (`yyyy-MM-dd` only) and `duration` (non-negative TimeSpan) and returns 400 before applying anything.
+ * `removed: true` also deletes the report's search document.
+ */
+export const newsReportChangeRequestSchema = z.object({
+	title: z.string().optional().nullable(),
+	description: z.string().optional().nullable(),
+	release: z.string().optional().nullable(),
+	duration: z.string().optional().nullable(),
+	explicit: z.boolean().optional().nullable(),
+	ignored: z.boolean().optional().nullable(),
+	removed: z.boolean().optional().nullable(),
+	subjects: z.array(z.string()).optional().nullable(),
+	searchTerms: z.string().optional().nullable(),
+	hashTag: z.string().optional().nullable(),
+	language: z.string().optional().nullable()
+});
+
+/** Azure PATCH 404 body for news commands: the id that was not found. */
+export const notFoundIdSchema = z.object({
+	id: z.string().uuid()
+});

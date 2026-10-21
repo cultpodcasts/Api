@@ -12,6 +12,10 @@ describe("Azure endpoint registry", () => {
 		expect(getEndpoint(Endpoint.tvShowEpisode, env).href).toBe(
 			"https://functions.example/api/tvshowepisode"
 		);
+		expect(getEndpoint(Endpoint.newsOrganisation, env).href).toBe(
+			"https://functions.example/api/newsorganisation"
+		);
+		expect(getEndpoint(Endpoint.newsReport, env).href).toBe("https://functions.example/api/newsreport");
 		expect(getEndpoint(Endpoint.person, env).href).toBe("https://functions.example/api/person");
 		expect(getEndpoint(Endpoint.podcast, env).href).toBe("https://functions.example/api/podcast");
 		expect(getEndpoint(Endpoint.episode, env).href).toBe("https://functions.example/api/episode");

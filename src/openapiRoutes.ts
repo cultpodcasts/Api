@@ -4,6 +4,7 @@ import {
 	adminAuth,
 	authResponses,
 	ambiguousCatalogueNameConflict,
+	ambiguousNewsOrganisationNameConflict,
 	ambiguousPodcastNameConflict,
 	bookmarkAuth,
 	createOpenApiRoute,
@@ -133,7 +134,12 @@ import {
 	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	filmChangeRequestSchema,
-	filmDtoSchema
+	filmDtoSchema,
+	newsOrganisationChangeRequestSchema,
+	newsOrganisationDtoSchema,
+	newsReportChangeRequestSchema,
+	newsReportDtoSchema,
+	notFoundIdSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -172,6 +178,10 @@ import { getTvShowEpisode } from "./getTvShowEpisode";
 import { updateTvShowEpisode } from "./updateTvShowEpisode";
 import { getFilm } from "./getFilm";
 import { updateFilm } from "./updateFilm";
+import { getNewsOrganisation } from "./getNewsOrganisation";
+import { updateNewsOrganisation } from "./updateNewsOrganisation";
+import { getNewsReport } from "./getNewsReport";
+import { updateNewsReport } from "./updateNewsReport";
 
 export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupRoute, SubmitPrepareRoute, SubmitRoute };
 
@@ -264,6 +274,85 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 			202: { description: "Film updated (empty body)" },
 			400: { description: "Invalid URL", ...contentJson(errorSchema) },
 			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+/** News curation proxies (RPP #1053). Azure 401/404/500 bodies are forwarded, not rewritten. */
+const newsNotFoundIdResponse = {
+	404: { description: "No news item with that id", ...contentJson(notFoundIdSchema) }
+};
+
+export const GetNewsOrganisationRoute = createOpenApiRoute(getNewsOrganisation, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Get news organisation by id or name",
+		description:
+			"`identifier` is a guid, or a name in route form (case-insensitive match, like `/tvshow/{name}`).",
+		request: { params: identifierParam },
+		responses: {
+			200: { description: "News organisation", ...contentJson(newsOrganisationDtoSchema) },
+			409: ambiguousNewsOrganisationNameConflict,
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisation, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Patch news organisation fields",
+		description:
+			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
+			"Changing `searchTerms` or `language` is copied to the organisation's reports.",
+		request: { params: idParam, body: jsonBody(newsOrganisationChangeRequestSchema) },
+		responses: {
+			202: { description: "News organisation updated (empty body)" },
+			400: { description: "Invalid request", ...contentJson(errorSchema) },
+			...newsNotFoundIdResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const GetNewsReportRoute = createOpenApiRoute(getNewsReport, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Get news report by id",
+		request: { params: idParam },
+		responses: {
+			200: { description: "News report", ...contentJson(newsReportDtoSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Patch news report fields",
+		description:
+			"`id` is the report guid. Omitted or null fields are unchanged. The request is validated before anything is applied. " +
+			"`removed: true` also deletes the report's search document.",
+		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
+		responses: {
+			202: { description: "News report updated (empty body)" },
+			400: {
+				description: "Invalid release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
+				...contentJson(errorSchema)
+			},
+			...newsNotFoundIdResponse,
 			...serverErrorResponse,
 			...authResponses
 		}
