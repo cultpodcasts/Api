@@ -54,6 +54,35 @@ describe("move episode to film", () => {
 		expect(JSON.parse(String(init.body))).toEqual({});
 	});
 
+	it("returns 400 for a malformed body without calling Azure", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resp = await appWithCurate().request(
+			filmPath,
+			{ method: "POST", headers: authJsonHeaders, body: "{not json" },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("returns 403, not 400, for a malformed body without curate", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions(route, "post", moveEpisodeToFilm, ["submit"]);
+
+		const resp = await app.request(
+			filmPath,
+			{ method: "POST", headers: authJsonHeaders, body: "{not json" },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(403);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("returns 403 without curate", async () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);
