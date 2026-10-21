@@ -120,6 +120,8 @@ import {
 	podcastKindTransferRequestSchema,
 	podcastKindTransferResponseSchema,
 	podcastRenameRequestSchema,
+	catalogueRenameRequestSchema,
+	catalogueRenameResponseSchema,
 	podcastRenameResponseSchema,
 	publicEpisodeDtoSchema,
 	publishHomepageResponseSchema,
@@ -164,6 +166,7 @@ import {
 } from "./heroCurationOpenApi";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
+import { renameFilm, renameNewsOrganisation, renameTvShow } from "./renameCatalogue";
 import { runSearchIndexer } from "./runSearchIndexer";
 import { search } from "./search";
 import { submitDiscovery } from "./submitDiscovery";
@@ -1163,6 +1166,46 @@ export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
             ...authResponses
         }
     }
+});
+
+function catalogueRenameSchema(tag: string, kind: string, root: string, children: string) {
+    return {
+        tags: [tag],
+        summary: `Rename ${kind}`,
+        description:
+            `Admin only, like \`POST /podcast/name/:name\`. \`identifier\` is the ${kind} guid or its route-form name. ` +
+            `Records the redirect \`${root}/{old}\` → \`{new}\` in the website's redirects KV (not written while another ${kind} keeps the old name), ` +
+            `${children}and keeps the stored fileKey. Safe to retry.`,
+        request: { params: identifierParam, body: jsonBody(catalogueRenameRequestSchema) },
+        responses: {
+            200: { description: `${kind[0].toUpperCase()}${kind.slice(1)} renamed; state of the immediate search update`, ...contentJson(catalogueRenameResponseSchema) },
+            400: { description: "Bad request (blank name, or the redirect would loop)" },
+            409: {
+                description: "Another entity of the same kind has the new name (empty body), or the identifier name is ambiguous (JSON array of guids)",
+                ...contentJson(z.array(z.string().uuid()))
+            },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    };
+}
+
+export const RenameNewsOrganisationRoute = createOpenApiRoute(renameNewsOrganisation, {
+    auth: adminAuth,
+    schema: catalogueRenameSchema("Catalogue", "news organisation", "news",
+        "copies the new name onto every report's `newsOrganisationName`, patches `seriesName` in search ")
+});
+
+export const RenameTvShowRoute = createOpenApiRoute(renameTvShow, {
+    auth: adminAuth,
+    schema: catalogueRenameSchema("Catalogue", "TV show", "tv",
+        "copies the new name onto every episode's `tvShowName`, patches `seriesName` in search ")
+});
+
+export const RenameFilmRoute = createOpenApiRoute(renameFilm, {
+    auth: adminAuth,
+    schema: catalogueRenameSchema("Catalogue", "film", "film", "patches the film's search `title` ")
 });
 
 export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {

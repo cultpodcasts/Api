@@ -872,6 +872,16 @@ export const publishHomepageResponseSchema = z.object({
 	preProcessedHomepagePublished: z.boolean().optional().nullable()
 });
 
+/** Api.Dtos.CatalogueRenameRequest (RPP #1053): body of POST /newsorganisation|tvshow|film/name/:identifier */
+export const catalogueRenameRequestSchema = z.object({
+	newName: z.string().min(1).describe("New name. Trimmed; must not contain `/`. Must not be used by another entity of the same kind (409).")
+});
+
+/** Api.Dtos.CatalogueRenameResponse: same shape as PodcastRenameResponse */
+export const catalogueRenameResponseSchema = z.object({
+	indexState: searchIndexerStateSchema
+});
+
 /** Api.Dtos.PodcastRenameResponse */
 export const podcastRenameResponseSchema = z.object({
 	indexState: searchIndexerStateSchema

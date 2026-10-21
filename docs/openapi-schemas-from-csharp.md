@@ -115,6 +115,9 @@ All curator-only (`curate` permission, `curateAuth`), bearer token forwarded to 
 | `PATCH /newsorganisation/:id` | `NewsOrganisationPatch`, `newsorganisation/{newsOrganisationId:guid}` | `NewsOrganisationChangeRequest` | `newsOrganisationChangeRequestSchema` | 202 (empty), 400, 401, 404 (`{id}`), 500 |
 | `GET /newsreport/:id` | `NewsReportGet`, `newsreport/{reportId:guid}` | `NewsReportDto` (+ `ServiceLinkDto`) | `newsReportDtoSchema` | 200, 401, 404, 500 |
 | `PATCH /newsreport/:id` | `NewsReportPatch`, `newsreport/{reportId:guid}` | `NewsReportChangeRequest` | `newsReportChangeRequestSchema` | 202 (`episodeUpdateResponseSchema`), 400, 401, 404 (`{id}`), 500 |
+| `POST /newsorganisation/name/:identifier` (**admin**) | `NewsOrganisationRename`, `newsorganisation/name/{newsOrganisationIdentifier}` | `CatalogueRenameRequest` → `CatalogueRenameResponse` | `catalogueRenameRequestSchema` / `catalogueRenameResponseSchema` | 200, 400, 404, 409 (empty, or guid array) |
+| `POST /tvshow/name/:identifier` (**admin**) | `TvShowRename`, `tvshow/name/{tvShowIdentifier}` | the same | the same | 200, 400, 404, 409 |
+| `POST /film/name/:identifier` (**admin**) | `FilmRename`, `film/name/{filmIdentifier}` | the same | the same | 200, 400, 404, 409 |
 
 **Editing parity (RPP #1053).** News, TV and film editing share one set of fields. The TV and film proxies pass request and response bodies through verbatim. `PATCH /newsreport` no longer drops its 202 body (`emptyAcknowledgement` removed), so it forwards the outcome like `PATCH /episode`:
 
@@ -142,6 +145,18 @@ Post status follows the episode edit API:
 - Bluesky posted cannot be set to true.
 
 Name is not editable here. The new TV and film GET DTO fields are optional in Zod, so the older Azure shape still validates during rollout.
+
+**Rename (RPP #1053).** The three rename proxies (`src/renameCatalogue.ts`) copy `POST /podcast/name/:name` (`src/renamePodcast.ts`):
+- They need the `admin` permission (`adminAuth`).
+- They POST the body to Azure, pass the 200 `{"indexState"}` through, forward 400/404/409, and turn any other status into a Worker 500.
+- The body is `{"newName"}` rather than the podcast's `{"newPodcastName"}`. `identifier` is a guid or a route-form name.
+
+What RPP does on a rename:
+- It writes the redirect to the website's `redirects` KV namespace (the same one the podcast rename uses), under the key `news/{old}`, `tv/{old}` or `film/{old}`.
+- It copies the name onto the children (`newsOrganisationName` / `tvShowName`) and patches the search `seriesName` / `title`.
+- It keeps the stored fileKey.
+
+The Worker does not read the redirects KV; the website's Pages worker (`server.ts`) serves the podcast redirects.
 
 TV and film rewrite any other status to a Worker 500. The news routes also forward Azure's own 401 (`{"Message":"Unauthorised"}`) and 500 bodies (RPP #1053). An unexpected 409 on `GET /newsreport` is still a Worker 500. The Worker's own 401 (no token) and 403 (no `curate`) are returned before Azure is called.
 
