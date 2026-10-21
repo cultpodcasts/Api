@@ -1,15 +1,28 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
+import worker from "../src/index";
 import { getNewsOrganisation } from "../src/getNewsOrganisation";
 import { getNewsReport } from "../src/getNewsReport";
 import {
 	ambiguousCatalogueNameConflict,
 	ambiguousNewsOrganisationNameConflict
 } from "../src/openapiRouteFactory";
+import {
+	GetNewsOrganisationRoute,
+	GetNewsReportRoute,
+	UpdateNewsOrganisationRoute,
+	UpdateNewsReportRoute
+} from "../src/openapiRoutes";
+import {
+	episodeUpdateResponseSchema,
+	newsOrganisationChangeRequestSchema,
+	newsReportChangeRequestSchema
+} from "../src/openapiSchemas";
 import { updateNewsOrganisation } from "../src/updateNewsOrganisation";
 import { updateNewsReport } from "../src/updateNewsReport";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
+import { testEnv as auth0TestEnv } from "./support/honoRoute";
 
 // Synthetic ids and names only.
 const id = "550e8400-e29b-41d4-a716-446655440000";
@@ -211,32 +224,53 @@ describe("news curation Azure proxies", () => {
 });
 
 describe("news curation OpenAPI contracts", () => {
-	const src = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-	const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-	const block = (start: string, end: string) => src.slice(src.indexOf(start), src.indexOf(end));
-
-	it("registers GET/PATCH /newsorganisation and /newsreport", () => {
-		expect(index).toContain("openapi.get('/newsorganisation/:identifier', GetNewsOrganisationRoute);");
-		expect(index).toContain("openapi.patch('/newsorganisation/:id', UpdateNewsOrganisationRoute);");
-		expect(index).toContain("openapi.get('/newsreport/:id', GetNewsReportRoute);");
-		expect(index).toContain("openapi.patch('/newsreport/:id', UpdateNewsReportRoute);");
+	afterEach(() => {
+		vi.unstubAllGlobals();
 	});
 
-	it("uses a news-specific 409 only on GET news organisation, curate auth, an empty org 202 and an outcome report 202", () => {
+	type JsonContent = { content?: { "application/json"?: { schema?: unknown } } };
+	const bodySchema = (Route: { openApiSchema: { request?: unknown } }) =>
+		(Route.openApiSchema.request as { body?: JsonContent } | undefined)?.body?.content?.["application/json"]?.schema;
+
+	it.each([
+		["GET", "/newsorganisation/", GetNewsOrganisationRoute],
+		["PATCH", "/newsorganisation/", UpdateNewsOrganisationRoute],
+		["GET", "/newsreport/", GetNewsReportRoute],
+		["PATCH", "/newsreport/", UpdateNewsReportRoute]
+	] as const)("the Worker app routes %s %s{id} behind curate auth (401 without a token, not 404)", async (method, prefix, Route) => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const resp = await worker.fetch(
+			new Request(`https://api.example${prefix}${id}`, {
+				method,
+				...(method === "PATCH" ? { body: "{}", headers: { "Content-Type": "application/json" } } : {})
+			}),
+			auth0TestEnv(),
+			{} as ExecutionContext
+		);
+		expect(resp.status).toBe(401);
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(Route.requiresAuth).toBe(true);
+		expect(Route.openApiSchema.security).toEqual([{ bearerAuth: [] }]);
+		expect(Route.openApiSchema.description).toMatch(/`curate`/);
+		expect(Route.openApiSchema.responses?.[403]?.description).toMatch(/without `curate`/);
+	});
+
+	it("uses a news-specific 409 only on GET news organisation", () => {
 		expect(ambiguousNewsOrganisationNameConflict).not.toBe(ambiguousCatalogueNameConflict);
 		expect(ambiguousNewsOrganisationNameConflict.description).toMatch(/news organisation/i);
-		const getOrg = block("export const GetNewsOrganisationRoute", "export const UpdateNewsOrganisationRoute");
-		const patchOrg = block("export const UpdateNewsOrganisationRoute", "export const GetNewsReportRoute");
-		const getReport = block("export const GetNewsReportRoute", "export const UpdateNewsReportRoute");
-		const patchReport = block("export const UpdateNewsReportRoute", "export const HomepageRoute");
-		expect(getOrg).toContain("409: ambiguousNewsOrganisationNameConflict");
-		expect(getReport).not.toContain("409:");
-		for (const b of [getOrg, patchOrg, getReport, patchReport]) {
-			expect(b).toContain("auth: curateAuth");
-		}
-		expect(patchOrg).toContain("jsonBody(newsOrganisationChangeRequestSchema)");
-		expect(patchReport).toContain("jsonBody(newsReportChangeRequestSchema)");
-		expect(patchOrg).toMatch(/202: \{ description: "News organisation updated \(empty body\)" \}/);
-		expect(patchReport).toContain('202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) }');
+		expect(GetNewsOrganisationRoute.openApiSchema.responses?.[409]).toBe(ambiguousNewsOrganisationNameConflict);
+		expect(GetNewsReportRoute.openApiSchema.responses?.[409]).toBeUndefined();
+	});
+
+	it("documents an empty 202 for the organisation PATCH and an outcome 202 for the report PATCH", () => {
+		expect(bodySchema(UpdateNewsOrganisationRoute)).toBe(newsOrganisationChangeRequestSchema);
+		expect(bodySchema(UpdateNewsReportRoute)).toBe(newsReportChangeRequestSchema);
+		const orgAccepted = UpdateNewsOrganisationRoute.openApiSchema.responses?.[202] as JsonContent & { description?: string };
+		expect(orgAccepted?.description).toMatch(/empty body/);
+		expect(orgAccepted?.content).toBeUndefined();
+		const reportAccepted = UpdateNewsReportRoute.openApiSchema.responses?.[202] as JsonContent & { description?: string };
+		expect(reportAccepted?.description).toMatch(/social-retraction outcome/);
+		expect(reportAccepted?.content?.["application/json"]?.schema).toBe(episodeUpdateResponseSchema);
 	});
 });

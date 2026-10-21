@@ -1179,7 +1179,7 @@ function catalogueRenameSchema(tag: string, kind: string, root: string, children
         request: { params: identifierParam, body: jsonBody(catalogueRenameRequestSchema) },
         responses: {
             200: { description: `${kind[0].toUpperCase()}${kind.slice(1)} renamed; state of the immediate search update`, ...contentJson(catalogueRenameResponseSchema) },
-            400: { description: "Bad request (blank name, or the redirect would loop)" },
+            400: { description: "Bad request: blank `newName` or one containing `/` (Worker, Azure not called), or the redirect would loop (Azure)", ...contentJson(errorSchema) },
             409: {
                 description: "Another entity of the same kind has the new name (empty body), or the identifier name is ambiguous (JSON array of guids)",
                 ...contentJson(z.array(z.string().uuid()))

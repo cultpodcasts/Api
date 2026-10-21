@@ -874,7 +874,12 @@ export const publishHomepageResponseSchema = z.object({
 
 /** Api.Dtos.CatalogueRenameRequest (RPP #1053): body of POST /newsorganisation|tvshow|film/name/:identifier */
 export const catalogueRenameRequestSchema = z.object({
-	newName: z.string().min(1).describe("New name. Trimmed; must not contain `/`. Must not be used by another entity of the same kind (409).")
+	newName: z
+		.string()
+		.trim()
+		.min(1, "newName must not be blank")
+		.refine((v) => !v.includes("/"), "newName must not contain '/'")
+		.describe("New name. Trimmed; must not be blank or contain `/` (400 from the Worker, Azure not called). Must not be used by another entity of the same kind (409).")
 });
 
 /** Api.Dtos.CatalogueRenameResponse: same shape as PodcastRenameResponse */
