@@ -451,6 +451,64 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.title).toBe("Ep");
 	});
 
+	it("accepts EpisodeDto for a news report resolved by id, with additive kind fields", () => {
+		const parsed = episodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			podcastName: "Synthetic Outlet",
+			title: "Report",
+			description: "Desc",
+			release: "2026-07-01T00:00:00Z",
+			duration: "00:04:00",
+			explicit: false,
+			posted: false,
+			tweeted: false,
+			ignored: false,
+			removed: false,
+			urls: {},
+			subjects: [],
+			contentKind: "NewsReport",
+			parentId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			parentName: "Synthetic Outlet",
+			slug: "Synthetic Outlet",
+			path: "/news/Synthetic%20Outlet/bgQAhFUOm-VBG6pxZkVEAAA"
+		});
+		expect(parsed.contentKind).toBe("NewsReport");
+		expect(parsed.path).toContain("/news/");
+	});
+
+	it("accepts PublicEpisodeDto for a film without parent fields", () => {
+		const parsed = publicEpisodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastName: "Synthetic Film",
+			title: "Synthetic Film",
+			description: "Desc",
+			release: "2026-01-01T00:00:00Z",
+			duration: "01:40:00",
+			explicit: false,
+			subjects: [],
+			contentKind: "Film",
+			slug: "Synthetic Film",
+			path: "/film/Synthetic%20Film/ZgQAhFUOm-VBG6pxZkVEAAA"
+		});
+		expect(parsed.contentKind).toBe("Film");
+		expect(parsed.parentId).toBeUndefined();
+	});
+
+	it("rejects an unknown contentKind on PublicEpisodeDto", () => {
+		expect(() => publicEpisodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastName: "Show",
+			title: "Ep",
+			description: "Desc",
+			release: "2026-07-01T12:00:00Z",
+			duration: "01:00:00",
+			explicit: false,
+			subjects: [],
+			contentKind: "Movie"
+		})).toThrow();
+	});
+
 	it("accepts DiscoverySubmitResponse", () => {
 		const parsed = discoverySubmitResponseSchema.parse({
 			message: "ok",
