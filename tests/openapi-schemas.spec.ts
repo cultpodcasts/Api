@@ -918,6 +918,37 @@ describe("openapi Zod schemas", () => {
 		expect(() => tvShowChangeRequestSchema.parse({ enrichmentHashTags: "#A" })).toThrow();
 	});
 
+	it("parses news organisation and TV show service ids (podcast wire names) in PATCH and GET, and keeps them off films (synthetic)", () => {
+		const ids = {
+			youTubeChannelId: "UCsyntheticChannel0000001",
+			youTubePlaylistId: "",
+			spotifyId: "syntheticSpotifyShow00001",
+			appleId: 123456789,
+			nullAppleId: false
+		};
+		expect(newsOrganisationChangeRequestSchema.parse(ids)).toEqual(ids);
+		expect(tvShowChangeRequestSchema.parse({ ...ids, imdb: "" })).toEqual({ ...ids, imdb: "" });
+		expect(newsOrganisationChangeRequestSchema.parse({ nullAppleId: true })).toEqual({ nullAppleId: true });
+		expect(() => newsOrganisationChangeRequestSchema.parse({ appleId: "123" })).toThrow();
+		expect(() => tvShowChangeRequestSchema.parse({ youTubeChannelId: 1 })).toThrow();
+		expect(filmChangeRequestSchema.parse({ youTubeChannelId: "UCsyntheticChannel0000001" })).not.toHaveProperty("youTubeChannelId");
+		const dto = {
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "",
+			description: "",
+			removed: false,
+			twitterHandle: "",
+			youTubeChannelId: "UCsyntheticChannel0000001",
+			youTubePlaylistId: "PLsyntheticPlaylist000002",
+			youTubePlaylistIdHistory: [{ id: "PLsyntheticPlaylist000001", replacedAt: "2026-10-21T20:00:00Z" }],
+			spotifyId: "",
+			appleId: null
+		};
+		expect(newsOrganisationDtoSchema.parse(dto).youTubePlaylistIdHistory).toEqual(dto.youTubePlaylistIdHistory);
+		expect(tvShowDtoSchema.parse({ id: dto.id, name: "Synthetic Show", spotifyId: "x" }).spotifyId).toBe("x");
+	});
+
 	it("parses publisher, description, cascading removed and episode-style post status in news/TV/film change requests (synthetic)", () => {
 		const publisherEdit = { publisher: "Synthetic Studios", description: "", removed: true };
 		expect(newsOrganisationChangeRequestSchema.parse(publisherEdit)).toEqual(publisherEdit);

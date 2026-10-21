@@ -1214,7 +1214,33 @@ function optionalShape<T extends z.ZodRawShape>(shape: T) {
 const publisherFieldsDtoExtras = z.object(publisherFieldsDtoShape).omit({ id: true, name: true }).shape;
 const playableFieldsDtoExtras = z.object(playableFieldsDtoShape).omit({ id: true, title: true }).shape;
 
-/** Api.Dtos.TvShowDto: publisher fields (RPP #1053) + canonical ids. */
+/**
+ * Api.Dtos.ServiceIdsChangeRequest (RPP #1053): news organisation / TV show service ids, stored under the parent's
+ * `indexing` block (RPP #1050). Wire names and rules match the podcast edit API. Null/omitted = unchanged.
+ * URL submission matches a submitted episode's channel / show to the outlet or show on these ids.
+ */
+const serviceIdsChangeShape = {
+	youTubeChannelId: z.string().optional().nullable().describe('YouTube channel id (`UC…`). Trimmed; `""` clears.'),
+	youTubePlaylistId: z
+		.string()
+		.optional()
+		.nullable()
+		.describe("YouTube playlist id. Trimmed; whitespace clears; a replaced id is kept in `youTubePlaylistIdHistory`."),
+	spotifyId: z.string().optional().nullable().describe('Spotify show id. `""` clears.'),
+	appleId: z.number().int().optional().nullable().describe("Apple Podcasts id. Use `nullAppleId: true` to clear."),
+	nullAppleId: z.boolean().optional().nullable().describe("`true` clears `appleId` (wins over `appleId`).")
+};
+
+/** Api.Dtos.ServiceIdsDto: the same ids returned flat (empty / null when the parent has no `indexing`). Optional for rollout. */
+const serviceIdsDtoShape = {
+	youTubeChannelId: z.string().optional(),
+	youTubePlaylistId: z.string().optional(),
+	youTubePlaylistIdHistory: z.array(z.object({ id: z.string(), replacedAt: z.string() })).optional().nullable(),
+	spotifyId: z.string().optional(),
+	appleId: z.number().int().optional().nullable()
+};
+
+/** Api.Dtos.TvShowDto: publisher fields (RPP #1053) + canonical ids + service ids. */
 export const tvShowDtoSchema = z.object({
 	id: z.string().uuid(),
 	name: z.string(),
@@ -1223,7 +1249,8 @@ export const tvShowDtoSchema = z.object({
 	tvdb: z.string().url().optional().nullable(),
 	tvdbId: z.number().int().optional().nullable(),
 	tmdbId: z.number().int().optional().nullable(),
-	...optionalShape(publisherFieldsDtoExtras)
+	...optionalShape(publisherFieldsDtoExtras),
+	...serviceIdsDtoShape
 });
 
 /** Api.Dtos.TvShowEpisodeDto: playable fields incl. guests (RPP #1053) + its show + canonical ids. */
@@ -1247,7 +1274,8 @@ export const tvShowEpisodeDtoSchema = z.object({
 export const tvShowChangeRequestSchema = z.object({
 	imdb: z.string().optional().nullable(),
 	tvdb: z.string().optional().nullable(),
-	...publisherFieldsChangeShape
+	...publisherFieldsChangeShape,
+	...serviceIdsChangeShape
 });
 
 /** Api.Dtos.TvShowEpisodeChangeRequest: canonical ids plus the shared playable fields (same rules as news reports). */
@@ -1300,10 +1328,13 @@ export const filmChangeRequestSchema = z.object({
 });
 
 /** Api.Dtos.NewsOrganisationDto (RPP #1053). */
-export const newsOrganisationDtoSchema = z.object(publisherFieldsDtoShape);
+export const newsOrganisationDtoSchema = z.object({ ...publisherFieldsDtoShape, ...serviceIdsDtoShape });
 
-/** Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields. Search terms, language and removed are copied to reports (removal cascades). */
-export const newsOrganisationChangeRequestSchema = z.object(publisherFieldsChangeShape);
+/**
+ * Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields plus the service ids. Search terms, language and
+ * removed are copied to reports (removal cascades). `name` is not here: rename is `POST /newsorganisation/name/:identifier`.
+ */
+export const newsOrganisationChangeRequestSchema = z.object({ ...publisherFieldsChangeShape, ...serviceIdsChangeShape });
 
 /** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
 export const newsReportDtoSchema = z.object({

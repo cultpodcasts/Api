@@ -249,7 +249,7 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 		tags: ["Catalogue"],
 		summary: "Patch TV show publisher fields and IMDb/TheTVDB identity URIs",
 		description:
-			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields and rules as `PATCH /newsorganisation/{id}`, " +
+			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}`, " +
 			"plus `imdb` / `tvdb`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
 			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
 			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
@@ -334,7 +334,7 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		summary: "Patch news organisation fields",
 		description:
 			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
-			"Editable: `publisher`, `description`, `removed` and the other publisher fields. Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
+			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
 			"`removed` cascades like a podcast removal: each report's `parentRemoved` is set / cleared (its own `removed` is untouched) and on removal " +
 			"every report's search document is deleted; restored reports are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(newsOrganisationChangeRequestSchema) },

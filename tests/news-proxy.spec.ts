@@ -25,7 +25,7 @@ const getRoutes = [
 ] as const;
 
 const patchRoutes = [
-	["/newsorganisation/:id", `/newsorganisation/${id}`, updateNewsOrganisation, "/api/newsorganisation/", { searchTerms: "", language: "fr" }],
+	["/newsorganisation/:id", `/newsorganisation/${id}`, updateNewsOrganisation, "/api/newsorganisation/", { searchTerms: "", language: "fr", youTubeChannelId: "UCsyntheticChannel0000001", youTubePlaylistId: "", spotifyId: "", nullAppleId: true }],
 	["/newsreport/:id", `/newsreport/${id}`, updateNewsReport, "/api/newsreport/", { release: "2026-10-03", subjects: ["Synthetic Subject"] }]
 ] as const;
 

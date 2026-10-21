@@ -92,7 +92,7 @@ describe("catalogue Azure proxies", () => {
 			`/tvshow/${id}`,
 			updateTvShow,
 			"/tvshow/",
-			{ imdb: "", searchTerms: "synthetic", language: "fr", enrichmentHashTags: [], defaultSubject: "", publisher: "Synthetic Studios", description: "", removed: true }
+			{ imdb: "", searchTerms: "synthetic", language: "fr", enrichmentHashTags: [], defaultSubject: "", publisher: "Synthetic Studios", description: "", removed: true, youTubeChannelId: "UCsyntheticChannel0000001", spotifyId: "", appleId: 1, nullAppleId: false }
 		],
 		[
 			"/tvshowepisode/:id",
