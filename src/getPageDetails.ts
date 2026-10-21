@@ -18,6 +18,7 @@ import {
 	type OgPlatformSource
 } from "./ogCardPlatforms";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
+import { catalogueHubPageDetailsTarget, getHubPageDetails } from "./hubPageDetails";
 import { playableCardTitle, playableLookupFilters, playableLookupPrefersSeries } from "./playableSearchFields";
 
 /**
@@ -129,6 +130,10 @@ export async function getPageDetails(c: ActionContext): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
 
 	const episodeId = c.req.param("episodeId");
+	const hub = catalogueHubPageDetailsTarget(c.req.param("podcastName"), episodeId);
+	if (hub) {
+		return getHubPageDetails(c, logCollector, hub);
+	}
 	const podcastName = decodeURIComponent(c.req.param("podcastName") ?? "");
 	if (!episodeId || !podcastName) {
 		logCollector.addMessage(

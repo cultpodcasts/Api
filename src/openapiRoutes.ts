@@ -1068,7 +1068,9 @@ export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {
 export const GetPageDetailsRoute = createOpenApiRoute(getPageDetails, {
     schema: {
         tags: ["Public"],
-        summary: "Get page details by podcast and episode",
+        summary: "Get page details by podcast and episode, or for a news outlet / TV show hub",
+        description:
+            "`/pagedetails/{podcastName}/{episodeId}` for an episode. `/pagedetails/news/{name}` and `/pagedetails/tv/{name}` (second segment not a UUID or short id) return the hub: title = name, description = item count, image from the newest item. 400 `No item found` when nothing matches.",
         request: { params: podcastAndEpisodeParam },
         responses: { 200: { description: "Page details", ...contentJson(pageDetailsResponseSchema) } }
     }
