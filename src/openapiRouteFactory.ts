@@ -63,7 +63,7 @@ function applyOpenApiAuth(schema: OpenAPIRouteSchema, auth: OpenApiAuth | boolea
 		schema.security = [{}, ...bearerSecurity];
 		const note =
 			"Authentication is optional. A missing token may submit a URL-only body. " +
-			"A body that includes podcastId or podcastName requires `submit` or `curate` " +
+			"A body that includes podcastId or podcastName, or parentKind, parentId or parentName, requires `submit` or `curate` " +
 			"on the JWT `permissions` array or the `scope` claim. A missing token on that body is 401. " +
 			"A token without either permission is 403. ID-token roles are not checked.";
 		if (!schema.description?.includes("Authentication is optional")) {
@@ -196,6 +196,11 @@ export const ambiguousPodcastNameConflict = {
 
 export const ambiguousCatalogueNameConflict = {
 	description: "Ambiguous TV show or film name",
+	...contentJson(ambiguousIdsSchema)
+};
+
+export const ambiguousNewsOrganisationNameConflict = {
+	description: "Ambiguous news organisation name (JSON array of matching ids)",
 	...contentJson(ambiguousIdsSchema)
 };
 
