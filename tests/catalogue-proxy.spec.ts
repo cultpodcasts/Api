@@ -87,6 +87,64 @@ describe("catalogue Azure proxies", () => {
 	);
 
 	it.each([
+		[
+			"/tvshow/:id",
+			`/tvshow/${id}`,
+			updateTvShow,
+			"/tvshow/",
+			{ imdb: "", searchTerms: "synthetic", language: "fr", enrichmentHashTags: [], defaultSubject: "" }
+		],
+		[
+			"/tvshowepisode/:id",
+			`/tvshowepisode/${id}`,
+			updateTvShowEpisode,
+			"/tvshowepisode/",
+			{ tvdb: null, title: "Synthetic", release: "2026-10-02", duration: "0:44:00", removed: true, guests: [] }
+		],
+		[
+			"/film/:id",
+			`/film/${id}`,
+			updateFilm,
+			"/film/",
+			{ imdb: "https://www.imdb.com/title/tt0000003/", release: "1999", guests: ["Synthetic Director"], hashTag: "" }
+		]
+	] as const)(
+		"PATCH %s passes the RPP #1053 parity fields through to Azure unchanged and forwards 202",
+		async (route, requestPath, handler, azurePrefix, payload) => {
+			const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+			vi.stubGlobal("fetch", fetchMock);
+			const app = appFor(route, "patch", handler, ["curate"]);
+			const resp = await app.request(
+				requestPath,
+				{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(payload) },
+				catalogueEnv()
+			);
+			expect(resp.status).toBe(202);
+			const [url, init] = fetchMock.mock.calls[0] as unknown as [URL | string, RequestInit];
+			expect(String(url).endsWith(`${azurePrefix}${encodeURIComponent(id)}`)).toBe(true);
+			expect(init.method).toBe("PATCH");
+			expect(JSON.parse(String(init.body))).toEqual(payload);
+		}
+	);
+
+	it.each([
+		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, { id, name: "Synthetic", searchTerms: "s", knownTerms: ["K"], removed: false }],
+		["/film/:identifier", `/film/${id}`, getFilm, { id, name: "Synthetic", release: "1999", guests: ["G"], subjects: [] }],
+		[
+			"/tvshowepisode/:id",
+			`/tvshowepisode/${id}`,
+			getTvShowEpisode,
+			{ id, tvShowId: id, title: "Synthetic", guests: ["G"], duration: "0:44:00", subjects: ["S"] }
+		]
+	] as const)("GET %s passes the RPP #1053 parity fields through unchanged", async (route, requestPath, handler, body) => {
+		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+		const app = appFor(route, "get", handler, ["curate"]);
+		const resp = await app.request(requestPath, { method: "GET", headers: authJsonHeaders }, catalogueEnv());
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(body);
+	});
+
+	it.each([
 		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, "/tvshow/"],
 		["/film/:identifier", `/film/${id}`, getFilm, "/film/"]
 	] as const)("GET %s forwards 200, 404, and 409 and hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {

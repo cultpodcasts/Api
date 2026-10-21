@@ -220,11 +220,18 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch TV-show episode IMDb/TheTVDB identity URIs",
+		summary: "Patch TV-show episode fields and IMDb/TheTVDB identity URIs",
+		description:
+			"`id` is the episode guid. Omitted or null fields are unchanged. Same playable fields and rules as `PATCH /newsreport/{id}`, " +
+			"including `guests`, plus `imdb` / `tvdb`. The request is validated before anything is applied. " +
+			"`removed: true` also deletes the episode's search document (RPP #1053).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
 			202: { description: "TV-show episode updated (empty body)" },
-			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			400: {
+				description: "Invalid URL, release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
+				...contentJson(errorSchema)
+			},
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -236,7 +243,10 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch TV show IMDb/TheTVDB identity URIs",
+		summary: "Patch TV show publisher fields and IMDb/TheTVDB identity URIs",
+		description:
+			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields and rules as `PATCH /newsorganisation/{id}`, " +
+			"plus `imdb` / `tvdb`. `searchTerms` and `language` are also copied to every episode of the show (RPP #1053).",
 		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
 		responses: {
 			202: { description: "TV show updated (empty body)" },
@@ -268,11 +278,18 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch film IMDb identity URI",
+		summary: "Patch film publisher and playable fields and IMDb identity URI",
+		description:
+			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
+			"(no propagation), plus `description`, `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, `removed`, " +
+			"`subjects`, `guests` and `imdb`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
 			202: { description: "Film updated (empty body)" },
-			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			400: {
+				description: "Invalid URL, release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
+				...contentJson(errorSchema)
+			},
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -344,7 +361,8 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 		summary: "Patch news report fields",
 		description:
 			"`id` is the report guid. Omitted or null fields are unchanged. The request is validated before anything is applied. " +
-			"`removed: true` also deletes the report's search document.",
+			"`removed: true` also deletes the report's search document. `guests` follows the episode rule: it replaces the list, `[]` clears it, " +
+			"blank names are dropped and names trimmed.",
 		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
 		responses: {
 			202: { description: "News report updated (empty body)" },

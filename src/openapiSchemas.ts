@@ -1081,44 +1081,11 @@ export const preProcessedHomepageResponseSchema = z.object({
 	episodeCount: z.number()
 });
 
-export const tvShowDtoSchema = z.object({
-	id: z.string().uuid(),
-	name: z.string(),
-	imdb: z.string().url().optional().nullable(),
-	tvdb: z.string().url().optional().nullable()
-});
-
-export const tvShowEpisodeDtoSchema = z.object({
-	id: z.string().uuid(),
-	tvShowId: z.string().uuid(),
-	title: z.string(),
-	imdb: z.string().url().optional().nullable(),
-	tvdb: z.string().url().optional().nullable()
-});
-
-export const tvShowChangeRequestSchema = z.object({
-	imdb: z.string().optional().nullable(),
-	tvdb: z.string().optional().nullable()
-});
-
-/** Same Azure `TvShowChangeRequest` wire shape (imdb/tvdb strings). Distinct object so Swagger is kind-accurate. */
-export const tvShowEpisodeChangeRequestSchema = z.object({
-	imdb: z.string().optional().nullable(),
-	tvdb: z.string().optional().nullable()
-});
-
-export const filmDtoSchema = z.object({
-	id: z.string().uuid(),
-	name: z.string(),
-	imdb: z.string().url().optional().nullable()
-});
-
-export const filmChangeRequestSchema = z.object({
-	imdb: z.string().optional().nullable()
-});
-
-/** Api.Dtos.NewsOrganisationDto (RPP #1053). */
-export const newsOrganisationDtoSchema = z.object({
+/**
+ * Shared curator publisher fields (Api.Dtos.PublisherFieldsDto / PublisherFieldsChangeRequest, RPP #1053):
+ * news organisation, TV show and film.
+ */
+const publisherFieldsDtoShape = {
 	id: z.string().uuid(),
 	name: z.string(),
 	language: z.string().optional().nullable(),
@@ -1134,13 +1101,13 @@ export const newsOrganisationDtoSchema = z.object({
 	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable(),
 	latestReleased: z.string().optional().nullable(),
 	lastIndexed: z.string().optional().nullable()
-});
+};
 
 /**
- * Api.Dtos.NewsOrganisationChangeRequest. Omitted / null = unchanged; `""` clears a string,
- * `[]` clears a list. `language` `""` or English is stored as null. Name and removed are not editable here.
+ * Omitted / null = unchanged; `""` clears a string, `[]` clears a list. `language` `""` or English is stored
+ * as null. Name and removed (on news organisations and TV shows) are not editable here.
  */
-export const newsOrganisationChangeRequestSchema = z.object({
+const publisherFieldsChangeShape = {
 	language: z.string().optional().nullable(),
 	twitterHandle: z.string().optional().nullable(),
 	blueskyHandle: z.string().optional().nullable(),
@@ -1151,7 +1118,7 @@ export const newsOrganisationChangeRequestSchema = z.object({
 	defaultSubject: z.string().optional().nullable(),
 	ignoredSubjects: z.array(z.string()).optional().nullable(),
 	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable()
-});
+};
 
 /** Api.Dtos.ServiceLinkDto (url, image, lang; nulls omitted). */
 export const serviceLinkDtoSchema = z.object({
@@ -1160,11 +1127,9 @@ export const serviceLinkDtoSchema = z.object({
 	lang: z.string().optional().nullable()
 });
 
-/** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
-export const newsReportDtoSchema = z.object({
+/** Shared curator playable fields (Api.Dtos.PlayableFieldsDto): news report and TV-show episode. */
+const playableFieldsDtoShape = {
 	id: z.string().uuid(),
-	newsOrganisationId: z.string().uuid(),
-	newsOrganisationName: z.string().optional().nullable(),
 	title: z.string(),
 	description: z.string(),
 	release: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
@@ -1178,15 +1143,19 @@ export const newsReportDtoSchema = z.object({
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
 	language: z.string().optional().nullable(),
+	guests: z.array(z.string()).optional().nullable(),
 	services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable()
-});
+};
+
+/** Guests, as in the episode edit API: replaces the list; `[]` clears (stored null); blank names dropped, names trimmed. */
+const guestsChange = z.array(z.string()).optional().nullable();
 
 /**
- * Api.Dtos.NewsReportChangeRequest. Omitted / null = unchanged. Azure validates `release`
- * (`yyyy-MM-dd` only) and `duration` (non-negative TimeSpan) and returns 400 before applying anything.
- * `removed: true` also deletes the report's search document.
+ * Api.Dtos.PlayableFieldsChangeRequest. Omitted / null = unchanged. Azure validates `release` (`yyyy-MM-dd` only)
+ * and `duration` (non-negative TimeSpan) and returns 400 before applying anything. `removed: true` also deletes
+ * the search document.
  */
-export const newsReportChangeRequestSchema = z.object({
+const playableFieldsChangeShape = {
 	title: z.string().optional().nullable(),
 	description: z.string().optional().nullable(),
 	release: z.string().optional().nullable(),
@@ -1197,8 +1166,122 @@ export const newsReportChangeRequestSchema = z.object({
 	subjects: z.array(z.string()).optional().nullable(),
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
-	language: z.string().optional().nullable()
+	language: z.string().optional().nullable(),
+	guests: guestsChange
+};
+
+/**
+ * Optional copy of a DTO shape. The TV and film GET DTOs gained these fields in RPP #1053, so they are optional
+ * here and the schema still accepts the older Azure shape during rollout.
+ */
+function optionalShape<T extends z.ZodRawShape>(shape: T) {
+	return z.object(shape).partial().shape;
+}
+
+const publisherFieldsDtoExtras = z.object(publisherFieldsDtoShape).omit({ id: true, name: true }).shape;
+const playableFieldsDtoExtras = z.object(playableFieldsDtoShape).omit({ id: true, title: true }).shape;
+
+/** Api.Dtos.TvShowDto: publisher fields (RPP #1053) + canonical ids. */
+export const tvShowDtoSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	imdb: z.string().url().optional().nullable(),
+	imdbId: z.string().optional().nullable(),
+	tvdb: z.string().url().optional().nullable(),
+	tvdbId: z.number().int().optional().nullable(),
+	tmdbId: z.number().int().optional().nullable(),
+	...optionalShape(publisherFieldsDtoExtras)
 });
+
+/** Api.Dtos.TvShowEpisodeDto: playable fields incl. guests (RPP #1053) + its show + canonical ids. */
+export const tvShowEpisodeDtoSchema = z.object({
+	id: z.string().uuid(),
+	tvShowId: z.string().uuid(),
+	tvShowName: z.string().optional().nullable(),
+	title: z.string(),
+	imdb: z.string().url().optional().nullable(),
+	imdbId: z.string().optional().nullable(),
+	tvdb: z.string().url().optional().nullable(),
+	tvdbId: z.number().int().optional().nullable(),
+	tmdbId: z.number().int().optional().nullable(),
+	...optionalShape(playableFieldsDtoExtras)
+});
+
+/**
+ * Api.Dtos.TvShowChangeRequest: canonical ids (absolute http(s) URL; `""` clears; anything else is a 400) plus the
+ * shared publisher fields. `searchTerms` / `language` are also copied to every episode of the show.
+ */
+export const tvShowChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable(),
+	tvdb: z.string().optional().nullable(),
+	...publisherFieldsChangeShape
+});
+
+/** Api.Dtos.TvShowEpisodeChangeRequest: canonical ids plus the shared playable fields (same rules as news reports). */
+export const tvShowEpisodeChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable(),
+	tvdb: z.string().optional().nullable(),
+	...playableFieldsChangeShape
+});
+
+/**
+ * Api.Dtos.FilmDto: publisher fields + IMDb + the playable fields a film has (RPP #1053).
+ * `release` is `yyyy` for a year-only release, otherwise `yyyy-MM-dd`. Films have no title (the name is the title).
+ */
+export const filmDtoSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	imdb: z.string().url().optional().nullable(),
+	imdbId: z.string().optional().nullable(),
+	tmdbId: z.number().int().optional().nullable(),
+	...optionalShape({
+		...publisherFieldsDtoExtras,
+		description: z.string(),
+		release: z.string().regex(/^\d{4}(-\d{2}-\d{2})?$/).optional().nullable(),
+		duration: z.string(),
+		explicit: z.boolean(),
+		ignored: z.boolean(),
+		tweeted: z.boolean(),
+		blueskyPosted: z.boolean(),
+		subjects: z.array(z.string()),
+		guests: z.array(z.string()).optional().nullable(),
+		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable()
+	})
+});
+
+/**
+ * Api.Dtos.FilmChangeRequest: IMDb, the shared publisher fields (no propagation: films have no children), and the
+ * film's playable fields. `release` is `yyyy` or `yyyy-MM-dd`, and `duration` is a non-negative TimeSpan; Azure
+ * returns 400 before applying anything. `removed: true` also deletes the film's search document.
+ */
+export const filmChangeRequestSchema = z.object({
+	imdb: z.string().optional().nullable(),
+	...publisherFieldsChangeShape,
+	description: z.string().optional().nullable(),
+	release: z.string().optional().nullable(),
+	duration: z.string().optional().nullable(),
+	explicit: z.boolean().optional().nullable(),
+	ignored: z.boolean().optional().nullable(),
+	removed: z.boolean().optional().nullable(),
+	subjects: z.array(z.string()).optional().nullable(),
+	guests: guestsChange
+});
+
+/** Api.Dtos.NewsOrganisationDto (RPP #1053). */
+export const newsOrganisationDtoSchema = z.object(publisherFieldsDtoShape);
+
+/** Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields. Search terms and language are copied to reports. */
+export const newsOrganisationChangeRequestSchema = z.object(publisherFieldsChangeShape);
+
+/** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
+export const newsReportDtoSchema = z.object({
+	...playableFieldsDtoShape,
+	newsOrganisationId: z.string().uuid(),
+	newsOrganisationName: z.string().optional().nullable()
+});
+
+/** Api.Dtos.NewsReportChangeRequest: the shared playable fields, including guests. */
+export const newsReportChangeRequestSchema = z.object(playableFieldsChangeShape);
 
 /** Azure PATCH 404 body for news commands: the id that was not found. */
 export const notFoundIdSchema = z.object({

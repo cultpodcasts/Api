@@ -106,15 +106,27 @@ All curator-only (`curate` permission, `curateAuth`), bearer token forwarded to 
 | Worker route | Azure Function | C# DTO / request | Zod | Forwarded statuses |
 |---|---|---|---|---|
 | `GET /tvshow/:identifier` | `tvshow/{id or name}` | `TvShowDto` | `tvShowDtoSchema` | 200, 404, 409 |
-| `PATCH /tvshow/:id` | `tvshow/{id}` | `TvShowChangeRequest` | `tvShowChangeRequestSchema` | 202, 400, 404 |
+| `PATCH /tvshow/:id` | `tvshow/{id}` | `TvShowChangeRequest` (publisher fields + imdb/tvdb) | `tvShowChangeRequestSchema` | 202, 400, 404 |
 | `GET /tvshowepisode/:id` | `tvshowepisode/{id}` | `TvShowEpisodeDto` | `tvShowEpisodeDtoSchema` | 200, 404 |
-| `PATCH /tvshowepisode/:id` | `tvshowepisode/{id}` | `TvShowChangeRequest` | `tvShowEpisodeChangeRequestSchema` | 202, 400, 404 |
+| `PATCH /tvshowepisode/:id` | `tvshowepisode/{id}` | `TvShowEpisodeChangeRequest` (playable fields incl. guests + imdb/tvdb) | `tvShowEpisodeChangeRequestSchema` | 202, 400, 404 |
 | `GET /film/:identifier` | `film/{id or name}` | `FilmDto` | `filmDtoSchema` | 200, 404, 409 |
-| `PATCH /film/:id` | `film/{id}` | `FilmChangeRequest` | `filmChangeRequestSchema` | 202, 400, 404 |
+| `PATCH /film/:id` | `film/{id}` | `FilmChangeRequest` (publisher + film playable fields incl. guests + imdb) | `filmChangeRequestSchema` | 202, 400, 404 |
 | `GET /newsorganisation/:identifier` | `NewsOrganisationGet`, `newsorganisation/{newsOrganisationIdentifier}` (guid or route-form name) | `NewsOrganisationDto` | `newsOrganisationDtoSchema` | 200, 401, 404, 409 (guid array), 500 |
 | `PATCH /newsorganisation/:id` | `NewsOrganisationPatch`, `newsorganisation/{newsOrganisationId:guid}` | `NewsOrganisationChangeRequest` | `newsOrganisationChangeRequestSchema` | 202 (empty), 400, 401, 404 (`{id}`), 500 |
 | `GET /newsreport/:id` | `NewsReportGet`, `newsreport/{reportId:guid}` | `NewsReportDto` (+ `ServiceLinkDto`) | `newsReportDtoSchema` | 200, 401, 404, 500 |
 | `PATCH /newsreport/:id` | `NewsReportPatch`, `newsreport/{reportId:guid}` | `NewsReportChangeRequest` | `newsReportChangeRequestSchema` | 202 (empty), 400, 401, 404 (`{id}`), 500 |
+
+**Editing parity (RPP #1053).** The TV and film PATCH bodies and GET DTOs now carry the same fields as news, and the Worker proxies pass request and response bodies through verbatim, so no handler change was needed:
+
+| Entity | Zod (GET / PATCH) | Shared shape | Extra fields |
+|---|---|---|---|
+| News organisation | `newsOrganisationDtoSchema` / `newsOrganisationChangeRequestSchema` | publisher fields (`PublisherFieldsDto` / `PublisherFieldsChangeRequest`) | none; `searchTerms` / `language` are copied to reports |
+| TV show | `tvShowDtoSchema` / `tvShowChangeRequestSchema` | publisher fields | `imdb`, `tvdb` (+ read-only `imdbId`, `tvdbId`, `tmdbId`); `searchTerms` / `language` are copied to episodes |
+| News report | `newsReportDtoSchema` / `newsReportChangeRequestSchema` | playable fields (`PlayableFieldsDto` / `PlayableFieldsChangeRequest`) incl. `guests` | read-only `newsOrganisationId`, `newsOrganisationName` |
+| TV episode | `tvShowEpisodeDtoSchema` / `tvShowEpisodeChangeRequestSchema` | playable fields incl. `guests` | `imdb`, `tvdb` (+ read-only `tvShowId`, `tvShowName`, `imdbId`, `tvdbId`, `tmdbId`) |
+| Film | `filmDtoSchema` / `filmChangeRequestSchema` | publisher fields | `imdb` (+ read-only `imdbId`, `tmdbId`), `description`, `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, `removed`, `subjects`, `guests` (+ read-only `tweeted`, `blueskyPosted`, `services`); no title |
+
+Rules: omitted or null means unchanged. `""` clears a string and `[]` clears a list. `language` `""` or English becomes null. `guests` follows the episode edit API: it replaces the list, `[]` clears it to null, blank names are dropped and names trimmed. Playable `release` is `yyyy-MM-dd` only (films also accept `yyyy`), and `duration` is a non-negative TimeSpan; Azure returns 400 before applying anything. `removed: true` on a news report, TV episode or film also deletes its search document. Name, and removed on news organisations and TV shows, are not editable here. The new TV and film GET DTO fields are optional in Zod, so the older Azure shape still validates during rollout.
 
 TV and film rewrite any other status to a Worker 500. The news routes also forward Azure's own 401 (`{"Message":"Unauthorised"}`) and 500 bodies (RPP #1053). An unexpected 409 on `GET /newsreport` is still a Worker 500. The Worker's own 401 (no token) and 403 (no `curate`) are returned before Azure is called.
 

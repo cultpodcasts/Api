@@ -832,6 +832,92 @@ describe("openapi Zod schemas", () => {
 		expect(filmChangeRequestSchema.parse({ imdb: "not-a-url" }).imdb).toBe("not-a-url");
 		expect(filmChangeRequestSchema.parse({ imdb: null }).imdb).toBeNull();
 	});
+	it("parses TV show, TV episode and film GET DTOs with the RPP #1053 parity fields (synthetic)", () => {
+		const show = tvShowDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic Docuseries",
+			imdb: "https://www.imdb.com/title/tt0000001/",
+			imdbId: "tt0000001",
+			tvdb: null,
+			tvdbId: null,
+			tmdbId: 101,
+			language: "fr",
+			removed: false,
+			twitterHandle: "@synthetic",
+			blueskyHandle: null,
+			hashTag: "#Synthetic",
+			enrichmentHashTags: null,
+			searchTerms: "synthetic terms",
+			knownTerms: ["Term"],
+			defaultSubject: null,
+			ignoredSubjects: null,
+			ignoredAssociatedSubjects: null,
+			latestReleased: null,
+			lastIndexed: null
+		});
+		expect(show.searchTerms).toBe("synthetic terms");
+		const episode = tvShowEpisodeDtoSchema.parse({
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			tvShowId: "550e8400-e29b-41d4-a716-446655440000",
+			tvShowName: "Synthetic Docuseries",
+			title: "Synthetic Episode",
+			description: "",
+			release: "2026-09-01",
+			duration: "0:44:00",
+			explicit: false,
+			ignored: false,
+			removed: false,
+			tweeted: false,
+			blueskyPosted: false,
+			subjects: ["Synthetic Cult"],
+			searchTerms: null,
+			hashTag: null,
+			language: null,
+			guests: ["Synthetic Survivor"],
+			services: null,
+			imdb: null,
+			tvdb: null
+		});
+		expect(episode.guests).toEqual(["Synthetic Survivor"]);
+		expect(() => tvShowEpisodeDtoSchema.parse({ ...episode, release: "2026-09-01T10:00:00" })).toThrow();
+		const film = filmDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic Film",
+			imdb: null,
+			release: "1999",
+			duration: "1:30:00",
+			description: "Synthetic",
+			explicit: false,
+			ignored: false,
+			tweeted: false,
+			blueskyPosted: false,
+			subjects: [],
+			guests: ["Synthetic Director"],
+			removed: false,
+			twitterHandle: ""
+		});
+		expect(film.release).toBe("1999");
+		expect(filmDtoSchema.parse({ ...film, release: "1999-05-04" }).release).toBe("1999-05-04");
+		expect(() => filmDtoSchema.parse({ ...film, release: "99" })).toThrow();
+		expect(() => filmDtoSchema.parse({ ...film, guests: "Synthetic Director" })).toThrow();
+	});
+
+	it("parses TV and film change requests with publisher/playable fields and guests, keeping imdb/tvdb unconstrained", () => {
+		expect(
+			tvShowChangeRequestSchema.parse({ imdb: "", tvdb: null, searchTerms: "", language: "de", knownTerms: [] })
+		).toEqual({ imdb: "", tvdb: null, searchTerms: "", language: "de", knownTerms: [] });
+		expect(
+			tvShowEpisodeChangeRequestSchema.parse({ title: "Synthetic", release: "2026-10-02", guests: [], removed: true })
+		).toEqual({ title: "Synthetic", release: "2026-10-02", guests: [], removed: true });
+		expect(
+			filmChangeRequestSchema.parse({ release: "1999", duration: "1:42:00", guests: ["Synthetic"], hashTag: "", subjects: [] })
+		).toEqual({ release: "1999", duration: "1:42:00", guests: ["Synthetic"], hashTag: "", subjects: [] });
+		expect(newsReportChangeRequestSchema.parse({ guests: [" Synthetic "] }).guests).toEqual([" Synthetic "]);
+		expect(() => tvShowEpisodeChangeRequestSchema.parse({ guests: "Synthetic" })).toThrow();
+		expect(() => filmChangeRequestSchema.parse({ explicit: "yes" })).toThrow();
+		expect(() => tvShowChangeRequestSchema.parse({ enrichmentHashTags: "#A" })).toThrow();
+	});
+
 	it("parses news organisation and news report GET DTOs (RPP #1053, synthetic)", () => {
 		const org = newsOrganisationDtoSchema.parse({
 			id: "550e8400-e29b-41d4-a716-446655440000",
@@ -868,9 +954,11 @@ describe("openapi Zod schemas", () => {
 			searchTerms: null,
 			hashTag: null,
 			language: "de",
+			guests: ["Synthetic Reporter"],
 			services: { youtube: { url: "https://www.youtube.com/watch?v=synthetic", lang: "de" } }
 		});
 		expect(report.services?.youtube?.lang).toBe("de");
+		expect(report.guests).toEqual(["Synthetic Reporter"]);
 		expect(() => newsReportDtoSchema.parse({ ...report, release: "2026-10-03T10:00:00" })).toThrow();
 		expect(() => newsOrganisationDtoSchema.parse({ ...org, id: "not-a-guid" })).toThrow();
 	});
