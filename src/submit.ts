@@ -13,12 +13,30 @@ import {
 } from "./submitAccess";
 import { getStreamMeta, toPrefetchedMeta } from "./submitPrepareMeta";
 
-function hasSeriesAttachTarget(data: { podcastId?: unknown; podcastName?: unknown }): boolean {
-	const id = data.podcastId;
-	if (id != null && String(id).trim() !== "") {
+function nonBlank(value: unknown): boolean {
+	return value != null && String(value).trim() !== "";
+}
+
+/**
+ * True when the body names an attach target: a podcast (`podcastId` / `podcastName`) or a
+ * news organisation / TV show parent (`parentKind` / `parentId` / `parentName`, RPP #1054).
+ * An attach target needs a `submit`/`curate` caller (401/403 otherwise) and is only ever
+ * persisted by Azure, never by the D1 URL-only store.
+ */
+function hasSeriesAttachTarget(data: {
+	podcastId?: unknown;
+	podcastName?: unknown;
+	parentKind?: unknown;
+	parentId?: unknown;
+	parentName?: unknown;
+}): boolean {
+	if (nonBlank(data.podcastId)) {
 		return true;
 	}
-	return typeof data.podcastName === "string" && data.podcastName.trim() !== "";
+	if (typeof data.podcastName === "string" && data.podcastName.trim() !== "") {
+		return true;
+	}
+	return nonBlank(data.parentKind) || nonBlank(data.parentId) || nonBlank(data.parentName);
 }
 
 export async function submit(c: Auth0ActionContext): Promise<Response> {
@@ -31,7 +49,7 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 	// Never trust client-supplied prefetchedMeta — only Worker KV cache.
 	delete data.prefetchedMeta;
 	const attachTarget = hasSeriesAttachTarget(data);
-	// podcastId/podcastName is Isolated persist only — D1 stores URL, not attach.
+	// podcastId/podcastName and parentKind/parentId/parentName are Isolated persist only — D1 stores URL, not attach.
 	if (attachTarget && !canCallAzureSubmitBackend(auth0Payload)) {
 		const status = azureSubmitBackendDenialStatus(auth0Payload);
 		logCollector.emitError({
