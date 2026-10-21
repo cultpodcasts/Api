@@ -565,6 +565,7 @@ export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
     schema: {
         tags: ["Episodes"],
         summary: "Get podcast episode by podcast name and episode id",
+        description: "Same Azure lookup as GET /episode/:id: when no podcast episode has the id (for example after the catalogue migration) it resolves the news report, TV episode or film by id. The body is EpisodeDto plus contentKind, parentId, parentName, slug and path.",
         request: { params: podcastAndEpisodeParam },
         responses: {
             200: { description: "Episode", ...contentJson(episodeDtoSchema) },
