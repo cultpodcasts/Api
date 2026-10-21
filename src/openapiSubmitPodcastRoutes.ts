@@ -38,11 +38,16 @@ export const SubmitRoute = createOpenApiRoute(submit, {
 			200: { description: "Submission accepted", ...contentJson(submitUrlResponseSchema) },
 			400: {
 				description:
-					"Bad request — missing or invalid Url, Azure SubmitUrl binding failure, or missing url on D1 fallback",
+					"Bad request — missing or invalid Url, Azure SubmitUrl binding failure, or missing url on D1 fallback. " +
+					"Parent attach (RPP #1054): unknown `parentKind`, `parentKind` without `parentId`, or parent fields combined with `podcastId` / `podcastName`.",
 				...contentJson(errorSchema)
 			},
 			409: ambiguousPodcastNameConflict,
-			...notFoundResponse,
+			404: {
+				description:
+					"Not found — the target podcast was not found, or (parent attach, RPP #1054) `parentId` is not a row of `parentKind` (ParentNotFound)",
+				...contentJson(errorSchema)
+			},
 			...serverErrorResponse,
 			...authResponses
 		}

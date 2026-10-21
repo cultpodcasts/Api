@@ -32,7 +32,10 @@ const parentBodies = [
 	["parentKind", { url, parentKind: "NewsOrganisation" }],
 	["parentId", { url, parentId }],
 	["parentName", { url, parentName: "Synthetic Desk" }],
-	["all parent fields", { url, parentKind: "TvShow", parentId, parentName: "Synthetic Show" }]
+	["all parent fields", { url, parentKind: "TvShow", parentId, parentName: "Synthetic Show" }],
+	// Non-string values still count as an attach target (the safe direction: more bodies need auth).
+	["a numeric parentId", { url, parentId: 123 }],
+	["a numeric podcastName", { url, podcastName: 42 }]
 ] as const;
 
 function post(body: unknown, headers: Record<string, string> = authJsonHeaders) {
@@ -126,6 +129,14 @@ describe("POST /submit OpenAPI request schema parent fields", () => {
 			| undefined;
 		expect(request?.body?.content?.["application/json"]?.schema).toBe(submitUrlRequestSchema);
 		expect(SubmitRoute.openApiSchema.description).toMatch(/parentKind, parentId or parentName/);
+	});
+
+	it("documents the parent-attach 400 and 404 outcomes from RPP #1054", () => {
+		const responses = SubmitRoute.openApiSchema.responses;
+		expect(responses?.[400]?.description).toMatch(/parentKind/);
+		expect(responses?.[400]?.description).toMatch(/parentId/);
+		expect(responses?.[400]?.description).toMatch(/podcastId/);
+		expect(responses?.[404]?.description).toMatch(/`parentId` is not a row of `parentKind`/);
 	});
 
 	it("accepts NewsOrganisation / TvShow case-insensitively with a uuid parentId and a parentName", () => {
