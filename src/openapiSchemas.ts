@@ -343,6 +343,19 @@ export const podcastKindTransferResponseSchema = z.object({
 	failureIndexingPlayables: z.boolean().optional()
 });
 
+/** EpisodeFilmMoveRequest — RedditPodcastPoster Api.Dtos.EpisodeFilmMoveRequest. */
+export const episodeFilmMoveRequestSchema = z.object({
+	title: z.string().optional().nullable().describe("Film name. Blank or missing keeps the episode title. Must not contain '/'.")
+});
+
+/** EpisodeFilmMoveResponse — command outcome (not the film read model). GET /film/:id for the film. */
+export const episodeFilmMoveResponseSchema = z.object({
+	filmId: z.string().uuid().optional().nullable().describe("The new film id (same as the episode id). On 409, the film that already has the name."),
+	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional()
+});
+
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)
 });
