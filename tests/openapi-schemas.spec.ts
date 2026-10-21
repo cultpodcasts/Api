@@ -471,7 +471,7 @@ describe("openapi Zod schemas", () => {
 			parentId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
 			parentName: "Synthetic Outlet",
 			slug: "Synthetic Outlet",
-			path: "/news/Synthetic%20Outlet/bgQAhFUOm-VBG6pxZkVEAAA"
+			path: "/news/Synthetic%20Outlet/bgCEDlWb4tRBpxZEZlVEAAA"
 		});
 		expect(parsed.contentKind).toBe("NewsReport");
 		expect(parsed.path).toContain("/news/");
@@ -489,7 +489,7 @@ describe("openapi Zod schemas", () => {
 			subjects: [],
 			contentKind: "Film",
 			slug: "Synthetic Film",
-			path: "/film/Synthetic%20Film/ZgQAhFUOm-VBG6pxZkVEAAA"
+			path: "/film/Synthetic%20Film/ZgCEDlWb4tRBpxZEZlVEAAA"
 		});
 		expect(parsed.contentKind).toBe("Film");
 		expect(parsed.parentId).toBeUndefined();
