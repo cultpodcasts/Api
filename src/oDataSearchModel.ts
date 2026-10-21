@@ -3,4 +3,6 @@ export interface oDataSearchModel {
     filter?: string;
     skip?: string;
     orderby?: string;
+    top?: number;
+    count?: boolean;
 }

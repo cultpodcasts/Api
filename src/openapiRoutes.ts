@@ -22,6 +22,7 @@ import {
 	nameParam,
 	notFoundResponse,
 	podcastAndEpisodeParam,
+	pageDetailsParam,
 	podcastIdAndEpisodeParam,
 	serverErrorResponse
 } from "./openapiRouteFactory";
@@ -1240,9 +1241,18 @@ export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {
 export const GetPageDetailsRoute = createOpenApiRoute(getPageDetails, {
     schema: {
         tags: ["Public"],
-        summary: "Get page details by podcast and episode",
-        request: { params: podcastAndEpisodeParam },
-        responses: { 200: { description: "Page details", ...contentJson(pageDetailsResponseSchema) } }
+        summary: "Get page details by podcast and episode, or for a news outlet / TV show hub",
+        description:
+            "`/pagedetails/{podcastName}/{episodeId}` for an episode. `/pagedetails/news/{name}` and `/pagedetails/tv/{name}` (second segment not a UUID or short id) return the hub: title = name, description = item count, image from the newest item. Caller: website server render of `/news/{name}` and `/tv/{name}` (website #530, `connectCatalogueHubSeo`).",
+        request: { params: pageDetailsParam },
+        responses: {
+            200: { description: "Page details", ...contentJson(pageDetailsResponseSchema) },
+            400: {
+                description:
+                    "Plain text. `No item found` (no matching episode or hub item), `Search-api error` (search upstream failed; kept as 400 to match the episode lookup), or missing params.",
+                content: { "text/plain": { schema: z.string() } }
+            }
+        }
     }
 });
 

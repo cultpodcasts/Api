@@ -209,5 +209,16 @@ export const nameParam = z.object({ name: z.string() });
 export const identifierParam = z.object({ identifier: z.string() });
 export const episodeIdParam = z.object({ episodeId: z.string().uuid() });
 export const podcastAndEpisodeParam = z.object({ podcastName: z.string(), episodeId: z.string() });
+/** `GET /pagedetails/:podcastName/:episodeId`: an episode, or a news outlet / TV show hub (Api #175). */
+export const pageDetailsParam = z.object({
+	podcastName: z
+		.string()
+		.describe("Podcast / series name for an episode, or `news` / `tv` for a hub page."),
+	episodeId: z
+		.string()
+		.describe(
+			"Episode UUID or catalogue short id. After `news` / `tv`, a value that is not an id is the outlet / show name (hub page)."
+		)
+});
 export const podcastIdAndEpisodeParam = z.object({ podcastId: z.string(), episodeId: z.string() });
 export const podcastNameAndIdParam = z.object({ name: z.string(), id: z.string() });
