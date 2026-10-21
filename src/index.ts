@@ -62,6 +62,9 @@ import {
 	PutHeroCurationRoute,
 	PushSubscriptionRoute,
 	RenamePodcastRoute,
+	RenameNewsOrganisationRoute,
+	RenameTvShowRoute,
+	RenameFilmRoute,
 	RunSearchIndexerRoute,
 	SearchRoute,
 	SubmitDiscoveryRoute,
@@ -86,6 +89,10 @@ import {
 	UpdateTvShowRoute,
 	GetTvShowEpisodeRoute,
 	UpdateTvShowEpisodeRoute,
+	GetNewsOrganisationRoute,
+	UpdateNewsOrganisationRoute,
+	GetNewsReportRoute,
+	UpdateNewsReportRoute,
 	GetFilmRoute,
 	UpdateFilmRoute
 } from './openapiRoutes';
@@ -377,6 +384,13 @@ openapi.get('/tvshowepisode/:id', GetTvShowEpisodeRoute);
 openapi.patch('/tvshowepisode/:id', UpdateTvShowEpisodeRoute);
 openapi.get('/film/:identifier', GetFilmRoute);
 openapi.patch('/film/:id', UpdateFilmRoute);
+openapi.get('/newsorganisation/:identifier', GetNewsOrganisationRoute);
+openapi.patch('/newsorganisation/:id', UpdateNewsOrganisationRoute);
+openapi.post('/newsorganisation/name/:identifier', RenameNewsOrganisationRoute);
+openapi.post('/tvshow/name/:identifier', RenameTvShowRoute);
+openapi.post('/film/name/:identifier', RenameFilmRoute);
+openapi.get('/newsreport/:id', GetNewsReportRoute);
+openapi.patch('/newsreport/:id', UpdateNewsReportRoute);
 openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);
 openapi.get('/subject/:name', GetSubjectByNameRoute);
 openapi.patch('/subject/:id', UpdateSubjectRoute);

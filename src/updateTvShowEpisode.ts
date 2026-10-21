@@ -15,7 +15,7 @@ export async function updateTvShowEpisode(c: Auth0ActionContext): Promise<Respon
 		pathSuffix: `/${encodeURIComponent(id)}`,
 		body,
 		successStatuses: [202],
-		forwardStatuses: [400, 404],
+		forwardStatuses: [400, 401, 404, 500],
 		logName: "secure-tvshowepisode-update-endpoint"
 	});
 }

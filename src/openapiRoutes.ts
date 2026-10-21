@@ -4,6 +4,7 @@ import {
 	adminAuth,
 	authResponses,
 	ambiguousCatalogueNameConflict,
+	ambiguousNewsOrganisationNameConflict,
 	ambiguousPodcastNameConflict,
 	bookmarkAuth,
 	createOpenApiRoute,
@@ -119,6 +120,8 @@ import {
 	podcastKindTransferRequestSchema,
 	podcastKindTransferResponseSchema,
 	podcastRenameRequestSchema,
+	catalogueRenameRequestSchema,
+	catalogueRenameResponseSchema,
 	podcastRenameResponseSchema,
 	publicEpisodeDtoSchema,
 	publishHomepageResponseSchema,
@@ -133,7 +136,13 @@ import {
 	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	filmChangeRequestSchema,
-	filmDtoSchema
+	filmDtoSchema,
+	newsOrganisationChangeRequestSchema,
+	serviceIdConflictSchema,
+	newsOrganisationDtoSchema,
+	newsReportChangeRequestSchema,
+	newsReportDtoSchema,
+	notFoundIdSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -158,6 +167,7 @@ import {
 } from "./heroCurationOpenApi";
 import { pushSubscription } from "./pushSubscription";
 import { renamePodcast } from "./renamePodcast";
+import { renameFilm, renameNewsOrganisation, renameTvShow } from "./renameCatalogue";
 import { runSearchIndexer } from "./runSearchIndexer";
 import { search } from "./search";
 import { submitDiscovery } from "./submitDiscovery";
@@ -172,6 +182,10 @@ import { getTvShowEpisode } from "./getTvShowEpisode";
 import { updateTvShowEpisode } from "./updateTvShowEpisode";
 import { getFilm } from "./getFilm";
 import { updateFilm } from "./updateFilm";
+import { getNewsOrganisation } from "./getNewsOrganisation";
+import { updateNewsOrganisation } from "./updateNewsOrganisation";
+import { getNewsReport } from "./getNewsReport";
+import { updateNewsReport } from "./updateNewsReport";
 
 export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupRoute, SubmitPrepareRoute, SubmitRoute };
 
@@ -210,11 +224,19 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch TV-show episode IMDb/TheTVDB identity URIs",
+		summary: "Patch TV-show episode fields and IMDb/TheTVDB identity URIs",
+		description:
+			"`id` is the episode guid. Omitted or null fields are unchanged. Same playable fields and rules as `PATCH /newsreport/{id}`, " +
+			"including `guests`, plus `imdb` / `tvdb`. The request is validated before anything is applied. " +
+			"`removed: true` also deletes the episode's search document (RPP #1053)." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
-			202: { description: "TV-show episode updated (empty body)" },
-			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			202: { description: "TV-show episode updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
+			400: {
+				description: "Invalid URL, release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
+				...contentJson(errorSchema)
+			},
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -226,13 +248,25 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch TV show IMDb/TheTVDB identity URIs",
+		summary: "Patch TV show publisher fields and IMDb/TheTVDB identity URIs",
+		description:
+			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}`, " +
+			"plus `imdb` / `tvdb`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
+			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
+			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
 		responses: {
 			202: { description: "TV show updated (empty body)" },
 			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			409: {
+				description: "A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast; `ids` names the owner(s). Nothing applied",
+				...contentJson(serviceIdConflictSchema)
+			},
 			...notFoundResponse,
-			...serverErrorResponse,
+			500: {
+				description: "Update failed (e.g. the removal cascade's search delete failed); safe to retry the same PATCH",
+				...contentJson(errorSchema)
+			},
 			...authResponses
 		}
 	}
@@ -258,12 +292,110 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch film IMDb identity URI",
+		summary: "Patch film publisher and playable fields and IMDb identity URI",
+		description:
+			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
+			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, " +
+			"`subjects`, `guests` and `imdb`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
-			202: { description: "Film updated (empty body)" },
-			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			202: { description: "Film updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
+			400: {
+				description: "Invalid URL, release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
+				...contentJson(errorSchema)
+			},
 			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+/** News curation proxies (RPP #1053). Azure 401/404/500 bodies are forwarded, not rewritten. */
+const newsNotFoundIdResponse = {
+	404: { description: "No news item with that id", ...contentJson(notFoundIdSchema) }
+};
+
+export const GetNewsOrganisationRoute = createOpenApiRoute(getNewsOrganisation, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Get news organisation by id or name",
+		description:
+			"`identifier` is a guid, or a name in route form (case-insensitive match, like `/tvshow/{name}`).",
+		request: { params: identifierParam },
+		responses: {
+			200: { description: "News organisation", ...contentJson(newsOrganisationDtoSchema) },
+			409: ambiguousNewsOrganisationNameConflict,
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisation, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Patch news organisation fields",
+		description:
+			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
+			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
+			"`removed` cascades like a podcast removal: each report's `parentRemoved` is set / cleared (its own `removed` is untouched) and on removal " +
+			"every report's search document is deleted; restored reports are re-added by the next indexer run.",
+		request: { params: idParam, body: jsonBody(newsOrganisationChangeRequestSchema) },
+		responses: {
+			202: { description: "News organisation updated (empty body)" },
+			400: { description: "Invalid request", ...contentJson(errorSchema) },
+			409: {
+				description: "A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast; `ids` names the owner(s). Nothing applied",
+				...contentJson(serviceIdConflictSchema)
+			},
+			...newsNotFoundIdResponse,
+			500: {
+				description: "Update failed (e.g. the removal cascade's search delete failed); safe to retry the same PATCH",
+				...contentJson(errorSchema)
+			},
+			...authResponses
+		}
+	}
+});
+
+export const GetNewsReportRoute = createOpenApiRoute(getNewsReport, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Get news report by id",
+		request: { params: idParam },
+		responses: {
+			200: { description: "News report", ...contentJson(newsReportDtoSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Patch news report fields",
+		description:
+			"`id` is the report guid. Omitted or null fields are unchanged. The request is validated before anything is applied. " +
+			"`removed: true` also deletes the report's search document. `guests` follows the episode rule: it replaces the list, `[]` clears it, " +
+			"blank names are dropped and names trimmed." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
+		responses: {
+			202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
+			400: {
+				description: "Invalid release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
+				...contentJson(errorSchema)
+			},
+			...newsNotFoundIdResponse,
 			...serverErrorResponse,
 			...authResponses
 		}
@@ -1049,6 +1181,46 @@ export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
             ...authResponses
         }
     }
+});
+
+function catalogueRenameSchema(tag: string, kind: string, root: string, children: string) {
+    return {
+        tags: [tag],
+        summary: `Rename ${kind}`,
+        description:
+            `Admin only, like \`POST /podcast/name/:name\`. \`identifier\` is the ${kind} guid or its route-form name. ` +
+            `Records the redirect \`${root}/{old}\` → \`{new}\` in the website's redirects KV (not written while another ${kind} keeps the old name), ` +
+            `${children}and keeps the stored fileKey. Safe to retry.`,
+        request: { params: identifierParam, body: jsonBody(catalogueRenameRequestSchema) },
+        responses: {
+            200: { description: `${kind[0].toUpperCase()}${kind.slice(1)} renamed; state of the immediate search update`, ...contentJson(catalogueRenameResponseSchema) },
+            400: { description: "Bad request: blank `newName` or one containing `/` (Worker, Azure not called), or the redirect would loop (Azure)", ...contentJson(errorSchema) },
+            409: {
+                description: "Another entity of the same kind has the new name (empty body), or the identifier name is ambiguous (JSON array of guids)",
+                ...contentJson(z.array(z.string().uuid()))
+            },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    };
+}
+
+export const RenameNewsOrganisationRoute = createOpenApiRoute(renameNewsOrganisation, {
+    auth: adminAuth,
+    schema: catalogueRenameSchema("Catalogue", "news organisation", "news",
+        "copies the new name onto every report's `newsOrganisationName`, patches `seriesName` in search ")
+});
+
+export const RenameTvShowRoute = createOpenApiRoute(renameTvShow, {
+    auth: adminAuth,
+    schema: catalogueRenameSchema("Catalogue", "TV show", "tv",
+        "copies the new name onto every episode's `tvShowName`, patches `seriesName` in search ")
+});
+
+export const RenameFilmRoute = createOpenApiRoute(renameFilm, {
+    auth: adminAuth,
+    schema: catalogueRenameSchema("Catalogue", "film", "film", "patches the film's search `title` ")
 });
 
 export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {

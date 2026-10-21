@@ -15,7 +15,7 @@ export async function updateFilm(c: Auth0ActionContext): Promise<Response> {
 		pathSuffix: `/${encodeURIComponent(id)}`,
 		body,
 		successStatuses: [202],
-		forwardStatuses: [400, 404],
+		forwardStatuses: [400, 401, 404, 500],
 		logName: "secure-film-update-endpoint"
 	});
 }

@@ -199,6 +199,11 @@ export const ambiguousCatalogueNameConflict = {
 	...contentJson(ambiguousIdsSchema)
 };
 
+export const ambiguousNewsOrganisationNameConflict = {
+	description: "Ambiguous news organisation name (JSON array of matching ids)",
+	...contentJson(ambiguousIdsSchema)
+};
+
 export const idParam = z.object({ id: z.string() });
 export const nameParam = z.object({ name: z.string() });
 export const identifierParam = z.object({ identifier: z.string() });

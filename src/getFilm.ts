@@ -15,7 +15,7 @@ export async function getFilm(c: Auth0ActionContext): Promise<Response> {
 		method: "GET",
 		pathSuffix: `/${encodeURIComponent(identifier)}`,
 		successStatuses: [200],
-		forwardStatuses: [404, 409],
+		forwardStatuses: [401, 404, 409, 500],
 		logName: "secure-film-endpoint"
 	});
 }
