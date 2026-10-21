@@ -138,6 +138,7 @@ import {
 	filmChangeRequestSchema,
 	filmDtoSchema,
 	newsOrganisationChangeRequestSchema,
+	serviceIdConflictSchema,
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
@@ -257,8 +258,15 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 		responses: {
 			202: { description: "TV show updated (empty body)" },
 			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			409: {
+				description: "A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast; `ids` names the owner(s). Nothing applied",
+				...contentJson(serviceIdConflictSchema)
+			},
 			...notFoundResponse,
-			...serverErrorResponse,
+			500: {
+				description: "Update failed (e.g. the removal cascade's search delete failed); safe to retry the same PATCH",
+				...contentJson(errorSchema)
+			},
 			...authResponses
 		}
 	}
@@ -341,8 +349,15 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		responses: {
 			202: { description: "News organisation updated (empty body)" },
 			400: { description: "Invalid request", ...contentJson(errorSchema) },
+			409: {
+				description: "A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast; `ids` names the owner(s). Nothing applied",
+				...contentJson(serviceIdConflictSchema)
+			},
 			...newsNotFoundIdResponse,
-			...serverErrorResponse,
+			500: {
+				description: "Update failed (e.g. the removal cascade's search delete failed); safe to retry the same PATCH",
+				...contentJson(errorSchema)
+			},
 			...authResponses
 		}
 	}

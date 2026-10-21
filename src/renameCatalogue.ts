@@ -8,7 +8,7 @@ import { proxyToAzure } from "./proxyToAzure";
 /**
  * Admin rename of a news organisation, TV show or film (RPP #1053), proxied exactly like `renamePodcast`:
  * `POST /{kind}/name/{identifier}` → Azure `/api/{kind}/name/{identifier}`, 200 `{indexState}` passed through,
- * 400/404/409 forwarded. A blank or `/`-containing `newName` is a Worker 400 (Azure not called). The 409 body is empty for a name clash, or a guid array for an ambiguous identifier.
+ * 400/401/404/409/500 forwarded with their bodies. A blank or `/`-containing `newName` is a Worker 400 (Azure not called). The 409 body is empty for a name clash, or a guid array for an ambiguous identifier.
  * The redirect itself is written by RPP to the website's `redirects` KV; the Worker does not read it.
  */
 function renameProxy(endpoint: Endpoint, logName: string) {
@@ -37,7 +37,7 @@ function renameProxy(endpoint: Endpoint, logName: string) {
 			pathSuffix: `/name/${encodeURIComponent(identifier)}`,
 			body,
 			successStatuses: [200],
-			forwardStatuses: [400, 404, 409],
+			forwardStatuses: [400, 401, 404, 409, 500],
 			logName
 		});
 	};

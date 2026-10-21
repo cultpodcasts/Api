@@ -20,7 +20,7 @@ export async function updateNewsOrganisation(c: Auth0ActionContext): Promise<Res
 		body,
 		successStatuses: [202],
 		emptyAcknowledgement: true,
-		forwardStatuses: [400, 401, 404, 500],
+		forwardStatuses: [400, 401, 404, 409, 500],
 		logName: "secure-newsorganisation-update-endpoint"
 	});
 }

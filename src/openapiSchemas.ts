@@ -872,6 +872,15 @@ export const publishHomepageResponseSchema = z.object({
 	preProcessedHomepagePublished: z.boolean().optional().nullable()
 });
 
+/**
+ * RPP #1053 PATCH /newsorganisation|tvshow/{id} 409 (ServiceIdsUniqueness): a `youTubeChannelId`, `spotifyId`
+ * or `appleId` is already owned by another outlet / show or by a podcast. `ids` names the owner(s).
+ */
+export const serviceIdConflictSchema = z.object({
+	message: z.string().nullable().optional(),
+	ids: z.array(z.string().uuid()).nullable().optional()
+});
+
 /** Api.Dtos.CatalogueRenameRequest (RPP #1053): body of POST /newsorganisation|tvshow|film/name/:identifier */
 export const catalogueRenameRequestSchema = z.object({
 	newName: z

@@ -17,7 +17,8 @@ import {
 import {
 	episodeUpdateResponseSchema,
 	newsOrganisationChangeRequestSchema,
-	newsReportChangeRequestSchema
+	newsReportChangeRequestSchema,
+	serviceIdConflictSchema
 } from "../src/openapiSchemas";
 import { updateNewsOrganisation } from "../src/updateNewsOrganisation";
 import { updateNewsReport } from "../src/updateNewsReport";
@@ -210,6 +211,29 @@ describe("news curation Azure proxies", () => {
 		}
 	});
 
+	it("PATCH /newsorganisation/:id passes the RPP #1053 service-id 409 {message, ids} through, while PATCH /newsreport/:id maps an unexpected 409 to 500", async () => {
+		const conflict = { message: "youTubeChannelId UCsyntheticChannel0000001 is already used", ids: [ambiguousIds[0]] };
+		stubFetch(409, conflict);
+		const orgApp = appWithPermissions("/newsorganisation/:id", "patch", updateNewsOrganisation, ["curate"]);
+		const org = await orgApp.request(
+			`/newsorganisation/${id}`,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify({ youTubeChannelId: "UCsyntheticChannel0000001" }) },
+			testEnv()
+		);
+		expect(org.status).toBe(409);
+		expect(await org.json()).toEqual(conflict);
+		vi.unstubAllGlobals();
+
+		stubFetch(409, conflict);
+		const reportApp = appWithPermissions("/newsreport/:id", "patch", updateNewsReport, ["curate"]);
+		const report = await reportApp.request(
+			`/newsreport/${id}`,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify({ release: "2026-10-03" }) },
+			testEnv()
+		);
+		expect(report.status).toBe(500);
+	});
+
 	it.each(patchRoutes)("PATCH %s does not forward a resource-returning 200 (only 202 acknowledges)", async (route, path, handler, _p, body) => {
 		// Only 202 is the acknowledgement; a resource-returning 200 is a CQRS breach and is not forwarded.
 		stubFetch(200, { id });
@@ -272,5 +296,16 @@ describe("news curation OpenAPI contracts", () => {
 		const reportAccepted = UpdateNewsReportRoute.openApiSchema.responses?.[202] as JsonContent & { description?: string };
 		expect(reportAccepted?.description).toMatch(/social-retraction outcome/);
 		expect(reportAccepted?.content?.["application/json"]?.schema).toBe(episodeUpdateResponseSchema);
+	});
+
+	it("documents the service-id 409 and a retryable 500 on the organisation PATCH only", () => {
+		const responses = UpdateNewsOrganisationRoute.openApiSchema.responses;
+		const conflict = responses?.[409] as (JsonContent & { description?: string }) | undefined;
+		expect(conflict?.content?.["application/json"]?.schema).toBe(serviceIdConflictSchema);
+		expect(conflict?.description).toMatch(/youTubeChannelId/);
+		expect(responses?.[500]?.description).toMatch(/retry/i);
+		expect(UpdateNewsReportRoute.openApiSchema.responses?.[409]).toBeUndefined();
+		expect(serviceIdConflictSchema.parse({ message: "m", ids: [id] })).toEqual({ message: "m", ids: [id] });
+		expect(() => serviceIdConflictSchema.parse({ ids: ["not-a-guid"] })).toThrow();
 	});
 });

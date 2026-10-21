@@ -15,7 +15,7 @@ export async function getTvShowEpisode(c: Auth0ActionContext): Promise<Response>
 		method: "GET",
 		pathSuffix: `/${encodeURIComponent(id)}`,
 		successStatuses: [200],
-		forwardStatuses: [404],
+		forwardStatuses: [401, 404, 500],
 		logName: "secure-tvshowepisode-endpoint"
 	});
 }

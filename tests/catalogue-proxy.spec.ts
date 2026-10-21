@@ -1,9 +1,18 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
 import type { Auth0ActionContext } from "../src/Auth0ActionContext";
 import { ambiguousCatalogueNameConflict, ambiguousPodcastNameConflict } from "../src/openapiRouteFactory";
 import { getFilm } from "../src/getFilm";
+import {
+	GetFilmRoute,
+	GetTvShowEpisodeRoute,
+	GetTvShowRoute,
+	UpdateFilmRoute,
+	UpdateTvShowEpisodeRoute,
+	UpdateTvShowRoute
+} from "../src/openapiRoutes";
+import { serviceIdConflictSchema, tvShowEpisodeChangeRequestSchema } from "../src/openapiSchemas";
 import { getTvShow } from "../src/getTvShow";
 import { getTvShowEpisode } from "../src/getTvShowEpisode";
 import { updateFilm } from "../src/updateFilm";
@@ -163,11 +172,13 @@ describe("catalogue Azure proxies", () => {
 	it.each([
 		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, "/tvshow/"],
 		["/film/:identifier", `/film/${id}`, getFilm, "/film/"]
-	] as const)("GET %s forwards 200, 404, and 409 and hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
+	] as const)("GET %s forwards 200, 401, 404, 409 and 500 bodies and hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
 		for (const [status, body] of [
 			[200, { id, name: "Show" }],
+			[401, { Message: "Unauthorised" }],
 			[404, { error: "Not found" }],
-			[409, ambiguousIds]
+			[409, ambiguousIds],
+			[500, { error: "Unable to retrieve" }]
 		] as const) {
 			const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status }));
 			vi.stubGlobal("fetch", fetchMock);
@@ -181,7 +192,7 @@ describe("catalogue Azure proxies", () => {
 		}
 	});
 
-	it("GET /tvshowepisode/:id forwards 200 and 404, hits Azure /tvshowepisode/{id}, and maps 409 to 500", async () => {
+	it("GET /tvshowepisode/:id forwards 200, 401, 404 and 500, hits Azure /tvshowepisode/{id}, and maps 409 to 500", async () => {
 		const fetch200 = vi.fn(
 			async () =>
 				new Response(JSON.stringify({ id, tvShowId: id, title: "Ep" }), { status: 200 })
@@ -198,6 +209,17 @@ describe("catalogue Azure proxies", () => {
 		const missing = await app.request(`/tvshowepisode/${id}`, { method: "GET", headers: authJsonHeaders }, catalogueEnv());
 		expect(missing.status).toBe(404);
 
+		for (const [status, body] of [
+			[401, { Message: "Unauthorised" }],
+			[500, { error: "Unable to retrieve TV-show episode" }]
+		] as const) {
+			vi.unstubAllGlobals();
+			vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));
+			const forwarded = await app.request(`/tvshowepisode/${id}`, { method: "GET", headers: authJsonHeaders }, catalogueEnv());
+			expect(forwarded.status).toBe(status);
+			expect(await forwarded.json()).toEqual(body);
+		}
+
 		vi.unstubAllGlobals();
 		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ambiguousIds), { status: 409 })));
 		const clash = await app.request(`/tvshowepisode/${id}`, { method: "GET", headers: authJsonHeaders }, catalogueEnv());
@@ -208,7 +230,7 @@ describe("catalogue Azure proxies", () => {
 		["/tvshow/:id", `/tvshow/${id}`, updateTvShow, "/tvshow/"],
 		["/film/:id", `/film/${id}`, updateFilm, "/film/"],
 		["/tvshowepisode/:id", `/tvshowepisode/${id}`, updateTvShowEpisode, "/tvshowepisode/"]
-	] as const)("PATCH %s returns 202 empty, forwards 400/404, hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
+	] as const)("PATCH %s returns 202 empty, forwards 400/401/404/500 bodies, hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
 		const fetch202 = vi.fn(async () => new Response(null, { status: 202 }));
 		vi.stubGlobal("fetch", fetch202);
 		const app = appFor(route, "patch", handler, ["curate"]);
@@ -224,11 +246,11 @@ describe("catalogue Azure proxies", () => {
 		expect(String(url).endsWith(`${azurePrefix}${encodeURIComponent(id)}`)).toBe(true);
 		expect(init.method).toBe("PATCH");
 
-		for (const status of [400, 404] as const) {
+		for (const status of [400, 401, 404, 500] as const) {
 			vi.unstubAllGlobals();
 			vi.stubGlobal(
 				"fetch",
-				vi.fn(async () => new Response(JSON.stringify({ error: "upstream" }), { status }))
+				vi.fn(async () => new Response(JSON.stringify({ error: `upstream ${status}` }), { status }))
 			);
 			const forwarded = await app.request(
 				requestPath,
@@ -236,6 +258,26 @@ describe("catalogue Azure proxies", () => {
 				catalogueEnv()
 			);
 			expect(forwarded.status).toBe(status);
+			expect(await forwarded.json()).toEqual({ error: `upstream ${status}` });
+		}
+	});
+
+	it("PATCH /tvshow/:id passes the RPP #1053 service-id 409 {message, ids} through; film and episode PATCH map an unexpected 409 to 500", async () => {
+		const conflict = { message: "spotifyId is already used", ids: [ambiguousIds[1]] };
+		const patchBody = JSON.stringify({ spotifyId: "syntheticSpotifyId" });
+		for (const [route, requestPath, handler, expected] of [
+			["/tvshow/:id", `/tvshow/${id}`, updateTvShow, 409],
+			["/film/:id", `/film/${id}`, updateFilm, 500],
+			["/tvshowepisode/:id", `/tvshowepisode/${id}`, updateTvShowEpisode, 500]
+		] as const) {
+			vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(conflict), { status: 409 })));
+			const app = appFor(route, "patch", handler, ["curate"]);
+			const resp = await app.request(requestPath, { method: "PATCH", headers: authJsonHeaders, body: patchBody }, catalogueEnv());
+			expect(resp.status).toBe(expected);
+			if (expected === 409) {
+				expect(await resp.json()).toEqual(conflict);
+			}
+			vi.unstubAllGlobals();
 		}
 	});
 });
@@ -247,25 +289,23 @@ describe("catalogue OpenAPI contracts", () => {
 		expect(ambiguousCatalogueNameConflict).not.toBe(ambiguousPodcastNameConflict);
 	});
 
-	it("wires GET film/TV 409 and TV-episode PATCH schema in openapiRoutes", () => {
-		const src = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-		const getTvShow = src.slice(
-			src.indexOf("export const GetTvShowRoute"),
-			src.indexOf("export const GetTvShowEpisodeRoute")
-		);
-		const getEpisode = src.slice(
-			src.indexOf("export const GetTvShowEpisodeRoute"),
-			src.indexOf("export const UpdateTvShowEpisodeRoute")
-		);
-		const getFilm = src.slice(
-			src.indexOf("export const GetFilmRoute"),
-			src.indexOf("export const UpdateFilmRoute")
-		);
-		expect(getTvShow).toContain("409: ambiguousCatalogueNameConflict");
-		expect(getTvShow).not.toContain("ambiguousPodcastNameConflict");
-		expect(getFilm).toContain("409: ambiguousCatalogueNameConflict");
-		expect(getFilm).not.toContain("ambiguousPodcastNameConflict");
-		expect(getEpisode).not.toContain("409:");
-		expect(src).toContain("jsonBody(tvShowEpisodeChangeRequestSchema)");
+	it("documents GET film/TV 409 as the catalogue ambiguity, none on GET episode, and the TV-episode PATCH body", () => {
+		expect(GetTvShowRoute.openApiSchema.responses?.[409]).toBe(ambiguousCatalogueNameConflict);
+		expect(GetFilmRoute.openApiSchema.responses?.[409]).toBe(ambiguousCatalogueNameConflict);
+		expect(GetTvShowEpisodeRoute.openApiSchema.responses?.[409]).toBeUndefined();
+		const request = UpdateTvShowEpisodeRoute.openApiSchema.request as
+			| { body?: { content?: { "application/json"?: { schema?: unknown } } } }
+			| undefined;
+		expect(request?.body?.content?.["application/json"]?.schema).toBe(tvShowEpisodeChangeRequestSchema);
+	});
+
+	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, and no 409 on film / episode PATCH", () => {
+		const responses = UpdateTvShowRoute.openApiSchema.responses;
+		const conflict = responses?.[409] as { description?: string; content?: { "application/json"?: { schema?: unknown } } } | undefined;
+		expect(conflict?.content?.["application/json"]?.schema).toBe(serviceIdConflictSchema);
+		expect(conflict?.description).toMatch(/spotifyId/);
+		expect(responses?.[500]?.description).toMatch(/retry/i);
+		expect(UpdateFilmRoute.openApiSchema.responses?.[409]).toBeUndefined();
+		expect(UpdateTvShowEpisodeRoute.openApiSchema.responses?.[409]).toBeUndefined();
 	});
 });

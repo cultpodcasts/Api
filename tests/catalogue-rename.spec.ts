@@ -72,7 +72,7 @@ describe("catalogue rename Azure proxies (RPP #1053)", () => {
 		}
 	);
 
-	it.each(routes)("POST %s forwards 400, 404 and 409 (empty clash or ambiguous guid array) and maps other statuses to 500", async (route, prefix, handler) => {
+	it.each(routes)("POST %s forwards 400, 401, 404, 409 (empty clash or ambiguous guid array) and 500 bodies, and maps other statuses to 500", async (route, prefix, handler) => {
 		const app = appWithPermissions(route, "post", handler, ["admin"]);
 		for (const [status, body] of [
 			[400, null],
@@ -88,9 +88,20 @@ describe("catalogue rename Azure proxies (RPP #1053)", () => {
 			}
 			vi.unstubAllGlobals();
 		}
+		stubFetch(401, { Message: "Unauthorised" });
+		const unauthorised = await app.request(`${prefix}${id}`, { method: "POST", headers: authJsonHeaders, body: renameBody }, testEnv());
+		expect(unauthorised.status).toBe(401);
+		expect(await unauthorised.json()).toEqual({ Message: "Unauthorised" });
+		vi.unstubAllGlobals();
 		stubFetch(500, { error: "Unable to rename" });
 		const failed = await app.request(`${prefix}${id}`, { method: "POST", headers: authJsonHeaders, body: renameBody }, testEnv());
 		expect(failed.status).toBe(500);
+		expect(await failed.json()).toEqual({ error: "Unable to rename" });
+		vi.unstubAllGlobals();
+		stubFetch(502, { error: "Bad gateway" });
+		const gateway = await app.request(`${prefix}${id}`, { method: "POST", headers: authJsonHeaders, body: renameBody }, testEnv());
+		expect(gateway.status).toBe(500);
+		expect(await gateway.json()).toEqual({ error: "Error" });
 	});
 
 	it.each(routes)("POST %s answers 400 in the Worker for a blank, whitespace-only or `/` name, without calling Azure", async (route, prefix, handler) => {
