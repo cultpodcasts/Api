@@ -99,6 +99,12 @@ Episode GET still exposes posted state as `bluesky` on `EpisodeDto` — that is 
 
 Worker: `episodeChangeRequestSchema` in `src/openapiSchemas.ts`, used by update-episode routes in `openapiRoutes.ts`.
 
+## Episode GET by id: every kind (RPP all-kinds lookup)
+
+`GET /episode/:id` (curate) and `GET /public/episode/:id` (signed in) are passthrough proxies to `episode/{id}` and `public/episode/{id}`. Azure first looks up a podcast episode; when none has the id it looks up a news report, TV episode or film (the catalogue migration keeps ids, so Review links and bookmarks keep working). The public GET is 404 when the item or its parent is removed; the curator GET returns removed items, as it does for episodes.
+
+Both bodies keep every existing field and add `contentKind` (`Episode` | `NewsReport` | `TvShowEpisode` | `Film`), `parentId`, `parentName`, `slug` and `path` (`playableKindFields` in `src/openapiSchemas.ts`; C# `Api.Models.PlayableKind`). Null fields are omitted: a film has no `parentId`/`parentName`, and episode bodies from other routes (outgoing lists) carry none of them. For a news report or TV episode `podcastId`/`podcastName` are the organisation or show; for a film they are the film's own id and name. `path` is the site path with the kind's short id (`/podcast/…`, `/news/…`, `/tv/…`, `/film/…`).
+
 ## Catalogue curation proxies (curate)
 
 All curator-only (`curate` permission, `curateAuth`), bearer token forwarded to api-infra. PATCH is a command. The news organisation and TV show PATCHes return **202 with an empty body**. The news report, TV episode and film PATCHes return **202 with the episode `EpisodeUpdateResponse`** (`tweetDeleted`, `blueskyPostDeleted`, `searchIndexerState`), the same as `PATCH /episode`.
