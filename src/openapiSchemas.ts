@@ -343,6 +343,19 @@ export const podcastKindTransferResponseSchema = z.object({
 	failureIndexingPlayables: z.boolean().optional()
 });
 
+/** EpisodeFilmMoveRequest — RedditPodcastPoster Api.Dtos.EpisodeFilmMoveRequest. */
+export const episodeFilmMoveRequestSchema = z.object({
+	title: z.string().optional().nullable().describe("Film name. Blank or missing keeps the episode title. Must not contain '/'.")
+});
+
+/** EpisodeFilmMoveResponse — command outcome (not the film read model). GET /film/:id for the film. */
+export const episodeFilmMoveResponseSchema = z.object({
+	filmId: z.string().uuid().optional().nullable().describe("The new film id (same as the episode id). On 409, the film that already has the name."),
+	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional()
+});
+
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)
 });
@@ -1118,10 +1131,13 @@ export const homepageResponseSchema = z.object({
 });
 
 export const searchSuggestionEntrySchema = z.object({
-	type: z.enum(["subject", "podcast"]),
+	/** Clients should treat an unknown type as plain search text. */
+	type: z.enum(["subject", "podcast", "tvShow", "newsOrganisation", "film"]),
 	canonical: z.string(),
 	searchText: z.string(),
-	alias: z.string().optional().nullable()
+	alias: z.string().optional().nullable(),
+	/** Item guid. Set on film rows only (film names can repeat; the website builds /film/{name}/{shortId}). */
+	id: z.string().uuid().optional()
 });
 
 /** R2 `search-suggestions` — flat typeahead match index. */
