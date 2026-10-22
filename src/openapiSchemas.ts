@@ -558,8 +558,29 @@ const episodeGuestSuggestionSchema = z.object({
 	matchResults: z.array(episodeGuestMatchResultSchema)
 });
 
+/**
+ * Additive kind fields on the GET-by-id episode read models (RPP `Api.Models.PlayableKind` / `IPlayableKindDto`).
+ * Set only by `GET /episode/:id` (and `/episode/:podcastName/:episodeId`) and `GET /public/episode/:id`; omitted
+ * elsewhere (outgoing lists). Since the catalogue migration keeps each episode's id, those GETs also resolve a news
+ * report, TV episode or film by id: the podcast fields then carry the parent (`podcastName`/`podcastId` = news
+ * organisation or TV show; for a film, the film's own name and id).
+ */
+const playableKindFields = {
+	contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"]).optional()
+		.describe("Kind of playable. Podcast episodes are `Episode`."),
+	parentId: z.string().uuid().optional()
+		.describe("Podcast, news organisation or TV show id. Absent for a film (no parent)."),
+	parentName: z.string().optional()
+		.describe("Podcast, news organisation or TV show name. Absent for a film."),
+	slug: z.string().optional()
+		.describe("Site route segment: the parent name, or a film's own name (unencoded)."),
+	path: z.string().optional()
+		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`.")
+};
+
 /** Api.Dtos.EpisodeDto — TimeSpan `duration` serialises as string (e.g. "01:30:00"). */
 export const episodeDtoSchema = z.object({
+	...playableKindFields,
 	id: z.string().uuid(),
 	podcastId: z.string().uuid(),
 	podcastName: z.string(),
@@ -603,6 +624,7 @@ export const episodeListResponseSchema = z.array(episodeDtoSchema);
 
 /** Api.Dtos.PublicEpisodeDto */
 export const publicEpisodeDtoSchema = z.object({
+	...playableKindFields,
 	id: z.string().uuid(),
 	podcastName: z.string(),
 	title: z.string(),
