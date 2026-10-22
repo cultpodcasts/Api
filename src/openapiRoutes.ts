@@ -124,6 +124,8 @@ import {
 	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
+	episodeTvShowMoveRequestSchema,
+	episodeTvShowMoveResponseSchema,
 	podcastRenameRequestSchema,
 	catalogueRenameRequestSchema,
 	catalogueRenameResponseSchema,
@@ -182,6 +184,7 @@ import { updatePodcast } from "./updatePodcast";
 import { transferPodcastKind } from "./transferPodcastKind";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
+import { moveEpisodeToTvShow } from "./moveEpisodeToTvShow";
 import { updateSubject } from "./updateSubject";
 import { getTvShow } from "./getTvShow";
 import { updateTvShow } from "./updateTvShow";
@@ -696,6 +699,29 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
         responses: {
             202: { description: "Attached (command outcome; GET /film/:id for the film)", ...contentJson(episodeTrailerAttachResponseSchema) },
             400: { description: "Missing filmId, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const MoveEpisodeToTvShowRoute = createOpenApiRoute(moveEpisodeToTvShow, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one podcast episode into a TV show (keeps the guid)",
+        description:
+            "Curator command. Target is exactly one of tvShowId or tvShowName (case-insensitive); createShow with tvShowName creates the show " +
+            "(fresh id, publisher, no indexing) when no show has the name, otherwise joins it. Maps the episode with the catalogue migrator's " +
+            "TV episode mapping (services, subjects, posted/tweeted/Bluesky state), saves the TV episode under the episode guid, swaps the search " +
+            "document to contentKind TvShowEpisode, re-reads, then deletes the episode row. The source podcast is kept. The show's latestReleased " +
+            "is raised and the episode's short link is pointed at /tv/{name}/{shortId}. A failed step keeps the episode row; re-sending resumes.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeTvShowMoveRequestSchema) },
+        responses: {
+            202: { description: "Moved (command outcome; GET /tvshow/:id for the show)", ...contentJson(episodeTvShowMoveResponseSchema) },
+            400: { description: "Not exactly one of tvShowId / tvShowName, createShow or publisher misused, '/' in the name, or a removed episode or show", ...contentJson(errorSchema) },
+            409: { description: "Several shows have the name, or the episode id is already a TV episode of another show or a film", ...contentJson(episodeTvShowMoveResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses

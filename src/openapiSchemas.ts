@@ -370,6 +370,25 @@ export const episodeTrailerAttachResponseSchema = z.object({
 	failureIndexing: z.boolean().optional()
 });
 
+/** EpisodeTvShowMoveRequest — RedditPodcastPoster Api.Dtos.EpisodeTvShowMoveRequest. Exactly one of tvShowId / tvShowName. */
+export const episodeTvShowMoveRequestSchema = z.object({
+	tvShowId: z.string().uuid().optional().nullable().describe("An existing TV show, by id."),
+	tvShowName: z.string().optional().nullable().describe("A TV show by name (case-insensitive). Must not contain '/'."),
+	createShow: z.boolean().optional().nullable().describe("With tvShowName: create the show when no show has the name (otherwise 404). An existing show with the name is joined."),
+	publisher: z.string().optional().nullable().describe("Publisher of a show this move creates. Only valid with createShow."),
+	title: z.string().optional().nullable().describe("TV episode title. Blank or missing keeps the episode title.")
+});
+
+/** EpisodeTvShowMoveResponse — command outcome (not the TV show read model). GET /tvshow/:id for the show. */
+export const episodeTvShowMoveResponseSchema = z.object({
+	tvShowId: z.string().uuid().optional().nullable().describe("The show that now holds the episode. On 409, the show the episode is already in."),
+	tvShowName: z.string().optional().nullable().describe("Show name; the /tv/{name}/{shortId} slug."),
+	episodeId: z.string().uuid().optional().nullable().describe("The TV episode id (same as the episode id)."),
+	createdShow: z.boolean().optional().describe("True when this move created the show."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional()
+});
+
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)
 });

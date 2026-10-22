@@ -50,6 +50,8 @@ import {
 	filmDtoSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
+	episodeTvShowMoveRequestSchema,
+	episodeTvShowMoveResponseSchema,
 	tvShowChangeRequestSchema,
 	tvShowDtoSchema,
 	tvShowEpisodeChangeRequestSchema,
@@ -931,6 +933,16 @@ describe("openapi Zod schemas", () => {
 		expect(() => episodeTrailerAttachRequestSchema.parse({ title: "Synthetic Teaser" })).toThrow();
 		expect(episodeTrailerAttachResponseSchema.parse({ filmId, name: "Synthetic Film Title", failureIndexing: false }).name)
 			.toBe("Synthetic Film Title");
+	});
+
+	it("parses the move-to-TV-show request and command outcome", () => {
+		const tvShowId = "550e8400-e29b-41d4-a716-446655440000";
+		expect(episodeTvShowMoveRequestSchema.parse({ tvShowId }).tvShowId).toBe(tvShowId);
+		expect(episodeTvShowMoveRequestSchema.parse({ tvShowName: "Synthetic Show", createShow: true, publisher: "Synthetic Publisher", title: null }).createShow)
+			.toBe(true);
+		expect(() => episodeTvShowMoveRequestSchema.parse({ tvShowId: "not-a-guid" })).toThrow();
+		expect(episodeTvShowMoveResponseSchema.parse({ tvShowId, tvShowName: "Synthetic Show", episodeId: tvShowId, createdShow: true, failureIndexing: false }).createdShow)
+			.toBe(true);
 	});
 
 	it("rejects non-URL imdb on Catalogue GET DTO schemas", () => {
