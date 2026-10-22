@@ -758,6 +758,32 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.recentEpisodes[0].language).toBe("fr-FR");
 	});
 
+	it("accepts homepage recentEpisodes with contentKind NewsReport, TvShowEpisode and Film, and omitted for podcast episodes", () => {
+		const row = (contentKind?: string) => ({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastName: "Synthetic Parent",
+			episodeTitle: "Synthetic item",
+			episodeDescription: "Desc",
+			duration: "00:05:00",
+			release: "2026-10-21T00:00:00Z",
+			...(contentKind ? { contentKind } : {})
+		});
+		const parsed = homepageResponseSchema.parse({
+			recentEpisodes: [row("NewsReport"), row("TvShowEpisode"), row("Film"), row()],
+			episodeCount: 4,
+			totalDuration: "00:20:00"
+		});
+		expect(parsed.recentEpisodes.map((x) => x.contentKind)).toEqual([
+			"NewsReport",
+			"TvShowEpisode",
+			"Film",
+			undefined
+		]);
+		expect(() =>
+			homepageResponseSchema.parse({ recentEpisodes: [row("Movie")], episodeCount: 1, totalDuration: "00:05:00" })
+		).toThrow();
+	});
+
 	it("accepts homepage episode JSON without language (English/omitted)", () => {
 		const parsed = homepageResponseSchema.parse({
 			recentEpisodes: [{

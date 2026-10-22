@@ -1101,7 +1101,14 @@ export const homepageEpisodeSchema = z.object({
 	subjects: z.array(z.string()).optional().nullable(),
 	image: z.string().url().optional().nullable(),
 	/** IETF language tag; omitted/absent for English. */
-	language: z.string().optional().nullable()
+	language: z.string().optional().nullable(),
+	contentKind: z
+		.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"])
+		.optional()
+		.nullable()
+		.describe(
+			"Playable kind (RPP homepage publisher). Omitted for a podcast episode (absent means `Episode`). For `NewsReport` / `TvShowEpisode`, `podcastName` is the news organisation / TV show name; for `Film` (no parent) it is the film's own name. `id` is the playable GUID; the website links by kind with short ids."
+		)
 });
 
 export const homepageResponseSchema = z.object({
