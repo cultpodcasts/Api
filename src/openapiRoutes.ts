@@ -120,6 +120,8 @@ import {
 	podcastDtoSchema,
 	podcastKindTransferRequestSchema,
 	podcastKindTransferResponseSchema,
+	episodeFilmMoveRequestSchema,
+	episodeFilmMoveResponseSchema,
 	podcastRenameRequestSchema,
 	catalogueRenameRequestSchema,
 	catalogueRenameResponseSchema,
@@ -176,6 +178,7 @@ import { updatePodcastEpisode } from "./updateEpisode";
 import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { transferPodcastKind } from "./transferPodcastKind";
+import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { updateSubject } from "./updateSubject";
 import { getTvShow } from "./getTvShow";
 import { updateTvShow } from "./updateTvShow";
@@ -646,6 +649,28 @@ export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, 
             202: { description: "Accepted", ...contentJson(podcastKindTransferResponseSchema) },
             400: { description: "Invalid target kind", ...contentJson(errorSchema) },
             409: { description: "Target parent already exists at this id", ...contentJson(podcastKindTransferResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one podcast episode into a new film (keeps the guid)",
+        description:
+            "Curator command. Maps the episode with the catalogue migrator's film mapping (services, subjects, posted/tweeted/Bluesky state), " +
+            "saves the film under the episode guid, swaps the search document to contentKind Film, then deletes the episode row. " +
+            "The source podcast is kept. The short link is unchanged; old /podcast/{name}/{id} links redirect to /film/{name}/{shortId}. " +
+            "A failed search swap keeps the episode row; re-sending the request resumes.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeFilmMoveRequestSchema) },
+        responses: {
+            202: { description: "Moved (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
+            400: { description: "Title contains '/', or the episode is removed", ...contentJson(errorSchema) },
+            409: { description: "Another film already has the name", ...contentJson(episodeFilmMoveResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
