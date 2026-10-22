@@ -441,7 +441,8 @@ export const SearchSuggestionsRoute = createOpenApiRoute(searchSuggestions, {
         summary: "Get search typeahead match index",
         description:
             "Returns R2 key `search-suggestions` (ContentOptions.SearchSuggestionsKey): " +
-            "flat match index of subject names/aliases and podcast names for Flix typeahead.",
+            "flat match index of subject names/aliases and podcast, TV show, news organisation and film names " +
+            "for Flix typeahead. Film rows carry the film `id` (names can repeat); other rows omit it.",
         responses: {
             200: {
                 description: "Search suggestions corpus",

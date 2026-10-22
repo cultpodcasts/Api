@@ -1124,10 +1124,13 @@ export const homepageResponseSchema = z.object({
 });
 
 export const searchSuggestionEntrySchema = z.object({
-	type: z.enum(["subject", "podcast"]),
+	/** Clients should treat an unknown type as plain search text. */
+	type: z.enum(["subject", "podcast", "tvShow", "newsOrganisation", "film"]),
 	canonical: z.string(),
 	searchText: z.string(),
-	alias: z.string().optional().nullable()
+	alias: z.string().optional().nullable(),
+	/** Item guid. Set on film rows only (film names can repeat; the website builds /film/{name}/{shortId}). */
+	id: z.string().uuid().optional()
 });
 
 /** R2 `search-suggestions` — flat typeahead match index. */
