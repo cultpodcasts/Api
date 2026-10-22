@@ -122,6 +122,8 @@ import {
 	podcastKindTransferResponseSchema,
 	episodeFilmMoveRequestSchema,
 	episodeFilmMoveResponseSchema,
+	episodeTrailerAttachRequestSchema,
+	episodeTrailerAttachResponseSchema,
 	podcastRenameRequestSchema,
 	catalogueRenameRequestSchema,
 	catalogueRenameResponseSchema,
@@ -179,6 +181,7 @@ import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { transferPodcastKind } from "./transferPodcastKind";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
+import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
 import { updateSubject } from "./updateSubject";
 import { getTvShow } from "./getTvShow";
 import { updateTvShow } from "./updateTvShow";
@@ -672,6 +675,27 @@ export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
             202: { description: "Moved (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
             400: { description: "Title contains '/', or the episode is removed", ...contentJson(errorSchema) },
             409: { description: "Another film already has the name", ...contentJson(episodeFilmMoveResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTrailer, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Attach one podcast episode to an existing film as a trailer",
+        description:
+            "Curator command. Adds a trailer (id = episode guid; YouTube link first, otherwise a video link, otherwise an audio link) to the film, " +
+            "pushes the film's search document (its `trailers` list), deletes the episode's search document, then deletes the episode row. " +
+            "The source podcast is kept. The episode's short link is pointed at /film/{name}/{shortId}. " +
+            "A failed search step keeps the episode row; re-sending resumes without adding the trailer twice.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeTrailerAttachRequestSchema) },
+        responses: {
+            202: { description: "Attached (command outcome; GET /film/:id for the film)", ...contentJson(episodeTrailerAttachResponseSchema) },
+            400: { description: "Missing filmId, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses

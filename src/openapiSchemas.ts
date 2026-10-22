@@ -356,6 +356,20 @@ export const episodeFilmMoveResponseSchema = z.object({
 	failureIndexing: z.boolean().optional()
 });
 
+/** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
+export const episodeTrailerAttachRequestSchema = z.object({
+	filmId: z.string().uuid().describe("The existing film that takes the episode as a trailer."),
+	title: z.string().optional().nullable().describe("Trailer title. Blank or missing keeps the episode title.")
+});
+
+/** EpisodeTrailerAttachResponse — command outcome (not the film read model). GET /film/:id for the film. */
+export const episodeTrailerAttachResponseSchema = z.object({
+	filmId: z.string().uuid().optional().nullable().describe("The film that now holds the trailer."),
+	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional()
+});
+
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)
 });
@@ -1080,6 +1094,12 @@ export const episodeSearchHitSchema = z.object({
 	internetArchive: z.string().optional(),
 	subjects: z.array(z.string()).optional(),
 	image: z.string().optional().nullable(),
+	contentKind: z.string().optional().nullable(),
+	/**
+	 * Film only: its trailers, one `{duration}|{url}|{title}` per trailer in display order (split on the first two
+	 * `|`; the title may contain `|`). Omitted when the film has none. Trailers have no search documents of their own.
+	 */
+	trailers: z.array(z.string()).optional().nullable(),
 	"@search.score": z.number().optional()
 });
 
@@ -1352,6 +1372,28 @@ export const tvShowEpisodeChangeRequestSchema = z.object({
 	...playableFieldsChangeShape
 });
 
+/** Api.Dtos.FilmTrailerDto: `id` is the episode the trailer was attached from; `duration` is `h:mm:ss`. */
+export const filmTrailerDtoSchema = z.object({
+	id: z.string().uuid(),
+	title: z.string(),
+	url: z.string().url(),
+	image: z.string().url().optional().nullable(),
+	release: z.string().optional().nullable().describe("When the trailer was published (UTC, ISO 8601)."),
+	duration: z.string()
+});
+
+/** Api.Dtos.FilmTrailerChangeRequest: a trailer to keep, with an optional new title (blank keeps it). */
+export const filmTrailerChangeSchema = z.object({
+	id: z.string().uuid(),
+	title: z.string().optional().nullable()
+});
+
+/** Film `services` patch link: a blank `url` and `image` removes the key; URLs are absolute http(s). */
+export const filmServiceLinkChangeSchema = z.object({
+	url: z.string().optional().nullable(),
+	image: z.string().optional().nullable()
+});
+
 /**
  * Api.Dtos.FilmDto: publisher fields + IMDb + the playable fields a film has (RPP #1053).
  * `release` is `yyyy` for a year-only release, otherwise `yyyy-MM-dd`. Films have no title (the name is the title).
@@ -1373,7 +1415,8 @@ export const filmDtoSchema = z.object({
 		blueskyPosted: z.boolean(),
 		subjects: z.array(z.string()),
 		guests: z.array(z.string()).optional().nullable(),
-		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable()
+		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
+		trailers: z.array(filmTrailerDtoSchema).optional().nullable()
 	})
 });
 
@@ -1384,6 +1427,12 @@ export const filmDtoSchema = z.object({
  */
 export const filmChangeRequestSchema = z.object({
 	imdb: z.string().optional().nullable(),
+	imdbId: z.string().optional().nullable().describe("IMDb title id: `tt` + 7–10 digits. `\"\"` clears."),
+	tmdbId: z.number().int().optional().nullable().describe("TMDB movie id. `0` clears; negative is a 400."),
+	services: z.record(z.string(), filmServiceLinkChangeSchema).optional().nullable()
+		.describe("Per key, as the episode edit: the key is resolved from the URL (youtube, bbcIplayer, internetArchive, …); blank url and image removes the key."),
+	trailers: z.array(filmTrailerChangeSchema).optional().nullable()
+		.describe("The trailers to keep, in display order, with optional rename. Omitted trailers are removed; [] removes all. Unknown or repeated id is a 400."),
 	...publisherFieldsChangeShape,
 	release: z.string().optional().nullable(),
 	duration: z.string().optional().nullable(),

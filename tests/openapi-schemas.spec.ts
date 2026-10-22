@@ -48,6 +48,8 @@ import {
 	submitUrlResponseSchema,
 	filmChangeRequestSchema,
 	filmDtoSchema,
+	episodeTrailerAttachRequestSchema,
+	episodeTrailerAttachResponseSchema,
 	tvShowChangeRequestSchema,
 	tvShowDtoSchema,
 	tvShowEpisodeChangeRequestSchema,
@@ -879,6 +881,56 @@ describe("openapi Zod schemas", () => {
 		});
 		expect(episode.title).toBe("Episode Title");
 		expect(episode.tvShowId).toBe("550e8400-e29b-41d4-a716-446655440000");
+	});
+
+	it("parses film trailers, ids and links on the film DTO, PATCH body and search hit (synthetic)", () => {
+		const trailerId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const film = filmDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic Film Title",
+			imdbId: "tt0000003",
+			tmdbId: 7,
+			trailers: [{
+				id: trailerId,
+				title: "Synthetic Teaser",
+				url: "https://www.youtube.com/watch?v=synthetic01",
+				release: "2026-01-02T03:04:05Z",
+				duration: "0:02:11"
+			}]
+		});
+		expect(film.trailers?.[0]?.id).toBe(trailerId);
+
+		const change = filmChangeRequestSchema.parse({
+			imdbId: "",
+			tmdbId: 0,
+			services: { youtube: { url: "" }, bbcIplayer: { url: "https://www.bbc.co.uk/iplayer/episode/synthetic" } },
+			trailers: [{ id: trailerId, title: "Synthetic Renamed Teaser" }]
+		});
+		expect(change.services?.youtube?.url).toBe("");
+		expect(change.trailers).toHaveLength(1);
+		expect(() => filmChangeRequestSchema.parse({ trailers: [{ id: "not-a-guid" }] })).toThrow();
+
+		const hit = searchResponseSchema.parse({
+			value: [{
+				id: "550e8400-e29b-41d4-a716-446655440000",
+				episodeTitle: "",
+				podcastName: "",
+				episodeDescription: "",
+				release: "2026-01-02T03:04:05Z",
+				duration: "1:30:00",
+				contentKind: "Film",
+				trailers: ["00:02:11|https://www.youtube.com/watch?v=synthetic01|Synthetic | Teaser"]
+			}]
+		});
+		expect(hit.value[0]?.trailers).toHaveLength(1);
+	});
+
+	it("parses the attach-as-trailer request and command outcome and requires a film id", () => {
+		const filmId = "550e8400-e29b-41d4-a716-446655440000";
+		expect(episodeTrailerAttachRequestSchema.parse({ filmId, title: null }).filmId).toBe(filmId);
+		expect(() => episodeTrailerAttachRequestSchema.parse({ title: "Synthetic Teaser" })).toThrow();
+		expect(episodeTrailerAttachResponseSchema.parse({ filmId, name: "Synthetic Film Title", failureIndexing: false }).name)
+			.toBe("Synthetic Film Title");
 	});
 
 	it("rejects non-URL imdb on Catalogue GET DTO schemas", () => {
