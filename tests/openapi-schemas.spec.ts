@@ -910,7 +910,12 @@ describe("openapi Zod schemas", () => {
 		});
 		expect(change.services?.youtube?.url).toBe("");
 		expect(change.trailers).toHaveLength(1);
+		expect(filmChangeRequestSchema.parse({
+			trailers: [{ id: trailerId }],
+			expectedTrailerIds: [trailerId]
+		}).expectedTrailerIds).toEqual([trailerId]);
 		expect(() => filmChangeRequestSchema.parse({ trailers: [{ id: "not-a-guid" }] })).toThrow();
+		expect(() => filmChangeRequestSchema.parse({ expectedTrailerIds: ["not-a-guid"] })).toThrow();
 
 		const hit = searchResponseSchema.parse({
 			value: [{

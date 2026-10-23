@@ -1456,7 +1456,9 @@ export const filmChangeRequestSchema = z.object({
 	services: z.record(z.string(), filmServiceLinkChangeSchema).optional().nullable()
 		.describe("Per key, as the episode edit: the key is resolved from the URL (youtube, bbcIplayer, internetArchive, …); blank url and image removes the key."),
 	trailers: z.array(filmTrailerChangeSchema).optional().nullable()
-		.describe("The trailers to keep, in display order, with optional rename. Omitted trailers are removed; [] removes all. Unknown or repeated id is a 400."),
+		.describe("The trailers to keep, in display order, with optional rename. Omitted trailers are removed; [] removes all. Unknown or repeated id is a 400. Send expectedTrailerIds with this field."),
+	expectedTrailerIds: z.array(z.string().uuid()).optional().nullable()
+		.describe("Trailer ids the client last saw. When trailers is sent, a stored trailer whose id is not in this list is a 409 and nothing is saved. Omitted or empty means the client listed no trailer ids."),
 	...publisherFieldsChangeShape,
 	release: z.string().optional().nullable(),
 	duration: z.string().optional().nullable(),
@@ -1465,6 +1467,12 @@ export const filmChangeRequestSchema = z.object({
 	...postStatusChangeShape,
 	subjects: z.array(z.string()).optional().nullable(),
 	guests: guestsChange
+});
+
+/** PATCH /film 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
+export const filmStaleTrailersConflictSchema = z.object({
+	message: z.string().optional(),
+	unexpectedTrailerIds: z.array(z.string().uuid())
 });
 
 /** Api.Dtos.NewsOrganisationDto (RPP #1053). */
