@@ -262,12 +262,12 @@ describe("catalogue Azure proxies", () => {
 		}
 	});
 
-	it("PATCH /tvshow/:id passes the RPP #1053 service-id 409 {message, ids} through; film and episode PATCH map an unexpected 409 to 500", async () => {
+	it("PATCH /tvshow/:id passes the RPP #1053 service-id 409 {message, ids} through; PATCH /film/:id passes 409 through; episode PATCH maps an unexpected 409 to 500", async () => {
 		const conflict = { message: "spotifyId is already used", ids: [ambiguousIds[1]] };
 		const patchBody = JSON.stringify({ spotifyId: "syntheticSpotifyId" });
 		for (const [route, requestPath, handler, expected] of [
 			["/tvshow/:id", `/tvshow/${id}`, updateTvShow, 409],
-			["/film/:id", `/film/${id}`, updateFilm, 500],
+			["/film/:id", `/film/${id}`, updateFilm, 409],
 			["/tvshowepisode/:id", `/tvshowepisode/${id}`, updateTvShowEpisode, 500]
 		] as const) {
 			vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(conflict), { status: 409 })));
@@ -279,6 +279,31 @@ describe("catalogue Azure proxies", () => {
 			}
 			vi.unstubAllGlobals();
 		}
+	});
+
+	it("PATCH /film/:id forwards expectedTrailerIds and the stale-trailer 409 body", async () => {
+		const trailerId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const attachedId = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
+		const payload = {
+			trailers: [{ id: trailerId, title: "Synthetic Teaser" }],
+			expectedTrailerIds: [trailerId]
+		};
+		const conflict = {
+			message: "The film's trailers changed after this edit was loaded. Close and reopen the film to edit its trailers.",
+			unexpectedTrailerIds: [attachedId]
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(conflict), { status: 409 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appFor("/film/:id", "patch", updateFilm, ["curate"]);
+		const resp = await app.request(
+			`/film/${id}`,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(payload) },
+			catalogueEnv()
+		);
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflict);
+		const [, init] = fetchMock.mock.calls[0] as unknown as [URL | string, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual(payload);
 	});
 });
 
@@ -299,13 +324,14 @@ describe("catalogue OpenAPI contracts", () => {
 		expect(request?.body?.content?.["application/json"]?.schema).toBe(tvShowEpisodeChangeRequestSchema);
 	});
 
-	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, and no 409 on film / episode PATCH", () => {
+	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, the film stale-trailer 409, and no 409 on episode PATCH", () => {
 		const responses = UpdateTvShowRoute.openApiSchema.responses;
 		const conflict = responses?.[409] as { description?: string; content?: { "application/json"?: { schema?: unknown } } } | undefined;
 		expect(conflict?.content?.["application/json"]?.schema).toBe(serviceIdConflictSchema);
 		expect(conflict?.description).toMatch(/spotifyId/);
 		expect(responses?.[500]?.description).toMatch(/retry/i);
-		expect(UpdateFilmRoute.openApiSchema.responses?.[409]).toBeUndefined();
+		const filmConflict = UpdateFilmRoute.openApiSchema.responses?.[409] as { description?: string } | undefined;
+		expect(filmConflict?.description).toMatch(/expectedTrailerIds/);
 		expect(UpdateTvShowEpisodeRoute.openApiSchema.responses?.[409]).toBeUndefined();
 	});
 });

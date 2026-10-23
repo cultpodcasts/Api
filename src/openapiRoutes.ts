@@ -143,6 +143,7 @@ import {
 	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	filmChangeRequestSchema,
+	filmStaleTrailersConflictSchema,
 	filmDtoSchema,
 	newsOrganisationChangeRequestSchema,
 	serviceIdConflictSchema,
@@ -314,6 +315,11 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 			400: {
 				description: "Invalid URL, release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
+			},
+			409: {
+				description:
+					"Stored trailers include an id that was not in expectedTrailerIds. The keep-list was not applied.",
+				...contentJson(filmStaleTrailersConflictSchema)
 			},
 			...notFoundResponse,
 			...serverErrorResponse,
