@@ -23,6 +23,7 @@ import {
 	GetBookmarksRoute,
 	GetDiscoveryInfoRoute,
 	GetDiscoveryReportsRoute,
+	BanDiscoveryChannelRoute,
 	GetEpisodeRoute,
 	GetFlairsRoute,
 	GetLanguagesRoute,
@@ -403,6 +404,7 @@ openapi.patch('/subject/:id', UpdateSubjectRoute);
 openapi.post('/subject', CreateSubjectRoute);
 openapi.get('/discovery-curation', GetDiscoveryReportsRoute);
 openapi.post('/discovery-curation', SubmitDiscoveryRoute);
+openapi.post('/discovery-curation/:resultId/ban', BanDiscoveryChannelRoute);
 openapi.get('/discovery-submissions', GetDiscoverySubmissionsRoute);
 openapi.get('/discovery-submissions/:id', GetDiscoverySubmissionRoute);
 openapi.put('/discovery-submissions/:id/review', PutDiscoverySubmissionReviewRoute);

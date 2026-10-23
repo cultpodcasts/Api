@@ -260,9 +260,11 @@ const discoveryResultUrlsSchema = z.object({
 const discoverServiceSchema = z.enum(["Spotify", "ListenNotes", "YouTube", "Taddy"]);
 
 const discoveryMatchingPodcastSchema = z.object({
+	id: z.string().uuid().optional(),
 	name: z.string(),
 	visible: z.boolean(),
-	visibleEpisodes: z.number()
+	visibleEpisodes: z.number(),
+	kind: z.string().optional().nullable()
 });
 
 /** Api.Dtos.SubjectMatchDto — why a subject matched; `source` serialises as the enum name. */
@@ -291,6 +293,9 @@ const discoveryCurationItemSchema = z.object({
 	discoverService: z.array(discoverServiceSchema),
 	enrichedTimeFromApple: z.boolean(),
 	enrichedUrlFromSpotify: z.boolean(),
+	youTubeChannelId: z.string().optional().nullable(),
+	spotifyId: z.string().optional().nullable(),
+	appleId: z.number().optional().nullable(),
 	matchingPodcasts: z.array(discoveryMatchingPodcastSchema).optional().nullable(),
 	acceptProbability: z.number().optional().nullable(),
 	autoHidden: z.boolean(),

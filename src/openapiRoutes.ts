@@ -42,6 +42,7 @@ import { deletePodcastEpisode } from "./deleteEpisode";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
+import { banDiscoveryChannel } from "./banDiscoveryChannel";
 import {
 	getDiscoverySubmission,
 	getDiscoverySubmissions,
@@ -820,6 +821,26 @@ export const GetDiscoveryReportsRoute = createOpenApiRoute(getDiscoveryReports, 
         responses: {
             200: { description: "Discovery reports", ...contentJson(discoveryCurationResponseSchema) },
             400: { description: "Bad request", ...contentJson(errorSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+const discoveryResultIdParam = z.object({ resultId: z.string().uuid() });
+
+export const BanDiscoveryChannelRoute = createOpenApiRoute(banDiscoveryChannel, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Remove the podcast behind a discovery result",
+        description: "Requires `curate`. An existing podcast is set removed. Otherwise a minimal podcast is created from the result's YouTube channel, Spotify show, Apple podcast id, and show name, with removed set. The response is 202 with an empty body. The client then GETs /discovery-curation and GET /podcast/{id}.",
+        request: { params: discoveryResultIdParam },
+        responses: {
+            202: { description: "Accepted (empty body)" },
+            400: { description: "The result has no channel id or show name", ...contentJson(errorSchema) },
+            409: { description: "More than one podcast matches, or a news organisation or TV show already owns the channel", ...contentJson(errorSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
