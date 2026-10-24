@@ -29,6 +29,9 @@ export type Env = {
 	apiEnvironment?: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
 	HERO_CURATION_DURABLE_OBJECT: DurableObjectNamespace<import("./HeroCurationDurableObject").HeroCurationDurableObject>;
+	DISCOVERY_CURATION_DURABLE_OBJECT: DurableObjectNamespace<
+		import("./DiscoveryCurationDurableObject").DiscoveryCurationDurableObject
+	>;
 	Content: R2Bucket;
 	Data: R2Bucket;
 	apiDB: D1Database;

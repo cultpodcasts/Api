@@ -76,6 +76,10 @@
       {
         "name": "HERO_CURATION_DURABLE_OBJECT",
         "class_name": "HeroCurationDurableObject"
+      },
+      {
+        "name": "DISCOVERY_CURATION_DURABLE_OBJECT",
+        "class_name": "DiscoveryCurationDurableObject"
       }
     ]
   },
@@ -89,9 +93,10 @@
   // is omitted. Do not add deleted_classes for ProfileDurableObjectLegacy
   // here — preview deletes that class only in a later migration, after the
   // legacy binding is already gone. v4 stays a new SQLite class for
-  // HeroCurationDurableObject. Do not append a tag that renames or deletes
-  // ProfileDurableObject: Worker `api` is already on migration tag v4, and
-  // that namespace is the live SQLite profile store.
+  // HeroCurationDurableObject. v5 adds DiscoveryCurationDurableObject.
+  // Do not append a tag that renames or deletes ProfileDurableObject:
+  // Worker `api` is already on migration tag v4+, and that namespace is the
+  // live SQLite profile store.
   "migrations": [
     {
       "tag": "v1",
@@ -115,6 +120,12 @@
       "tag": "v4",
       "new_sqlite_classes": [
         "HeroCurationDurableObject"
+      ]
+    },
+    {
+      "tag": "v5",
+      "new_sqlite_classes": [
+        "DiscoveryCurationDurableObject"
       ]
     }
   ],
@@ -198,6 +209,10 @@
           {
             "name": "HERO_CURATION_DURABLE_OBJECT",
             "class_name": "HeroCurationDurableObject"
+          },
+          {
+            "name": "DISCOVERY_CURATION_DURABLE_OBJECT",
+            "class_name": "DiscoveryCurationDurableObject"
           }
         ]
       },
@@ -235,6 +250,12 @@
           "tag": "preview-v4",
           "new_sqlite_classes": [
             "HeroCurationDurableObject"
+          ]
+        },
+        {
+          "tag": "preview-v5",
+          "new_sqlite_classes": [
+            "DiscoveryCurationDurableObject"
           ]
         }
       ],
@@ -308,6 +329,10 @@
           {
             "name": "HERO_CURATION_DURABLE_OBJECT",
             "class_name": "HeroCurationDurableObject"
+          },
+          {
+            "name": "DISCOVERY_CURATION_DURABLE_OBJECT",
+            "class_name": "DiscoveryCurationDurableObject"
           }
         ]
       },
@@ -334,6 +359,12 @@
           "tag": "production-v3",
           "new_sqlite_classes": [
             "HeroCurationDurableObject"
+          ]
+        },
+        {
+          "tag": "production-v4",
+          "new_sqlite_classes": [
+            "DiscoveryCurationDurableObject"
           ]
         }
       ]
@@ -399,6 +430,10 @@
           {
             "name": "HERO_CURATION_DURABLE_OBJECT",
             "class_name": "HeroCurationDurableObject"
+          },
+          {
+            "name": "DISCOVERY_CURATION_DURABLE_OBJECT",
+            "class_name": "DiscoveryCurationDurableObject"
           }
         ]
       },
@@ -413,6 +448,12 @@
           "tag": "local-v2",
           "new_sqlite_classes": [
             "HeroCurationDurableObject"
+          ]
+        },
+        {
+          "tag": "local-v3",
+          "new_sqlite_classes": [
+            "DiscoveryCurationDurableObject"
           ]
         }
       ]

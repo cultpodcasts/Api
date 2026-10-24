@@ -16,8 +16,13 @@ export const Auth0Middleware = createMiddleware<AppContext>(async (c: Context<Ap
 		return new Response("Configure error (1)", { status: 500 });
 	}
 	c.set("auth0", (_payload) => { });
-	if (authorization && authorization.startsWith(bearer)) {
-		const token = authorization.slice(bearer.length);
+	// WebSocket upgrades cannot set Authorization; discovery session WS passes access_token.
+	const queryToken = c.req.query("access_token");
+	const token =
+		authorization && authorization.startsWith(bearer)
+			? authorization.slice(bearer.length)
+			: queryToken || undefined;
+	if (token) {
 		const result = await parseJwt(token, c.env.auth0Issuer, c.env.auth0Audience);
 		if (result.valid) {
 			c.set("auth0", (_payload) => result.payload as Auth0JwtPayload);
