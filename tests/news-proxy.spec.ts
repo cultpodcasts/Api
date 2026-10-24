@@ -131,7 +131,7 @@ describe("news curation Azure proxies", () => {
 	});
 
 	it("GET /newsorganisation/:identifier{.+} keeps a slash in the name (Hono decodes %2F before routing)", async () => {
-		const slashName = "ANC 24/7";
+		const slashName = "Synthetic Desk 24/7";
 		const fetchMock = stubFetch(200, { id, name: slashName, removed: false });
 		const app = appWithPermissions("/newsorganisation/:identifier{.+}", "get", getNewsOrganisation, ["curate"]);
 		const resp = await app.request(
