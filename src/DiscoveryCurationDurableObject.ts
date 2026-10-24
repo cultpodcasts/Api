@@ -2,11 +2,14 @@ import { DurableObject } from "cloudflare:workers";
 import { Env } from "./Env";
 import {
 	addVote,
+	applyWsVoteIgnoringClientRole,
 	clearVotesForResults,
 	DiscoveryCurationSessionState,
 	emptyDiscoverySessionState,
 	includePending,
+	parseTrustedWsRole,
 	removeVote,
+	shouldClearPresenceOnClose,
 	syncOpenDocuments,
 	toClientSnapshot,
 	touchPresence
@@ -18,6 +21,8 @@ const ROOM_NAME = "global";
 /**
  * Single global Durable Object for live discovery curation votes / sticky include / presence.
  * HTTP + hibernation WebSocket; mutations are serialized here.
+ *
+ * WebSocket tags: `[userId, trustedRole]` — role comes from Worker `X-User-Role`, never from client JSON.
  */
 export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -31,8 +36,9 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 			if (!userId) {
 				return new Response("Unauthorised", { status: 401 });
 			}
+			const role = parseTrustedWsRole(request.headers.get("X-User-Role"));
 			const pair = new WebSocketPair();
-			this.ctx.acceptWebSocket(pair[1], [userId]);
+			this.ctx.acceptWebSocket(pair[1], [userId, role]);
 			const state = await this.load();
 			const next = touchPresence(state, userId);
 			await this.save(next);
@@ -49,7 +55,7 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 			if (request.method === "POST") {
 				const body = (await request.json()) as Record<string, unknown>;
 				const userId = String(body.userId ?? "");
-				const role = String(body.role ?? "curate");
+				const role = parseTrustedWsRole(String(body.role ?? "curate"));
 				let state = await this.load();
 
 				switch (url.pathname) {
@@ -121,6 +127,7 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
 		const tags = this.ctx.getTags(ws);
 		const userId = tags[0] ?? "";
+		const trustedRole = parseTrustedWsRole(tags[1]);
 		if (!userId || typeof message !== "string") {
 			return;
 		}
@@ -132,10 +139,11 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 		}
 		let state = await this.load();
 		if (parsed.type === "vote" && parsed.resultId) {
-			const role = parsed.role ?? "curate";
-			state = parsed.selected
-				? addVote(state, parsed.resultId, userId, role)
-				: removeVote(state, parsed.resultId, userId);
+			state = applyWsVoteIgnoringClientRole(state, userId, trustedRole, {
+				resultId: parsed.resultId,
+				selected: parsed.selected,
+				role: parsed.role
+			});
 			await this.save(state);
 			this.broadcast(JSON.stringify({ type: "vote", state: toClientSnapshot(state) }));
 			return;
@@ -151,6 +159,14 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 		const tags = this.ctx.getTags(ws);
 		const userId = tags[0];
 		if (!userId) {
+			return;
+		}
+		const otherUserIds = this.ctx
+			.getWebSockets()
+			.filter((socket) => socket !== ws)
+			.map((socket) => this.ctx.getTags(socket)[0])
+			.filter((id): id is string => Boolean(id));
+		if (!shouldClearPresenceOnClose(userId, otherUserIds)) {
 			return;
 		}
 		const state = await this.load();

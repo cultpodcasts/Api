@@ -1,5 +1,32 @@
 /** Global discovery curation room state (vote-set model). */
 
+/** Roles the DO may trust on a WebSocket (from `X-User-Role` / socket tags). */
+export const DISCOVERY_WS_ROLES = ["curate", "curate:supervised", "supervise"] as const;
+export type DiscoveryWsRole = (typeof DISCOVERY_WS_ROLES)[number];
+
+/** Validate a trusted WS role header; unknown values fall back to `curate`. */
+export function parseTrustedWsRole(header: string | null | undefined): DiscoveryWsRole {
+	if (
+		header === "curate" ||
+		header === "curate:supervised" ||
+		header === "supervise"
+	) {
+		return header;
+	}
+	return "curate";
+}
+
+/**
+ * Multi-tab presence: clear only when no other connected socket shares this userId.
+ * `otherConnectedUserIds` must exclude the closing socket.
+ */
+export function shouldClearPresenceOnClose(
+	closingUserId: string,
+	otherConnectedUserIds: string[]
+): boolean {
+	return !otherConnectedUserIds.includes(closingUserId);
+}
+
 export type DiscoverySessionVote = {
 	userId: string;
 	/** Auth0 permission hint at vote time: `curate` | `curate:supervised` | `supervise` */
@@ -98,6 +125,22 @@ export function removeVote(
 		updatedAt: now.toISOString(),
 		presence: { ...state.presence, [userId]: now.toISOString() }
 	};
+}
+
+/**
+ * Apply a WS vote using the socket's trusted role only.
+ * Client `role` in the message is ignored (privilege escalation guard).
+ */
+export function applyWsVoteIgnoringClientRole(
+	state: DiscoveryCurationSessionState,
+	userId: string,
+	trustedRole: string,
+	parsed: { resultId: string; selected?: boolean; role?: string },
+	now = new Date()
+): DiscoveryCurationSessionState {
+	return parsed.selected
+		? addVote(state, parsed.resultId, userId, trustedRole, now)
+		: removeVote(state, parsed.resultId, userId, now);
 }
 
 /**

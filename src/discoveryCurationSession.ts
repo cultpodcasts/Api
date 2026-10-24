@@ -39,8 +39,16 @@ export async function getDiscoveryCurationSession(c: Auth0ActionContext): Promis
 	}
 	try {
 		const resp = await discoveryCurationSessionStub(c.env).fetch("https://do/state");
-		logCollector.emit({ event: "discovery_session.get_ok", outcome: "success" });
-		return c.newResponse(resp.body, resp.status as 200);
+		if (resp.ok) {
+			logCollector.emit({ event: "discovery_session.get_ok", outcome: "success" });
+		} else {
+			logCollector.emitError({
+				event: "discovery_session.get_upstream",
+				outcome: "error",
+				status: resp.status
+			});
+		}
+		return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 	} catch {
 		logCollector.emitError({ event: "discovery_session.get_failed", outcome: "error" });
 		return c.json({ error: "Failed to load discovery session" }, 500);
@@ -73,8 +81,17 @@ async function postToSession(
 				role: discoveryVoteRole(payload)
 			})
 		});
-		logCollector.emit({ event: `discovery_session.${route}_ok`, outcome: "success" });
-		return c.newResponse(resp.body, resp.status as 200);
+		if (resp.ok) {
+			logCollector.emit({ event: `discovery_session.${route}_ok`, outcome: "success" });
+		} else {
+			logCollector.emitError({
+				event: `discovery_session.${route}_do_error`,
+				outcome: "error",
+				status: resp.status
+			});
+		}
+		// Forward DO status as-is (cast is Hono typing only; runtime uses resp.status).
+		return c.newResponse(resp.body, resp.status as Parameters<typeof c.newResponse>[1]);
 	} catch {
 		logCollector.emitError({ event: `discovery_session.${route}_failed`, outcome: "error" });
 		return c.json({ error: "Failed to update discovery session" }, 500);

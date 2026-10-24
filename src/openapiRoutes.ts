@@ -1011,6 +1011,8 @@ export const DiscoveryCurationSessionWsRoute = createOpenApiRoute(upgradeDiscove
 	schema: {
 		tags: ["Discovery"],
 		summary: "WebSocket upgrade for discovery curation session",
+		description:
+			"Requires `curate`. Browsers cannot set `Authorization` on WebSocket; pass the access token only as `?access_token=` on this path (not on other routes). Role for votes is taken from the JWT, never from client WS JSON.",
 		responses: {
 			101: { description: "Switching Protocols" },
 			426: { description: "Upgrade Required", ...contentJson(errorSchema) },
