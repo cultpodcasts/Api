@@ -28,6 +28,7 @@ import { testEnv as auth0TestEnv } from "./support/honoRoute";
 // Synthetic ids and names only.
 const id = "550e8400-e29b-41d4-a716-446655440000";
 const orgName = "Synthetic News Org";
+const slashName = "Synthetic Desk 24/7";
 const ambiguousIds = [
 	"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 	"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
@@ -131,7 +132,6 @@ describe("news curation Azure proxies", () => {
 	});
 
 	it("GET /newsorganisation/:identifier{.+} keeps a slash in the name (Hono decodes %2F before routing)", async () => {
-		const slashName = "Synthetic Desk 24/7";
 		const fetchMock = stubFetch(200, { id, name: slashName, removed: false });
 		const app = appWithPermissions("/newsorganisation/:identifier{.+}", "get", getNewsOrganisation, ["curate"]);
 		const resp = await app.request(
@@ -293,6 +293,18 @@ describe("news curation OpenAPI contracts", () => {
 		expect(Route.openApiSchema.security).toEqual([{ bearerAuth: [] }]);
 		expect(Route.openApiSchema.description).toMatch(/`curate`/);
 		expect(Route.openApiSchema.responses?.[403]?.description).toMatch(/without `curate`/);
+	});
+
+	it("the Worker app routes GET /newsorganisation/{identifier} with an encoded slash name (401 without a token, not 404)", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const resp = await worker.fetch(
+			new Request(`https://api.example/newsorganisation/${encodeURIComponent(slashName)}`, { method: "GET" }),
+			auth0TestEnv(),
+			{} as ExecutionContext
+		);
+		expect(resp.status).toBe(401);
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("uses a news-specific 409 only on GET news organisation", () => {

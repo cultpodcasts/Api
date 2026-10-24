@@ -11,6 +11,7 @@ import { testEnv as auth0TestEnv } from "./support/honoRoute";
 const id = "550e8400-e29b-41d4-a716-446655440000";
 const ambiguousIds = ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"];
 const oldName = "Synthetic Drama & Co";
+const slashName = "Synthetic Desk 24/7";
 
 const routes = [
 	["/newsorganisation/name/:identifier{.+}", "/newsorganisation/name/", renameNewsOrganisation, "/api/newsorganisation/name/"],
@@ -69,6 +70,23 @@ describe("catalogue rename Azure proxies (RPP #1053)", () => {
 			expect(init?.method).toBe("POST");
 			expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-token");
 			expect(JSON.parse(String(init?.body))).toEqual({ newName: "Synthetic Drama Revisited" });
+		}
+	);
+
+	it.each(routes)(
+		"POST %s keeps a slash in the old name (Hono decodes %2F before routing) and encodes it for Azure",
+		async (route, prefix, handler, azurePrefix) => {
+			const fetchMock = stubFetch(200, { indexState: "Executed" });
+			const app = appWithPermissions(route, "post", handler, ["admin"]);
+			const resp = await app.request(
+				`${prefix}${encodeURIComponent(slashName)}`,
+				{ method: "POST", headers: authJsonHeaders, body: renameBody },
+				testEnv()
+			);
+			expect(resp.status).toBe(200);
+			expect(await resp.json()).toEqual({ indexState: "Executed" });
+			const [url] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+			expect(String(url)).toBe(`https://functions.example${azurePrefix}${encodeURIComponent(slashName)}`);
 		}
 	);
 
@@ -187,6 +205,25 @@ describe("catalogue rename schemas and OpenAPI route contracts", () => {
 		expect(resp.status).toBe(401);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
+
+	it.each(routeClasses)(
+		"the deployed Worker app routes POST %s{identifier} with an encoded slash name (401 without a token, not 404)",
+		async (prefix) => {
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+			const resp = await worker.fetch(
+				new Request(`https://api.example${prefix}${encodeURIComponent(slashName)}`, {
+					method: "POST",
+					body: renameBody,
+					headers: { "Content-Type": "application/json" }
+				}),
+				auth0TestEnv(),
+				{} as ExecutionContext
+			);
+			expect(resp.status).toBe(401);
+			expect(fetchMock).not.toHaveBeenCalled();
+		}
+	);
 
 	it("the Worker app 404s an unregistered rename kind (guards the registration check above)", async () => {
 		const resp = await worker.fetch(
