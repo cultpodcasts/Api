@@ -13,9 +13,9 @@ const ambiguousIds = ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bb
 const oldName = "Synthetic Drama & Co";
 
 const routes = [
-	["/newsorganisation/name/:identifier", "/newsorganisation/name/", renameNewsOrganisation, "/api/newsorganisation/name/"],
-	["/tvshow/name/:identifier", "/tvshow/name/", renameTvShow, "/api/tvshow/name/"],
-	["/film/name/:identifier", "/film/name/", renameFilm, "/api/film/name/"]
+	["/newsorganisation/name/:identifier{.+}", "/newsorganisation/name/", renameNewsOrganisation, "/api/newsorganisation/name/"],
+	["/tvshow/name/:identifier{.+}", "/tvshow/name/", renameTvShow, "/api/tvshow/name/"],
+	["/film/name/:identifier{.+}", "/film/name/", renameFilm, "/api/film/name/"]
 ] as const;
 
 function stubFetch(status: number, body: unknown) {

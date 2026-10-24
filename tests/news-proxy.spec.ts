@@ -34,7 +34,7 @@ const ambiguousIds = [
 ];
 
 const getRoutes = [
-	["/newsorganisation/:identifier", `/newsorganisation/${id}`, getNewsOrganisation, "/api/newsorganisation/"],
+	["/newsorganisation/:identifier{.+}", `/newsorganisation/${id}`, getNewsOrganisation, "/api/newsorganisation/"],
 	["/newsreport/:id", `/newsreport/${id}`, getNewsReport, "/api/newsreport/"]
 ] as const;
 
@@ -100,7 +100,7 @@ describe("news curation Azure proxies", () => {
 	});
 
 	it("GET /newsorganisation/:identifier passes 200, 401, 404, 409 (ambiguous ids) and 500 bodies through", async () => {
-		const app = appWithPermissions("/newsorganisation/:identifier", "get", getNewsOrganisation, ["curate"]);
+		const app = appWithPermissions("/newsorganisation/:identifier{.+}", "get", getNewsOrganisation, ["curate"]);
 		for (const [status, body] of [
 			[200, { id, name: orgName, removed: false, twitterHandle: "" }],
 			[401, { Message: "Unauthorised" }],
@@ -118,7 +118,7 @@ describe("news curation Azure proxies", () => {
 
 	it("GET /newsorganisation/:identifier encodes a route-form name into the Azure path", async () => {
 		const fetchMock = stubFetch(409, ambiguousIds);
-		const app = appWithPermissions("/newsorganisation/:identifier", "get", getNewsOrganisation, ["curate"]);
+		const app = appWithPermissions("/newsorganisation/:identifier{.+}", "get", getNewsOrganisation, ["curate"]);
 		const resp = await app.request(
 			`/newsorganisation/${encodeURIComponent(orgName)}`,
 			{ method: "GET", headers: authJsonHeaders },
@@ -128,6 +128,21 @@ describe("news curation Azure proxies", () => {
 		expect(await resp.json()).toEqual(ambiguousIds);
 		const [url] = fetchMock.mock.calls[0];
 		expect(String(url)).toBe(`https://functions.example/api/newsorganisation/${encodeURIComponent(orgName)}`);
+	});
+
+	it("GET /newsorganisation/:identifier{.+} keeps a slash in the name (Hono decodes %2F before routing)", async () => {
+		const slashName = "ANC 24/7";
+		const fetchMock = stubFetch(200, { id, name: slashName, removed: false });
+		const app = appWithPermissions("/newsorganisation/:identifier{.+}", "get", getNewsOrganisation, ["curate"]);
+		const resp = await app.request(
+			`/newsorganisation/${encodeURIComponent(slashName)}`,
+			{ method: "GET", headers: authJsonHeaders },
+			testEnv()
+		);
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({ id, name: slashName, removed: false });
+		const [url] = fetchMock.mock.calls[0];
+		expect(String(url)).toBe(`https://functions.example/api/newsorganisation/${encodeURIComponent(slashName)}`);
 	});
 
 	it("GET /newsreport/:id passes 200, 401, 404 and 500 through and maps an unexpected 409 to 500", async () => {

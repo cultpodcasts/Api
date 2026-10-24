@@ -48,8 +48,8 @@ describe("catalogue Azure proxies", () => {
 	});
 
 	it.each([
-		["GET", "/tvshow/:identifier", `/tvshow/${id}`, "get", getTvShow, `/${encodeURIComponent(id)}`, "/tvshow/"],
-		["GET", "/film/:identifier", `/film/${id}`, "get", getFilm, `/${encodeURIComponent(id)}`, "/film/"],
+		["GET", "/tvshow/:identifier{.+}", `/tvshow/${id}`, "get", getTvShow, `/${encodeURIComponent(id)}`, "/tvshow/"],
+		["GET", "/film/:identifier{.+}", `/film/${id}`, "get", getFilm, `/${encodeURIComponent(id)}`, "/film/"],
 		[
 			"GET",
 			"/tvshowepisode/:id",
@@ -153,8 +153,8 @@ describe("catalogue Azure proxies", () => {
 	});
 
 	it.each([
-		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, { id, name: "Synthetic", searchTerms: "s", knownTerms: ["K"], removed: false }],
-		["/film/:identifier", `/film/${id}`, getFilm, { id, name: "Synthetic", release: "1999", guests: ["G"], subjects: [] }],
+		["/tvshow/:identifier{.+}", `/tvshow/${id}`, getTvShow, { id, name: "Synthetic", searchTerms: "s", knownTerms: ["K"], removed: false }],
+		["/film/:identifier{.+}", `/film/${id}`, getFilm, { id, name: "Synthetic", release: "1999", guests: ["G"], subjects: [] }],
 		[
 			"/tvshowepisode/:id",
 			`/tvshowepisode/${id}`,
@@ -170,8 +170,8 @@ describe("catalogue Azure proxies", () => {
 	});
 
 	it.each([
-		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, "/tvshow/"],
-		["/film/:identifier", `/film/${id}`, getFilm, "/film/"]
+		["/tvshow/:identifier{.+}", `/tvshow/${id}`, getTvShow, "/tvshow/"],
+		["/film/:identifier{.+}", `/film/${id}`, getFilm, "/film/"]
 	] as const)("GET %s forwards 200, 401, 404, 409 and 500 bodies and hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
 		for (const [status, body] of [
 			[200, { id, name: "Show" }],
