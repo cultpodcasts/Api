@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
 import type { Auth0ActionContext } from "../src/Auth0ActionContext";
+import worker from "../src/index";
 import { ambiguousCatalogueNameConflict, ambiguousPodcastNameConflict } from "../src/openapiRouteFactory";
 import { getFilm } from "../src/getFilm";
 import {
@@ -19,8 +20,10 @@ import { updateFilm } from "../src/updateFilm";
 import { updateTvShow } from "../src/updateTvShow";
 import { updateTvShowEpisode } from "../src/updateTvShowEpisode";
 import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
+import { testEnv as auth0TestEnv } from "./support/honoRoute";
 
 const id = "550e8400-e29b-41d4-a716-446655440000";
+const slashName = "Synthetic Desk 24/7";
 const ambiguousIds = [
 	"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 	"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
@@ -48,8 +51,8 @@ describe("catalogue Azure proxies", () => {
 	});
 
 	it.each([
-		["GET", "/tvshow/:identifier", `/tvshow/${id}`, "get", getTvShow, `/${encodeURIComponent(id)}`, "/tvshow/"],
-		["GET", "/film/:identifier", `/film/${id}`, "get", getFilm, `/${encodeURIComponent(id)}`, "/film/"],
+		["GET", "/tvshow/:identifier{.+}", `/tvshow/${id}`, "get", getTvShow, `/${encodeURIComponent(id)}`, "/tvshow/"],
+		["GET", "/film/:identifier{.+}", `/film/${id}`, "get", getFilm, `/${encodeURIComponent(id)}`, "/film/"],
 		[
 			"GET",
 			"/tvshowepisode/:id",
@@ -153,8 +156,8 @@ describe("catalogue Azure proxies", () => {
 	});
 
 	it.each([
-		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, { id, name: "Synthetic", searchTerms: "s", knownTerms: ["K"], removed: false }],
-		["/film/:identifier", `/film/${id}`, getFilm, { id, name: "Synthetic", release: "1999", guests: ["G"], subjects: [] }],
+		["/tvshow/:identifier{.+}", `/tvshow/${id}`, getTvShow, { id, name: "Synthetic", searchTerms: "s", knownTerms: ["K"], removed: false }],
+		["/film/:identifier{.+}", `/film/${id}`, getFilm, { id, name: "Synthetic", release: "1999", guests: ["G"], subjects: [] }],
 		[
 			"/tvshowepisode/:id",
 			`/tvshowepisode/${id}`,
@@ -170,8 +173,8 @@ describe("catalogue Azure proxies", () => {
 	});
 
 	it.each([
-		["/tvshow/:identifier", `/tvshow/${id}`, getTvShow, "/tvshow/"],
-		["/film/:identifier", `/film/${id}`, getFilm, "/film/"]
+		["/tvshow/:identifier{.+}", `/tvshow/${id}`, getTvShow, "/tvshow/"],
+		["/film/:identifier{.+}", `/film/${id}`, getFilm, "/film/"]
 	] as const)("GET %s forwards 200, 401, 404, 409 and 500 bodies and hits Azure %s{id}", async (route, requestPath, handler, azurePrefix) => {
 		for (const [status, body] of [
 			[200, { id, name: "Show" }],
@@ -191,6 +194,29 @@ describe("catalogue Azure proxies", () => {
 			vi.unstubAllGlobals();
 		}
 	});
+
+	it.each([
+		["/tvshow/:identifier{.+}", "/tvshow/", getTvShow, "/api/tvshow/"],
+		["/film/:identifier{.+}", "/film/", getFilm, "/api/film/"]
+	] as const)(
+		"GET %s keeps a slash in the name (Hono decodes %2F before routing) and encodes it for Azure",
+		async (route, prefix, handler, azurePrefix) => {
+			const fetchMock = vi.fn(
+				async () => new Response(JSON.stringify({ id, name: slashName }), { status: 200 })
+			);
+			vi.stubGlobal("fetch", fetchMock);
+			const app = appFor(route, "get", handler, ["curate"]);
+			const resp = await app.request(
+				`${prefix}${encodeURIComponent(slashName)}`,
+				{ method: "GET", headers: authJsonHeaders },
+				catalogueEnv()
+			);
+			expect(resp.status).toBe(200);
+			expect(await resp.json()).toEqual({ id, name: slashName });
+			const [url] = fetchMock.mock.calls[0] as [URL | string];
+			expect(String(url)).toBe(`https://functions.example${azurePrefix}${encodeURIComponent(slashName)}`);
+		}
+	);
 
 	it("GET /tvshowepisode/:id forwards 200, 401, 404 and 500, hits Azure /tvshowepisode/{id}, and maps 409 to 500", async () => {
 		const fetch200 = vi.fn(
@@ -308,6 +334,28 @@ describe("catalogue Azure proxies", () => {
 });
 
 describe("catalogue OpenAPI contracts", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it.each([
+		["/tvshow/", GetTvShowRoute],
+		["/film/", GetFilmRoute]
+	] as const)(
+		"the deployed Worker app routes GET %s{identifier} with an encoded slash name (401 without a token, not 404)",
+		async (prefix) => {
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+			const resp = await worker.fetch(
+				new Request(`https://api.example${prefix}${encodeURIComponent(slashName)}`, { method: "GET" }),
+				auth0TestEnv(),
+				{} as ExecutionContext
+			);
+			expect(resp.status).toBe(401);
+			expect(fetchMock).not.toHaveBeenCalled();
+		}
+	);
+
 	it("uses a Catalogue 409 object distinct from podcast name clash", () => {
 		expect(ambiguousCatalogueNameConflict.description).toMatch(/TV show or film/i);
 		expect(ambiguousPodcastNameConflict.description).toMatch(/podcast/i);

@@ -206,6 +206,8 @@ export const GetTvShowRoute = createOpenApiRoute(getTvShow, {
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Get TV show by id or name",
+		description:
+			"`identifier` is a guid, or a name in route form (case-insensitive). Names may contain `/` and must be percent-encoded (`%2F`); the Worker matches with `:identifier{.+}`.",
 		request: { params: identifierParam },
 		responses: {
 			200: { description: "TV show", ...contentJson(tvShowDtoSchema) },
@@ -289,6 +291,8 @@ export const GetFilmRoute = createOpenApiRoute(getFilm, {
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Get film by id or name",
+		description:
+			"`identifier` is a guid, or a name in route form (case-insensitive). Names may contain `/` and must be percent-encoded (`%2F`); the Worker matches with `:identifier{.+}`.",
 		request: { params: identifierParam },
 		responses: {
 			200: { description: "Film", ...contentJson(filmDtoSchema) },
@@ -340,7 +344,8 @@ export const GetNewsOrganisationRoute = createOpenApiRoute(getNewsOrganisation, 
 		tags: ["Catalogue"],
 		summary: "Get news organisation by id or name",
 		description:
-			"`identifier` is a guid, or a name in route form (case-insensitive match, like `/tvshow/{name}`).",
+			"`identifier` is a guid, or a name in route form (case-insensitive match, like `/tvshow/{name}`). " +
+			"Names may contain `/` and must be percent-encoded (`%2F`); the Worker matches with `:identifier{.+}`.",
 		request: { params: identifierParam },
 		responses: {
 			200: { description: "News organisation", ...contentJson(newsOrganisationDtoSchema) },
@@ -1295,6 +1300,7 @@ function catalogueRenameSchema(tag: string, kind: string, root: string, children
         summary: `Rename ${kind}`,
         description:
             `Admin only, like \`POST /podcast/name/:name\`. \`identifier\` is the ${kind} guid or its route-form name. ` +
+            `Route-form names may contain \`/\` and must be percent-encoded (\`%2F\`); the Worker matches with \`:identifier{.+}\`. ` +
             `Records the redirect \`${root}/{old}\` → \`{new}\` in the website's redirects KV (not written while another ${kind} keeps the old name), ` +
             `${children}and keeps the stored fileKey. Safe to retry.`,
         request: { params: identifierParam, body: jsonBody(catalogueRenameRequestSchema) },
