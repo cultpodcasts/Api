@@ -161,7 +161,8 @@ import {
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
 	notFoundIdSchema,
-	discoverySubmitOutcomeResponseSchema
+	discoverySubmitOutcomeResponseSchema,
+	discoverySessionSnapshotSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -900,16 +901,6 @@ export const SubmitDiscoveryOutcomeRoute = createOpenApiRoute(submitDiscoveryOut
 	}
 });
 
-const discoverySessionSnapshotSchema = z.object({
-	includedDocumentIds: z.array(z.string()),
-	pendingDocumentIds: z.array(z.string()),
-	selectedResultIds: z.array(z.string()),
-	votesByResultId: z.record(z.string(), z.any()),
-	presence: z.record(z.string(), z.string()),
-	rev: z.number(),
-	updatedAt: z.string()
-});
-
 export const GetDiscoveryCurationSessionRoute = createOpenApiRoute(getDiscoveryCurationSession, {
 	auth: curateAuth,
 	schema: {
@@ -999,7 +990,7 @@ export const DiscoveryCurationSessionWsRoute = createOpenApiRoute(upgradeDiscove
 		tags: ["Discovery"],
 		summary: "WebSocket upgrade for discovery curation session",
 		description:
-			"Requires `curate`. Browsers cannot set `Authorization` on WebSocket; pass the access token only as `?access_token=` on this path (not on other routes). Role for votes is taken from the JWT, never from client WS JSON.",
+			"Requires `curate`. Browsers cannot set `Authorization` on WebSocket; pass the access token only as `?access_token=` on this path together with `Upgrade: websocket` (not on other routes; spoofing Upgrade elsewhere does not enable the query token). Role for votes is taken from the JWT, never from client WS JSON.",
 		responses: {
 			101: { description: "Switching Protocols" },
 			426: { description: "Upgrade Required", ...contentJson(errorSchema) },

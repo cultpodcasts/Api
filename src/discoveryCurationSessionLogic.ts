@@ -4,8 +4,13 @@
 export const DISCOVERY_WS_ROLES = ["curate", "curate:supervised", "supervise"] as const;
 export type DiscoveryWsRole = (typeof DISCOVERY_WS_ROLES)[number];
 
-/** Validate a trusted WS role header; unknown values fall back to `curate`. */
-export function parseTrustedWsRole(header: string | null | undefined): DiscoveryWsRole {
+/**
+ * Validate a trusted WS / DO role. Fail closed: missing or unknown → `null`
+ * (do not default to `curate`, which elevates over `curate:supervised`).
+ */
+export function parseTrustedWsRole(
+	header: string | null | undefined
+): DiscoveryWsRole | null {
 	if (
 		header === "curate" ||
 		header === "curate:supervised" ||
@@ -13,7 +18,7 @@ export function parseTrustedWsRole(header: string | null | undefined): Discovery
 	) {
 		return header;
 	}
-	return "curate";
+	return null;
 }
 
 /**

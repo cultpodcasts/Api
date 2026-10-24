@@ -7,8 +7,9 @@ import { LogCollector } from "./LogCollector";
 
 /**
  * Query-string `access_token` is only for the discovery curation WebSocket upgrade
- * (`GET /discovery-curation/session/ws`). Browsers cannot set `Authorization` on WS.
- * All other Auth0 routes must use Bearer only — tokens in query strings leak via logs/Referer.
+ * (`GET /discovery-curation/session/ws` with `Upgrade: websocket`). Browsers cannot set
+ * `Authorization` on WS. `Upgrade` alone is client-spoofable and must not open the query
+ * token on other Auth0 routes — tokens in query strings leak via logs/Referer.
  */
 export function allowAccessTokenQuery(opts: {
 	upgradeHeader?: string | null;
@@ -19,7 +20,7 @@ export function allowAccessTokenQuery(opts: {
 	const isDiscoverySessionWs =
 		path === "/discovery-curation/session/ws" ||
 		path.endsWith("/discovery-curation/session/ws");
-	return isWsUpgrade || isDiscoverySessionWs;
+	return isWsUpgrade && isDiscoverySessionWs;
 }
 
 export const Auth0Middleware = createMiddleware<AppContext>(async (c: Context<AppContext, any, {}>, next: Next) => {

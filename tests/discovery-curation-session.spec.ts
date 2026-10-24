@@ -12,6 +12,7 @@ import {
 	applyWsVoteIgnoringClientRole,
 	emptyDiscoverySessionState,
 	isProvisional,
+	parseTrustedWsRole,
 	shouldClearPresenceOnClose,
 	toClientSnapshot
 } from "../src/discoveryCurationSessionLogic";
@@ -70,19 +71,25 @@ describe("discoveryVoteRole", () => {
 });
 
 describe("allowAccessTokenQuery", () => {
-	it("allows query token only for WS upgrade or discovery session WS path", () => {
+	it("allows query token only for discovery session WS path with Upgrade: websocket", () => {
+		expect(
+			allowAccessTokenQuery({
+				upgradeHeader: "websocket",
+				path: "/discovery-curation/session/ws"
+			})
+		).toBe(true);
 		expect(
 			allowAccessTokenQuery({
 				upgradeHeader: "websocket",
 				path: "/anything"
 			})
-		).toBe(true);
+		).toBe(false);
 		expect(
 			allowAccessTokenQuery({
 				upgradeHeader: null,
 				path: "/discovery-curation/session/ws"
 			})
-		).toBe(true);
+		).toBe(false);
 		expect(
 			allowAccessTokenQuery({
 				upgradeHeader: null,
@@ -111,6 +118,21 @@ describe("WS trusted role + multi-tab presence (logic)", () => {
 		expect(votes[0].role).toBe("curate:supervised");
 		expect(isProvisional(votes)).toBe(true);
 		expect(toClientSnapshot(state).votesByResultId["r1"].provisional).toBe(true);
+	});
+
+	it("parseTrustedWsRole fails closed so invalid/missing role cannot store a curate vote", () => {
+		expect(parseTrustedWsRole("curate")).toBe("curate");
+		expect(parseTrustedWsRole("curate:supervised")).toBe("curate:supervised");
+		expect(parseTrustedWsRole("supervise")).toBe("supervise");
+		expect(parseTrustedWsRole(undefined)).toBeNull();
+		expect(parseTrustedWsRole(null)).toBeNull();
+		expect(parseTrustedWsRole("")).toBeNull();
+		expect(parseTrustedWsRole("admin")).toBeNull();
+		expect(parseTrustedWsRole("spoof")).toBeNull();
+		// Callers must not apply a vote when parse returns null (DO rejects accept /vote).
+		const trusted = parseTrustedWsRole(undefined);
+		expect(trusted).toBeNull();
+		expect(emptyDiscoverySessionState().votesByResultId).toEqual({});
 	});
 
 	it("clears presence only when the last socket for a user closes", () => {

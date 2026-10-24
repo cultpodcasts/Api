@@ -37,6 +37,9 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 				return new Response("Unauthorised", { status: 401 });
 			}
 			const role = parseTrustedWsRole(request.headers.get("X-User-Role"));
+			if (!role) {
+				return new Response("Forbidden", { status: 403 });
+			}
 			const pair = new WebSocketPair();
 			this.ctx.acceptWebSocket(pair[1], [userId, role]);
 			const state = await this.load();
@@ -55,7 +58,10 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 			if (request.method === "POST") {
 				const body = (await request.json()) as Record<string, unknown>;
 				const userId = String(body.userId ?? "");
-				const role = parseTrustedWsRole(String(body.role ?? "curate"));
+				const role =
+					body.role === undefined || body.role === null
+						? null
+						: parseTrustedWsRole(String(body.role));
 				let state = await this.load();
 
 				switch (url.pathname) {
@@ -64,6 +70,9 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 						const selected = Boolean(body.selected);
 						if (!userId || !resultId) {
 							return Response.json({ error: "userId and resultId required" }, { status: 400 });
+						}
+						if (!role) {
+							return Response.json({ error: "valid role required" }, { status: 403 });
 						}
 						state = selected
 							? addVote(state, resultId, userId, role)
@@ -128,7 +137,7 @@ export class DiscoveryCurationDurableObject extends DurableObject<Env> {
 		const tags = this.ctx.getTags(ws);
 		const userId = tags[0] ?? "";
 		const trustedRole = parseTrustedWsRole(tags[1]);
-		if (!userId || typeof message !== "string") {
+		if (!userId || !trustedRole || typeof message !== "string") {
 			return;
 		}
 		let parsed: { type?: string; resultId?: string; selected?: boolean; role?: string };

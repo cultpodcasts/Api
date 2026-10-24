@@ -34,8 +34,8 @@ sequenceDiagram
   DO-->>Client: vote broadcast (provisional if curate:supervised)
 ```
 
-- **Auth:** `?access_token=` is accepted **only** for WebSocket upgrade / this path. All other Auth0 routes require `Authorization: Bearer`.
-- **Role:** Tagged from `X-User-Role` at accept time. WS vote messages cannot escalate role.
+- **Auth:** `?access_token=` is accepted **only** on `GET /discovery-curation/session/ws` with `Upgrade: websocket` (path ∧ Upgrade). Spoofing `Upgrade` on other routes does not enable the query token. All other Auth0 routes require `Authorization: Bearer`.
+- **Role:** Tagged from allowlisted `X-User-Role` at accept time (missing/unknown → reject, never default to `curate`). WS vote messages cannot escalate role.
 - **Presence:** Closing one tab does not clear presence while another socket for the same `sub` remains connected.
 
 ## Related

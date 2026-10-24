@@ -40,7 +40,7 @@ describe("Auth0Middleware query-token gating", () => {
 		expect(parseJwt).not.toHaveBeenCalled();
 	});
 
-	it("parses access_token query on discovery session WS path", async () => {
+	it("parses access_token query on discovery session WS path with Upgrade", async () => {
 		const app = new Hono<{ Bindings: Env }>();
 		app.use("*", Auth0Middleware);
 		app.get("/discovery-curation/session/ws", (c) => {
@@ -63,5 +63,47 @@ describe("Auth0Middleware query-token gating", () => {
 			"https://auth.example.com/",
 			"https://api.example.com/"
 		);
+	});
+
+	it("does not parse access_token when Upgrade is spoofed on an unrelated path", async () => {
+		const app = new Hono<{ Bindings: Env }>();
+		app.use("*", Auth0Middleware);
+		app.get("/hero-curation", (c) => {
+			const payload = c.var.auth0("payload");
+			return c.json({ hasAuth: Boolean(payload) });
+		});
+
+		const resp = await app.request(
+			"/hero-curation?access_token=leaky",
+			{ method: "GET", headers: { Upgrade: "websocket" } },
+			testEnv({
+				auth0Issuer: "https://auth.example.com/",
+				auth0Audience: "https://api.example.com/"
+			})
+		);
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({ hasAuth: false });
+		expect(parseJwt).not.toHaveBeenCalled();
+	});
+
+	it("does not parse access_token on WS path without Upgrade header", async () => {
+		const app = new Hono<{ Bindings: Env }>();
+		app.use("*", Auth0Middleware);
+		app.get("/discovery-curation/session/ws", (c) => {
+			const payload = c.var.auth0("payload");
+			return c.json({ hasAuth: Boolean(payload) });
+		});
+
+		const resp = await app.request(
+			"/discovery-curation/session/ws?access_token=leaky",
+			{ method: "GET" },
+			testEnv({
+				auth0Issuer: "https://auth.example.com/",
+				auth0Audience: "https://api.example.com/"
+			})
+		);
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual({ hasAuth: false });
+		expect(parseJwt).not.toHaveBeenCalled();
 	});
 });
