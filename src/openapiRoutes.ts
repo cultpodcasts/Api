@@ -160,7 +160,8 @@ import {
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
-	notFoundIdSchema
+	notFoundIdSchema,
+	discoverySubmitOutcomeResponseSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -882,27 +883,13 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
     }
 });
 
-const discoverySubmitOutcomeResponseSchema = z.object({
-	results: z.array(
-		z.object({
-			discoveryItemId: z.string().uuid(),
-			state: z.enum(["Accepted", "AcceptError", "Rejected", "Pending", "Unknown"]),
-			podcastId: z.string().uuid().nullable().optional(),
-			episodeId: z.string().uuid().nullable().optional(),
-			message: z.string().nullable().optional(),
-			episodeName: z.string().nullable().optional(),
-			showName: z.string().nullable().optional()
-		})
-	)
-});
-
 export const SubmitDiscoveryOutcomeRoute = createOpenApiRoute(submitDiscoveryOutcome, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Discovery"],
 		summary: "Reconcile discovery submit outcomes",
 		description:
-			"Requires `curate`. Returns durable per-item stamps for a prior Save (Accepted / AcceptError / Rejected / Pending). Use after a lost 200 / Worker 500 so the UI can show what landed.",
+			"Requires `curate`. Returns durable per-item stamps for a prior Save (`DiscoverySubmitOutcomeState`: Accepted / AcceptError / Rejected / Pending / Unknown). Use after a lost 200 / Worker 500 so the UI can show what landed.",
 		request: { body: jsonBody(discoverySubmitRequestSchema) },
 		responses: {
 			200: { description: "Per-item submit stamps", ...contentJson(discoverySubmitOutcomeResponseSchema) },
