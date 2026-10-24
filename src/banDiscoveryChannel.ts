@@ -8,7 +8,7 @@ import { proxyToAzure } from "./proxyToAzure";
  * Azure returns 202 with an empty body. The client then GETs /discovery-curation and GET /podcast/:id.
  */
 export async function banDiscoveryChannel(c: Auth0ActionContext): Promise<Response> {
-	const resultId = c.req.param("resultId");
+	const resultId = c.req.param("resultId") ?? "";
 	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });
 	return proxyToAzure(c, {
 		permission: "curate",

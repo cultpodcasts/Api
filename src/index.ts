@@ -10,6 +10,7 @@ import { corsOptions } from "./corsOptions";
 import { ProfileDurableObject } from './ProfileDurableObject';
 import { ProfileDurableObjectLegacy } from './ProfileDurableObjectLegacy';
 import { HeroCurationDurableObject } from './HeroCurationDurableObject';
+import { DiscoveryCurationDurableObject } from './DiscoveryCurationDurableObject';
 import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
 import { openApiDocumentVersion, openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
@@ -69,6 +70,13 @@ import {
 	RunSearchIndexerRoute,
 	SearchRoute,
 	SubmitDiscoveryRoute,
+	SubmitDiscoveryOutcomeRoute,
+	GetDiscoveryCurationSessionRoute,
+	PostDiscoverySessionVoteRoute,
+	PostDiscoverySessionSyncDocumentsRoute,
+	PostDiscoverySessionIncludeRoute,
+	PostDiscoverySessionClearVotesRoute,
+	DiscoveryCurationSessionWsRoute,
 	GetDiscoverySubmissionsRoute,
 	GetDiscoverySubmissionRoute,
 	PutDiscoverySubmissionReviewRoute,
@@ -405,7 +413,14 @@ openapi.patch('/subject/:id', UpdateSubjectRoute);
 openapi.post('/subject', CreateSubjectRoute);
 openapi.get('/discovery-curation', GetDiscoveryReportsRoute);
 openapi.post('/discovery-curation', SubmitDiscoveryRoute);
+openapi.post('/discovery-curation/submit-outcome', SubmitDiscoveryOutcomeRoute);
 openapi.post('/discovery-curation/:resultId/ban', BanDiscoveryChannelRoute);
+openapi.get('/discovery-curation/session', GetDiscoveryCurationSessionRoute);
+openapi.post('/discovery-curation/session/vote', PostDiscoverySessionVoteRoute);
+openapi.post('/discovery-curation/session/sync-documents', PostDiscoverySessionSyncDocumentsRoute);
+openapi.post('/discovery-curation/session/include', PostDiscoverySessionIncludeRoute);
+openapi.post('/discovery-curation/session/clear-votes', PostDiscoverySessionClearVotesRoute);
+openapi.get('/discovery-curation/session/ws', DiscoveryCurationSessionWsRoute);
 openapi.get('/discovery-submissions', GetDiscoverySubmissionsRoute);
 openapi.get('/discovery-submissions/:id', GetDiscoverySubmissionRoute);
 openapi.put('/discovery-submissions/:id/review', PutDiscoverySubmissionReviewRoute);
@@ -451,4 +466,9 @@ export default {
 		ctx.waitUntil(pruneHeroCurationScheduled(env));
 	}
 };
-export { ProfileDurableObject, ProfileDurableObjectLegacy, HeroCurationDurableObject };
+export {
+	ProfileDurableObject,
+	ProfileDurableObjectLegacy,
+	HeroCurationDurableObject,
+	DiscoveryCurationDurableObject
+};

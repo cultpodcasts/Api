@@ -29,6 +29,7 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
 		stagingHostSuffix: ".pages.dev",
 		PROFILE_DURABLE_OBJECT: {} as Env["PROFILE_DURABLE_OBJECT"],
 		HERO_CURATION_DURABLE_OBJECT: {} as Env["HERO_CURATION_DURABLE_OBJECT"],
+		DISCOVERY_CURATION_DURABLE_OBJECT: {} as Env["DISCOVERY_CURATION_DURABLE_OBJECT"],
 		Content: { get: async () => null } as unknown as R2Bucket,
 		Data: {} as R2Bucket,
 		apiDB: {} as D1Database,
