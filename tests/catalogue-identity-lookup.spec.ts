@@ -39,6 +39,77 @@ describe("POST /catalogue/identity/lookup", () => {
 		});
 	});
 
+	it("forwards a 200 Ambiguous body with candidate shape unchanged", async () => {
+		const payload = {
+			status: "Ambiguous",
+			identityDecision: {
+				target: "Film",
+				query: "Synthetic Title",
+				candidates: [
+					{
+						key: "tmdb:42",
+						title: "Synthetic Title",
+						year: 2020,
+						kind: "Film",
+						source: "tmdb",
+						tmdbId: 42,
+						tvdbId: null,
+						pageUrl: "https://www.themoviedb.org/movie/42",
+						thumbnailUrl: "https://image.tmdb.org/t/p/w185/synthetic.jpg",
+						description: "Synthetic overview"
+					}
+				]
+			}
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(payload), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions("/catalogue/identity/lookup", "post", catalogueIdentityLookup, ["curate"]);
+		const resp = await app.request(
+			"/catalogue/identity/lookup",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ kind: "Film", title: "Synthetic Title", year: 2020 })
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(payload);
+		expect(fetchMock).toHaveBeenCalledOnce();
+	});
+
+	it("forwards identityDecision=select with selectedIdentityKey to Azure", async () => {
+		const payload = {
+			status: "Matched",
+			ids: { imdbId: "tt0000001", tmdbId: 42, tvdbId: null }
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(payload), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions("/catalogue/identity/lookup", "post", catalogueIdentityLookup, ["curate"]);
+		const requestBody = {
+			kind: "Film",
+			title: "Synthetic Title",
+			year: 2020,
+			identityDecision: "select",
+			selectedIdentityKey: "tmdb:42"
+		};
+		const resp = await app.request(
+			"/catalogue/identity/lookup",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify(requestBody)
+			},
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(payload);
+		const [, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual(requestBody);
+	});
+
 	it("forwards Azure 400", async () => {
 		vi.stubGlobal(
 			"fetch",
