@@ -46,6 +46,8 @@ import {
 	subjectsNameListResponseSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema,
+	catalogueIdentityLookupRequestSchema,
+	catalogueIdentityLookupResponseSchema,
 	filmChangeRequestSchema,
 	filmDtoSchema,
 	episodeTrailerAttachRequestSchema,
@@ -64,6 +66,40 @@ import {
 } from "../src/openapiSchemas";
 
 describe("openapi Zod schemas", () => {
+	it("accepts catalogue identity lookup request and matched/ambiguous responses", () => {
+		const req = catalogueIdentityLookupRequestSchema.parse({
+			kind: "TvShowEpisode",
+			title: "Synthetic Episode",
+			showName: "Synthetic Show",
+			showTmdbId: 11,
+			showTvdbId: 22,
+			showImdbId: "tt0000001"
+		});
+		expect(req.kind).toBe("TvShowEpisode");
+		expect(catalogueIdentityLookupResponseSchema.parse({
+			status: "Matched",
+			ids: { imdbId: "tt0000002", tmdbId: null, tvdbId: 99 },
+			parentIds: { imdbId: "tt0000001", tmdbId: 11, tvdbId: 22 }
+		}).status).toBe("Matched");
+		expect(catalogueIdentityLookupResponseSchema.parse({
+			status: "Ambiguous",
+			identityDecision: {
+				target: "Film",
+				query: "Synthetic",
+				candidates: [{
+					key: "tmdb:1",
+					title: "Synthetic",
+					kind: "Film",
+					source: "tmdb",
+					tmdbId: 1,
+					pageUrl: "https://www.themoviedb.org/movie/1",
+					thumbnailUrl: "https://image.tmdb.org/t/p/w185/p.jpg",
+					description: "Overview text"
+				}]
+			}
+		}).identityDecision?.candidates[0].thumbnailUrl).toContain("w185");
+	});
+
 	it("accepts discovery submit body matching Azure DiscoverySubmitRequest", () => {
 		const parsed = discoverySubmitRequestSchema.parse({
 			ids: ["550e8400-e29b-41d4-a716-446655440000"],

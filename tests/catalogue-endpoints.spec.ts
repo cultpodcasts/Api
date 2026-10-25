@@ -19,6 +19,9 @@ describe("Azure endpoint registry", () => {
 		expect(getEndpoint(Endpoint.person, env).href).toBe("https://functions.example/api/person");
 		expect(getEndpoint(Endpoint.podcast, env).href).toBe("https://functions.example/api/podcast");
 		expect(getEndpoint(Endpoint.episode, env).href).toBe("https://functions.example/api/episode");
+		expect(getEndpoint(Endpoint.catalogueIdentityLookup, env).href).toBe(
+			"https://functions.example/api/catalogue/identity/lookup"
+		);
 	});
 
 	it("strips an accidental path on azureApiOrigin", () => {

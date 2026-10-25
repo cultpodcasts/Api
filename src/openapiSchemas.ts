@@ -1052,6 +1052,56 @@ const submitUrlItemStateSchema = z.enum([
 	"EpisodeAlreadyExists"
 ]);
 
+/** Api.Dtos.SubmitUrlResponse.IdentityCandidateBody — ambiguous identity picker row. */
+export const catalogueIdentityCandidateSchema = z.object({
+	key: z.string(),
+	title: z.string(),
+	year: z.number().int().nullable().optional(),
+	kind: z.string(),
+	source: z.string(),
+	tmdbId: z.number().int().nullable().optional(),
+	tvdbId: z.number().int().nullable().optional(),
+	pageUrl: z.string().url().nullable().optional(),
+	thumbnailUrl: z.string().url().nullable().optional(),
+	description: z.string().nullable().optional()
+});
+
+/** Api.Dtos.SubmitUrlResponse.IdentityDecisionBody */
+export const catalogueIdentityDecisionSchema = z.object({
+	target: z.string(),
+	query: z.string(),
+	candidates: z.array(catalogueIdentityCandidateSchema)
+});
+
+/** Api.Dtos.CatalogueIdentityIdsBody */
+export const catalogueIdentityIdsBodySchema = z.object({
+	imdbId: z.string().nullable().optional(),
+	tmdbId: z.number().int().nullable().optional(),
+	tvdbId: z.number().int().nullable().optional()
+});
+
+/** Api.Dtos.CatalogueIdentityLookupRequest — POST /catalogue/identity/lookup */
+export const catalogueIdentityLookupRequestSchema = z.object({
+	kind: z.enum(["Film", "TvShow", "TvShowEpisode"]),
+	title: z.string().min(1),
+	year: z.number().int().nullable().optional(),
+	showName: z.string().nullable().optional(),
+	showTmdbId: z.number().int().nullable().optional(),
+	showTvdbId: z.number().int().nullable().optional(),
+	showImdbId: z.string().nullable().optional(),
+	identityDecision: z.enum(["select", "continue", "cancel"]).nullable().optional(),
+	selectedIdentityKey: z.string().nullable().optional()
+});
+
+/** Api.Dtos.CatalogueIdentityLookupResponse */
+export const catalogueIdentityLookupResponseSchema = z.object({
+	status: z.enum(["Matched", "Ambiguous", "NoMatch"]),
+	message: z.string().nullable().optional(),
+	ids: catalogueIdentityIdsBodySchema.nullable().optional(),
+	parentIds: catalogueIdentityIdsBodySchema.nullable().optional(),
+	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
+});
+
 /** Api.Dtos.SubmitUrlResponse */
 export const submitUrlResponseSchema = z.object({
 	success: z.object({
