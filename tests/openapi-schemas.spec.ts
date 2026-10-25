@@ -50,6 +50,8 @@ import {
 	catalogueIdentityLookupResponseSchema,
 	filmChangeRequestSchema,
 	filmDtoSchema,
+	episodeFilmMoveRequestSchema,
+	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
@@ -1000,6 +1002,28 @@ describe("openapi Zod schemas", () => {
 		expect(() => episodeTvShowMoveRequestSchema.parse({ tvShowId: "not-a-guid" })).toThrow();
 		expect(episodeTvShowMoveResponseSchema.parse({ tvShowId, tvShowName: "Synthetic Show", episodeId: tvShowId, createdShow: true, failureIndexing: false }).createdShow)
 			.toBe(true);
+	});
+
+	it("parses the move-to-film request and identityDecision / cancelled 200 bodies", () => {
+		expect(episodeFilmMoveRequestSchema.parse({
+			identityDecision: "select",
+			selectedIdentityKey: "tmdb:42"
+		}).selectedIdentityKey).toBe("tmdb:42");
+		const ambiguous = episodeFilmMoveResponseSchema.parse({
+			identityDecision: {
+				target: "Film",
+				query: "Synthetic Film",
+				candidates: [{
+					key: "tmdb:42",
+					title: "Synthetic Film",
+					kind: "Film",
+					source: "tmdb",
+					tmdbId: 42
+				}]
+			}
+		});
+		expect(ambiguous.identityDecision?.candidates[0].key).toBe("tmdb:42");
+		expect(episodeFilmMoveResponseSchema.parse({ cancelled: true }).cancelled).toBe(true);
 	});
 
 	it("rejects non-URL imdb on Catalogue GET DTO schemas", () => {
