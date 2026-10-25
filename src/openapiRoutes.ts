@@ -698,10 +698,12 @@ export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
             "Curator command. Maps the episode with the catalogue migrator's film mapping (services, subjects, posted/tweeted/Bluesky state), " +
             "saves the film under the episode guid, swaps the search document to contentKind Film, then deletes the episode row. " +
             "The source podcast is kept. The short link is unchanged; old /podcast/{name}/{id} links redirect to /film/{name}/{shortId}. " +
-            "A failed search swap keeps the episode row; re-sending the request resumes.",
+            "A failed search swap keeps the episode row; re-sending the request resumes. " +
+            "Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and selectedIdentityKey (or continue/cancel), same as URL-submit.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeFilmMoveRequestSchema) },
         responses: {
             202: { description: "Moved (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
+            200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(episodeFilmMoveResponseSchema) },
             400: { description: "Title contains '/', or the episode is removed", ...contentJson(errorSchema) },
             409: { description: "Another film already has the name", ...contentJson(episodeFilmMoveResponseSchema) },
             ...notFoundResponse,

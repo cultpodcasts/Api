@@ -14,7 +14,8 @@ export async function moveEpisodeToFilm(c: Auth0ActionContext): Promise<Response
 		endpoint: Endpoint.episode,
 		method: "POST",
 		pathSuffix: `/${encodeURIComponent(podcastId)}/${encodeURIComponent(episodeId)}/film`,
-		successStatuses: [202],
+		// 202 = moved; 200 = identityDecisionRequired / cancelled (nothing written — same as URL-submit).
+		successStatuses: [200, 202],
 		forwardStatuses: [400, 404, 409, 500],
 		logName: "secure-episode-move-to-film-endpoint"
 	};
@@ -29,7 +30,9 @@ export async function moveEpisodeToFilm(c: Auth0ActionContext): Promise<Response
 				// A caller without curate gets proxyToAzure's 403 (no fetch); the body is not judged first.
 				return proxyToAzure(c, { ...options, body: undefined });
 			}
-			return c.json({ error: "Body must be JSON: { \"title\"?: string }" }, 400);
+			return c.json({
+				error: "Body must be JSON: { \"title\"?: string, \"identityDecision\"?: string, \"selectedIdentityKey\"?: string }"
+			}, 400);
 		}
 	}
 	return proxyToAzure(c, { ...options, body: JSON.stringify(data) });

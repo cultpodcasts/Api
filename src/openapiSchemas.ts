@@ -351,7 +351,11 @@ export const podcastKindTransferResponseSchema = z.object({
 
 /** EpisodeFilmMoveRequest — RedditPodcastPoster Api.Dtos.EpisodeFilmMoveRequest. */
 export const episodeFilmMoveRequestSchema = z.object({
-	title: z.string().optional().nullable().describe("Film name. Blank or missing keeps the episode title. Must not contain '/'.")
+	title: z.string().optional().nullable().describe("Film name. Blank or missing keeps the episode title. Must not contain '/'."),
+	identityDecision: z.enum(["select", "continue", "cancel"]).nullable().optional()
+		.describe("Answer after an ambiguous IMDb/TMDB prompt (same as URL-submit / Identity-tab lookup)."),
+	selectedIdentityKey: z.string().nullable().optional()
+		.describe("Candidate key when identityDecision is select (e.g. tmdb:123).")
 });
 
 /** EpisodeFilmMoveResponse — command outcome (not the film read model). GET /film/:id for the film. */
@@ -359,7 +363,12 @@ export const episodeFilmMoveResponseSchema = z.object({
 	filmId: z.string().uuid().optional().nullable().describe("The new film id (same as the episode id). On 409, the film that already has the name."),
 	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
 	error: z.string().optional(),
-	failureIndexing: z.boolean().optional()
+	failureIndexing: z.boolean().optional(),
+	// Lazy: catalogueIdentityDecisionSchema is declared later in this module.
+	identityDecision: z.lazy(() => catalogueIdentityDecisionSchema).nullable().optional()
+		.describe("Present on 200 when authority search is ambiguous; nothing was created. Re-POST with identityDecision + selectedIdentityKey."),
+	cancelled: z.boolean().optional()
+		.describe("True on 200 when the curator cancelled the identity prompt; nothing was created.")
 });
 
 /** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
