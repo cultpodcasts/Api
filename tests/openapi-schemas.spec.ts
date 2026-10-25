@@ -46,6 +46,8 @@ import {
 	subjectsNameListResponseSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema,
+	catalogueIdentityLookupRequestSchema,
+	catalogueIdentityLookupResponseSchema,
 	filmChangeRequestSchema,
 	filmDtoSchema,
 	episodeTrailerAttachRequestSchema,
@@ -64,6 +66,56 @@ import {
 } from "../src/openapiSchemas";
 
 describe("openapi Zod schemas", () => {
+	it("accepts catalogue identity lookup request and matched/ambiguous responses", () => {
+		const req = catalogueIdentityLookupRequestSchema.parse({
+			kind: "TvShowEpisode",
+			title: "Synthetic Episode",
+			showName: "Synthetic Show",
+			showTmdbId: 11,
+			showTvdbId: 22,
+			showImdbId: "tt0000001"
+		});
+		expect(req.kind).toBe("TvShowEpisode");
+		expect(catalogueIdentityLookupResponseSchema.parse({
+			status: "Matched",
+			ids: { imdbId: "tt0000002", tmdbId: null, tvdbId: 99 },
+			parentIds: { imdbId: "tt0000001", tmdbId: 11, tvdbId: 22 }
+		}).status).toBe("Matched");
+		expect(catalogueIdentityLookupResponseSchema.parse({
+			status: "Ambiguous",
+			identityDecision: {
+				target: "Film",
+				query: "Synthetic",
+				candidates: [{
+					key: "tmdb:1",
+					title: "Synthetic",
+					kind: "Film",
+					source: "tmdb",
+					tmdbId: 1,
+					pageUrl: "https://www.themoviedb.org/movie/1",
+					thumbnailUrl: "https://image.tmdb.org/t/p/w185/p.jpg",
+					description: "Overview text"
+				}]
+			}
+		}).identityDecision?.candidates[0].thumbnailUrl).toContain("w185");
+		expect(catalogueIdentityLookupResponseSchema.parse({
+			status: "Ambiguous",
+			identityDecision: {
+				target: "Film",
+				query: "Synthetic",
+				candidates: [{
+					key: "tmdb:2",
+					title: "Synthetic Alt",
+					kind: "Film",
+					source: "tmdb",
+					pageUrl: "https://www.themoviedb.org/movie/2?language=en-US&include_adult=false",
+					thumbnailUrl: null,
+					description: null
+				}]
+			}
+		}).identityDecision?.candidates[0].pageUrl).toContain("language=en-US");
+	});
+
 	it("accepts discovery submit body matching Azure DiscoverySubmitRequest", () => {
 		const parsed = discoverySubmitRequestSchema.parse({
 			ids: ["550e8400-e29b-41d4-a716-446655440000"],
@@ -975,15 +1027,21 @@ describe("openapi Zod schemas", () => {
 		).toThrow();
 	});
 
-	it("parses Catalogue change requests as unconstrained strings matching Azure string?", () => {
+	it("parses Catalogue change requests as Azure identity ids (clear/empty semantics)", () => {
 		expect(
-			tvShowChangeRequestSchema.parse({ imdb: null, tvdb: "not-a-url" })
-		).toEqual({ imdb: null, tvdb: "not-a-url" });
+			tvShowChangeRequestSchema.parse({ imdbId: null, tvdbId: 0, tmdbId: 12 })
+		).toEqual({ imdbId: null, tvdbId: 0, tmdbId: 12 });
 		expect(
-			tvShowEpisodeChangeRequestSchema.parse({ imdb: null, tvdb: "not-a-url" })
-		).toEqual({ imdb: null, tvdb: "not-a-url" });
-		expect(filmChangeRequestSchema.parse({ imdb: "not-a-url" }).imdb).toBe("not-a-url");
-		expect(filmChangeRequestSchema.parse({ imdb: null }).imdb).toBeNull();
+			tvShowEpisodeChangeRequestSchema.parse({ imdbId: "", tvdbId: null, tmdbId: 0 })
+		).toEqual({ imdbId: "", tvdbId: null, tmdbId: 0 });
+		expect(filmChangeRequestSchema.parse({ imdbId: "tt0000001", tmdbId: 0 })).toEqual({
+			imdbId: "tt0000001",
+			tmdbId: 0
+		});
+		expect(filmChangeRequestSchema.parse({ imdbId: null }).imdbId).toBeNull();
+		expect(filmChangeRequestSchema.parse({ imdb: "https://www.imdb.com/title/tt1/" })).not.toHaveProperty("imdb");
+		expect(() => tvShowChangeRequestSchema.parse({ tvdbId: "12" })).toThrow();
+		expect(() => filmChangeRequestSchema.parse({ tmdbId: "7" })).toThrow();
 	});
 	it("parses TV show, TV episode and film GET DTOs with the RPP #1053 parity fields (synthetic)", () => {
 		const show = tvShowDtoSchema.parse({
@@ -1055,13 +1113,39 @@ describe("openapi Zod schemas", () => {
 		expect(() => filmDtoSchema.parse({ ...film, guests: "Synthetic Director" })).toThrow();
 	});
 
-	it("parses TV and film change requests with publisher/playable fields and guests, keeping imdb/tvdb unconstrained", () => {
+	it("parses TV and film change requests with publisher/playable fields, guests, and identity ids", () => {
 		expect(
-			tvShowChangeRequestSchema.parse({ imdb: "", tvdb: null, searchTerms: "", language: "de", knownTerms: [] })
-		).toEqual({ imdb: "", tvdb: null, searchTerms: "", language: "de", knownTerms: [] });
+			tvShowChangeRequestSchema.parse({
+				imdbId: "",
+				tvdbId: null,
+				tmdbId: 0,
+				searchTerms: "",
+				language: "de",
+				knownTerms: []
+			})
+		).toEqual({
+			imdbId: "",
+			tvdbId: null,
+			tmdbId: 0,
+			searchTerms: "",
+			language: "de",
+			knownTerms: []
+		});
 		expect(
-			tvShowEpisodeChangeRequestSchema.parse({ title: "Synthetic", release: "2026-10-02", guests: [], removed: true })
-		).toEqual({ title: "Synthetic", release: "2026-10-02", guests: [], removed: true });
+			tvShowEpisodeChangeRequestSchema.parse({
+				title: "Synthetic",
+				release: "2026-10-02",
+				guests: [],
+				removed: true,
+				imdbId: "tt0000002"
+			})
+		).toEqual({
+			title: "Synthetic",
+			release: "2026-10-02",
+			guests: [],
+			removed: true,
+			imdbId: "tt0000002"
+		});
 		expect(
 			filmChangeRequestSchema.parse({ release: "1999", duration: "1:42:00", guests: ["Synthetic"], hashTag: "", subjects: [] })
 		).toEqual({ release: "1999", duration: "1:42:00", guests: ["Synthetic"], hashTag: "", subjects: [] });
@@ -1080,7 +1164,7 @@ describe("openapi Zod schemas", () => {
 			nullAppleId: false
 		};
 		expect(newsOrganisationChangeRequestSchema.parse(ids)).toEqual(ids);
-		expect(tvShowChangeRequestSchema.parse({ ...ids, imdb: "" })).toEqual({ ...ids, imdb: "" });
+		expect(tvShowChangeRequestSchema.parse({ ...ids, imdbId: "" })).toEqual({ ...ids, imdbId: "" });
 		expect(newsOrganisationChangeRequestSchema.parse({ nullAppleId: true })).toEqual({ nullAppleId: true });
 		expect(() => newsOrganisationChangeRequestSchema.parse({ appleId: "123" })).toThrow();
 		expect(() => tvShowChangeRequestSchema.parse({ youTubeChannelId: 1 })).toThrow();

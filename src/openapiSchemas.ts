@@ -1052,6 +1052,58 @@ const submitUrlItemStateSchema = z.enum([
 	"EpisodeAlreadyExists"
 ]);
 
+/** Api.Dtos.SubmitUrlResponse.IdentityCandidateBody — ambiguous identity picker row. */
+export const catalogueIdentityCandidateSchema = z.object({
+	key: z.string(),
+	title: z.string(),
+	year: z.number().int().nullable().optional(),
+	kind: z.string(),
+	source: z.string(),
+	tmdbId: z.number().int().nullable().optional(),
+	tvdbId: z.number().int().nullable().optional(),
+	pageUrl: z.string().nullable().optional()
+		.describe("Absolute provider page URL when Azure supplies one; not Zod-.url()-validated."),
+	thumbnailUrl: z.string().nullable().optional()
+		.describe("Absolute thumbnail URL when Azure supplies one; not Zod-.url()-validated."),
+	description: z.string().nullable().optional()
+});
+
+/** Api.Dtos.SubmitUrlResponse.IdentityDecisionBody */
+export const catalogueIdentityDecisionSchema = z.object({
+	target: z.string(),
+	query: z.string(),
+	candidates: z.array(catalogueIdentityCandidateSchema)
+});
+
+/** Api.Dtos.CatalogueIdentityIdsBody */
+export const catalogueIdentityIdsBodySchema = z.object({
+	imdbId: z.string().nullable().optional(),
+	tmdbId: z.number().int().nullable().optional(),
+	tvdbId: z.number().int().nullable().optional()
+});
+
+/** Api.Dtos.CatalogueIdentityLookupRequest — POST /catalogue/identity/lookup */
+export const catalogueIdentityLookupRequestSchema = z.object({
+	kind: z.enum(["Film", "TvShow", "TvShowEpisode"]),
+	title: z.string().min(1),
+	year: z.number().int().nullable().optional(),
+	showName: z.string().nullable().optional(),
+	showTmdbId: z.number().int().nullable().optional(),
+	showTvdbId: z.number().int().nullable().optional(),
+	showImdbId: z.string().nullable().optional(),
+	identityDecision: z.enum(["select", "continue", "cancel"]).nullable().optional(),
+	selectedIdentityKey: z.string().nullable().optional()
+});
+
+/** Api.Dtos.CatalogueIdentityLookupResponse */
+export const catalogueIdentityLookupResponseSchema = z.object({
+	status: z.enum(["Matched", "Ambiguous", "NoMatch"]),
+	message: z.string().nullable().optional(),
+	ids: catalogueIdentityIdsBodySchema.nullable().optional(),
+	parentIds: catalogueIdentityIdsBodySchema.nullable().optional(),
+	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
+});
+
 /** Api.Dtos.SubmitUrlResponse */
 export const submitUrlResponseSchema = z.object({
 	success: z.object({
@@ -1420,20 +1472,26 @@ export const tvShowEpisodeDtoSchema = z.object({
 });
 
 /**
- * Api.Dtos.TvShowChangeRequest: canonical ids (absolute http(s) URL; `""` clears; anything else is a 400) plus the
- * shared publisher fields. `searchTerms` / `language` / `removed` are also copied to every episode of the show (removal cascades).
+ * Api.Dtos.TvShowChangeRequest: identity ids plus the shared publisher fields.
+ * `imdbId` is `tt` + 7–10 digits (`""` clears); `tvdbId` / `tmdbId` use `0` to clear (negative is a 400).
+ * `searchTerms` / `language` / `removed` are also copied to every episode of the show (removal cascades).
  */
 export const tvShowChangeRequestSchema = z.object({
-	imdb: z.string().optional().nullable(),
-	tvdb: z.string().optional().nullable(),
+	imdbId: z.string().optional().nullable().describe("IMDb title id: `tt` + 7–10 digits. `\"\"` clears."),
+	tvdbId: z.number().int().optional().nullable().describe("TheTVDB series id. `0` clears; negative is a 400."),
+	tmdbId: z.number().int().optional().nullable().describe("TMDB series id. `0` clears; negative is a 400."),
 	...publisherFieldsChangeShape,
 	...serviceIdsChangeShape
 });
 
-/** Api.Dtos.TvShowEpisodeChangeRequest: canonical ids plus the shared playable fields (same rules as news reports). */
+/**
+ * Api.Dtos.TvShowEpisodeChangeRequest: identity ids plus the shared playable fields (same rules as news reports).
+ * Id clear/empty semantics match Azure (`""` / `0`).
+ */
 export const tvShowEpisodeChangeRequestSchema = z.object({
-	imdb: z.string().optional().nullable(),
-	tvdb: z.string().optional().nullable(),
+	imdbId: z.string().optional().nullable().describe("IMDb title id: `tt` + 7–10 digits. `\"\"` clears."),
+	tvdbId: z.number().int().optional().nullable().describe("TheTVDB episode id. `0` clears; negative is a 400."),
+	tmdbId: z.number().int().optional().nullable().describe("TMDB episode id. `0` clears; negative is a 400."),
 	...playableFieldsChangeShape
 });
 
@@ -1486,12 +1544,12 @@ export const filmDtoSchema = z.object({
 });
 
 /**
- * Api.Dtos.FilmChangeRequest: IMDb, the shared publisher fields (publisher, description, removed …; no propagation:
- * films have no children), the film's playable fields and the episode-style post status. `release` is `yyyy` or `yyyy-MM-dd`, and `duration` is a non-negative TimeSpan; Azure
- * returns 400 before applying anything. `removed: true` also deletes the film's search document.
+ * Api.Dtos.FilmChangeRequest: `imdbId` / `tmdbId`, the shared publisher fields (publisher, description, removed …; no
+ * propagation: films have no children), the film's playable fields and the episode-style post status. `release` is
+ * `yyyy` or `yyyy-MM-dd`, and `duration` is a non-negative TimeSpan; Azure returns 400 before applying anything.
+ * `removed: true` also deletes the film's search document.
  */
 export const filmChangeRequestSchema = z.object({
-	imdb: z.string().optional().nullable(),
 	imdbId: z.string().optional().nullable().describe("IMDb title id: `tt` + 7–10 digits. `\"\"` clears."),
 	tmdbId: z.number().int().optional().nullable().describe("TMDB movie id. `0` clears; negative is a 400."),
 	services: z.record(z.string(), filmServiceLinkChangeSchema).optional().nullable()

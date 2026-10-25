@@ -23,5 +23,6 @@ export enum Endpoint {
     discoverySubmissions,
     discoveryReports,
     newsOrganisation,
-    newsReport
+    newsReport,
+    catalogueIdentityLookup
 }

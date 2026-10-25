@@ -37,6 +37,7 @@ import { streamingScrapeSurvey } from "./streamingScrapeSurvey";
 import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
+import { catalogueIdentityLookup } from "./catalogueIdentityLookup";
 import { deleteBookmark } from "./deleteBookmark";
 import { deletePodcastEpisode } from "./deleteEpisode";
 import { getBookmarks } from "./getBookmarks";
@@ -162,7 +163,9 @@ import {
 	newsReportDtoSchema,
 	notFoundIdSchema,
 	discoverySubmitOutcomeResponseSchema,
-	discoverySessionSnapshotSchema
+	discoverySessionSnapshotSchema,
+	catalogueIdentityLookupRequestSchema,
+	catalogueIdentityLookupResponseSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -249,10 +252,10 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch TV-show episode fields and IMDb/TheTVDB identity URIs",
+		summary: "Patch TV-show episode fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
 			"`id` is the episode guid. Omitted or null fields are unchanged. Same playable fields and rules as `PATCH /newsreport/{id}`, " +
-			"including `guests`, plus `imdb` / `tvdb`. The request is validated before anything is applied. " +
+			"including `guests`, plus `imdbId` / `tvdbId` / `tmdbId`. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the episode's search document (RPP #1053)." +
 			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
@@ -273,10 +276,10 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch TV show publisher fields and IMDb/TheTVDB identity URIs",
+		summary: "Patch TV show publisher fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
 			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}`, " +
-			"plus `imdb` / `tvdb`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
+			"plus `imdbId` / `tvdbId` / `tmdbId`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
 			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
 			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
@@ -319,11 +322,11 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
-		summary: "Patch film publisher and playable fields and IMDb identity URI",
+		summary: "Patch film publisher and playable fields and IMDb/TMDB identity ids",
 		description:
 			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
 			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, " +
-			"`subjects`, `guests` and `imdb`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
+			"`subjects`, `guests`, `imdbId` and `tmdbId`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
 			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
@@ -827,6 +830,25 @@ export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
             ...authResponses
         }
     }
+});
+
+export const CatalogueIdentityLookupRoute = createOpenApiRoute(catalogueIdentityLookup, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Look up catalogue identity ids (edit-time)",
+		description:
+			"Best-effort IMDb / TMDB / TheTVDB probe for Film, TvShow, or TvShowEpisode. Does not write Cosmos — " +
+			"the curator applies returned ids to the form, then saves. Ambiguous matches return candidates with " +
+			"optional pageUrl, thumbnailUrl, and description for a picker; send identityDecision=select with selectedIdentityKey to resolve.",
+		request: { body: jsonBody(catalogueIdentityLookupRequestSchema) },
+		responses: {
+			200: { description: "Matched, Ambiguous, or NoMatch", ...contentJson(catalogueIdentityLookupResponseSchema) },
+			400: { description: "Invalid kind/title", ...contentJson(errorSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
 });
 
 export const GetDiscoveryReportsRoute = createOpenApiRoute(getDiscoveryReports, {

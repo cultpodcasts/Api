@@ -106,7 +106,8 @@ import {
 	GetNewsReportRoute,
 	UpdateNewsReportRoute,
 	GetFilmRoute,
-	UpdateFilmRoute
+	UpdateFilmRoute,
+	CatalogueIdentityLookupRoute
 } from './openapiRoutes';
 const app = new Hono<{ Bindings: Env }>();
 const OPENAPI_AUTH_COOKIE = 'openapi_access_token';
@@ -400,6 +401,7 @@ openapi.get('/tvshowepisode/:id', GetTvShowEpisodeRoute);
 openapi.patch('/tvshowepisode/:id', UpdateTvShowEpisodeRoute);
 openapi.get('/film/:identifier{.+}', GetFilmRoute);
 openapi.patch('/film/:id', UpdateFilmRoute);
+openapi.post('/catalogue/identity/lookup', CatalogueIdentityLookupRoute);
 openapi.get('/newsorganisation/:identifier{.+}', GetNewsOrganisationRoute);
 openapi.patch('/newsorganisation/:id', UpdateNewsOrganisationRoute);
 openapi.post('/newsorganisation/name/:identifier{.+}', RenameNewsOrganisationRoute);
