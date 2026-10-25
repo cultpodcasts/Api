@@ -43,6 +43,15 @@ import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
 import { banDiscoveryChannel } from "./banDiscoveryChannel";
+import { submitDiscoveryOutcome } from "./submitDiscoveryOutcome";
+import {
+	getDiscoveryCurationSession,
+	postDiscoverySessionClearVotes,
+	postDiscoverySessionInclude,
+	postDiscoverySessionSyncDocuments,
+	postDiscoverySessionVote,
+	upgradeDiscoveryCurationSessionWs
+} from "./discoveryCurationSession";
 import {
 	getDiscoverySubmission,
 	getDiscoverySubmissions,
@@ -151,7 +160,9 @@ import {
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
-	notFoundIdSchema
+	notFoundIdSchema,
+	discoverySubmitOutcomeResponseSchema,
+	discoverySessionSnapshotSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -871,6 +882,122 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
             ...authResponses
         }
     }
+});
+
+export const SubmitDiscoveryOutcomeRoute = createOpenApiRoute(submitDiscoveryOutcome, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Discovery"],
+		summary: "Reconcile discovery submit outcomes",
+		description:
+			"Requires `curate`. Returns durable per-item stamps for a prior Save (`DiscoverySubmitOutcomeState`: Accepted / AcceptError / Rejected / Pending / Unknown). Use after a lost 200 / Worker 500 so the UI can show what landed.",
+		request: { body: jsonBody(discoverySubmitRequestSchema) },
+		responses: {
+			200: { description: "Per-item submit stamps", ...contentJson(discoverySubmitOutcomeResponseSchema) },
+			400: { description: "ids or resultIds missing", ...contentJson(errorSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const GetDiscoveryCurationSessionRoute = createOpenApiRoute(getDiscoveryCurationSession, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Discovery"],
+		summary: "Get global discovery curation session",
+		responses: {
+			200: { description: "Session snapshot", ...contentJson(discoverySessionSnapshotSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const PostDiscoverySessionVoteRoute = createOpenApiRoute(postDiscoverySessionVote, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Discovery"],
+		summary: "Add or remove a discovery session vote",
+		request: {
+			body: jsonBody(z.object({ resultId: z.string().uuid(), selected: z.boolean() }))
+		},
+		responses: {
+			200: { description: "Updated session", ...contentJson(discoverySessionSnapshotSchema) },
+			400: { description: "Bad request", ...contentJson(errorSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const PostDiscoverySessionSyncDocumentsRoute = createOpenApiRoute(
+	postDiscoverySessionSyncDocuments,
+	{
+		auth: curateAuth,
+		schema: {
+			tags: ["Discovery"],
+			summary: "Sync open discovery document ids into the session room",
+			request: { body: jsonBody(z.object({ documentIds: z.array(z.string().uuid()) })) },
+			responses: {
+				200: { description: "Updated session", ...contentJson(discoverySessionSnapshotSchema) },
+				400: { description: "Bad request", ...contentJson(errorSchema) },
+				...serverErrorResponse,
+				...authResponses
+			}
+		}
+	}
+);
+
+export const PostDiscoverySessionIncludeRoute = createOpenApiRoute(postDiscoverySessionInclude, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Discovery"],
+		summary: "Include pending discovery documents into the sticky room set",
+		request: {
+			body: jsonBody(
+				z.object({
+					documentIds: z.union([z.literal("all"), z.array(z.string().uuid())]).optional()
+				})
+			)
+		},
+		responses: {
+			200: { description: "Updated session", ...contentJson(discoverySessionSnapshotSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const PostDiscoverySessionClearVotesRoute = createOpenApiRoute(postDiscoverySessionClearVotes, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Discovery"],
+		summary: "Clear session votes after a successful Save",
+		request: { body: jsonBody(z.object({ resultIds: z.array(z.string().uuid()) })) },
+		responses: {
+			200: { description: "Updated session", ...contentJson(discoverySessionSnapshotSchema) },
+			400: { description: "Bad request", ...contentJson(errorSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const DiscoveryCurationSessionWsRoute = createOpenApiRoute(upgradeDiscoveryCurationSessionWs, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Discovery"],
+		summary: "WebSocket upgrade for discovery curation session",
+		description:
+			"Requires `curate`. Browsers cannot set `Authorization` on WebSocket; pass the access token only as `?access_token=` on this path together with `Upgrade: websocket` (not on other routes; spoofing Upgrade elsewhere does not enable the query token). Role for votes is taken from the JWT, never from client WS JSON.",
+		responses: {
+			101: { description: "Switching Protocols" },
+			426: { description: "Upgrade Required", ...contentJson(errorSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
 });
 
 const submissionIdParam = z.object({ id: z.string().uuid() });

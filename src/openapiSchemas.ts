@@ -1,6 +1,7 @@
 // pragma: allowlist secret
 import { z } from "zod";
 import { CatalogueParentKind } from "./catalogueParentKind";
+import { DiscoverySubmitOutcomeState } from "./discoverySubmitOutcomeState";
 import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contract";
 
 /**
@@ -785,6 +786,46 @@ export const discoverySubmitResponseSchema = z.object({
 const nullableUuidArray = z.array(z.string().uuid()).nullable().optional();
 
 export const discoverySubmissionStatusSchema = z.enum(["Pending", "Applied", "PartiallyApplied", "ApplyFailed", "Applying", "Released"]);
+
+/** Api.Models.DiscoverySubmitOutcomeState — POST /discovery-curation/submit-outcome wire `state`. */
+export const discoverySubmitOutcomeStateSchema = z.nativeEnum(DiscoverySubmitOutcomeState);
+
+export const discoverySubmitOutcomeResponseSchema = z.object({
+	results: z.array(
+		z.object({
+			discoveryItemId: z.string().uuid(),
+			state: discoverySubmitOutcomeStateSchema,
+			podcastId: z.string().uuid().nullable().optional(),
+			episodeId: z.string().uuid().nullable().optional(),
+			message: z.string().nullable().optional(),
+			episodeName: z.string().nullable().optional(),
+			showName: z.string().nullable().optional()
+		})
+	)
+});
+
+/** Client snapshot vote row from `toClientSnapshot` / DiscoverySessionClientSnapshot. */
+export const discoverySessionVoteSchema = z.object({
+	userId: z.string(),
+	role: z.string(),
+	at: z.string()
+});
+
+export const discoverySessionResultVotesSchema = z.object({
+	votes: z.array(discoverySessionVoteSchema),
+	rev: z.number(),
+	provisional: z.boolean()
+});
+
+export const discoverySessionSnapshotSchema = z.object({
+	includedDocumentIds: z.array(z.string()),
+	pendingDocumentIds: z.array(z.string()),
+	selectedResultIds: z.array(z.string()),
+	votesByResultId: z.record(z.string(), discoverySessionResultVotesSchema),
+	presence: z.record(z.string(), z.string()),
+	rev: z.number(),
+	updatedAt: z.string()
+});
 
 /** Api.Dtos.DiscoverySubmissionSummaryDto */
 export const discoverySubmissionSummarySchema = z.object({
