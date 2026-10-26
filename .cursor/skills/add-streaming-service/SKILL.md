@@ -52,8 +52,10 @@ kept deployed like api-preview. Survey does not deploy or tear it down.
      `streaming-submit-contract.business-rules` passes — committed JSON must equal that payload)
    - Optionally before sibling copies:
      `npm test -- tests/streaming-submit-contract.business-rules.spec.ts`
-3. Bump root `package.json` + `package-lock.json` **patch** (required on every Api PR).
-   Workers Builds publishes `@cultpodcasts/streaming-submit-contract` (see
+3. Bump root `package.json` + `package-lock.json`: **minor** when adding a new
+   `streamingServiceKeys` member (cross-client contract — matches `AGENTS.md`);
+   **patch** for other shipping PRs. Workers Builds publishes
+   `@cultpodcasts/streaming-submit-contract` (see
    [`docs/contract-publish.md`](../../docs/contract-publish.md)).
 4. Prefer consumers take the package (`@latest` / `@staging`). Until then, copy JSON to RPP:
    `RedditPodcastPoster/docs/contracts/streaming-submit-contract.json`
