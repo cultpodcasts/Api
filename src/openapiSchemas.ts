@@ -1395,9 +1395,18 @@ const postStatusChangeShape = {
 };
 
 /**
+ * Playable `services` patch link (film, TV episode, news report): a blank `url` and `image` removes the key;
+ * URLs are absolute http(s). `lang` is not on this PATCH surface (RPP #1130).
+ */
+export const filmServiceLinkChangeSchema = z.object({
+	url: z.string().optional().nullable(),
+	image: z.string().optional().nullable()
+});
+
+/**
  * Api.Dtos.PlayableFieldsChangeRequest. Omitted / null = unchanged. Azure validates `release` (`yyyy-MM-dd` only)
  * and `duration` (non-negative TimeSpan) and returns 400 before applying anything. `removed: true` also deletes
- * the search document.
+ * the search document. `services` matches film / RPP #1130 (news + TV episode PATCH).
  */
 const playableFieldsChangeShape = {
 	title: z.string().optional().nullable(),
@@ -1412,7 +1421,14 @@ const playableFieldsChangeShape = {
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
 	language: z.string().optional().nullable(),
-	guests: guestsChange
+	guests: guestsChange,
+	services: z
+		.record(z.string(), filmServiceLinkChangeSchema)
+		.optional()
+		.nullable()
+		.describe(
+			"Per key, as the episode / film edit: the key is resolved from the URL (youtube, bbcIplayer, internetArchive, …); blank url and image removes the key. Absolute http(s) only."
+		)
 };
 
 /**
@@ -1517,12 +1533,6 @@ export const filmTrailerDtoSchema = z.object({
 export const filmTrailerChangeSchema = z.object({
 	id: z.string().uuid(),
 	title: z.string().optional().nullable()
-});
-
-/** Film `services` patch link: a blank `url` and `image` removes the key; URLs are absolute http(s). */
-export const filmServiceLinkChangeSchema = z.object({
-	url: z.string().optional().nullable(),
-	image: z.string().optional().nullable()
 });
 
 /**

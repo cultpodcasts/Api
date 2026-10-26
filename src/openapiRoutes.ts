@@ -255,14 +255,16 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 		summary: "Patch TV-show episode fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
 			"`id` is the episode guid. Omitted or null fields are unchanged. Same playable fields and rules as `PATCH /newsreport/{id}`, " +
-			"including `guests`, plus `imdbId` / `tvdbId` / `tmdbId`. The request is validated before anything is applied. " +
+			"including `guests` and `services` (per-key link patch; blank url+image removes the key; absolute http(s) only), " +
+			"plus `imdbId` / `tvdbId` / `tmdbId`. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the episode's search document (RPP #1053)." +
 			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
 			202: { description: "TV-show episode updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
 			400: {
-				description: "Invalid URL, release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
+				description:
+					"Invalid URL (incl. non-absolute `services.*.url` / `services.*.image`), release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
 			},
 			...notFoundResponse,
@@ -422,13 +424,15 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 		description:
 			"`id` is the report guid. Omitted or null fields are unchanged. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the report's search document. `guests` follows the episode rule: it replaces the list, `[]` clears it, " +
-			"blank names are dropped and names trimmed." +
+			"blank names are dropped and names trimmed. `services` follows the film / episode link patch: per-key url/image; " +
+			"blank url+image removes the key; absolute http(s) only (RPP #1130)." +
 			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
 		responses: {
 			202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
 			400: {
-				description: "Invalid release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
+				description:
+					"Invalid release (yyyy-MM-dd only), duration (non-negative h:mm:ss), or non-absolute `services.*.url` / `services.*.image`; nothing applied",
 				...contentJson(errorSchema)
 			},
 			...newsNotFoundIdResponse,
