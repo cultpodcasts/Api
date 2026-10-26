@@ -51,7 +51,8 @@
 			"url": "https://iview.abc.net.au/video/LE1717H003S00",
 			"enabled": true,
 			"expectHomeHosts": ["iview.abc.net.au"],
-			"notes": "AU free catch-up; video id path /video/{id}. Legacy Cosmos key slug iviewabcnetau. Strategy provisional — survey recommend=blocked until post-Functions-deploy azure leg returns a usable title (Api#195); do not assume azurePrepare."
+			"assumedTechnique": "azurePrepare",
+			"notes": "AU free catch-up; video id path /video/{id}. Legacy Cosmos key slug iviewabcnetau. Post-api-infra deploy (Api#195): survey recommend=azurePrepare (title You Can't Ask That). CF fetch/BR/US HTML usable but Azure HTML extract not registered for AbcIview — irrelevant while azurePrepare is the technique."
 		}
 	]
 }
