@@ -1302,6 +1302,22 @@ describe("openapi Zod schemas", () => {
 			newsReportChangeRequestSchema.parse({ release: "2026-10-03", duration: "0:06:30", removed: true, subjects: [] })
 		).toEqual({ release: "2026-10-03", duration: "0:06:30", removed: true, subjects: [] });
 		expect(() => newsReportChangeRequestSchema.parse({ explicit: "yes" })).toThrow();
+		const servicesPatch = {
+			services: {
+				youtube: { url: "" },
+				bbcIplayer: { url: "https://www.bbc.co.uk/iplayer/episode/synthetic" }
+			}
+		};
+		expect(newsReportChangeRequestSchema.parse(servicesPatch)).toEqual(servicesPatch);
+		expect(tvShowEpisodeChangeRequestSchema.parse(servicesPatch)).toEqual(servicesPatch);
+		const removeKeyPatch = {
+			services: {
+				youtube: { url: "", image: "" },
+				internetArchive: {}
+			}
+		};
+		expect(newsReportChangeRequestSchema.parse(removeKeyPatch)).toEqual(removeKeyPatch);
+		expect(tvShowEpisodeChangeRequestSchema.parse(removeKeyPatch)).toEqual(removeKeyPatch);
 		expect(notFoundIdSchema.parse({ id: "550e8400-e29b-41d4-a716-446655440000" }).id).toBe(
 			"550e8400-e29b-41d4-a716-446655440000"
 		);
