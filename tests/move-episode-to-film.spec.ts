@@ -114,6 +114,50 @@ describe("move episode to film", () => {
 		expect(resp.status).toBe(status);
 		expect(await resp.json()).toEqual(body);
 	});
+
+	it("forwards Azure 200 identityDecision and select re-POST body (ambiguous IMDb/TMDB)", async () => {
+		const decision = {
+			identityDecision: {
+				target: "Film",
+				query: "Synthetic Film",
+				candidates: [{ key: "tmdb:42", title: "Synthetic Film", year: 2020, kind: "Film", source: "tmdb" }]
+			}
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(decision), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const probe = await appWithCurate().request(
+			filmPath,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ title: "Synthetic Film" }) },
+			testEnv()
+		);
+		expect(probe.status).toBe(200);
+		expect(await probe.json()).toEqual(decision);
+
+		fetchMock.mockResolvedValueOnce(
+			new Response(JSON.stringify({ filmId: episodeId, name: "Synthetic Film", failureIndexing: false }), { status: 202 })
+		);
+		const select = await appWithCurate().request(
+			filmPath,
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({
+					title: "Synthetic Film",
+					identityDecision: "select",
+					selectedIdentityKey: "tmdb:42"
+				})
+			},
+			testEnv()
+		);
+		expect(select.status).toBe(202);
+		const [, init] = fetchMock.mock.calls[1] as [URL | string, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual({
+			title: "Synthetic Film",
+			identityDecision: "select",
+			selectedIdentityKey: "tmdb:42"
+		});
+	});
 });
 
 describe("move episode to film route registration", () => {
