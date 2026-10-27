@@ -57,7 +57,7 @@ Azure / edge fetch — no `SCRAPE_DE` for meta. DE only for playback.
 
 | Technique | Services |
 |-----------|----------|
-| Azure prepare | Default (zdf, ard, netflix, …) |
+| Azure prepare | Default (zdf, ard, netflix, **abcIview**, …) |
 | CF GET → extract | tubi |
 | CF BitChute API → extract | bitchute |
 | Edge BR → extract | itvx |
