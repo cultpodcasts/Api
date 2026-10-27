@@ -512,6 +512,7 @@ export const podcastChangeRequestSchema = z.object({
 	removed: z.boolean().optional().nullable(),
 	indexAllEpisodes: z.boolean().optional().nullable(),
 	bypassShortEpisodeChecking: z.boolean().optional().nullable(),
+	alwaysPromoteAsHero: z.boolean().optional().nullable(),
 	releaseAuthority: serviceEnumSchema.optional().nullable(),
 	unsetReleaseAuthority: z.boolean().optional().nullable(),
 	primaryPostService: serviceEnumSchema.optional().nullable(),
@@ -702,6 +703,7 @@ export const podcastDtoSchema = z.object({
 	removed: z.boolean().optional().nullable(),
 	indexAllEpisodes: z.boolean().optional().nullable(),
 	bypassShortEpisodeChecking: z.boolean().optional().nullable(),
+	alwaysPromoteAsHero: z.boolean().optional().nullable(),
 	releaseAuthority: serviceEnumSchema.optional().nullable(),
 	unsetReleaseAuthority: z.boolean().optional().nullable(),
 	primaryPostService: serviceEnumSchema.optional().nullable(),
@@ -1443,6 +1445,64 @@ const publisherFieldsDtoExtras = z.object(publisherFieldsDtoShape).omit({ id: tr
 const playableFieldsDtoExtras = z.object(playableFieldsDtoShape).omit({ id: true, title: true }).shape;
 
 /**
+ * Podcast discovery flags a news organisation / TV show keeps under `indexing` (same wire names and rules as
+ * `podcastChangeRequestSchema`). Null/omitted = unchanged.
+ */
+const catalogueParentFlagsChangeShape = {
+	ignoreAllEpisodes: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("`true`: new items are stored ignored. `false` clears."),
+	bypassShortEpisodeChecking: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe(
+			"Skip the global short-episode check. New news organisations are created with it on; send `false` to turn it off."
+		),
+	alwaysPromoteAsHero: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe(
+			"New items from the last week are appended to the homepage hero list. New news organisations are created with it on; send `false` to turn it off."
+		),
+	skipEnrichingFromYouTube: z.boolean().optional().nullable(),
+	minimumDuration: z
+		.string()
+		.optional()
+		.nullable()
+		.describe('TimeSpan (e.g. `00:01:30`); shorter new items are dropped. `""` clears.'),
+	releaseAuthority: serviceEnumSchema.optional().nullable(),
+	unsetReleaseAuthority: z.boolean().optional().nullable().describe("`true` clears `releaseAuthority`."),
+	youTubePublicationDelay: z
+		.string()
+		.optional()
+		.nullable()
+		.describe('TimeSpan (may be negative, e.g. `-1:00:00`). `""` clears.')
+};
+
+/** The same flags as returned by GET (stored values; unset is off). Optional for rollout. */
+const catalogueParentFlagsDtoShape = {
+	ignoreAllEpisodes: z.boolean().optional().nullable(),
+	bypassShortEpisodeChecking: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("Stored value; new news organisations are created with it on. Unset is off."),
+	alwaysPromoteAsHero: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("Stored value; new news organisations are created with it on. Unset is off."),
+	skipEnrichingFromYouTube: z.boolean().optional().nullable(),
+	minimumDuration: z.string().optional().nullable(),
+	releaseAuthority: serviceEnumSchema.optional().nullable(),
+	youTubePublicationDelay: z.string().optional().describe('TimeSpan "g" format; `""` when unset.')
+};
+
+/**
  * Api.Dtos.ServiceIdsChangeRequest (RPP #1053): news organisation / TV show service ids, stored under the parent's
  * `indexing` block (RPP #1050). Wire names and rules match the podcast edit API. Null/omitted = unchanged.
  * URL submission matches a submitted episode's channel / show to the outlet or show on these ids.
@@ -1456,7 +1516,21 @@ const serviceIdsChangeShape = {
 		.describe("YouTube playlist id. Trimmed; whitespace clears; a replaced id is kept in `youTubePlaylistIdHistory`."),
 	spotifyId: z.string().optional().nullable().describe('Spotify show id. `""` clears.'),
 	appleId: z.number().int().optional().nullable().describe("Apple Podcasts id. Use `nullAppleId: true` to clear."),
-	nullAppleId: z.boolean().optional().nullable().describe("`true` clears `appleId` (wins over `appleId`).")
+	nullAppleId: z.boolean().optional().nullable().describe("`true` clears `appleId` (wins over `appleId`)."),
+	indexAllEpisodes: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("Auto-index every episode. `true` clears `episodeIncludeTitleRegex`."),
+	titleRegex: z.string().optional().nullable().describe('`""` clears.'),
+	descriptionRegex: z.string().optional().nullable().describe('`""` clears.'),
+	episodeMatchRegex: z.string().optional().nullable().describe('`""` clears.'),
+	episodeIncludeTitleRegex: z
+		.string()
+		.optional()
+		.nullable()
+		.describe('Auto-index only matching titles; a non-blank value sets `indexAllEpisodes` false. `""` clears.'),
+	...catalogueParentFlagsChangeShape
 };
 
 /** Api.Dtos.ServiceIdsDto: the same ids returned flat (empty / null when the parent has no `indexing`). Optional for rollout. */
@@ -1465,7 +1539,13 @@ const serviceIdsDtoShape = {
 	youTubePlaylistId: z.string().optional(),
 	youTubePlaylistIdHistory: z.array(z.object({ id: z.string(), replacedAt: z.string() })).optional().nullable(),
 	spotifyId: z.string().optional(),
-	appleId: z.number().int().optional().nullable()
+	appleId: z.number().int().optional().nullable(),
+	indexAllEpisodes: z.boolean().optional(),
+	titleRegex: z.string().optional(),
+	descriptionRegex: z.string().optional(),
+	episodeMatchRegex: z.string().optional(),
+	episodeIncludeTitleRegex: z.string().optional(),
+	...catalogueParentFlagsDtoShape
 };
 
 /** Api.Dtos.TvShowDto: publisher fields (RPP #1053) + canonical ids + service ids. */

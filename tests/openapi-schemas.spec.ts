@@ -35,6 +35,7 @@ import {
 	ogImageQuerySchema,
 	pageDetailsResponseSchema,
 	podcastChangeRequestSchema,
+	podcastDtoSchema,
 	podcastKindTransferRequestSchema,
 	podcastKindTransferResponseSchema,
 	podcastRenameRequestSchema,
@@ -1177,6 +1178,53 @@ describe("openapi Zod schemas", () => {
 		expect(() => tvShowEpisodeChangeRequestSchema.parse({ guests: "Synthetic" })).toThrow();
 		expect(() => filmChangeRequestSchema.parse({ explicit: "yes" })).toThrow();
 		expect(() => tvShowChangeRequestSchema.parse({ enrichmentHashTags: "#A" })).toThrow();
+	});
+
+	it("parses the podcast discovery flags on news organisation and TV show PATCH and GET with podcast wire names (synthetic)", () => {
+		const flags = {
+			indexAllEpisodes: false,
+			episodeIncludeTitleRegex: "Synthetic",
+			titleRegex: "",
+			ignoreAllEpisodes: true,
+			bypassShortEpisodeChecking: false,
+			alwaysPromoteAsHero: true,
+			skipEnrichingFromYouTube: false,
+			minimumDuration: "00:01:30",
+			releaseAuthority: "YouTube",
+			unsetReleaseAuthority: false,
+			youTubePublicationDelay: "-1:00:00"
+		};
+		expect(newsOrganisationChangeRequestSchema.parse(flags)).toEqual(flags);
+		expect(tvShowChangeRequestSchema.parse(flags)).toEqual(flags);
+		expect(() => newsOrganisationChangeRequestSchema.parse({ releaseAuthority: "Bbc" })).toThrow();
+		expect(() => tvShowChangeRequestSchema.parse({ alwaysPromoteAsHero: "yes" })).toThrow();
+		expect(filmChangeRequestSchema.parse({ alwaysPromoteAsHero: true })).not.toHaveProperty("alwaysPromoteAsHero");
+		const dto = {
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "",
+			description: "",
+			removed: false,
+			twitterHandle: "",
+			ignoreAllEpisodes: null,
+			bypassShortEpisodeChecking: true,
+			alwaysPromoteAsHero: true,
+			skipEnrichingFromYouTube: null,
+			minimumDuration: null,
+			releaseAuthority: null,
+			youTubePublicationDelay: "",
+			indexAllEpisodes: true,
+			episodeIncludeTitleRegex: ""
+		};
+		expect(newsOrganisationDtoSchema.parse(dto)).toMatchObject(dto);
+		expect(
+			tvShowDtoSchema.parse({ id: dto.id, name: "Synthetic Show", alwaysPromoteAsHero: true, youTubePublicationDelay: "-1:00:00" })
+		).toMatchObject({ alwaysPromoteAsHero: true, youTubePublicationDelay: "-1:00:00" });
+	});
+
+	it("parses alwaysPromoteAsHero on the podcast PATCH and GET schemas (synthetic)", () => {
+		expect(podcastChangeRequestSchema.parse({ alwaysPromoteAsHero: true })).toEqual({ alwaysPromoteAsHero: true });
+		expect(podcastDtoSchema.parse({ alwaysPromoteAsHero: false })).toEqual({ alwaysPromoteAsHero: false });
 	});
 
 	it("parses news organisation and TV show service ids (podcast wire names) in PATCH and GET, and keeps them off films (synthetic)", () => {

@@ -282,6 +282,7 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 		description:
 			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}`, " +
 			"plus `imdbId` / `tvdbId` / `tmdbId`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
+			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). TV shows have no flag defaults. " +
 			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
 			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
@@ -381,6 +382,7 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		description:
 			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
 			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
+			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). New news organisations are created with `bypassShortEpisodeChecking` and `alwaysPromoteAsHero` saved as `true`; there is no read-time default, so GET returns exactly what is stored. " +
 			"`removed` cascades like a podcast removal: each report's `parentRemoved` is set / cleared (its own `removed` is untouched) and on removal " +
 			"every report's search document is deleted; restored reports are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(newsOrganisationChangeRequestSchema) },
