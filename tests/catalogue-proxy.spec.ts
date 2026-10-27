@@ -372,6 +372,15 @@ describe("catalogue OpenAPI contracts", () => {
 		expect(request?.body?.content?.["application/json"]?.schema).toBe(tvShowEpisodeChangeRequestSchema);
 	});
 
+	it("documents the editable discovery flags and stored explicit false on PATCH /tvshow", () => {
+		const description = UpdateTvShowRoute.openApiSchema.description ?? "";
+		for (const field of ["bypassShortEpisodeChecking", "alwaysPromoteAsHero", "youTubePublicationDelay", "titleRegex"]) {
+			expect(description).toContain(field);
+		}
+		expect(description).toMatch(/explicit `false` is stored/);
+		expect(description).toMatch(/no flag defaults/);
+	});
+
 	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, the film stale-trailer 409, and no 409 on episode PATCH", () => {
 		const responses = UpdateTvShowRoute.openApiSchema.responses;
 		const conflict = responses?.[409] as { description?: string; content?: { "application/json"?: { schema?: unknown } } } | undefined;

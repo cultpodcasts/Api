@@ -314,6 +314,16 @@ describe("news curation OpenAPI contracts", () => {
 		expect(GetNewsReportRoute.openApiSchema.responses?.[409]).toBeUndefined();
 	});
 
+	it("documents the editable discovery flags, stored explicit false and the saved news defaults on the organisation PATCH", () => {
+		const description = UpdateNewsOrganisationRoute.openApiSchema.description ?? "";
+		for (const field of ["bypassShortEpisodeChecking", "alwaysPromoteAsHero", "ignoreAllEpisodes", "minimumDuration", "episodeIncludeTitleRegex"]) {
+			expect(description).toContain(field);
+		}
+		expect(description).toMatch(/explicit `false` is stored/);
+		expect(description).toMatch(/created with .* saved as `true`/);
+		expect(description).toMatch(/no read-time default/);
+	});
+
 	it("documents an empty 202 for the organisation PATCH and an outcome 202 for the report PATCH", () => {
 		expect(bodySchema(UpdateNewsOrganisationRoute)).toBe(newsOrganisationChangeRequestSchema);
 		expect(bodySchema(UpdateNewsReportRoute)).toBe(newsReportChangeRequestSchema);
