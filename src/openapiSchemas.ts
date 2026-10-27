@@ -1459,13 +1459,15 @@ const catalogueParentFlagsChangeShape = {
 		.optional()
 		.nullable()
 		.describe(
-			"Skip the global short-episode check. Unset defaults to on for a news organisation; send `false` to opt out."
+			"Skip the global short-episode check. New news organisations are created with it on; send `false` to turn it off."
 		),
 	alwaysPromoteAsHero: z
 		.boolean()
 		.optional()
 		.nullable()
-		.describe("New items from the last week are appended to the homepage hero list."),
+		.describe(
+			"New items from the last week are appended to the homepage hero list. New news organisations are created with it on; send `false` to turn it off."
+		),
 	skipEnrichingFromYouTube: z.boolean().optional().nullable(),
 	minimumDuration: z
 		.string()
@@ -1481,15 +1483,19 @@ const catalogueParentFlagsChangeShape = {
 		.describe('TimeSpan (may be negative, e.g. `-1:00:00`). `""` clears.')
 };
 
-/** The same flags as returned by GET (`bypassShortEpisodeChecking` is the effective value). Optional for rollout. */
+/** The same flags as returned by GET (stored values; unset is off). Optional for rollout. */
 const catalogueParentFlagsDtoShape = {
 	ignoreAllEpisodes: z.boolean().optional().nullable(),
 	bypassShortEpisodeChecking: z
 		.boolean()
 		.optional()
 		.nullable()
-		.describe("Effective value: `true` for a news organisation that has not set it."),
-	alwaysPromoteAsHero: z.boolean().optional().nullable(),
+		.describe("Stored value; new news organisations are created with it on. Unset is off."),
+	alwaysPromoteAsHero: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("Stored value; new news organisations are created with it on. Unset is off."),
 	skipEnrichingFromYouTube: z.boolean().optional().nullable(),
 	minimumDuration: z.string().optional().nullable(),
 	releaseAuthority: serviceEnumSchema.optional().nullable(),
