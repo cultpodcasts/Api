@@ -168,7 +168,8 @@ import {
 	catalogueIdentityLookupRequestSchema,
 	catalogueIdentityLookupResponseSchema,
 	catalogueIndexResponseSchema,
-	catalogueIndexRejectionSchema
+	catalogueIndexRejectionSchema,
+	catalogueIndexTimedOutSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -1495,6 +1496,10 @@ function catalogueIndexSchema(kind: string) {
                 ...contentJson(catalogueIndexRejectionSchema)
             },
             409: { description: "The identifier name is ambiguous (JSON array of guids)", ...contentJson(z.array(z.string().uuid())) },
+            504: {
+                description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
+                ...contentJson(catalogueIndexTimedOutSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses

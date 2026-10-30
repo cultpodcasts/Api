@@ -1037,6 +1037,15 @@ export const catalogueIndexRejectionSchema = z.object({
 	reason: z.enum(["NotAutoIndexed", "SourcePodcastStillExists"])
 });
 
+/**
+ * Api.Dtos.CatalogueIndexRejection with `reason: "TimedOut"`: 504 body when the on-demand time budget cut the index off
+ * (RPP #1157). Not a fault: what was saved is not known, and anything saved reaches search on the next pull-indexer run.
+ */
+export const catalogueIndexTimedOutSchema = z.object({
+	reason: z.literal("TimedOut"),
+	message: z.string().describe("Says the index ran out of time and to try again later; makes no claim about what was saved.")
+});
+
 /** Api.Dtos.IndexerStateDto */
 export const indexerStateDtoSchema = z.object({
 	state: z.string(),

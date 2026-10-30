@@ -4,7 +4,7 @@ vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
 import worker from "../src/index";
 import { indexNewsOrganisation, indexTvShow } from "../src/indexCatalogueParent";
 import { IndexNewsOrganisationRoute, IndexTvShowRoute } from "../src/openapiRoutes";
-import { catalogueIndexRejectionSchema, catalogueIndexResponseSchema } from "../src/openapiSchemas";
+import { catalogueIndexRejectionSchema, catalogueIndexResponseSchema, catalogueIndexTimedOutSchema } from "../src/openapiSchemas";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 import { testEnv as auth0TestEnv } from "./support/honoRoute";
 
@@ -13,6 +13,10 @@ const itemIds = ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bb
 const name = "Synthetic Drama & Co";
 const slashName = "Synthetic Desk 24/7";
 const okBody = { indexedItemIds: itemIds, searchIndexerState: "Executed" };
+const timedOutBody = {
+	reason: "TimedOut",
+	message: "Indexing ran out of time; anything it saved will reach search on the next pull-indexer run. Try again later."
+};
 
 const routes = [
 	["/newsorganisation/index/:identifier{.+}", "/newsorganisation/index/", indexNewsOrganisation, "/api/newsorganisation/index/"],
@@ -82,14 +86,15 @@ describe("catalogue parent index Azure proxies", () => {
 		expect(String(url)).toBe(`https://functions.example${azurePrefix}${encodeURIComponent(slashName)}`);
 	});
 
-	it.each(routes)("POST %s forwards 400 {reason}, 404, 409 (guid array) and 500 {error}, and maps other statuses to 500", async (route, prefix, handler) => {
+	it.each(routes)("POST %s forwards 400 {reason}, 404, 409 (guid array), 500 {error} and 504 {reason: TimedOut}, and maps other statuses to 500", async (route, prefix, handler) => {
 		const app = appWithPermissions(route, "post", handler, ["curate"]);
 		for (const [status, body] of [
 			[400, { reason: "NotAutoIndexed" }],
 			[400, { reason: "SourcePodcastStillExists" }],
 			[404, null],
 			[409, itemIds],
-			[500, { error: "Unable to index TV show" }]
+			[500, { error: "Unable to index TV show" }],
+			[504, timedOutBody]
 		] as const) {
 			stubFetch(status, body);
 			const resp = await app.request(`${prefix}${id}`, { method: "POST", headers: authJsonHeaders }, testEnv());
@@ -103,6 +108,13 @@ describe("catalogue parent index Azure proxies", () => {
 		const gateway = await app.request(`${prefix}${id}`, { method: "POST", headers: authJsonHeaders }, testEnv());
 		expect(gateway.status).toBe(500);
 		expect(await gateway.json()).toEqual({ error: "Error" });
+	});
+
+	it.each(routes)("POST %s advertises POST and OPTIONS only (no GET)", async (route, prefix, handler) => {
+		stubFetch(200, okBody);
+		const app = appWithPermissions(route, "post", handler, ["curate"]);
+		const resp = await app.request(`${prefix}${id}`, { method: "POST", headers: authJsonHeaders }, testEnv());
+		expect(resp.headers.get("Access-Control-Allow-Methods")).toBe("POST,OPTIONS");
 	});
 });
 
@@ -123,9 +135,11 @@ describe("catalogue parent index schemas and OpenAPI route contracts", () => {
 		expect(() => catalogueIndexResponseSchema.parse({ indexedItemIds: ["not-a-guid"], searchIndexerState: "Executed" })).toThrow();
 		expect(catalogueIndexRejectionSchema.parse({ reason: "NotAutoIndexed" })).toEqual({ reason: "NotAutoIndexed" });
 		expect(() => catalogueIndexRejectionSchema.parse({ reason: "Other" })).toThrow();
+		expect(catalogueIndexTimedOutSchema.parse(timedOutBody)).toEqual(timedOutBody);
+		expect(() => catalogueIndexTimedOutSchema.parse({ reason: "NotAutoIndexed", message: "x" })).toThrow();
 	});
 
-	it.each(routeClasses)("%s route is curate-only, has no request body, and documents 200, 400, 404 and 409", (_prefix, Route) => {
+	it.each(routeClasses)("%s route is curate-only, has no request body, and documents 200, 400, 404, 409 and 504", (_prefix, Route) => {
 		expect(Route.requiresAuth).toBe(true);
 		const schema = Route.openApiSchema;
 		expect(schema.security).toEqual([{ bearerAuth: [] }]);
@@ -139,6 +153,8 @@ describe("catalogue parent index schemas and OpenAPI route contracts", () => {
 		for (const status of [404, 409]) {
 			expect(schema.responses?.[status]).toBeDefined();
 		}
+		const timedOut = schema.responses?.[504] as { content?: { "application/json"?: { schema?: unknown } } } | undefined;
+		expect(timedOut?.content?.["application/json"]?.schema).toBe(catalogueIndexTimedOutSchema);
 	});
 
 	it.each(routeClasses)("the deployed Worker app routes POST %s{identifier} (401 without a token, not 404)", async (prefix) => {
