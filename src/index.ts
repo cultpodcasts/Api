@@ -42,6 +42,8 @@ import {
 	HomepageSsrRoute,
 	SearchSuggestionsRoute,
 	IndexPodcastByNameRoute,
+	IndexNewsOrganisationRoute,
+	IndexTvShowRoute,
 	PublicGetEpisodeRoute,
 	PublishHomepageRoute,
 	PublishPodcastEpisodeRoute,
@@ -407,6 +409,8 @@ openapi.patch('/newsorganisation/:id', UpdateNewsOrganisationRoute);
 openapi.post('/newsorganisation/name/:identifier{.+}', RenameNewsOrganisationRoute);
 openapi.post('/tvshow/name/:identifier{.+}', RenameTvShowRoute);
 openapi.post('/film/name/:identifier{.+}', RenameFilmRoute);
+openapi.post('/newsorganisation/index/:identifier{.+}', IndexNewsOrganisationRoute);
+openapi.post('/tvshow/index/:identifier{.+}', IndexTvShowRoute);
 openapi.get('/newsreport/:id', GetNewsReportRoute);
 openapi.patch('/newsreport/:id', UpdateNewsReportRoute);
 openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);

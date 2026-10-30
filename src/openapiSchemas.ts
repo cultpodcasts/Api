@@ -1026,6 +1026,17 @@ export const indexPodcastResponseSchema = z.object({
 	searchIndexerState: searchIndexerStateSchema.optional()
 });
 
+/** Api.Dtos.CatalogueIndexResponse: the command outcome of a TV show / news organisation index (RPP). */
+export const catalogueIndexResponseSchema = z.object({
+	indexedItemIds: z.array(z.string().uuid()).describe("TV episodes / news reports the index saved (new, merged, or removed by elimination terms)."),
+	searchIndexerState: searchIndexerStateSchema
+});
+
+/** Api.Dtos.CatalogueIndexRejection: 400 body when the index was refused. */
+export const catalogueIndexRejectionSchema = z.object({
+	reason: z.enum(["NotAutoIndexed", "SourcePodcastStillExists"])
+});
+
 /** Api.Dtos.IndexerStateDto */
 export const indexerStateDtoSchema = z.object({
 	state: z.string(),

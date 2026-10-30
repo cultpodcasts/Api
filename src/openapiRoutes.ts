@@ -78,6 +78,7 @@ import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { searchSuggestions } from "./searchSuggestions";
 import { indexPodcastByName } from "./indexPodcastByName";
+import { indexNewsOrganisation, indexTvShow } from "./indexCatalogueParent";
 import {
 	bookmarksListResponseSchema,
 	discoveryCurationResponseSchema,
@@ -165,7 +166,9 @@ import {
 	discoverySubmitOutcomeResponseSchema,
 	discoverySessionSnapshotSchema,
 	catalogueIdentityLookupRequestSchema,
-	catalogueIdentityLookupResponseSchema
+	catalogueIdentityLookupResponseSchema,
+	catalogueIndexResponseSchema,
+	catalogueIndexRejectionSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishPodcastEpisode } from "./publish";
@@ -1474,6 +1477,40 @@ function catalogueRenameSchema(tag: string, kind: string, root: string, children
         }
     };
 }
+
+function catalogueIndexSchema(kind: string) {
+    return {
+        tags: ["Catalogue"],
+        summary: `Index ${kind} now`,
+        description:
+            `Curate only, like \`POST /podcast/index/:name\`. \`identifier\` is the ${kind} guid or its route-form name ` +
+            `(may contain \`/\`, percent-encoded \`%2F\`; the Worker matches with \`:identifier{.+}\`). No request body. ` +
+            `Runs the hourly indexer's pass for this one ${kind} and pushes what it saved to search. Allowed at any time. ` +
+            `Command outcome, not the read model: re-read the hub page after.`,
+        request: { params: identifierParam },
+        responses: {
+            200: { description: `${kind[0].toUpperCase()}${kind.slice(1)} indexed`, ...contentJson(catalogueIndexResponseSchema) },
+            400: {
+                description: "Not indexable: removed or not auto-indexed (`NotAutoIndexed`), or the podcast it was migrated from still exists (`SourcePodcastStillExists`)",
+                ...contentJson(catalogueIndexRejectionSchema)
+            },
+            409: { description: "The identifier name is ambiguous (JSON array of guids)", ...contentJson(z.array(z.string().uuid())) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    };
+}
+
+export const IndexTvShowRoute = createOpenApiRoute(indexTvShow, {
+    auth: curateAuth,
+    schema: catalogueIndexSchema("TV show")
+});
+
+export const IndexNewsOrganisationRoute = createOpenApiRoute(indexNewsOrganisation, {
+    auth: curateAuth,
+    schema: catalogueIndexSchema("news organisation")
+});
 
 export const RenameNewsOrganisationRoute = createOpenApiRoute(renameNewsOrganisation, {
     auth: adminAuth,
