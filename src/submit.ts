@@ -67,10 +67,14 @@ export async function submit(c: Auth0ActionContext): Promise<Response> {
 		if (urlParam && c.env.StreamMeta) {
 			try {
 				const cached = await getStreamMeta(c.env.StreamMeta, new URL(urlParam).toString());
-				if (cached) {
+				if (cached && typeof cached.madeAsFilm === "boolean") {
 					azureBody = { ...data, prefetchedMeta: toPrefetchedMeta(cached) };
 					injectedPrefetchedMeta = true;
 					logCollector.addMessage("submit.prefetched_meta injected from StreamMeta KV");
+				} else if (cached) {
+					// Flagless entry (Azure without madeAsFilm, or a pre-RPP deploy): injecting it would
+					// bind MadeAsFilm=false and file a film as a podcast episode. Treat as a miss.
+					logCollector.addMessage("submit.prefetched_meta stale (no madeAsFilm)");
 				} else {
 					logCollector.addMessage("submit.prefetched_meta miss");
 				}

@@ -525,6 +525,32 @@ describe("submit prefetchedMeta madeAsFilm", () => {
 		});
 	});
 
+	it("treats a v2 entry without a boolean madeAsFilm as a cache miss and lets Azure fetch the page", async () => {
+		const get = vi.fn(async () => ({
+			service: "abcIview",
+			podcastName: null,
+			title: "Synthetic Film",
+			description: "Synthetic description"
+		}));
+		const env = testEnv({
+			StreamMeta: { get, put: vi.fn() } as unknown as KVNamespace
+		});
+		const bodies: Array<Record<string, unknown>> = [];
+		vi.stubGlobal("fetch", captureAzureBody(bodies));
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+
+		const resp = await app.request(
+			"/submit",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ url }) },
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(get).toHaveBeenCalledWith(streamMetaKvKey(url), "json");
+		expect(bodies).toHaveLength(1);
+		expect(bodies[0]).not.toHaveProperty("prefetchedMeta");
+	});
+
 	it("strips a client-supplied prefetchedMeta.madeAsFilm when nothing is cached", async () => {
 		const env = testEnv({
 			StreamMeta: { get: vi.fn(async () => null), put: vi.fn() } as unknown as KVNamespace

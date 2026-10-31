@@ -923,7 +923,8 @@ describe("submit prefetchedMeta inject", () => {
 			service: "itvx",
 			podcastName: "Show",
 			title: "Ep",
-			description: "D"
+			description: "D",
+			madeAsFilm: false
 		};
 		const env = testEnv({
 			StreamMeta: {
@@ -935,7 +936,7 @@ describe("submit prefetchedMeta inject", () => {
 			async (_input: RequestInfo | URL, init?: RequestInit) => {
 				const body = JSON.parse(String(init?.body ?? "{}"));
 				// Wire shape after JSON.stringify drops undefined optional keys.
-				expect(body.prefetchedMeta).toEqual({ title: "Ep", description: "D" });
+				expect(body.prefetchedMeta).toEqual({ title: "Ep", description: "D", madeAsFilm: false });
 				expect(body.prefetchedMeta.title).not.toBe("evil");
 				expect(body.prefetchedMeta.description).not.toBe("no");
 				return new Response(JSON.stringify({ success: true }), { status: 200 });
