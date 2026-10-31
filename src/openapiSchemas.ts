@@ -16,10 +16,23 @@ export const errorSchema = z.object({
 });
 
 /**
- * ISO-8601 instant. Accepts `Z` and a numeric offset (`+00:00`).
- * OpenAPI format is `date-time`.
+ * ISO-8601 UTC instant ending in `Z` (e.g. `2026-10-08T21:30:00Z`).
+ * Documented contract: the API emits only `Z` (zone-less and offset forms such as `+00:00` / `+01:00` do not match).
+ * Enforced at runtime only where a handler `safeParse`s a request (hero-curation `expectedUpdatedAt`); everywhere else
+ * this documents values proxied from RPP. OpenAPI: `format: date-time`, `pattern: Z$` and a `Z` example.
  */
-const isoDateTime = z.string().datetime({ offset: true });
+const isoDateTime = z.string().datetime().meta({ example: "2026-10-08T21:30:00Z", pattern: "Z$" });
+
+/**
+ * EXCEPTION to UTC-only: ISO-8601 local date-time WITH its numeric offset, matching RPP's
+ * `LocalOffsetDateTimeOffsetConverter`: `+01:00` in BST and `+00:00` in GMT, never `Z`.
+ * Only for the discovery schedule's `slotStartUk`. Curators set discovery run times in their own local time,
+ * and the UTC instant of a local run time moves when the clocks change, so the API keeps the local offset.
+ * OpenAPI: `format: date-time`, an offset `pattern` and a `+01:00` example; the field description lives on `slotStartUk`.
+ */
+const localOffsetDateTime = z.string().datetime({ offset: true })
+	.refine((value) => !/z$/i.test(value), { message: "Expected a numeric UTC offset (e.g. +01:00 or +00:00), not Z." })
+	.meta({ example: "2026-10-08T22:30:00+01:00", pattern: "[+-]\\d{2}:\\d{2}$" });
 
 /** Simple `{ message }` success/error bodies (bookmarks, etc.). */
 export const messageResponseSchema = z.object({
@@ -156,8 +169,10 @@ export const discoveryScheduleResponseSchema = z.object({
 	isDefault: z.boolean(),
 	nextRuns: z.array(z.object({
 		slotId: z.string().describe("Display label such as `2026-10-08 22:30 UK`. Not an ISO-8601 timestamp."),
-		slotStartUtc: isoDateTime,
-		slotStartUk: isoDateTime
+		slotStartUtc: isoDateTime.describe("Slot start as a UTC instant ending in `Z`."),
+		slotStartUk: localOffsetDateTime.describe(
+			"Same slot start as UK local wall-clock time with its UK offset (`+01:00` BST, `+00:00` GMT). Exception to UTC-only: run times are set in local time and move against UTC with daylight saving."
+		)
 	}))
 });
 
@@ -222,7 +237,7 @@ export const heroCurationUpdateRequestSchema = z.object({
 		"Ordered homepage rails. Each entry is a subject name or a relative day slot (day:0 is newest). Omit to leave the stored rails unchanged. Subject names are capped at 12. Day slots are kept."
 	),
 	expectedUpdatedAt: isoDateTime.optional().nullable().describe(
-		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 with offset). A non-null value that does not equal updatedAt is 409 with an empty body. Omit this field or send null to write without compare-and-swap."
+		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 UTC ending in `Z`). A non-null value that does not equal updatedAt is 409 with an empty body. Omit this field or send null to write without compare-and-swap."
 	)
 });
 

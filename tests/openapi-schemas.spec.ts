@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	bookmarksListResponseSchema,
+	discoveryAwaitingReviewSchema,
+	discoverySubmissionSummarySchema,
+	searchSuggestionsResponseSchema,
 	discoveryCurationResponseSchema,
 	discoverySubmissionHeldResponseSchema,
 	discoverySubmissionListResponseSchema,
@@ -349,16 +352,18 @@ describe("openapi Zod schemas", () => {
 			isDefault: false,
 			nextRuns: [{
 				slotId: "2026-10-08 22:30 UK",
-				slotStartUtc: "2026-10-08T21:30:00+00:00",
+				slotStartUtc: "2026-10-08T21:30:00Z",
 				slotStartUk: "2026-10-08T22:30:00+01:00"
 			}, {
-				slotId: "slot-z",
-				slotStartUtc: "2026-07-23T08:00:00Z",
-				slotStartUk: "2026-07-23T09:00:00.000Z"
+				slotId: "2026-12-08 22:30 UK",
+				slotStartUtc: "2026-12-08T22:30:00Z",
+				slotStartUk: "2026-12-08T22:30:00+00:00"
 			}]
 		});
 		expect(parsed.nextRuns).toHaveLength(2);
+		expect(parsed.nextRuns[1].slotStartUk).toBe("2026-12-08T22:30:00+00:00");
 		expect(parsed.nextRuns[0].slotId).toBe("2026-10-08 22:30 UK");
+		expect(parsed.nextRuns[0].slotStartUk).toBe("2026-10-08T22:30:00+01:00");
 		expect(() => discoveryScheduleResponseSchema.parse({
 			runTimes: ["09:00"],
 			timeZoneId: "Europe/London",
@@ -370,6 +375,63 @@ describe("openapi Zod schemas", () => {
 				slotStartUk: "2026-10-08T22:30:00+01:00"
 			}]
 		})).toThrow();
+	});
+
+	it("requires slotStartUtc in UTC with Z and lets only slotStartUk keep a local offset", () => {
+		const schedule = (slotStartUtc: string, slotStartUk: string) => ({
+			runTimes: ["22:30"],
+			timeZoneId: "Europe/London",
+			enabled: true,
+			isDefault: false,
+			nextRuns: [{ slotId: "2026-10-08 22:30 UK", slotStartUtc, slotStartUk }]
+		});
+		expect(() => discoveryScheduleResponseSchema.parse(schedule("2026-10-08T21:30:00+00:00", "2026-10-08T22:30:00+01:00"))).toThrow();
+		expect(() => discoveryScheduleResponseSchema.parse(schedule("2026-10-08T22:30:00+01:00", "2026-10-08T22:30:00+01:00"))).toThrow();
+		expect(() => discoveryScheduleResponseSchema.parse(schedule("2026-10-08T21:30:00", "2026-10-08T22:30:00+01:00"))).toThrow();
+		expect(() => discoveryScheduleResponseSchema.parse(schedule("2026-10-08T21:30:00Z", "2026-10-08T22:30:00"))).toThrow();
+		expect(discoveryScheduleResponseSchema.parse(schedule("2026-10-08T21:30:00.1234567Z", "2026-10-08T22:30:00.1234567+01:00")).nextRuns[0].slotStartUtc)
+			.toBe("2026-10-08T21:30:00.1234567Z");
+	});
+
+	it("rejects Z for slotStartUk, because RPP writes the UK offset (+00:00 in GMT, +01:00 in BST) and never Z", () => {
+		const schedule = (slotStartUk: string) => ({
+			runTimes: ["09:00"],
+			timeZoneId: "Europe/London",
+			enabled: true,
+			isDefault: false,
+			nextRuns: [{ slotId: "slot-z", slotStartUtc: "2026-07-23T08:00:00Z", slotStartUk }]
+		});
+		expect(discoveryScheduleResponseSchema.safeParse(schedule("2026-07-23T09:00:00.000Z")).success).toBe(false);
+		expect(discoveryScheduleResponseSchema.safeParse(schedule("2026-07-23T09:00:00z")).success).toBe(false);
+		expect(discoveryScheduleResponseSchema.safeParse(schedule("2026-07-23T09:00:00.000+01:00")).success).toBe(true);
+		expect(discoveryScheduleResponseSchema.safeParse(schedule("2026-12-01T08:00:00+00:00")).success).toBe(true);
+	});
+
+	describe.each([
+		["episodeDtoSchema.release", episodeDtoSchema.shape.release],
+		["discoverySubmissionSummarySchema.submittedAt", discoverySubmissionSummarySchema.shape.submittedAt],
+		["discoverySubmissionSummarySchema.appliedAt", discoverySubmissionSummarySchema.shape.appliedAt],
+		["discoveryAwaitingReviewSchema.discoveryBegan", discoveryAwaitingReviewSchema.shape.discoveryBegan],
+		["searchSuggestionsResponseSchema.generatedAtUtc", searchSuggestionsResponseSchema.shape.generatedAtUtc]
+	])("proxied RPP date-time %s", (_name, field) => {
+		it("accepts a UTC instant ending in Z", () => {
+			expect(field.safeParse("2026-10-08T21:30:00Z").success).toBe(true);
+			expect(field.safeParse("2026-10-08T21:30:00.1234567Z").success).toBe(true);
+		});
+
+		it.each(["2026-10-08T21:30:00+00:00", "2026-10-08T22:30:00+01:00", "2026-10-08T21:30:00"])("rejects %s", (value) => {
+			expect(field.safeParse(value).success).toBe(false);
+		});
+	});
+
+	it("accepts only UTC Z instants for other API date-times", () => {
+		expect(heroCurationResponseSchema.parse({ episodeIds: [], railSubjects: [], updatedAt: "2026-10-08T21:30:00.123Z" }).updatedAt)
+			.toBe("2026-10-08T21:30:00.123Z");
+		expect(() => heroCurationResponseSchema.parse({ episodeIds: [], railSubjects: [], updatedAt: "2026-10-08T22:30:00+01:00" })).toThrow();
+		expect(() => heroCurationResponseSchema.parse({ episodeIds: [], railSubjects: [], updatedAt: "2026-10-08T21:30:00+00:00" })).toThrow();
+		expect(() => heroCurationResponseSchema.parse({ episodeIds: [], railSubjects: [], updatedAt: "2026-10-08T21:30:00" })).toThrow();
+		expect(heroCurationUpdateRequestSchema.safeParse({ railSubjects: [], expectedUpdatedAt: "2026-10-08T21:30:00Z" }).success).toBe(true);
+		expect(heroCurationUpdateRequestSchema.safeParse({ railSubjects: [], expectedUpdatedAt: "2026-10-08T21:30:00+00:00" }).success).toBe(false);
 	});
 
 	it("accepts hero curation update request and response", () => {

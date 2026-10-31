@@ -79,6 +79,11 @@ describe("OpenAPI auth and response contracts", () => {
 		const schema = JSON.stringify(schedule.responses?.["200"]?.content?.["application/json"]);
 		expect(schema).toMatch(/"slotStartUtc"[\s\S]*?"format":"date-time"/);
 		expect(schema).toMatch(/"slotStartUk"[\s\S]*?"format":"date-time"/);
+		expect(schema).toMatch(/"slotStartUtc"[\s\S]*?"example":"2026-10-08T21:30:00Z"/);
+		expect(schema).toMatch(/"slotStartUtc"[\s\S]*?"pattern":"Z\$"/);
+		expect(schema).toMatch(/"slotStartUk"[\s\S]*?"example":"2026-10-08T22:30:00\+01:00"/);
+		expect(schema).toMatch(/"slotStartUk":\{[^}]*"pattern":"\[\+-\]\\\\d\{2\}:\\\\d\{2\}\$"/);
+		expect(schema).toMatch(/"slotStartUk"[\s\S]*?"description":"Same slot start as UK local wall-clock time/);
 		expect(schema).not.toMatch(/"slotId"[\s\S]{0,80}"format":"date-time"/);
 		expect(schema).not.toMatch(/"runTimes"[\s\S]{0,120}"format":"date-time"/);
 	});
