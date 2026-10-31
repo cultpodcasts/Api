@@ -41,6 +41,7 @@ type AzurePrepareBody = {
 	explicit?: boolean | null;
 	publisher?: string | null;
 	showName?: string | null;
+	madeAsFilm?: boolean | null;
 };
 
 function submitPath(env: Auth0ActionContext["env"], suffix: "prepare" | "extract"): URL {
@@ -431,7 +432,8 @@ export async function submitPrepare(c: Auth0ActionContext): Promise<Response> {
 		image: azureMeta.image,
 		explicit: azureMeta.explicit,
 		publisher: azureMeta.publisher,
-		showName: azureMeta.showName
+		showName: azureMeta.showName,
+		madeAsFilm: azureMeta.madeAsFilm
 	};
 	try {
 		await putStreamMeta(c.env.StreamMeta, absoluteUrl, cacheEntry);

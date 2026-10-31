@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { submitPrepare } from "../src/submitPrepare";
 import { submit } from "../src/submit";
-import { streamMetaKvKey } from "../src/submitPrepareMeta";
+import { STREAM_META_KV_PREFIX, streamMetaKvKey } from "../src/submitPrepareMeta";
 import {
 	appWithAuthPayload,
 	appWithPermissions,
@@ -923,7 +923,8 @@ describe("submit prefetchedMeta inject", () => {
 			service: "itvx",
 			podcastName: "Show",
 			title: "Ep",
-			description: "D"
+			description: "D",
+			madeAsFilm: false
 		};
 		const env = testEnv({
 			StreamMeta: {
@@ -935,7 +936,7 @@ describe("submit prefetchedMeta inject", () => {
 			async (_input: RequestInfo | URL, init?: RequestInit) => {
 				const body = JSON.parse(String(init?.body ?? "{}"));
 				// Wire shape after JSON.stringify drops undefined optional keys.
-				expect(body.prefetchedMeta).toEqual({ title: "Ep", description: "D" });
+				expect(body.prefetchedMeta).toEqual({ title: "Ep", description: "D", madeAsFilm: false });
 				expect(body.prefetchedMeta.title).not.toBe("evil");
 				expect(body.prefetchedMeta.description).not.toBe("no");
 				return new Response(JSON.stringify({ success: true }), { status: 200 });
@@ -958,5 +959,142 @@ describe("submit prefetchedMeta inject", () => {
 		);
 		expect(resp.status).toBe(200);
 		expect(fetchMock).toHaveBeenCalled();
+	});
+});
+
+/** In-memory StreamMeta KV so prepare → submit exercises the real JSON cache round-trip. */
+function memoryStreamMeta(seed: Record<string, string> = {}) {
+	const store = new Map<string, string>(Object.entries(seed));
+	const kv = {
+		get: vi.fn(async (key: string, type?: string) => {
+			const raw = store.get(key);
+			if (raw === undefined) {
+				return null;
+			}
+			return type === "json" ? JSON.parse(raw) : raw;
+		}),
+		put: vi.fn(async (key: string, value: string) => {
+			store.set(key, value);
+		})
+	};
+	return { store, kv: kv as unknown as KVNamespace, mocks: kv };
+}
+
+describe("StreamMeta madeAsFilm (prepare cache → submit)", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	const filmUrl = "https://gem.cbc.ca/synthetic-film-slug";
+
+	function azureFetch(prepareBody: Record<string, unknown>, submitBodies: unknown[]) {
+		return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const u = String(input);
+			if (u.includes("/prepare")) {
+				return new Response(JSON.stringify(prepareBody), { status: 200 });
+			}
+			if (u.includes("SubmitUrl") && init?.method === "POST") {
+				submitBodies.push(JSON.parse(String(init.body ?? "{}")));
+				return new Response(JSON.stringify({ success: true }), { status: 200 });
+			}
+			if (u.includes("SubmitUrl")) {
+				return new Response(
+					JSON.stringify({ known: false, kind: "streaming", service: "cbcGem" }),
+					{ status: 200 }
+				);
+			}
+			return new Response("unexpected", { status: 500 });
+		});
+	}
+
+	async function prepareThenSubmit(prepareBody: Record<string, unknown>) {
+		const { store, kv } = memoryStreamMeta();
+		const env = testEnv({ browserRenderingServices: "", StreamMeta: kv });
+		const submitBodies: Array<{ prefetchedMeta?: Record<string, unknown> }> = [];
+		vi.stubGlobal("fetch", azureFetch(prepareBody, submitBodies));
+
+		const prepareApp = appWithPermissions("/submit/prepare", "post", submitPrepare, ["submit"]);
+		const prepareResp = await prepareApp.request(
+			"/submit/prepare",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ url: filmUrl }) },
+			env
+		);
+		const submitApp = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const submitResp = await submitApp.request(
+			"/submit",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ url: filmUrl }) },
+			env
+		);
+		return { prepareResp, submitResp, store, submitBodies };
+	}
+
+	it("caches madeAsFilm=true from Azure prepare under the v2 key and injects it into the Azure submit body", async () => {
+		const { prepareResp, submitResp, store, submitBodies } = await prepareThenSubmit({
+			service: "cbcGem",
+			podcastName: null,
+			title: "Synthetic Film",
+			description: "Synthetic description",
+			duration: "00:43:00",
+			madeAsFilm: true
+		});
+
+		expect(prepareResp.status).toBe(200);
+		const key = streamMetaKvKey(filmUrl);
+		expect(key.startsWith("stream-meta:v2:")).toBe(true);
+		expect(JSON.parse(store.get(key) ?? "{}")).toMatchObject({
+			service: "cbcGem",
+			title: "Synthetic Film",
+			madeAsFilm: true
+		});
+		expect(submitResp.status).toBe(200);
+		expect(submitBodies).toHaveLength(1);
+		expect(submitBodies[0]?.prefetchedMeta).toEqual({
+			title: "Synthetic Film",
+			description: "Synthetic description",
+			duration: "00:43:00",
+			madeAsFilm: true
+		});
+	});
+
+	it("keeps a TV episode as showName + madeAsFilm=false through the cache into the Azure submit body", async () => {
+		const { submitResp, submitBodies } = await prepareThenSubmit({
+			service: "cbcGem",
+			podcastName: "Synthetic Show",
+			title: "Synthetic Episode",
+			description: "Synthetic description",
+			showName: "Synthetic Show",
+			madeAsFilm: false
+		});
+
+		expect(submitResp.status).toBe(200);
+		expect(submitBodies[0]?.prefetchedMeta).toMatchObject({
+			title: "Synthetic Episode",
+			showName: "Synthetic Show",
+			madeAsFilm: false
+		});
+	});
+
+	it("does not reuse a v1 StreamMeta entry (no madeAsFilm) on submit", async () => {
+		const v1Key = `stream-meta:v1:${filmUrl}`;
+		const { kv, mocks } = memoryStreamMeta({
+			[v1Key]: JSON.stringify({ service: "cbcGem", title: "Old", description: "Old" })
+		});
+		const env = testEnv({ StreamMeta: kv });
+		const submitBodies: Array<{ prefetchedMeta?: unknown }> = [];
+		vi.stubGlobal("fetch", azureFetch({}, submitBodies));
+
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+		const resp = await app.request(
+			"/submit",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ url: filmUrl }) },
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(STREAM_META_KV_PREFIX).toBe("stream-meta:v2:");
+		expect(mocks.get).toHaveBeenCalledWith(streamMetaKvKey(filmUrl), "json");
+		expect(mocks.get).not.toHaveBeenCalledWith(v1Key, expect.anything());
+		expect(submitBodies[0]).not.toHaveProperty("prefetchedMeta");
 	});
 });
