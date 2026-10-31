@@ -16,10 +16,20 @@ export const errorSchema = z.object({
 });
 
 /**
- * ISO-8601 instant. Accepts `Z` and a numeric offset (`+00:00`).
+ * ISO-8601 UTC instant ending in `Z` (e.g. `2026-10-08T21:30:00Z`). The API always emits UTC;
+ * zone-less and offset forms (`+00:00`, `+01:00`) are rejected. OpenAPI format is `date-time`.
+ */
+const isoDateTime = z.string().datetime();
+
+/**
+ * EXCEPTION to UTC-only: ISO-8601 local date-time WITH its numeric offset (`+01:00` in BST, `+00:00` in GMT).
+ * Only for the discovery schedule's `slotStartUk`. Curators set discovery run times in their own local time,
+ * and the UTC instant of a local run time moves when the clocks change, so the API keeps the local offset.
  * OpenAPI format is `date-time`.
  */
-const isoDateTime = z.string().datetime({ offset: true });
+const localOffsetDateTime = z.string().datetime({ offset: true }).describe(
+	"ISO-8601 local date-time with its UTC offset (discovery schedule only)."
+);
 
 /** Simple `{ message }` success/error bodies (bookmarks, etc.). */
 export const messageResponseSchema = z.object({
@@ -156,8 +166,10 @@ export const discoveryScheduleResponseSchema = z.object({
 	isDefault: z.boolean(),
 	nextRuns: z.array(z.object({
 		slotId: z.string().describe("Display label such as `2026-10-08 22:30 UK`. Not an ISO-8601 timestamp."),
-		slotStartUtc: isoDateTime,
-		slotStartUk: isoDateTime
+		slotStartUtc: isoDateTime.describe("Slot start as a UTC instant ending in `Z`."),
+		slotStartUk: localOffsetDateTime.describe(
+			"Same slot start as UK local wall-clock time with its UK offset (`+01:00` BST, `+00:00` GMT). Exception to UTC-only: run times are set in local time and move against UTC with daylight saving."
+		)
 	}))
 });
 
@@ -222,7 +234,7 @@ export const heroCurationUpdateRequestSchema = z.object({
 		"Ordered homepage rails. Each entry is a subject name or a relative day slot (day:0 is newest). Omit to leave the stored rails unchanged. Subject names are capped at 12. Day slots are kept."
 	),
 	expectedUpdatedAt: isoDateTime.optional().nullable().describe(
-		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 with offset). A non-null value that does not equal updatedAt is 409 with an empty body. Omit this field or send null to write without compare-and-swap."
+		"Compare-and-swap token from GET /hero-curation updatedAt (ISO-8601 UTC ending in `Z`). A non-null value that does not equal updatedAt is 409 with an empty body. Omit this field or send null to write without compare-and-swap."
 	)
 });
 
