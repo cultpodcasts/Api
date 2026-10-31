@@ -16,20 +16,23 @@ export const errorSchema = z.object({
 });
 
 /**
- * ISO-8601 UTC instant ending in `Z` (e.g. `2026-10-08T21:30:00Z`). The API always emits UTC;
- * zone-less and offset forms (`+00:00`, `+01:00`) are rejected. OpenAPI format is `date-time`.
+ * ISO-8601 UTC instant ending in `Z` (e.g. `2026-10-08T21:30:00Z`).
+ * Documented contract: the API emits only `Z` (zone-less and offset forms such as `+00:00` / `+01:00` do not match).
+ * Enforced at runtime only where a handler `safeParse`s a request (hero-curation `expectedUpdatedAt`); everywhere else
+ * this documents values proxied from RPP. OpenAPI: `format: date-time`, `pattern: Z$` and a `Z` example.
  */
-const isoDateTime = z.string().datetime();
+const isoDateTime = z.string().datetime().meta({ example: "2026-10-08T21:30:00Z", pattern: "Z$" });
 
 /**
- * EXCEPTION to UTC-only: ISO-8601 local date-time WITH its numeric offset (`+01:00` in BST, `+00:00` in GMT).
+ * EXCEPTION to UTC-only: ISO-8601 local date-time WITH its numeric offset, matching RPP's
+ * `LocalOffsetDateTimeOffsetConverter`: `+01:00` in BST and `+00:00` in GMT, never `Z`.
  * Only for the discovery schedule's `slotStartUk`. Curators set discovery run times in their own local time,
  * and the UTC instant of a local run time moves when the clocks change, so the API keeps the local offset.
- * OpenAPI format is `date-time`.
+ * OpenAPI: `format: date-time`, an offset `pattern` and a `+01:00` example; the field description lives on `slotStartUk`.
  */
-const localOffsetDateTime = z.string().datetime({ offset: true }).describe(
-	"ISO-8601 local date-time with its UTC offset (discovery schedule only)."
-);
+const localOffsetDateTime = z.string().datetime({ offset: true })
+	.refine((value) => !/z$/i.test(value), { message: "Expected a numeric UTC offset (e.g. +01:00 or +00:00), not Z." })
+	.meta({ example: "2026-10-08T22:30:00+01:00", pattern: "[+-]\\d{2}:\\d{2}$" });
 
 /** Simple `{ message }` success/error bodies (bookmarks, etc.). */
 export const messageResponseSchema = z.object({
