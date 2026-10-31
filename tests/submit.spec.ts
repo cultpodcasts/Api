@@ -3,6 +3,7 @@ import type { Auth0JwtPayload } from "../src/Auth0JwtPayload";
 import { Endpoint } from "../src/Endpoint";
 import { getEndpoint } from "../src/endpoints";
 import { submit } from "../src/submit";
+import { streamMetaKvKey } from "../src/submitPrepareMeta";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
 const submissionsCreate = vi.hoisted(() => vi.fn());
@@ -476,5 +477,76 @@ describe("submit", () => {
 		expect(resp.status).toBe(200);
 		expect(resp.headers.get("X-Origin")).toBe("true");
 		expect(submissionsCreate).not.toHaveBeenCalled();
+	});
+});
+
+describe("submit prefetchedMeta madeAsFilm", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	const url = "https://iview.abc.net.au/video/SYNTHETIC0001";
+
+	function captureAzureBody(bodies: Array<Record<string, unknown>>) {
+		return vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+			bodies.push(JSON.parse(String(init?.body ?? "{}")));
+			return new Response(JSON.stringify({ success: true }), { status: 200 });
+		});
+	}
+
+	it("injects a cached film's madeAsFilm=true into the Azure submit body", async () => {
+		const get = vi.fn(async () => ({
+			service: "abcIview",
+			podcastName: null,
+			title: "Synthetic Film",
+			description: "Synthetic description",
+			madeAsFilm: true
+		}));
+		const env = testEnv({
+			StreamMeta: { get, put: vi.fn() } as unknown as KVNamespace
+		});
+		const bodies: Array<Record<string, unknown>> = [];
+		vi.stubGlobal("fetch", captureAzureBody(bodies));
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+
+		const resp = await app.request(
+			"/submit",
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ url }) },
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(get).toHaveBeenCalledWith(streamMetaKvKey(url), "json");
+		expect(bodies[0]?.prefetchedMeta).toEqual({
+			title: "Synthetic Film",
+			description: "Synthetic description",
+			madeAsFilm: true
+		});
+	});
+
+	it("strips a client-supplied prefetchedMeta.madeAsFilm when nothing is cached", async () => {
+		const env = testEnv({
+			StreamMeta: { get: vi.fn(async () => null), put: vi.fn() } as unknown as KVNamespace
+		});
+		const bodies: Array<Record<string, unknown>> = [];
+		vi.stubGlobal("fetch", captureAzureBody(bodies));
+		const app = appWithPermissions("/submit", "post", submit, ["submit"]);
+
+		const resp = await app.request(
+			"/submit",
+			{
+				method: "POST",
+				headers: authJsonHeaders,
+				body: JSON.stringify({
+					url,
+					prefetchedMeta: { title: "client", description: "client", madeAsFilm: true }
+				})
+			},
+			env
+		);
+
+		expect(resp.status).toBe(200);
+		expect(bodies[0]).not.toHaveProperty("prefetchedMeta");
 	});
 });

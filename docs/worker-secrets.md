@@ -51,7 +51,7 @@ Process environment variables with the same key names override file values if se
 ### Related bindings (not secrets)
 
 - `BROWSER` — Cloudflare Browser Rendering binding (`wrangler.jsonc` `browser.binding`)
-- `StreamMeta` — KV namespace for prepare meta cache (`stream-meta:v1:<url>`)
+- `StreamMeta` — KV namespace for prepare meta cache (`stream-meta:v2:<url>`)
 
 ## Local Wrangler / Pages vars
 

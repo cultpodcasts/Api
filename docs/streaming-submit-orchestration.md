@@ -42,8 +42,8 @@ TypeScript: const arrays + derived union types in the contract fixture.
 ## Process (happy path, unknown streaming URL)
 
 1. **`GET /submit/lookup`** — Cosmos membership + classify URL → `{ known, kind: "streaming", service }`. **No page scrape. No Browser Rendering.**
-2. **`POST /submit/prepare`** — Worker classifies via lookup, then applies **Azure-first** fetch policy (below). Caches meta in `StreamMeta` KV (`stream-meta:v1:<url>`, 15m TTL).
-3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit.
+2. **`POST /submit/prepare`** — Worker classifies via lookup, then applies **Azure-first** fetch policy (below). Caches meta in `StreamMeta` KV (`stream-meta:v2:<url>`, 15m TTL).
+3. **`POST /submit`** — Worker injects trusted `prefetchedMeta` from KV when present; Azure skips page fetch on cache hit. `prefetchedMeta` carries the contract's `prefetchedMetaFields` (including `madeAsFilm`, so a cached film is still classified as a Film). Contract v2 bumped the KV prefix to `stream-meta:v2:` so v1 entries without `madeAsFilm` are not reused.
 
 Direction: **SPA → CF → Azure** (and CF → Browser Rendering / regional scrape Workers only when required). Azure does **not** call Cloudflare. **Episode extraction always runs on Azure** (`SubmitUrl/prepare` or `SubmitUrl/extract`); Cloudflare only acquires HTML/JSON Azure cannot.
 

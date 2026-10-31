@@ -11,6 +11,8 @@ export type PrefetchedMeta = {
 	explicit?: boolean | null;
 	publisher?: string | null;
 	showName?: string | null;
+	/** Standalone film (e.g. JSON-LD Movie). Azure's classifier files the URL as a Film when true. */
+	madeAsFilm?: boolean | null;
 };
 
 export type StreamMetaCacheEntry = PrefetchedMeta & {
@@ -18,8 +20,14 @@ export type StreamMetaCacheEntry = PrefetchedMeta & {
 	podcastName?: string | null;
 };
 
+/**
+ * v2 (contract v2): entries carry `madeAsFilm`. Bumped from v1 so pre-fix entries without the
+ * flag are never injected as prefetchedMeta (Azure would bind MadeAsFilm=false → podcast episode).
+ */
+export const STREAM_META_KV_PREFIX = "stream-meta:v2:";
+
 export function streamMetaKvKey(url: string): string {
-	return `stream-meta:v1:${url}`;
+	return `${STREAM_META_KV_PREFIX}${url}`;
 }
 
 export async function getStreamMeta(
@@ -58,6 +66,7 @@ export function toPrefetchedMeta(entry: StreamMetaCacheEntry): PrefetchedMeta {
 		image: entry.image,
 		explicit: entry.explicit,
 		publisher: entry.publisher,
-		showName: entry.showName
+		showName: entry.showName,
+		madeAsFilm: entry.madeAsFilm
 	};
 }

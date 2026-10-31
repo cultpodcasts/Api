@@ -9,8 +9,10 @@ import {
 import {
 	STREAMING_SUBMIT_CONTRACT_COPY_FROM,
 	STREAMING_SUBMIT_CONTRACT_JSON_COPY_FROM,
+	STREAM_META_KV_PREFIX as FIXTURE_STREAM_META_KV_PREFIX,
 	defaultBrowserRenderingServices,
 	htmlFetchModeForService,
+	prefetchedMetaFields,
 	prepareUrlRewrites,
 	resolvePrepareFetchUrl,
 	resolveScrapeProfile,
@@ -22,6 +24,7 @@ import {
 	streamingSubmitContractJsonPayload,
 	type StreamingServiceKey
 } from "./fixtures/streaming-submit-contract";
+import { STREAM_META_KV_PREFIX, toPrefetchedMeta } from "../src/submitPrepareMeta";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -105,6 +108,29 @@ describe("streaming-submit-contract (Api publisher)", () => {
 				expect(c.htmlFetchMode).toBe("directHttp");
 			}
 		}
+	});
+
+	it("keeps Worker toPrefetchedMeta fields and StreamMeta key prefix in lockstep with contract v2 (madeAsFilm)", () => {
+		const fullEntry = {
+			service: "cbcGem",
+			podcastName: null,
+			title: "t",
+			description: "d",
+			duration: "00:43:00",
+			release: "2026-10-27T00:00:00Z",
+			image: "https://example.com/i.jpg",
+			explicit: false,
+			publisher: "p",
+			showName: null,
+			madeAsFilm: true
+		};
+		expect(Object.keys(toPrefetchedMeta(fullEntry))).toEqual([...prefetchedMetaFields]);
+		expect(toPrefetchedMeta(fullEntry).madeAsFilm).toBe(true);
+		expect(STREAM_META_KV_PREFIX).toBe(FIXTURE_STREAM_META_KV_PREFIX);
+		const payload = streamingSubmitContractJsonPayload();
+		expect(payload.version).toBe(2);
+		expect(payload.streamMetaKvKeyPrefix).toBe("stream-meta:v2:");
+		expect(payload.rules.prefetchedMetaCarriesMadeAsFilm).toBe(true);
 	});
 
 	it("keeps committed JSON snapshot identical to streamingSubmitContractJsonPayload()", () => {
