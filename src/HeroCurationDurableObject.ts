@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { Env } from "./Env";
 import {
+	canonicalUpdatedAt,
 	dedupeAndCap,
 	dedupeAndCapRails,
 	emptyHeroState,
@@ -12,7 +13,9 @@ import {
 	mergeAppendEpisodes,
 	mergeRemoveEpisodes,
 	mergePruneToAllowed,
-	storedList
+	parseIsoInstant,
+	storedList,
+	updatedAtMatches
 } from "./heroCurationLogic";
 
 export {
@@ -44,7 +47,7 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 		if (
 			input.expectedUpdatedAt != null &&
 			input.expectedUpdatedAt !== "" &&
-			input.expectedUpdatedAt !== current.updatedAt
+			!updatedAtMatches(input.expectedUpdatedAt, current.updatedAt)
 		) {
 			return { ok: false, conflict: true, state: current };
 		}
@@ -122,7 +125,11 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 			return {
 				episodeIds: storedList(stored.episodeIds),
 				railSubjects: storedList(stored.railSubjects),
-				updatedAt: stored.updatedAt ?? new Date(0).toISOString()
+				// Read-time normalisation only: the stored value is not rewritten here.
+				updatedAt:
+					typeof stored.updatedAt === "string"
+						? canonicalUpdatedAt(stored.updatedAt)
+						: new Date(0).toISOString()
 			};
 		}
 
@@ -132,7 +139,10 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 				const migrated: HeroCurationState = {
 					episodeIds: dedupeAndCap(storedList(fromKv.episodeIds), MAX_EPISODE_IDS),
 					railSubjects: dedupeAndCapRails(storedList(fromKv.railSubjects)),
-					updatedAt: fromKv.updatedAt ?? new Date().toISOString()
+					updatedAt:
+						parseIsoInstant(fromKv.updatedAt) !== null
+							? canonicalUpdatedAt(fromKv.updatedAt as string)
+							: new Date().toISOString()
 				};
 				await this.ctx.storage.put(STORAGE_KEY, migrated);
 				return migrated;

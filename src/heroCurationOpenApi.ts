@@ -37,7 +37,7 @@ export const putHeroCurationOpenApiSchema: OpenAPIRouteSchema = {
 	description:
 		"Command. Requires permission curate. Replaces the hero list, the rail list, or both. " +
 		"A list that is omitted stays as stored. At least one list is required. " +
-		"A non-null expectedUpdatedAt must equal updatedAt from GET /hero-curation; a mismatch is 409 with an empty body. " +
+		"A non-null expectedUpdatedAt must be the same instant as updatedAt from GET /hero-curation; a mismatch is 409 with an empty body. " +
 		"Omit expectedUpdatedAt, or send null, to write without compare-and-swap. Success is 202 with an empty body. " +
 		heroReadModel,
 	request: { body: jsonBody(heroCurationUpdateRequestSchema) },
