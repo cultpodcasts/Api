@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HeroCurationDurableObject } from "../src/HeroCurationDurableObject";
 import {
 	canonicalUpdatedAt,
@@ -52,18 +52,64 @@ function durableObject(stored?: unknown, kv?: unknown) {
 }
 
 describe("hero curation updatedAt instants (Api #200)", () => {
-	it("reads a zone-less ISO date-time as UTC and rejects non-ISO text", () => {
+	// Run east of UTC so a host-local read cannot hide behind a UTC CI host (RPP #1193 / #1217 guard).
+	const originalTz = process.env.TZ;
+	beforeAll(() => {
+		process.env.TZ = "Pacific/Auckland";
+	});
+	afterAll(() => {
+		if (originalTz === undefined) {
+			delete process.env.TZ;
+		} else {
+			process.env.TZ = originalTz;
+		}
+	});
+
+	it("runs with a host zone east of UTC", () => {
+		// Arrange
+		const midWinterUtc = new Date(Date.UTC(2026, 6, 1, 0, 0, 0));
+
+		// Act
+		const offsetMinutes = midWinterUtc.getTimezoneOffset();
+
+		// Assert
+		expect(offsetMinutes).toBe(-720);
+	});
+
+	it("reads a zone-less ISO date-time as UTC and rejects non-ISO text, including lowercase t and z", () => {
 		// Arrange
 		const instant = relativeInstant(5);
 		const zoneLess = instant.toISOString().slice(0, 19);
+		const lowercaseT = zoneLess.replace("T", "t");
+		const lowercaseZ = `${zoneLess}z`;
 
 		// Act
 		const parsed = parseIsoInstant(zoneLess);
-		const rejected = [parseIsoInstant("not a date"), parseIsoInstant("12/01/2026"), parseIsoInstant(undefined)];
+		const rejected = [
+			parseIsoInstant("not a date"),
+			parseIsoInstant("12/01/2026"),
+			parseIsoInstant(undefined),
+			parseIsoInstant(lowercaseT),
+			parseIsoInstant(lowercaseZ)
+		];
 
 		// Assert
 		expect(parsed).toBe(instant.getTime());
-		expect(rejected).toEqual([null, null, null]);
+		expect(rejected).toEqual([null, null, null, null, null]);
+	});
+
+	it("parses trailing-zero fractions exactly and rejects sub-millisecond instants", () => {
+		// Arrange
+		const instant = relativeInstant(11);
+		const base = instant.toISOString().slice(0, 23);
+
+		// Act
+		const trailingZeros = parseIsoInstant(`${base}000Z`);
+		const oneMicrosecondLater = parseIsoInstant(`${base}001Z`);
+
+		// Assert
+		expect(trailingZeros).toBe(instant.getTime());
+		expect(oneMicrosecondLater).toBeNull();
 	});
 
 	it("canonicalises offset and second-precision tokens to toISOString UTC Z", () => {
@@ -91,6 +137,7 @@ describe("hero curation updatedAt instants (Api #200)", () => {
 		const withoutMillis = updatedAtMatches(`${current.slice(0, 19)}Z`, current);
 		const withOffset = updatedAtMatches(plusOneHourOffset(instant), current);
 		const oneSecondLater = updatedAtMatches(new Date(instant.getTime() + 1000).toISOString(), current);
+		const oneMicrosecondLater = updatedAtMatches(`${current.slice(0, 23)}001Z`, current);
 		const opaqueSelf = updatedAtMatches("opaque-token", "opaque-token");
 		const opaqueOther = updatedAtMatches("opaque-token", current);
 
@@ -98,6 +145,7 @@ describe("hero curation updatedAt instants (Api #200)", () => {
 		expect(withoutMillis).toBe(true);
 		expect(withOffset).toBe(true);
 		expect(oneSecondLater).toBe(false);
+		expect(oneMicrosecondLater).toBe(false);
 		expect(opaqueSelf).toBe(true);
 		expect(opaqueOther).toBe(false);
 	});
@@ -123,7 +171,7 @@ describe("hero curation updatedAt instants (Api #200)", () => {
 		expect(result.state.episodeIds).toEqual([episodeB]);
 	});
 
-	it("replace accepts a CAS token with an offset for the stored instant", async () => {
+	it("DO-level: replace accepts a CAS token with an offset for the stored instant (HTTP input is Z-only)", async () => {
 		// Arrange
 		const instant = relativeInstant(4);
 		const stored: HeroCurationState = {
@@ -162,6 +210,27 @@ describe("hero curation updatedAt instants (Api #200)", () => {
 		// Assert
 		expect(result.ok).toBe(false);
 		expect((storage.get("state") as HeroCurationState).episodeIds).toEqual([episodeA]);
+	});
+
+	it("replace returns a conflict for a token one microsecond after the stored instant", async () => {
+		// Arrange
+		const instant = relativeInstant(12);
+		const stored: HeroCurationState = {
+			episodeIds: [episodeA],
+			railSubjects: [],
+			updatedAt: instant.toISOString()
+		};
+		const { target, storage } = durableObject(stored);
+
+		// Act
+		const result = await target.replace({
+			episodeIds: [episodeB],
+			expectedUpdatedAt: `${instant.toISOString().slice(0, 23)}001Z`
+		});
+
+		// Assert
+		expect(result.ok).toBe(false);
+		expect(storage.get("state")).toEqual(stored);
 	});
 
 	it("get emits a stored offset updatedAt as UTC Z without rewriting storage", async () => {

@@ -23,11 +23,16 @@ export type HeroCurationReplaceResult =
 	| { ok: false; conflict: true; state: HeroCurationState };
 
 const ISO_INSTANT_RE =
-	/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/i;
+	/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.(\d+))?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 
 /**
- * Parse an ISO-8601 timestamp to epoch milliseconds. A date-time with no zone is read as UTC,
- * never as host-local time. Returns null for anything that is not an ISO-8601 date or date-time.
+ * Parse an ISO-8601 timestamp to exact epoch milliseconds.
+ * - A date-time with no zone is read as UTC, never as host-local time.
+ * - `T` and `Z` are case-sensitive: lowercase forms are not ISO here and would reach
+ *   `Date.parse`'s legacy (host-local) parser.
+ * - A fraction with a non-zero digit after the third is not a millisecond instant
+ *   (`Date.parse` would truncate it), so it returns null; trailing zeros are fine.
+ * Returns null for anything that is not an exact ISO-8601 date or date-time.
  */
 export function parseIsoInstant(value: unknown): number | null {
 	if (typeof value !== "string") {
@@ -38,7 +43,11 @@ export function parseIsoInstant(value: unknown): number | null {
 	if (!match) {
 		return null;
 	}
-	const zoned = text.includes("T") && !match[1] ? `${text}Z` : text;
+	const [, fraction, zone] = match;
+	if (fraction && /[1-9]/.test(fraction.slice(3))) {
+		return null;
+	}
+	const zoned = text.includes("T") && !zone ? `${text}Z` : text;
 	const millis = Date.parse(zoned);
 	return Number.isNaN(millis) ? null : millis;
 }
@@ -53,8 +62,9 @@ export function canonicalUpdatedAt(value: string): string {
 }
 
 /**
- * Compare-and-swap match for `expectedUpdatedAt` (Api #200): equal text, or the same instant.
- * `…:00Z`, `…:00.000Z` and `…T01:00:00+01:00` are one token.
+ * Compare-and-swap match for `expectedUpdatedAt` (Api #200): equal text, or the same exact instant.
+ * `…:00Z` and `…:00.000Z` are one token (the HTTP schema only admits `Z`; offsets are handled here
+ * for stored / KV values). A sub-millisecond token only matches identical text.
  */
 export function updatedAtMatches(expected: string, current: string): boolean {
 	if (expected === current) {

@@ -125,7 +125,9 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 			return {
 				episodeIds: storedList(stored.episodeIds),
 				railSubjects: storedList(stored.railSubjects),
-				// Read-time normalisation only: the stored value is not rewritten here.
+				// Read-time normalisation only: the stored value is not rewritten here. A non-ISO
+				// stored string (only corruption produces one) is emitted unchanged so it still
+				// matches itself as a CAS token.
 				updatedAt:
 					typeof stored.updatedAt === "string"
 						? canonicalUpdatedAt(stored.updatedAt)
@@ -136,13 +138,11 @@ export class HeroCurationDurableObject extends DurableObject<Env> {
 		try {
 			const fromKv = await this.env.Curated.get<Partial<HeroCurationState>>(HERO_KV_KEY, "json");
 			if (fromKv) {
+				const kvMillis = parseIsoInstant(fromKv.updatedAt);
 				const migrated: HeroCurationState = {
 					episodeIds: dedupeAndCap(storedList(fromKv.episodeIds), MAX_EPISODE_IDS),
 					railSubjects: dedupeAndCapRails(storedList(fromKv.railSubjects)),
-					updatedAt:
-						parseIsoInstant(fromKv.updatedAt) !== null
-							? canonicalUpdatedAt(fromKv.updatedAt as string)
-							: new Date().toISOString()
+					updatedAt: new Date(kvMillis ?? Date.now()).toISOString()
 				};
 				await this.ctx.storage.put(STORAGE_KEY, migrated);
 				return migrated;
