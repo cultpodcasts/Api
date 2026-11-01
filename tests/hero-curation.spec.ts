@@ -173,6 +173,58 @@ describe("hero-curation", () => {
 		expect(await conflict.text()).toBe("");
 	});
 
+	it("PUT passes a Z token without milliseconds to the Durable Object CAS and returns 202", async () => {
+		// Arrange
+		const updatedAt = new Date(Date.now() - 3_600_000);
+		updatedAt.setUTCMilliseconds(0);
+		const token = `${updatedAt.toISOString().slice(0, 19)}Z`;
+		const stub = heroDo({
+			replace: vi.fn(async () => ({
+				ok: true,
+				state: { episodeIds: [episodeB], railSubjects: [], updatedAt: new Date().toISOString() }
+			}))
+		});
+		const app = appWithPermissions("/hero-curation", "put", putHeroCuration, ["curate"]);
+
+		// Act
+		const response = await app.request(
+			"/hero-curation",
+			{
+				method: "PUT",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ episodeIds: [episodeB], expectedUpdatedAt: token })
+			},
+			envWithHero(stub)
+		);
+
+		// Assert
+		expect(response.status).toBe(202);
+		expect(stub.replace).toHaveBeenCalledWith(expect.objectContaining({ expectedUpdatedAt: token }));
+	});
+
+	it("PUT rejects an expectedUpdatedAt with an offset as 400 without reaching the Durable Object", async () => {
+		// Arrange
+		const shifted = new Date(Date.now()).toISOString().slice(0, 19);
+		const token = `${shifted}+01:00`;
+		const stub = heroDo({ replace: vi.fn() });
+		const app = appWithPermissions("/hero-curation", "put", putHeroCuration, ["curate"]);
+
+		// Act
+		const response = await app.request(
+			"/hero-curation",
+			{
+				method: "PUT",
+				headers: authJsonHeaders,
+				body: JSON.stringify({ episodeIds: [episodeB], expectedUpdatedAt: token })
+			},
+			envWithHero(stub)
+		);
+
+		// Assert
+		expect(response.status).toBe(400);
+		expect(stub.replace).not.toHaveBeenCalled();
+	});
+
 	it("DELETE calls Durable Object removeEpisodes", async () => {
 		const stub = heroDo({
 			removeEpisodes: vi.fn(async () => ({
