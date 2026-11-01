@@ -1684,7 +1684,8 @@ export const filmDtoSchema = z.object({
  */
 export const filmChangeRequestSchema = z.object({
 	imdbId: z.string().optional().nullable().describe("IMDb title id: `tt` + 7–10 digits. `\"\"` clears."),
-	tmdbId: z.number().int().optional().nullable().describe("TMDB movie id. `0` clears; negative is a 400."),
+	tmdbId: z.number().int().min(0).max(2147483647).optional().nullable()
+		.describe("TMDB movie id (int32, 0–2147483647, as RPP binds `int?`). `0` clears; negative is a 400; values outside int32 are rejected by RPP's request binding (currently a 500, RedditPodcastPoster#1231)."),
 	services: z.record(z.string(), filmServiceLinkChangeSchema).optional().nullable()
 		.describe("Per key, as the episode edit: the key is resolved from the URL (youtube, bbcIplayer, internetArchive, …); blank url and image removes the key."),
 	trailers: z.array(filmTrailerChangeSchema).optional().nullable()

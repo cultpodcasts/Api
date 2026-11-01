@@ -1130,6 +1130,14 @@ describe("openapi Zod schemas", () => {
 		expect(() => tvShowChangeRequestSchema.parse({ tvdbId: "12" })).toThrow();
 		expect(() => filmChangeRequestSchema.parse({ tmdbId: "7" })).toThrow();
 	});
+	it("bounds the film tmdbId to int32 as RPP binds int? (Api#182)", () => {
+		expect(filmChangeRequestSchema.parse({ tmdbId: 0 }).tmdbId).toBe(0);
+		expect(filmChangeRequestSchema.parse({ tmdbId: 2147483647 }).tmdbId).toBe(2147483647);
+		expect(filmChangeRequestSchema.parse({ tmdbId: null }).tmdbId).toBeNull();
+		expect(filmChangeRequestSchema.safeParse({ tmdbId: -1 }).success).toBe(false);
+		expect(filmChangeRequestSchema.safeParse({ tmdbId: 2147483648 }).success).toBe(false);
+		expect(filmChangeRequestSchema.safeParse({ tmdbId: 1.5 }).success).toBe(false);
+	});
 	it("parses TV show, TV episode and film GET DTOs with the RPP #1053 parity fields (synthetic)", () => {
 		const show = tvShowDtoSchema.parse({
 			id: "550e8400-e29b-41d4-a716-446655440000",
