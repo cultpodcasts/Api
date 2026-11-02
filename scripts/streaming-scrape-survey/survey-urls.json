@@ -60,7 +60,8 @@
 			"url": "https://gem.cbc.ca/queen-of-canada",
 			"enabled": true,
 			"expectHomeHosts": ["gem.cbc.ca"],
-			"notes": "Free CBC Gem film page /{slug}; server-rendered JSON-LD Movie (og:type is video.tv_show on every page). Episodes are /{show}/s{NN}e{NN}. Box GET from the UK returned 200 with full JSON-LD, so azurePrepare is expected; strategy provisional until the survey runs after the Functions deploy (no assumedTechnique yet). RPP registers HTML extract as well."
+			"assumedTechnique": "azurePrepare",
+			"notes": "Free CBC Gem film page /{slug}; server-rendered JSON-LD Movie (og:type is video.tv_show on every page). Episodes are /{show}/s{NN}e{NN}. Survey 2026-11-01: azure, cfFetch, cfBr, and cfUsFetch all usable; recommend=azurePrepare (title Queen of Canada, publisher CBC Gem, image on images.gem.cbc.ca). No US/BR profile. RPP registers HTML extract as well."
 		}
 	]
 }
