@@ -59,6 +59,23 @@ describe("catalogue kind publish proxies", () => {
 			expect(c.route.openApiSchema.security).toEqual([{ bearerAuth: [] }]);
 		});
 
+		it(`${c.path} returns 403 without curate`, async () => {
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+			const app = appWithPermissions(c.path.replace(playableId, ":id"), "post", c.handler, ["submit"]);
+			const resp = await app.request(
+				c.path,
+				{
+					method: "POST",
+					headers: authJsonHeaders,
+					body: JSON.stringify({ tweet: true })
+				},
+				testEnv()
+			);
+			expect(resp.status).toBe(403);
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
+
 		it(`${c.path} proxies to Azure ${c.azure}`, async () => {
 			const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
 			vi.stubGlobal("fetch", fetchMock);

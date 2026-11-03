@@ -6,10 +6,10 @@ import { proxyToAzure } from "./proxyToAzure";
 async function proxyKindPublish(
 	c: Auth0ActionContext,
 	endpoint: Endpoint.film | Endpoint.newsReport | Endpoint.tvShowEpisode,
-	idParam: string
+	logName: string
 ): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-	const id = c.req.param(idParam);
+	const id = c.req.param("id");
 	const data: unknown = await c.req.json();
 	return proxyToAzure(c, {
 		permission: "curate",
@@ -19,19 +19,19 @@ async function proxyKindPublish(
 		body: JSON.stringify(data),
 		successStatuses: [200],
 		passthroughOtherStatuses: true,
-		logName: "secure-episode-endpoint"
+		logName
 	});
 }
 
 /** Kind publish: Film / News / TV (api-infra `FilmPublish` / `NewsReportPublish` / `TvShowEpisodePublish`). */
 export async function publishFilm(c: Auth0ActionContext): Promise<Response> {
-	return proxyKindPublish(c, Endpoint.film, "id");
+	return proxyKindPublish(c, Endpoint.film, "secure-film-publish-endpoint");
 }
 
 export async function publishNewsReport(c: Auth0ActionContext): Promise<Response> {
-	return proxyKindPublish(c, Endpoint.newsReport, "id");
+	return proxyKindPublish(c, Endpoint.newsReport, "secure-newsreport-publish-endpoint");
 }
 
 export async function publishTvShowEpisode(c: Auth0ActionContext): Promise<Response> {
-	return proxyKindPublish(c, Endpoint.tvShowEpisode, "id");
+	return proxyKindPublish(c, Endpoint.tvShowEpisode, "secure-tvshowepisode-publish-endpoint");
 }
