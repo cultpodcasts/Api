@@ -19,7 +19,7 @@ async function proxyEpisodePublish(c: Auth0ActionContext, pathSuffix: string): P
 	});
 }
 
-/** Guid-only publish: podcast episodes and catalogue Film / News / TV (api-infra EpisodePublish). */
+/** Guid-only publish: podcast episodes, plus catalogue fallback until clients use kind publish routes (api-infra EpisodePublish). */
 export async function publishEpisode(c: Auth0ActionContext): Promise<Response> {
 	const episodeId = c.req.param("episodeId");
 	return proxyEpisodePublish(c, `/${encodeURIComponent(episodeId)}`);

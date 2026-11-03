@@ -47,7 +47,10 @@ import {
 	PublicGetEpisodeRoute,
 	PublishHomepageRoute,
 	PublishEpisodeRoute,
+	PublishFilmRoute,
+	PublishNewsReportRoute,
 	PublishPodcastEpisodeRoute,
+	PublishTvShowEpisodeRoute,
 	GetDiscoveryScheduleRoute,
 	GetSupportedLanguagesRoute,
 	GetNeutralCulturesRoute,
@@ -374,9 +377,12 @@ openapi.post('/search', SearchRoute);
 openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit/prepare', SubmitPrepareRoute);
 openapi.post('/submit', SubmitRoute);
-// Episode publish: two-segment podcast path and guid-only (Film / News / TV + podcast).
+// Episode / catalogue publish: podcast two-segment + guid-only fallback; kind routes for Film / News / TV.
 openapi.post('/episode/publish/:podcastId/:episodeId', PublishPodcastEpisodeRoute);
 openapi.post('/episode/publish/:episodeId', PublishEpisodeRoute);
+openapi.post('/film/:id/publish', PublishFilmRoute);
+openapi.post('/newsreport/:id/publish', PublishNewsReportRoute);
+openapi.post('/tvshowepisode/:id/publish', PublishTvShowEpisodeRoute);
 // New Episode Endpoints
 openapi.get('/episode/:podcastName/:episodeId', GetPodcastEpisodeRoute);
 openapi.patch('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
