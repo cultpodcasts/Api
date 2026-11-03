@@ -46,6 +46,7 @@ import {
 	IndexTvShowRoute,
 	PublicGetEpisodeRoute,
 	PublishHomepageRoute,
+	PublishEpisodeRoute,
 	PublishPodcastEpisodeRoute,
 	GetDiscoveryScheduleRoute,
 	GetSupportedLanguagesRoute,
@@ -373,9 +374,9 @@ openapi.post('/search', SearchRoute);
 openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit/prepare', SubmitPrepareRoute);
 openapi.post('/submit', SubmitRoute);
-// New Episode Publish Endpoint
+// Episode publish: two-segment podcast path and guid-only (Film / News / TV + podcast).
 openapi.post('/episode/publish/:podcastId/:episodeId', PublishPodcastEpisodeRoute);
-// \New Episode Publish Endpoint
+openapi.post('/episode/publish/:episodeId', PublishEpisodeRoute);
 // New Episode Endpoints
 openapi.get('/episode/:podcastName/:episodeId', GetPodcastEpisodeRoute);
 openapi.patch('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
@@ -387,9 +388,6 @@ openapi.post('/episode/:podcastId/:episodeId/tvshow', MoveEpisodeToTvShowRoute);
 // Old Episode Endpoints
 openapi.get('/episode/:id', GetEpisodeRoute);
 // \Old Episode Endpoints
-// Old Episode Publish Endpoint
-//openapi.post('/episode/publish/:id', PublishEpisodeRoute);
-// \Old Episode Publish Endpoint
 
 openapi.get('/episodes/outgoing', GetOutgoingRoute);
 openapi.get('/podcast/:name', GetPodcastByNameRoute);
