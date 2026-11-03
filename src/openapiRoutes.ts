@@ -679,7 +679,6 @@ export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
             400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
-            ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
         }
