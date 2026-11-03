@@ -172,7 +172,7 @@ import {
 	catalogueIndexTimedOutSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
-import { publishPodcastEpisode } from "./publish";
+import { publishEpisode, publishPodcastEpisode } from "./publish";
 import { publishHomepage } from "./publishHomepage";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
 import { getSupportedLanguages, getNeutralCultures, postSupportedLanguages, deleteSupportedLanguages } from "./supportedLanguages";
@@ -663,6 +663,23 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
             400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+/** Guid-only: same Azure path as RPP `EpisodePublish` — Film / News / TV and podcast episodes. */
+export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Publishing"],
+        summary: "Publish playable by episode/film/news/TV guid",
+        request: { params: episodeIdParam, body: jsonBody(episodePublishRequestSchema) },
+        responses: {
+            200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
+            400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+            ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
         }
