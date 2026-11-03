@@ -1297,6 +1297,41 @@ describe("openapi Zod schemas", () => {
 		expect(podcastDtoSchema.parse({ alwaysPromoteAsHero: false })).toEqual({ alwaysPromoteAsHero: false });
 	});
 
+	it("parses youTubeIndexingHints on GET and clearYouTubeIndexingHints on PATCH for podcast, news, and TV (website #541)", () => {
+		const hints = {
+			playlistId: "PLsyntheticPlaylist000001",
+			lastFullWalk: "2026-11-01T12:00:00Z",
+			playlistItemCount: 42,
+			uploadsCheckedThrough: "2026-11-01T11:00:00Z",
+			uploadsCheckedThroughVideoId: "dQw4w9WgXcQ"
+		};
+		expect(podcastDtoSchema.parse({ youTubeIndexingHints: hints }).youTubeIndexingHints).toEqual(hints);
+		expect(newsOrganisationDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "",
+			description: "",
+			removed: false,
+			twitterHandle: "",
+			youTubeIndexingHints: hints
+		}).youTubeIndexingHints).toEqual(hints);
+		expect(tvShowDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic Show",
+			youTubeIndexingHints: hints
+		}).youTubeIndexingHints).toEqual(hints);
+		expect(podcastChangeRequestSchema.parse({ clearYouTubeIndexingHints: true })).toEqual({
+			clearYouTubeIndexingHints: true
+		});
+		expect(newsOrganisationChangeRequestSchema.parse({ clearYouTubeIndexingHints: true })).toEqual({
+			clearYouTubeIndexingHints: true
+		});
+		expect(tvShowChangeRequestSchema.parse({ clearYouTubeIndexingHints: true })).toEqual({
+			clearYouTubeIndexingHints: true
+		});
+		expect(() => podcastDtoSchema.parse({ youTubeIndexingHints: { playlistItemCount: "x" } })).toThrow();
+	});
+
 	it("parses news organisation and TV show service ids (podcast wire names) in PATCH and GET, and keeps them off films (synthetic)", () => {
 		const ids = {
 			youTubeChannelId: "UCsyntheticChannel0000001",
