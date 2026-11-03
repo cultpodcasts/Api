@@ -173,6 +173,7 @@ import {
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishEpisode, publishPodcastEpisode } from "./publish";
+import { publishFilm, publishNewsReport, publishTvShowEpisode } from "./publishCatalogue";
 import { publishHomepage } from "./publishHomepage";
 import { getDiscoverySchedule, putDiscoverySchedule } from "./discoverySchedule";
 import { getSupportedLanguages, getNeutralCultures, postSupportedLanguages, deleteSupportedLanguages } from "./supportedLanguages";
@@ -669,12 +670,15 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
     }
 });
 
-/** Guid-only: same Azure path as RPP `EpisodePublish` — Film / News / TV and podcast episodes. */
+/** Guid-only: podcast episodes, plus catalogue fallback until clients use kind publish routes. */
 export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
     auth: curateAuth,
     schema: {
         tags: ["Publishing"],
-        summary: "Publish playable by episode/film/news/TV guid",
+        summary: "Publish by guid (podcast episode, or catalogue fallback)",
+        description:
+            "Prefer `POST /film|newsreport|tvshowepisode/{id}/publish` for catalogue playables. " +
+            "This path remains for podcast episodes and legacy guid-only clients.",
         request: { params: episodeIdParam, body: jsonBody(episodePublishRequestSchema) },
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
@@ -682,6 +686,46 @@ export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
             ...serverErrorResponse,
             ...authResponses
         }
+    }
+});
+
+const kindPublishResponses = {
+    200: { description: "Published (command outcome; GET the kind resource after)", ...contentJson(episodePublishResponseSchema) },
+    400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+    ...serverErrorResponse,
+    ...authResponses
+} as const;
+
+export const PublishFilmRoute = createOpenApiRoute(publishFilm, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Publishing"],
+        summary: "Publish film by id",
+        description: "Proxies Azure `POST /film/{id}/publish`. Outcome DTO only — GET `/film/{id}` for the resource.",
+        request: { params: idParam, body: jsonBody(episodePublishRequestSchema) },
+        responses: kindPublishResponses
+    }
+});
+
+export const PublishNewsReportRoute = createOpenApiRoute(publishNewsReport, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Publishing"],
+        summary: "Publish news report by id",
+        description: "Proxies Azure `POST /newsreport/{id}/publish`. Outcome DTO only — GET `/newsreport/{id}` for the resource.",
+        request: { params: idParam, body: jsonBody(episodePublishRequestSchema) },
+        responses: kindPublishResponses
+    }
+});
+
+export const PublishTvShowEpisodeRoute = createOpenApiRoute(publishTvShowEpisode, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Publishing"],
+        summary: "Publish TV show episode by id",
+        description: "Proxies Azure `POST /tvshowepisode/{id}/publish`. Outcome DTO only — GET `/tvshowepisode/{id}` for the resource.",
+        request: { params: idParam, body: jsonBody(episodePublishRequestSchema) },
+        responses: kindPublishResponses
     }
 });
 
