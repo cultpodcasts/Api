@@ -1306,6 +1306,10 @@ describe("openapi Zod schemas", () => {
 			uploadsCheckedThroughVideoId: "dQw4w9WgXcQ"
 		};
 		expect(podcastDtoSchema.parse({ youTubeIndexingHints: hints }).youTubeIndexingHints).toEqual(hints);
+		const podcastPlaylistHistory = [{ id: "PLsyntheticPlaylist000001", replacedAt: "2026-10-21T20:00:00Z" }];
+		expect(podcastDtoSchema.parse({ youTubePlaylistIdHistory: podcastPlaylistHistory }).youTubePlaylistIdHistory).toEqual(
+			podcastPlaylistHistory
+		);
 		expect(newsOrganisationDtoSchema.parse({
 			id: "550e8400-e29b-41d4-a716-446655440000",
 			name: "Synthetic News Org",

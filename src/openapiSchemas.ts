@@ -724,10 +724,9 @@ export const subjectDtoSchema = z.object({
 export const youTubeIndexingHintsDtoSchema = z
 	.object({
 		playlistId: z.string().optional().nullable(),
-		lastFullWalk: z.string().optional().nullable().describe("UTC ISO-8601 timestamp of the last full playlist walk."),
+		lastFullWalk: isoDateTime.optional().nullable().describe("UTC ISO-8601 timestamp of the last full playlist walk."),
 		playlistItemCount: z.number().int().optional().nullable(),
-		uploadsCheckedThrough: z
-			.string()
+		uploadsCheckedThrough: isoDateTime
 			.optional()
 			.nullable()
 			.describe("UTC ISO-8601 publish time of the newest channel upload already checked."),
