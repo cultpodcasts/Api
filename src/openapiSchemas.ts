@@ -549,6 +549,13 @@ export const podcastChangeRequestSchema = z.object({
 	ignoreAllEpisodes: z.boolean().optional().nullable(),
 	youTubeChannelId: z.string().optional().nullable(),
 	youTubePlaylistId: z.string().optional().nullable(),
+	clearYouTubeIndexingHints: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe(
+			"`true` clears indexer-owned `youTubeIndexingHints` so the next indexing pass does a full playlist walk. Omitting or `false` leaves hints alone."
+		),
 	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable(),
 	ignoredSubjects: z.array(z.string()).optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable(),
@@ -710,6 +717,23 @@ export const subjectDtoSchema = z.object({
 	knownTerms: z.array(z.string()).optional().nullable()
 });
 
+/**
+ * Api.Dtos / RedditPodcastPoster.Models.Podcasts.YouTubeIndexingHints — indexer-owned playlist walk state
+ * (website #541). Read-only on GET; clear via PATCH `clearYouTubeIndexingHints: true`.
+ */
+export const youTubeIndexingHintsDtoSchema = z
+	.object({
+		playlistId: z.string().optional().nullable(),
+		lastFullWalk: isoDateTime.optional().nullable().describe("UTC ISO-8601 timestamp of the last full playlist walk."),
+		playlistItemCount: z.number().int().optional().nullable(),
+		uploadsCheckedThrough: isoDateTime
+			.optional()
+			.nullable()
+			.describe("UTC ISO-8601 publish time of the newest channel upload already checked."),
+		uploadsCheckedThroughVideoId: z.string().optional().nullable()
+	})
+	.describe("Indexer-owned YouTube playlist walk hints. Null/omitted when none (next pass does a full walk).");
+
 /** Api.Dtos.PodcastDto */
 export const podcastDtoSchema = z.object({
 	id: z.string().uuid().optional().nullable(),
@@ -740,6 +764,11 @@ export const podcastDtoSchema = z.object({
 	ignoreAllEpisodes: z.boolean().optional().nullable(),
 	youTubeChannelId: z.string().optional().nullable(),
 	youTubePlaylistId: z.string().optional().nullable(),
+	youTubePlaylistIdHistory: z
+		.array(z.object({ id: z.string(), replacedAt: z.string() }))
+		.optional()
+		.nullable(),
+	youTubeIndexingHints: youTubeIndexingHintsDtoSchema.optional().nullable(),
 	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable(),
 	ignoredSubjects: z.array(z.string()).optional().nullable(),
 	knownTerms: z.array(z.string()).optional().nullable(),
@@ -1549,6 +1578,13 @@ const serviceIdsChangeShape = {
 		.optional()
 		.nullable()
 		.describe("YouTube playlist id. Trimmed; whitespace clears; a replaced id is kept in `youTubePlaylistIdHistory`."),
+	clearYouTubeIndexingHints: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe(
+			"`true` clears `indexing.youTubeIndexingHints` only so the next indexing pass does a full playlist walk."
+		),
 	spotifyId: z.string().optional().nullable().describe('Spotify show id. `""` clears.'),
 	appleId: z.number().int().optional().nullable().describe("Apple Podcasts id. Use `nullAppleId: true` to clear."),
 	nullAppleId: z.boolean().optional().nullable().describe("`true` clears `appleId` (wins over `appleId`)."),
@@ -1573,6 +1609,7 @@ const serviceIdsDtoShape = {
 	youTubeChannelId: z.string().optional(),
 	youTubePlaylistId: z.string().optional(),
 	youTubePlaylistIdHistory: z.array(z.object({ id: z.string(), replacedAt: z.string() })).optional().nullable(),
+	youTubeIndexingHints: youTubeIndexingHintsDtoSchema.optional().nullable(),
 	spotifyId: z.string().optional(),
 	appleId: z.number().int().optional().nullable(),
 	indexAllEpisodes: z.boolean().optional(),
