@@ -98,6 +98,7 @@ import {
 	UpdatePersonRoute,
 	UpdatePodcastEpisodeRoute,
 	TransferPodcastKindRoute,
+	GetPodcastKindTransferStatusRoute,
 	MoveEpisodeToFilmRoute,
 	AttachEpisodeAsTrailerRoute,
 	MoveEpisodeToTvShowRoute,
@@ -399,6 +400,7 @@ openapi.get('/episodes/outgoing', GetOutgoingRoute);
 openapi.get('/podcast/:name', GetPodcastByNameRoute);
 openapi.get('/podcast/:name/:id', GetPodcastByNameAndEpisodeIdRoute);
 openapi.post('/podcast/:id/kind', TransferPodcastKindRoute);
+openapi.get('/podcast/:id/kind', GetPodcastKindTransferStatusRoute);
 openapi.patch('/podcast/:id', UpdatePodcastRoute);
 // `{.+}` so names with `/` (encoded as %2F, decoded by Hono for routing) still match one param.
 openapi.get('/tvshow/:identifier{.+}', GetTvShowRoute);

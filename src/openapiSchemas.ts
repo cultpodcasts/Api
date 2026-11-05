@@ -357,12 +357,32 @@ export const podcastKindTransferRequestSchema = z.object({
 	targetKind: catalogueParentKindSchema
 });
 
-export const podcastKindTransferResponseSchema = z.object({
+/** POST /podcast/:id/kind — enqueue outcome (RPP #1162). Transfer runs on a queue; poll GET. */
+export const podcastKindTransferEnqueueResponseSchema = z.object({
+	status: z.string().describe("Queued, AlreadyRunning, …"),
+	parentId: z.string().uuid().optional().nullable(),
+	targetKind: catalogueParentKindSchema.optional().nullable(),
+	enqueuedUtc: z.string().datetime({ offset: true }).optional().nullable(),
+	statusPath: z.string().optional().nullable().describe("Relative path for GET status, e.g. podcast/{id}/kind")
+});
+
+/** GET /podcast/:id/kind — job status query (RPP #1162). */
+export const podcastKindTransferJobStatusResponseSchema = z.object({
+	status: z
+		.string()
+		.describe("Idle | Queued | Running | Completed | Failed | Incomplete | NotFound"),
 	parentId: z.string().uuid().optional().nullable(),
 	targetKind: catalogueParentKindSchema.optional().nullable(),
 	playableCount: z.number().int().optional(),
-	failureIndexingPlayables: z.boolean().optional()
+	failureIndexingPlayables: z.boolean().optional(),
+	failureReason: z.string().optional().nullable(),
+	enqueuedUtc: z.string().datetime({ offset: true }).optional().nullable(),
+	startedUtc: z.string().datetime({ offset: true }).optional().nullable(),
+	completedUtc: z.string().datetime({ offset: true }).optional().nullable()
 });
+
+/** Legacy alias — same shape as the enqueue command outcome after RPP #1162. */
+export const podcastKindTransferResponseSchema = podcastKindTransferEnqueueResponseSchema;
 
 /** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
 export const episodeTrailerAttachRequestSchema = z.object({

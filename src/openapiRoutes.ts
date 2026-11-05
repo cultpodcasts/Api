@@ -131,7 +131,8 @@ import {
 	podcastChangeRequestSchema,
 	podcastDtoSchema,
 	podcastKindTransferRequestSchema,
-	podcastKindTransferResponseSchema,
+	podcastKindTransferEnqueueResponseSchema,
+	podcastKindTransferJobStatusResponseSchema,
 	episodeFilmMoveRequestSchema,
 	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
@@ -202,6 +203,7 @@ import { submitDiscovery } from "./submitDiscovery";
 import { updatePodcastEpisode } from "./updateEpisode";
 import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
+import { getPodcastKindTransferStatus } from "./getPodcastKindTransferStatus";
 import { transferPodcastKind } from "./transferPodcastKind";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
@@ -746,12 +748,40 @@ export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, 
     auth: curateAuth,
     schema: {
         tags: ["Podcasts"],
-        summary: "Transfer a podcast to a TV show or news organisation (keeps guids)",
+        summary: "Enqueue a podcast → TV show / news organisation transfer (keeps guids)",
+        description:
+            "Curate command. Enqueues the transfer and returns 202 immediately with status Queued and statusPath. " +
+            "Poll GET /podcast/:id/kind for Queued / Running / Completed / Failed / Incomplete. " +
+            "409 AlreadyRunning when a fresh single-flight marker is held.",
         request: { params: idParam, body: jsonBody(podcastKindTransferRequestSchema) },
         responses: {
-            202: { description: "Accepted", ...contentJson(podcastKindTransferResponseSchema) },
+            202: {
+                description: "Queued (command outcome; GET statusPath / GET /podcast/:id/kind)",
+                ...contentJson(podcastKindTransferEnqueueResponseSchema)
+            },
             400: { description: "Invalid target kind", ...contentJson(errorSchema) },
-            409: { description: "Target parent already exists at this id", ...contentJson(podcastKindTransferResponseSchema) },
+            409: {
+                description: "Transfer already running for this podcast",
+                ...contentJson(podcastKindTransferEnqueueResponseSchema)
+            },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const GetPodcastKindTransferStatusRoute = createOpenApiRoute(getPodcastKindTransferStatus, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Podcasts"],
+        summary: "Get podcast kind-transfer job status",
+        description:
+            "Curate query. Returns Idle / Queued / Running / Completed / Failed / Incomplete for the latest " +
+            "kind-transfer job (or Completes when the podcast is gone and a same-id TV/News parent exists).",
+        request: { params: idParam },
+        responses: {
+            200: { description: "Job status", ...contentJson(podcastKindTransferJobStatusResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
