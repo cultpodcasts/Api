@@ -1710,6 +1710,8 @@ export const filmDtoSchema = z.object({
 		blueskyPosted: z.boolean(),
 		subjects: z.array(z.string()),
 		guests: z.array(z.string()).optional().nullable(),
+		guestPeople: z.array(personDtoSchema).optional().nullable(),
+		guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
 		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
 		trailers: z.array(filmTrailerDtoSchema).optional().nullable()
 	})

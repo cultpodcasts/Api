@@ -1208,6 +1208,68 @@ describe("openapi Zod schemas", () => {
 		expect(() => filmDtoSchema.parse({ ...film, guests: "Synthetic Director" })).toThrow();
 	});
 
+	it("accepts guestPeople and guestSuggestions on news, TV episode, and film GET DTOs", () => {
+		const guestPeople = [{ id: "550e8400-e29b-41d4-a716-446655440001", name: "Guest" }];
+		const guestSuggestions = [{
+			person: { id: "550e8400-e29b-41d4-a716-446655440001", name: "Guest" },
+			matchResults: [{ term: "Guest", matches: 2 }]
+		}];
+		const news = newsReportDtoSchema.parse({
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			newsOrganisationId: "550e8400-e29b-41d4-a716-446655440000",
+			title: "Synthetic report",
+			description: "",
+			release: "2026-10-03",
+			duration: "0:06:30",
+			explicit: false,
+			ignored: false,
+			removed: false,
+			posted: false,
+			tweeted: false,
+			blueskyPosted: false,
+			subjects: [],
+			guestPeople,
+			guestSuggestions
+		});
+		expect(news.guestPeople?.[0].name).toBe("Guest");
+		expect(news.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
+		const tv = tvShowEpisodeDtoSchema.parse({
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			tvShowId: "550e8400-e29b-41d4-a716-446655440000",
+			title: "Synthetic Episode",
+			description: "",
+			release: "2026-09-01",
+			duration: "0:44:00",
+			explicit: false,
+			ignored: false,
+			removed: false,
+			tweeted: false,
+			blueskyPosted: false,
+			subjects: [],
+			guestPeople,
+			guestSuggestions
+		});
+		expect(tv.guestPeople?.[0].name).toBe("Guest");
+		expect(tv.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
+		const film = filmDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic Film",
+			description: "Synthetic",
+			release: "1999",
+			duration: "1:30:00",
+			explicit: false,
+			ignored: false,
+			tweeted: false,
+			blueskyPosted: false,
+			subjects: [],
+			removed: false,
+			guestPeople,
+			guestSuggestions
+		});
+		expect(film.guestPeople?.[0].name).toBe("Guest");
+		expect(film.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
+	});
+
 	it("parses TV and film change requests with publisher/playable fields, guests, and identity ids", () => {
 		expect(
 			tvShowChangeRequestSchema.parse({
