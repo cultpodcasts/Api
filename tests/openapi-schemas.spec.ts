@@ -952,6 +952,8 @@ describe("openapi Zod schemas", () => {
 			targetKind: "NewsOrganisation"
 		});
 		expect(alias.status).toBe("AlreadyRunning");
+		expect(() => podcastKindTransferEnqueueResponseSchema.parse({ status: "Running" })).toThrow();
+		expect(() => podcastKindTransferEnqueueResponseSchema.parse({ status: "NotFound" })).toThrow();
 	});
 
 	it("accepts GET podcast kind transfer job status body", () => {
@@ -970,6 +972,8 @@ describe("openapi Zod schemas", () => {
 			completedUtc: "2026-11-05T05:02:00.000Z"
 		});
 		expect(done.playableCount).toBe(12);
+		expect(() => podcastKindTransferJobStatusResponseSchema.parse({ status: "NotFound" })).toThrow();
+		expect(() => podcastKindTransferJobStatusResponseSchema.parse({ status: "AlreadyRunning" })).toThrow();
 	});
 
 	it("accepts PreProcessedHomePageModel for homepage-ssr JSON", () => {

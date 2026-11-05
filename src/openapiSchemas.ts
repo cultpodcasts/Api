@@ -357,9 +357,22 @@ export const podcastKindTransferRequestSchema = z.object({
 	targetKind: catalogueParentKindSchema
 });
 
+/** POST 202/409 enqueue outcome statuses (RPP #1162). NotFound is HTTP 404, not a body status. */
+export const podcastKindTransferEnqueueStatusSchema = z.enum(["Queued", "AlreadyRunning"]);
+
+/** GET 200 job-status statuses (RPP #1162). Azure maps NotFound to HTTP 404. */
+export const podcastKindTransferJobStatusSchema = z.enum([
+	"Idle",
+	"Queued",
+	"Running",
+	"Completed",
+	"Failed",
+	"Incomplete"
+]);
+
 /** POST /podcast/:id/kind — enqueue outcome (RPP #1162). Transfer runs on a queue; poll GET. */
 export const podcastKindTransferEnqueueResponseSchema = z.object({
-	status: z.string().describe("Queued, AlreadyRunning, …"),
+	status: podcastKindTransferEnqueueStatusSchema,
 	parentId: z.string().uuid().optional().nullable(),
 	targetKind: catalogueParentKindSchema.optional().nullable(),
 	enqueuedUtc: z.string().datetime({ offset: true }).optional().nullable(),
@@ -368,9 +381,7 @@ export const podcastKindTransferEnqueueResponseSchema = z.object({
 
 /** GET /podcast/:id/kind — job status query (RPP #1162). */
 export const podcastKindTransferJobStatusResponseSchema = z.object({
-	status: z
-		.string()
-		.describe("Idle | Queued | Running | Completed | Failed | Incomplete | NotFound"),
+	status: podcastKindTransferJobStatusSchema,
 	parentId: z.string().uuid().optional().nullable(),
 	targetKind: catalogueParentKindSchema.optional().nullable(),
 	playableCount: z.number().int().optional(),

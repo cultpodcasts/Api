@@ -778,7 +778,7 @@ export const GetPodcastKindTransferStatusRoute = createOpenApiRoute(getPodcastKi
         summary: "Get podcast kind-transfer job status",
         description:
             "Curate query. Returns Idle / Queued / Running / Completed / Failed / Incomplete for the latest " +
-            "kind-transfer job (or Completes when the podcast is gone and a same-id TV/News parent exists).",
+            "kind-transfer job (or Completed when the podcast is gone and a same-id TV/News parent exists).",
         request: { params: idParam },
         responses: {
             200: { description: "Job status", ...contentJson(podcastKindTransferJobStatusResponseSchema) },

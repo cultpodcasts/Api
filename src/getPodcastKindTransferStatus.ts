@@ -5,7 +5,10 @@ import { proxyToAzure } from "./proxyToAzure";
 
 export async function getPodcastKindTransferStatus(c: Auth0ActionContext): Promise<Response> {
 	const id = c.req.param("id");
-	AddResponseHeaders(c, { methods: ["GET", "OPTIONS"] });
+	AddResponseHeaders(c, {
+		omitCacheControlHeader: true,
+		methods: ["GET", "POST", "OPTIONS"]
+	});
 	return proxyToAzure(c, {
 		permission: "curate",
 		endpoint: Endpoint.podcast,
