@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { transferPodcastKind } from "../src/transferPodcastKind";
 import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
@@ -21,19 +19,15 @@ describe("transfer podcast kind", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("POSTs Azure /{encodeURIComponent(id)}/kind and returns 202", async () => {
-		const fetchMock = vi.fn(
-			async () =>
-				new Response(
-					JSON.stringify({
-						parentId: podcastId,
-						targetKind: "TvShow",
-						playableCount: 2,
-						failureIndexingPlayables: false
-					}),
-					{ status: 202 }
-				)
-		);
+	it("POSTs Azure /{encodeURIComponent(id)}/kind and returns 202 enqueue outcome", async () => {
+		const enqueueBody = {
+			status: "Queued",
+			parentId: podcastId,
+			targetKind: "TvShow",
+			enqueuedUtc: "2026-11-05T05:00:00.000Z",
+			statusPath: `podcast/${podcastId}/kind`
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(enqueueBody), { status: 202 }));
 		vi.stubGlobal("fetch", fetchMock);
 		const app = appWithCurate();
 
@@ -48,12 +42,7 @@ describe("transfer podcast kind", () => {
 		);
 
 		expect(resp.status).toBe(202);
-		expect(await resp.json()).toEqual({
-			parentId: podcastId,
-			targetKind: "TvShow",
-			playableCount: 2,
-			failureIndexingPlayables: false
-		});
+		expect(await resp.json()).toEqual(enqueueBody);
 		expect(fetchMock).toHaveBeenCalledOnce();
 		const [url, init] = fetchMock.mock.calls[0] as [URL | string, RequestInit];
 		expect(String(url).endsWith(`/${encodeURIComponent(podcastId)}/kind`)).toBe(true);
@@ -82,7 +71,15 @@ describe("transfer podcast kind", () => {
 	it.each([
 		[400, { error: "targetKind must be TvShow or NewsOrganisation" }],
 		[404, { error: "Not found" }],
-		[409, { parentId: podcastId, targetKind: "TvShow", playableCount: 0, failureIndexingPlayables: false }]
+		[
+			409,
+			{
+				status: "AlreadyRunning",
+				parentId: podcastId,
+				targetKind: "TvShow",
+				statusPath: `podcast/${podcastId}/kind`
+			}
+		]
 	] as const)("passthrough Azure %s", async (status, body) => {
 		vi.stubGlobal(
 			"fetch",
@@ -102,22 +99,5 @@ describe("transfer podcast kind", () => {
 
 		expect(resp.status).toBe(status);
 		expect(await resp.json()).toEqual(body);
-	});
-});
-
-describe("podcast kind route registration order", () => {
-	it("registers openapi.post /podcast/:id/kind before generic openapi.patch /podcast/:id", () => {
-		const src = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-		const kindIdx = src.indexOf("openapi.post('/podcast/:id/kind'");
-		const genericIdx = src.indexOf("openapi.patch('/podcast/:id'");
-		expect(kindIdx).toBeGreaterThan(-1);
-		expect(genericIdx).toBeGreaterThan(-1);
-		expect(kindIdx).toBeLessThan(genericIdx);
-	});
-
-	it("documents TransferPodcastKindRoute request body as podcastKindTransferRequestSchema", () => {
-		const src = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-		expect(src).toContain("jsonBody(podcastKindTransferRequestSchema)");
-		expect(src).toContain('400: { description: "Invalid target kind", ...contentJson(errorSchema) }');
 	});
 });

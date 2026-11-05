@@ -40,6 +40,8 @@ import {
 	podcastChangeRequestSchema,
 	podcastDtoSchema,
 	podcastKindTransferRequestSchema,
+	podcastKindTransferEnqueueResponseSchema,
+	podcastKindTransferJobStatusResponseSchema,
 	podcastKindTransferResponseSchema,
 	podcastRenameRequestSchema,
 	preProcessedHomepageResponseSchema,
@@ -933,25 +935,45 @@ describe("openapi Zod schemas", () => {
 		expect(() => podcastKindTransferRequestSchema.parse({})).toThrow();
 	});
 
-	it("accepts 202 podcast kind transfer body with uuid parentId, int playableCount, bool failureIndexingPlayables", () => {
-		const parsed = podcastKindTransferResponseSchema.parse({
+	it("accepts 202 podcast kind transfer enqueue body with Queued status and statusPath", () => {
+		const parsed = podcastKindTransferEnqueueResponseSchema.parse({
+			status: "Queued",
 			parentId: "550e8400-e29b-41d4-a716-446655440000",
 			targetKind: "TvShow",
-			playableCount: 3,
-			failureIndexingPlayables: false
+			enqueuedUtc: "2026-11-05T05:00:00.000Z",
+			statusPath: "podcast/550e8400-e29b-41d4-a716-446655440000/kind"
 		});
+		expect(parsed.status).toBe("Queued");
 		expect(parsed.parentId).toBe("550e8400-e29b-41d4-a716-446655440000");
-		expect(parsed.playableCount).toBe(3);
-		expect(parsed.failureIndexingPlayables).toBe(false);
-		const news = podcastKindTransferResponseSchema.parse({
+		expect(parsed.statusPath).toContain("/kind");
+		const alias = podcastKindTransferResponseSchema.parse({
+			status: "AlreadyRunning",
+			parentId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			targetKind: "NewsOrganisation"
+		});
+		expect(alias.status).toBe("AlreadyRunning");
+		expect(() => podcastKindTransferEnqueueResponseSchema.parse({ status: "Running" })).toThrow();
+		expect(() => podcastKindTransferEnqueueResponseSchema.parse({ status: "NotFound" })).toThrow();
+	});
+
+	it("accepts GET podcast kind transfer job status body", () => {
+		const parsed = podcastKindTransferJobStatusResponseSchema.parse({
+			status: "Running",
+			parentId: "550e8400-e29b-41d4-a716-446655440000",
+			targetKind: "TvShow",
+			startedUtc: "2026-11-05T05:01:00.000Z"
+		});
+		expect(parsed.status).toBe("Running");
+		const done = podcastKindTransferJobStatusResponseSchema.parse({
+			status: "Completed",
 			parentId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
 			targetKind: "NewsOrganisation",
-			playableCount: 0,
-			failureIndexingPlayables: true
+			playableCount: 12,
+			completedUtc: "2026-11-05T05:02:00.000Z"
 		});
-		expect(news.parentId).toBe("6ba7b810-9dad-11d1-80b4-00c04fd430c8");
-		expect(news.playableCount).toBe(0);
-		expect(news.failureIndexingPlayables).toBe(true);
+		expect(done.playableCount).toBe(12);
+		expect(() => podcastKindTransferJobStatusResponseSchema.parse({ status: "NotFound" })).toThrow();
+		expect(() => podcastKindTransferJobStatusResponseSchema.parse({ status: "AlreadyRunning" })).toThrow();
 	});
 
 	it("accepts PreProcessedHomePageModel for homepage-ssr JSON", () => {

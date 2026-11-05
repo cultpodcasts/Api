@@ -5,7 +5,7 @@ import { proxyToAzure } from "./proxyToAzure";
 
 export async function transferPodcastKind(c: Auth0ActionContext): Promise<Response> {
 	const id = c.req.param("id");
-	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });
+	AddResponseHeaders(c, { methods: ["GET", "POST", "OPTIONS"] });
 	const data: unknown = await c.req.json();
 	const body = JSON.stringify(data);
 	return proxyToAzure(c, {
