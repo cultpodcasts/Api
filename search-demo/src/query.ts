@@ -6,6 +6,8 @@
  *   +             -> AND
  *   |             -> OR
  *   -term         -> NOT term (at a term boundary only)
+ *   AND / OR / NOT-> plain terms, not operators (simple syntax has no keywords;
+ *                    the stopword filter then drops and/or/not, matching Azure)
  *   "a b"         -> phrase
  *   term*         -> prefix
  *   ( )           -> treated as whitespace (grouping is rare in sent queries;
@@ -112,19 +114,9 @@ export function toMatch(q: string, mode: SearchMode = "any"): MatchResult {
       prefix = true;
       term = term.replace(/\*+$/, "");
     }
-    // Uppercase AND/OR/NOT read as operators (users type them expecting boolean logic).
-    if (term === "AND") {
-      pendingOp = "AND";
-      continue;
-    }
-    if (term === "OR") {
-      pendingOp = "OR";
-      continue;
-    }
-    if (term === "NOT") {
-      negate = true;
-      continue;
-    }
+    // No AND/OR/NOT keywords: Azure "simple" syntax treats them as plain terms
+    // (verified live: `scientology AND "paulette cooper"` returns the OR result
+    // on production Azure). As bare terms they are then stopword-dropped.
     if (!term) continue;
     sawText = true;
     // StandardTokenizer splits on hyphens/slashes; searchMode joins the pieces.
