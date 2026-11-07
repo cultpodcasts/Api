@@ -162,9 +162,17 @@ $policies = ConvertTo-Json -Depth 5 -Compress @(@{
     resources         = @{ "com.cloudflare.api.account.$AccountId" = "*" }
     permission_groups = @($want | ForEach-Object { @{ id = $_.id } })
 })
-$cfArgs = @("user", "tokens", "create", "--name", $Name, "--policies", $policies)
-if ($expiresOn) { $cfArgs += @("--expires-on", $expiresOn) }
-$created = Invoke-CfJson $cfArgs "creating the token"
+# Inline JSON gets its quotes stripped when PowerShell hands arguments to the
+# npm cmd-shim, so pass the policy via a temp file (cf supports --policies @file).
+$policyFile = Join-Path ([IO.Path]::GetTempPath()) "cf-token-policy-$PID.json"
+[IO.File]::WriteAllText($policyFile, $policies, [System.Text.UTF8Encoding]::new($false))
+try {
+    $cfArgs = @("user", "tokens", "create", "--name", $Name, "--policies", "@$policyFile")
+    if ($expiresOn) { $cfArgs += @("--expires-on", $expiresOn) }
+    $created = Invoke-CfJson $cfArgs "creating the token"
+} finally {
+    Remove-Item $policyFile -ErrorAction SilentlyContinue
+}
 if (-not $created.value) {
     Fail "The API did not return a token value.`n$(ConvertTo-Json $created -Depth 5)" "The token may still have been created - check: cf user tokens list"
 }
