@@ -42,6 +42,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# cf emits UTF-8 (emoji banner, box-drawing errors). Without this, Windows
+# consoles decode it with the legacy OEM codepage and it renders as mojibake.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 function Write-Step([string]$Message) { Write-Host "`n==> $Message" -ForegroundColor Cyan }
 function Write-Ok([string]$Message) { Write-Host "    OK: $Message" -ForegroundColor Green }
 function Fail([string]$Message, [string]$Hint) {
