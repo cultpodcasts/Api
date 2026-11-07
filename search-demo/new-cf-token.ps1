@@ -191,11 +191,22 @@ try {
 Write-Host "`n================= TOKEN (shown once - treat as a password) =================" -ForegroundColor Yellow
 Write-Host $created.value
 Write-Host "=============================================================================" -ForegroundColor Yellow
+
+$clipboardNote = ""
+try {
+    Set-Clipboard -Value $created.value
+    $clipboardNote = " (already on your clipboard)"
+} catch { }
+
 Write-Host @"
 
 Next steps:
-  1. Add it in Cursor: Dashboard -> Cloud Agents -> Secrets -> name CLOUDFLARE_API_TOKEN
-     (reaches NEW agent VMs), and/or hand it to the currently running agent.
+  1. Add the token$clipboardNote as a Cursor secret - this cannot be automated,
+     secrets are set in the dashboard UI only:
+       https://cursor.com/dashboard  ->  Cloud Agents  ->  Secrets
+       Name:  CLOUDFLARE_D1_DEPLOY_TOKEN
+     Secrets reach NEW agent VMs; for the currently running agent, paste the
+     token into the chat instead (it is scoped + expiring, and revocable below).
   2. When the demo deploy is done, remove it:
        cf user tokens list
        cf user tokens delete $($created.id)
