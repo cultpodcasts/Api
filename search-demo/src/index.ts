@@ -17,6 +17,7 @@
 
 import { authorize, type AuthEnv } from "./auth";
 import { renderPage } from "./page";
+import { toMatchExpression, type SearchMode } from "./query";
 
 interface Env extends AuthEnv {
   SEARCH_DB: D1Database;
@@ -43,21 +44,6 @@ interface DocRow {
   bbc: string;
 }
 
-/** User text -> safe FTS5 MATCH expression: tokens are double-quoted (implicit AND); a trailing * keeps prefix search. */
-function toMatchExpression(q: string): string | null {
-  const tokens = q
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((t) => {
-      const prefix = t.endsWith("*");
-      const bare = (prefix ? t.slice(0, -1) : t).replaceAll('"', '""');
-      if (!bare) return null;
-      return `"${bare}"${prefix ? "*" : ""}`;
-    })
-    .filter((t): t is string => t !== null);
-  return tokens.length ? tokens.join(" ") : null;
-}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -82,7 +68,8 @@ export default {
     }
 
     const q = url.searchParams.get("q") ?? "";
-    const match = toMatchExpression(q);
+    const mode: SearchMode = url.searchParams.get("mode") === "all" ? "all" : "any";
+    const match = toMatchExpression(q, mode);
     const kind = url.searchParams.get("kind");
     const subject = url.searchParams.get("subject");
     const series = url.searchParams.get("series");
