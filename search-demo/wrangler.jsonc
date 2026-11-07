@@ -18,6 +18,9 @@
   "vars": {
     "REQUIRED_PERMISSIONS": "curate"
   },
+  "routes": [
+    { "pattern": "search-demo.cultpodcasts.com", "custom_domain": true }
+  ],
   "d1_databases": [
     {
       "binding": "SEARCH_DB",
