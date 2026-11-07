@@ -18,6 +18,10 @@
   "vars": {
     "REQUIRED_PERMISSIONS": "curate"
   },
+  // workers.dev stays on for server-to-server tests: the zone's bot challenge
+  // blocks non-browser POSTs to the custom domain (a service binding avoids
+  // this entirely when the real api Worker fronts the D1 engine).
+  "workers_dev": true,
   "routes": [
     { "pattern": "search-demo.cultpodcasts.com", "custom_domain": true }
   ],

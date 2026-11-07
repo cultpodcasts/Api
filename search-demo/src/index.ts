@@ -18,10 +18,26 @@
 import { authorize, type AuthEnv } from "./auth";
 import { renderPage } from "./page";
 import { toMatchExpression, type SearchMode } from "./query";
+import { parseODataFilter, parseFacet } from "./odata";
 
 interface Env extends AuthEnv {
   SEARCH_DB: D1Database;
   AUTH0_CLIENT_ID: string;
+  /** Shared key for the Azure-shaped POST endpoint (mirrors Azure's api-key). */
+  SEARCH_API_KEY: string;
+}
+
+/** Request body shape the api Worker forwards today (oDataSearchModel + extras the website sends). */
+interface ODataSearchRequest {
+  search?: string;
+  filter?: string;
+  skip?: number | string;
+  top?: number | string;
+  count?: boolean;
+  orderby?: string;
+  facets?: string[];
+  searchMode?: string;
+  queryType?: string;
 }
 
 interface DocRow {
@@ -58,8 +74,24 @@ export default {
         { headers: { "content-type": "text/html;charset=utf-8", "cache-control": "no-store" } } // pragma: allowlist secret
       );
     }
+    // Azure-shaped drop-in: POST …/docs/search with the same body + api-key
+    // header the api Worker sends to Azure AI Search today (swap env.apihost).
+    if (request.method === "POST" && url.pathname.endsWith("/docs/search")) {
+      if (request.headers.get("api-key") !== env.SEARCH_API_KEY) {
+        return Response.json({ error: { code: "", message: "invalid api-key" } }, { status: 403 });
+      }
+      try {
+        return await odataSearch(await request.json<ODataSearchRequest>(), env);
+      } catch (e) {
+        // Azure returns 400 with an error envelope for bad filter/body syntax.
+        return Response.json(
+          { error: { code: "", message: e instanceof Error ? e.message : "bad request" } },
+          { status: 400 }
+        );
+      }
+    }
     if (url.pathname !== "/search") {
-      return new Response("search-demo: GET / (UI) or GET /search?q=…", { status: 404 });
+      return new Response("search-demo: GET / (UI), GET /search?q=…, or POST …/docs/search", { status: 404 });
     }
 
     const auth = await authorize(request, env);
@@ -207,3 +239,107 @@ export default {
     });
   },
 } satisfies ExportedHandler<Env>;
+
+/** Azure AI Search docs/search lookalike over D1. Field names mirror the production index. */
+async function odataSearch(req: ODataSearchRequest, env: Env): Promise<Response> {
+  const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
+  const match = toMatchExpression(req.search ?? "", mode);
+  const top = Math.min(Math.max(Number(req.top ?? 50) || 0, 0), 100);
+  const skip = Math.max(Number(req.skip ?? 0) || 0, 0);
+
+  const where: string[] = [];
+  const binds: unknown[] = [];
+  let from: string;
+  let scoreSql = "1.0";
+  if (match) {
+    from = "search_fts JOIN search_docs d ON d.rowid = search_fts.rowid";
+    scoreSql = "-rank"; // FTS5 rank: smaller is better; negate so higher = better like @search.score
+    where.push("search_fts MATCH ?");
+    binds.push(match);
+  } else {
+    from = "search_docs d";
+  }
+  if (req.filter?.trim()) {
+    const parsed = parseODataFilter(req.filter);
+    where.push(parsed.sql);
+    binds.push(...parsed.binds);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const ob = (req.orderby ?? "").trim().toLowerCase();
+  const orderSql =
+    ob === "release asc" ? "ORDER BY d.release ASC"
+    : ob === "release desc" || (!match && !ob) ? "ORDER BY d.release DESC"
+    : match ? "ORDER BY rank"
+    : "ORDER BY d.release DESC";
+
+  const select = `${scoreSql} AS score, d.rowid, d.id, d.kind, d.title, d.series_name, d.description, d.release, d.duration, d.lang, d.spotify_id, d.youtube_id, d.apple_id, d.podcast_apple_id, d.image, d.svc, d.bbc`;
+  const statements = [
+    env.SEARCH_DB.prepare(`SELECT ${select} FROM ${from} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`).bind(...binds, top, skip),
+    env.SEARCH_DB.prepare(`SELECT COUNT(*) AS n FROM ${from} ${whereSql}`).bind(...binds),
+  ];
+
+  const facetSpecs = (req.facets ?? []).map(parseFacet);
+  for (const f of facetSpecs) {
+    const facetSql =
+      f.field === "subjects" // pragma: allowlist secret
+        ? `SELECT s.subject AS value, COUNT(*) AS count FROM ${from} JOIN doc_subjects s ON s.rowid_ref = d.rowid ${whereSql} GROUP BY s.subject ORDER BY count DESC LIMIT ${f.count}` // pragma: allowlist secret
+        : f.field === "lang"
+          ? `SELECT COALESCE(d.lang, 'en') AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY COALESCE(d.lang, 'en') ORDER BY count DESC LIMIT ${f.count}`
+          : `SELECT ${f.field === "contentKind" ? "d.kind" : "d.series_name"} AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY 1 ORDER BY count DESC LIMIT ${f.count}`;
+    statements.push(env.SEARCH_DB.prepare(facetSql).bind(...binds));
+  }
+
+  const results = await env.SEARCH_DB.batch(statements);
+  const docs = results[0].results as unknown as (DocRow & { score: number })[];
+  const total = (results[1].results[0] as { n: number }).n;
+
+  const subjectsByDoc = new Map<number, string[]>(); // pragma: allowlist secret
+  if (docs.length) {
+    const subjectRows = await env.SEARCH_DB
+      .prepare(`SELECT rowid_ref, subject FROM doc_subjects WHERE rowid_ref IN (${docs.map(() => "?").join(",")})`) // pragma: allowlist secret
+      .bind(...docs.map((d) => d.rowid))
+      .all<{ rowid_ref: number; subject: string }>();
+    for (const row of subjectRows.results) {
+      const list = subjectsByDoc.get(row.rowid_ref) ?? []; // pragma: allowlist secret
+      list.push(row.subject);
+      subjectsByDoc.set(row.rowid_ref, list); // pragma: allowlist secret
+    }
+  }
+
+  const body: Record<string, unknown> = {
+    "@odata.context": null,
+    value: docs.map((d) => ({
+      "@search.score": d.score,
+      id: d.id,
+      contentKind: d.kind, // pragma: allowlist secret
+      title: d.title,
+      seriesName: d.series_name,
+      podcastName: d.series_name,
+      description: d.description,
+      release: new Date(d.release * 1000).toISOString(),
+      duration: d.duration,
+      lang: d.lang,
+      spotifyId: d.spotify_id,
+      appleId: d.apple_id,
+      podcastAppleId: d.podcast_apple_id,
+      youtubeId: d.youtube_id,
+      image: d.image,
+      svc: d.svc,
+      bbc: d.bbc,
+      // Not carried in the demo corpus; present for shape parity with the Azure index.
+      internetArchive: null,
+      trailers: null,
+      subjects: subjectsByDoc.get(d.rowid) ?? [], // pragma: allowlist secret
+    })),
+  };
+  if (req.count) body["@odata.count"] = total;
+  if (facetSpecs.length) {
+    const facets: Record<string, unknown> = {};
+    facetSpecs.forEach((f, idx) => {
+      facets[f.field] = results[2 + idx].results;
+    });
+    body["@search.facets"] = facets;
+  }
+  return Response.json(body, { headers: { "cache-control": "no-store" } });
+}
