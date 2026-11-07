@@ -16,6 +16,12 @@ untruncated descriptions**, guests, and subjects). Decision context: <!-- pragma
    public). The loader creates `search_docs`, `doc_subjects`, and the <!-- pragma: allowlist secret -->
    `search_fts` FTS5 external-content table with sync triggers, then runs <!-- pragma: allowlist secret -->
    `INSERT INTO search_fts(search_fts) VALUES ('rebuild')` and `('optimize')`.
+   The FTS table **must** use `tokenize='porter unicode61'`: the production
+   Azure index runs the `en.lucene` analyzer (Porter stemming + possessive
+   stripping + English stopwords) on every searchable field, and the porter
+   tokenizer plus the query-side mirroring in `src/query.ts` (stopword drop,
+   hyphen/slash splitting, possessive OR-expansion) is what brings Azure⊆D1
+   containment to ~100% (measured 8 missing docs in 88,080, 0.01%).
 3. The loader's wrangler config must use the same `database_id` as
    `search-demo/wrangler.jsonc` so both resolve to the same Miniflare SQLite file.
 

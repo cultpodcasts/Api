@@ -89,6 +89,14 @@ function eqSql(name: string, value: string | null, binds: unknown[]): string {
   return `${col} = ?`;
 }
 
+/** `id ne '…'` (related-rails exclude-self). NULL-safe so nullable columns still match. */
+function neSql(name: string, value: string | null, binds: unknown[]): string {
+  const col = column(name);
+  if (value === null) return `${col} IS NOT NULL`;
+  binds.push(value);
+  return `(${col} IS NULL OR ${col} <> ?)`;
+}
+
 function searchInSql(name: string, values: string[], binds: unknown[]): string {
   const col = column(name);
   const parts: string[] = [];
@@ -150,9 +158,15 @@ function clause(p: P, binds: unknown[]): string {
     binds.push(...subBinds);
     return `EXISTS (SELECT 1 FROM doc_subjects s WHERE s.rowid_ref = d.rowid AND ${valueSql})`; // pragma: allowlist secret
   }
-  if (!lit(p, "eq")) throw new Error(`expected eq after ${name}`);
-  if (lit(p, "null")) return eqSql(name, null, binds);
-  return eqSql(name, quoted(p), binds);
+  if (lit(p, "eq")) {
+    if (lit(p, "null")) return eqSql(name, null, binds);
+    return eqSql(name, quoted(p), binds);
+  }
+  if (lit(p, "ne")) {
+    if (lit(p, "null")) return neSql(name, null, binds);
+    return neSql(name, quoted(p), binds);
+  }
+  throw new Error(`expected eq/ne after ${name}`);
 }
 
 function expr(p: P, binds: unknown[]): string {

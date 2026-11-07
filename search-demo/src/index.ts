@@ -17,7 +17,7 @@
 
 import { authorize, type AuthEnv } from "./auth";
 import { renderPage } from "./page";
-import { toMatchExpression, type SearchMode } from "./query";
+import { toMatch, type SearchMode } from "./query";
 import { parseODataFilter, parseFacet } from "./odata";
 
 interface Env extends AuthEnv {
@@ -38,6 +38,8 @@ interface ODataSearchRequest {
   facets?: string[];
   searchMode?: string;
   queryType?: string;
+  /** Azure $select subset: comma-separated field names (harness uses "id"). */
+  select?: string;
 }
 
 interface DocRow {
@@ -101,7 +103,8 @@ export default {
 
     const q = url.searchParams.get("q") ?? "";
     const mode: SearchMode = url.searchParams.get("mode") === "all" ? "all" : "any";
-    const match = toMatchExpression(q, mode);
+    const matched = toMatch(q, mode);
+    const match = matched.kind === "match" ? matched.expr : null;
     const kind = url.searchParams.get("kind");
     const subject = url.searchParams.get("subject");
     const series = url.searchParams.get("series");
@@ -125,6 +128,7 @@ export default {
     } else {
       from = "search_docs d";
       select += ", substr(d.description, 1, 200) AS snip";
+      if (matched.kind === "none") where.push("1 = 0"); // query was all stopwords
     }
     if (kind) {
       where.push("d.kind = ?");
@@ -243,8 +247,9 @@ export default {
 /** Azure AI Search docs/search lookalike over D1. Field names mirror the production index. */
 async function odataSearch(req: ODataSearchRequest, env: Env): Promise<Response> {
   const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
-  const match = toMatchExpression(req.search ?? "", mode);
-  const top = Math.min(Math.max(Number(req.top ?? 50) || 0, 0), 100);
+  const matched = toMatch(req.search ?? "", mode);
+  const match = matched.kind === "match" ? matched.expr : null;
+  const top = Math.min(Math.max(Number(req.top ?? 50) || 0, 0), 1000);
   const skip = Math.max(Number(req.skip ?? 0) || 0, 0);
 
   const where: string[] = [];
@@ -258,6 +263,7 @@ async function odataSearch(req: ODataSearchRequest, env: Env): Promise<Response>
     binds.push(match);
   } else {
     from = "search_docs d";
+    if (matched.kind === "none") where.push("1 = 0"); // query was all stopwords
   }
   if (req.filter?.trim()) {
     const parsed = parseODataFilter(req.filter);
@@ -294,8 +300,9 @@ async function odataSearch(req: ODataSearchRequest, env: Env): Promise<Response>
   const docs = results[0].results as unknown as (DocRow & { score: number })[];
   const total = (results[1].results[0] as { n: number }).n;
 
+  const want = req.select ? new Set(req.select.split(",").map((s) => s.trim()).filter(Boolean)) : null;
   const subjectsByDoc = new Map<number, string[]>(); // pragma: allowlist secret
-  if (docs.length) {
+  if (docs.length && (!want || want.has("subjects"))) { // pragma: allowlist secret
     const subjectRows = await env.SEARCH_DB
       .prepare(`SELECT rowid_ref, subject FROM doc_subjects WHERE rowid_ref IN (${docs.map(() => "?").join(",")})`) // pragma: allowlist secret
       .bind(...docs.map((d) => d.rowid))
@@ -307,9 +314,15 @@ async function odataSearch(req: ODataSearchRequest, env: Env): Promise<Response>
     }
   }
 
+  const project = (full: Record<string, unknown>) => {
+    if (!want) return full;
+    const out: Record<string, unknown> = { "@search.score": full["@search.score"] };
+    for (const k of want) if (k in full) out[k] = full[k];
+    return out;
+  };
   const body: Record<string, unknown> = {
     "@odata.context": null,
-    value: docs.map((d) => ({
+    value: docs.map((d) => project({
       "@search.score": d.score,
       id: d.id,
       contentKind: d.kind, // pragma: allowlist secret
@@ -331,7 +344,7 @@ async function odataSearch(req: ODataSearchRequest, env: Env): Promise<Response>
       internetArchive: null,
       trailers: null,
       subjects: subjectsByDoc.get(d.rowid) ?? [], // pragma: allowlist secret
-    })),
+    } as Record<string, unknown>)),
   };
   if (req.count) body["@odata.count"] = total;
   if (facetSpecs.length) {
