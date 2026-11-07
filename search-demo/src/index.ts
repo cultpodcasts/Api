@@ -85,11 +85,11 @@ export default {
       try {
         return await odataSearch(await request.json<ODataSearchRequest>(), env);
       } catch (e) {
-        // Azure returns 400 with an error envelope for bad filter/body syntax.
-        return Response.json(
-          { error: { code: "", message: e instanceof Error ? e.message : "bad request" } },
-          { status: 400 }
-        );
+        const message = e instanceof Error ? e.message : "bad request";
+        // D1 runtime failures (overload, timeouts) are retryable server errors,
+        // not request errors; only filter/body syntax problems mirror Azure's 400.
+        const status = /D1_|overloaded|too many|storage caused object reset/i.test(message) ? 503 : 400;
+        return Response.json({ error: { code: "", message } }, { status });
       }
     }
     if (url.pathname !== "/search") {
