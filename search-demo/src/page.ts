@@ -154,7 +154,15 @@ document.getElementById("next").onclick = () => { skip += TOP; search(); };
     },
   });
   if (location.search.includes("code=") && location.search.includes("state=")) {
-    await auth0c.handleRedirectCallback();
+    try {
+      await auth0c.handleRedirectCallback();
+    } catch (e) {
+      // The zone's bot challenge can replay the callback navigation; the second
+      // pass finds the one-time auth transaction already consumed and throws
+      // "Invalid state". Tokens from the first pass are already cached, so
+      // clean the URL and let isAuthenticated() decide.
+      console.warn("redirect callback failed (continuing):", e);
+    }
     history.replaceState({}, "", "/");
   }
   const authed = await auth0c.isAuthenticated();
