@@ -1,0 +1,18 @@
+// Search-platform epic prototype (local wrangler dev ONLY — never deploy).
+// Serves FTS5 search over a local D1 database built from a Cosmos backup:
+//   npx wrangler dev --config search-demo/wrangler.jsonc --persist-to <state-dir> --port 8788
+// The state dir is produced by the corpus loader (see search-demo/README.md);
+// database_id below must match the loader's wrangler config so both resolve
+// to the same local Miniflare SQLite file.
+{
+  "name": "search-demo",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "d1_databases": [
+    {
+      "binding": "SEARCH_DB",
+      "database_name": "search-proto",
+      "database_id": "00000000-0000-0000-0000-0000000000a1"
+    }
+  ]
+}
