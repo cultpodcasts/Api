@@ -28,6 +28,35 @@ Real-data checkpoint (2026-11-07): full database 239 MB total — `search_docs`
 npx wrangler dev --config search-demo/wrangler.jsonc --persist-to <state-dir> --port 8788
 ```
 
+Note: `wrangler dev --persist-to` reads `<state-dir>/v3/d1/...` while the
+`getPlatformProxy` loader writes `<state-dir>/d1/...` — symlink `v3/d1 -> ../d1`
+inside the state dir (or load via a config wrangler dev also uses).
+
+## Web UI + Auth0 lock-down
+
+`GET /` serves a search page (Auth0 SPA SDK). The tenant/client identifiers are
+**not committed** — same convention as the root Worker's secret-managed auth0
+config. Create a gitignored `search-demo/.dev.vars` with `AUTH0_DOMAIN`,
+`AUTH0_CLIENT_ID`, `AUTH0_AUDIENCE` (copy the values from the website repo's
+`environment.production.ts` / `app.config.ts`). `GET /search` requires a
+valid Auth0 **access token** and authorises on the `permissions[]` claim, the
+same model as the production api Worker (`Auth0Middleware` / `hasPermission`,
+`@cfworker/jwt`): any permission listed in the `REQUIRED_PERMISSIONS` var
+(default `curate`) grants access. No token → 401; token without the permission
+→ 403.
+
+To browse from outside the dev machine, expose the port with a quick tunnel:
+
+```sh
+cloudflared tunnel --url http://localhost:8788
+```
+
+Then add the printed `https://….trycloudflare.com` URL to the Auth0 SPA
+application (the one the website uses) under **Allowed Callback URLs,
+Allowed Logout URLs, Allowed Web Origins** — quick-tunnel hostnames are random
+per run, so this is a per-session dashboard edit. Sign in on the page and
+search. Remove the URL from Auth0 when done.
+
 ## Query
 
 ```

@@ -8,6 +8,14 @@
   "name": "search-demo",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
+  // Auth0 config comes from a gitignored search-demo/.dev.vars (same convention as
+  // the root Worker: auth0 identifiers are secret-managed config, never committed):
+  //   AUTH0_DOMAIN=…        (website environment.production.ts auth0.domain)
+  //   AUTH0_CLIENT_ID=…     (website environment.production.ts auth0.clientId)
+  //   AUTH0_AUDIENCE=…      (website app.config.ts authorizationParams.audience)
+  "vars": {
+    "REQUIRED_PERMISSIONS": "curate"
+  },
   "d1_databases": [
     {
       "binding": "SEARCH_DB",

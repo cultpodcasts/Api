@@ -15,8 +15,12 @@
  *   { "@odata.count", value: [...], "@search.facets"?: {...} }
  */
 
-interface Env {
+import { authorize, type AuthEnv } from "./auth";
+import { renderPage } from "./page";
+
+interface Env extends AuthEnv {
   SEARCH_DB: D1Database;
+  AUTH0_CLIENT_ID: string;
 }
 
 interface DocRow {
@@ -58,8 +62,23 @@ function toMatchExpression(q: string): string | null {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/") {
+      return new Response(
+        renderPage({
+          domain: env.AUTH0_DOMAIN,
+          clientId: env.AUTH0_CLIENT_ID,
+          audience: env.AUTH0_AUDIENCE,
+        }),
+        { headers: { "content-type": "text/html;charset=utf-8", "cache-control": "no-store" } } // pragma: allowlist secret
+      );
+    }
     if (url.pathname !== "/search") {
-      return new Response("search-demo: GET /search?q=…", { status: 404 });
+      return new Response("search-demo: GET / (UI) or GET /search?q=…", { status: 404 });
+    }
+
+    const auth = await authorize(request, env);
+    if (!auth.ok) {
+      return Response.json({ error: auth.reason }, { status: auth.status });
     }
 
     const q = url.searchParams.get("q") ?? "";
