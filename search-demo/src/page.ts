@@ -31,6 +31,11 @@ export function renderPage(cfg: { domain: string; clientId: string; audience: st
   .card .meta b { color: #f6b73c; font-weight: 600; }
   .card p { margin: 0; font-size: 13.5px; color: #b9c2cc; }
   .card p b { color: #ffd66e; }
+  details.desc { margin-top: 5px; }
+  details.desc summary { cursor: pointer; font-size: 12.5px; color: #f6b73c; list-style-position: inside; }
+  details.desc summary:hover { text-decoration: underline; }
+  details.desc[open] summary { color: #9aa4b0; }
+  details.desc p { margin-top: 5px; white-space: pre-wrap; }
   .chips { margin-top: 6px; }
   .chips i { display: inline-block; font-style: normal; font-size: 11.5px; background: #20272f; border-radius: 999px; padding: 2px 8px; margin: 2px 4px 0 0; color: #9fb2c5; }
   #pager { display: flex; gap: 10px; align-items: center; margin: 14px 0 40px; }
@@ -83,6 +88,11 @@ function expandImage(image, youtubeId) {
 }
 const esc = (s) => (s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const allowSnippet = (s) => esc(s).replaceAll("&lt;b&gt;", "<b>").replaceAll("&lt;/b&gt;", "</b>");
+// Offer the expander only when the full description holds more than the snippet shows.
+const hasMore = (v) => {
+  const snipText = (v.snippet ?? "").replace(/<\\/?b>/g, "").replace(/…/g, "").trim();
+  return (v.description ?? "").trim().length > snipText.length + 20;
+};
 
 async function search() {
   const q = document.getElementById("q").value.trim();
@@ -109,7 +119,8 @@ async function search() {
       <div>
         <h2>\${esc(v.title)}</h2>
         <div class="meta"><b>\${esc(v.seriesName ?? v.contentKind)}</b> · \${esc(v.contentKind)} · \${v.release.slice(0, 10)} · \${esc(v.duration)}\${v.lang ? " · " + esc(v.lang) : ""}</div> <!-- pragma: allowlist secret -->
-        <p>\${allowSnippet(v.description)}</p>
+        <p>\${allowSnippet(v.snippet)}</p>
+        \${hasMore(v) ? \`<details class="desc"><summary>Full description</summary><p>\${esc(v.description)}</p></details>\` : ""}
         <div class="chips">\${(v.subjects ?? []).map((s) => \`<i>\${esc(s)}</i>\`).join("")}</div> <!-- pragma: allowlist secret -->
       </div>
     </div>\`;

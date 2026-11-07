@@ -96,7 +96,7 @@ export default {
     const binds: unknown[] = [];
     let from: string;
     let select =
-      "d.rowid, d.id, d.kind, d.title, d.series_name, d.release, d.duration, d.lang, d.spotify_id, d.youtube_id, d.apple_id, d.podcast_apple_id, d.image, d.svc, d.bbc";
+      "d.rowid, d.id, d.kind, d.title, d.series_name, d.description, d.release, d.duration, d.lang, d.spotify_id, d.youtube_id, d.apple_id, d.podcast_apple_id, d.image, d.svc, d.bbc";
 
     if (match) {
       from = "search_fts JOIN search_docs d ON d.rowid = search_fts.rowid";
@@ -191,7 +191,8 @@ export default {
         contentKind: d.kind, // pragma: allowlist secret
         title: d.title,
         seriesName: d.series_name,
-        description: d.snip,
+        snippet: d.snip,
+        description: d.description,
         release: new Date(d.release * 1000).toISOString(),
         duration: d.duration,
         lang: d.lang,
