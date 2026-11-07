@@ -50,16 +50,29 @@ function Fail([string]$Message, [string]$Hint) {
     exit 1
 }
 
+# cf prints JSON to stdout by default (no --json flag in v0.15.x), mixes in
+# banner/update lines, and does not reliably set a nonzero exit code on errors.
+# So: run, strip to the first JSON bracket, parse; treat an "Error" box or an
+# unparseable result as failure regardless of exit code.
+$DashboardHint = "Fallback: create the token in the dashboard - https://dash.cloudflare.com/profile/api-tokens (Create Custom Token; permissions: Account -> D1 -> Edit, Account -> Workers Scripts -> Edit)."
+
 function Invoke-CfJson([string[]]$CfArgs, [string]$What) {
-    $raw = & cf @CfArgs --json 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Fail "cf failed while $What (exit $LASTEXITCODE):`n$($raw -join "`n")" `
-             "If this is an authorization error, your cf OAuth session may not be allowed to manage tokens. Fall back to the dashboard: https://dash.cloudflare.com/profile/api-tokens (Create Custom Token; permissions: Account -> D1 -> Edit, Account -> Workers Scripts -> Edit)."
+    $raw = (& cf @CfArgs 2>&1 | ForEach-Object { "$_" }) -join "`n"
+    if ($raw -match "Unknown argument") {
+        Fail "cf did not recognise the arguments while $What :`n$raw" "Your cf version may differ from the one this script was written for. Update it (npm install --global cf@latest) and re-run. $DashboardHint"
+    }
+    if ($raw -match "No authentication token found|not logged in|Authentication error|Unauthorized|Forbidden") {
+        Fail "cf authentication/authorization problem while $What :`n$raw" "Run 'cf auth login' (or 'cf auth login --force'), then re-run. If the OAuth session is not allowed to manage tokens: $DashboardHint"
+    }
+    # Strip banner/progress lines: parse from the first '[' or '{'.
+    $start = $raw.IndexOfAny([char[]]@('[', '{'))
+    if ($start -lt 0) {
+        Fail "cf returned no JSON while $What :`n$raw" "Re-run the failing command by hand to inspect: cf $($CfArgs -join ' '). $DashboardHint"
     }
     try {
-        return ($raw -join "`n") | ConvertFrom-Json
+        return $raw.Substring($start) | ConvertFrom-Json
     } catch {
-        Fail "Could not parse cf output while $What :`n$($raw -join "`n")" "Re-run with -Verbose, or update cf: npm install --global cf@latest"
+        Fail "Could not parse cf output while $What :`n$raw" "Update cf (npm install --global cf@latest) and re-run. $DashboardHint"
     }
 }
 
@@ -84,11 +97,14 @@ Write-Ok "$(cf --version 2>$null | Select-Object -First 1)"
 
 # ── 3. sign-in ───────────────────────────────────────────────────────────────
 Write-Step "Checking cf sign-in"
-& cf user get --json *> $null
-if ($LASTEXITCODE -ne 0) {
+$whoRaw = (& cf user get 2>&1 | ForEach-Object { "$_" }) -join "`n"
+if ($whoRaw -match "No authentication token found|not logged in") {
     Write-Host "    Not signed in - opening the browser OAuth flow (cf auth login)..."
     & cf auth login
-    if ($LASTEXITCODE -ne 0) { Fail "cf auth login failed." "Complete the browser flow and re-run the script." }
+    $whoRaw = (& cf user get 2>&1 | ForEach-Object { "$_" }) -join "`n"
+    if ($whoRaw -match "No authentication token found|not logged in") {
+        Fail "Still not signed in after cf auth login." "Complete the browser flow (try 'cf auth login --force'), then re-run the script."
+    }
 }
 Write-Ok "signed in"
 
@@ -120,7 +136,7 @@ $want = @($groups | Where-Object { $_.name -in $wantNames })
 if (@($want).Count -ne 2) {
     $found = ($want | ForEach-Object { $_.name }) -join ", "
     Fail "Expected 2 permission groups, found $(@($want).Count) ($found)." `
-         "Cloudflare may have renamed them. Run: cf user tokens permission-groups list --json  and look for the D1 and Workers Scripts write/edit groups, then create the token in the dashboard instead."
+         "Cloudflare may have renamed them. Run: cf user tokens permission-groups list  and look for the D1 and Workers Scripts write/edit groups, then create the token in the dashboard instead."
 }
 $want | ForEach-Object { Write-Ok "$($_.name) -> $($_.id)" }
 
