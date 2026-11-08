@@ -109,12 +109,15 @@ import {
 	UpdateTvShowRoute,
 	GetTvShowEpisodeRoute,
 	UpdateTvShowEpisodeRoute,
+	DeleteTvShowEpisodeRoute,
 	GetNewsOrganisationRoute,
 	UpdateNewsOrganisationRoute,
 	GetNewsReportRoute,
 	UpdateNewsReportRoute,
+	DeleteNewsReportRoute,
 	GetFilmRoute,
 	UpdateFilmRoute,
+	DeleteFilmRoute,
 	CatalogueIdentityLookupRoute
 } from './openapiRoutes';
 const app = new Hono<{ Bindings: Env }>();
@@ -408,8 +411,10 @@ openapi.get('/tvshow/:identifier{.+}', GetTvShowRoute);
 openapi.patch('/tvshow/:id', UpdateTvShowRoute);
 openapi.get('/tvshowepisode/:id', GetTvShowEpisodeRoute);
 openapi.patch('/tvshowepisode/:id', UpdateTvShowEpisodeRoute);
+openapi.delete('/tvshowepisode/:id', DeleteTvShowEpisodeRoute);
 openapi.get('/film/:identifier{.+}', GetFilmRoute);
 openapi.patch('/film/:id', UpdateFilmRoute);
+openapi.delete('/film/:id', DeleteFilmRoute);
 openapi.post('/catalogue/identity/lookup', CatalogueIdentityLookupRoute);
 openapi.get('/newsorganisation/:identifier{.+}', GetNewsOrganisationRoute);
 openapi.patch('/newsorganisation/:id', UpdateNewsOrganisationRoute);
@@ -420,6 +425,7 @@ openapi.post('/newsorganisation/index/:identifier{.+}', IndexNewsOrganisationRou
 openapi.post('/tvshow/index/:identifier{.+}', IndexTvShowRoute);
 openapi.get('/newsreport/:id', GetNewsReportRoute);
 openapi.patch('/newsreport/:id', UpdateNewsReportRoute);
+openapi.delete('/newsreport/:id', DeleteNewsReportRoute);
 openapi.post('/podcast/index/:name/backlog', IndexPodcastBacklogByNameRoute);
 openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);
 openapi.get('/subject/:name', GetSubjectByNameRoute);

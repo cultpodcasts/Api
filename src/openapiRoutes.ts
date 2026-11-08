@@ -40,6 +40,7 @@ import { createSubject } from "./createSubject";
 import { catalogueIdentityLookup } from "./catalogueIdentityLookup";
 import { deleteBookmark } from "./deleteBookmark";
 import { deletePodcastEpisode } from "./deleteEpisode";
+import { deleteFilm, deleteNewsReport, deleteTvShowEpisode } from "./deleteCatalogue";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
@@ -282,6 +283,24 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 	}
 });
 
+export const DeleteTvShowEpisodeRoute = createOpenApiRoute(deleteTvShowEpisode, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete TV-show episode by id",
+		description:
+			"`id` is the episode guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when episode is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
 export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 	auth: curateAuth,
 	schema: {
@@ -351,6 +370,24 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 					"Stored trailers include an id that was not in expectedTrailerIds. The keep-list was not applied.",
 				...contentJson(filmStaleTrailersConflictSchema)
 			},
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const DeleteFilmRoute = createOpenApiRoute(deleteFilm, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete film by id",
+		description:
+			"`id` is the film guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when film is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -445,6 +482,24 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 					"Invalid release (yyyy-MM-dd only), duration (non-negative h:mm:ss), or non-absolute `services.*.url` / `services.*.image`; nothing applied",
 				...contentJson(errorSchema)
 			},
+			...newsNotFoundIdResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const DeleteNewsReportRoute = createOpenApiRoute(deleteNewsReport, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete news report by id",
+		description:
+			"`id` is the report guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when report is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
 			...newsNotFoundIdResponse,
 			...serverErrorResponse,
 			...authResponses
