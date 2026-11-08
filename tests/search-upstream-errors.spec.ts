@@ -85,10 +85,12 @@ describe("POST /search upstream errors", () => {
 	});
 
 	it("forwards Azure 400 JSON including the missing field name", async () => {
+		// Use a field the Worker does not alias (podcastName → seriesName), so the
+		// stubbed upstream 400 still matches what Azure would see after rewrite.
 		const azureError = {
 			error: {
 				code: "",
-				message: "Could not find a property named 'podcastName' on type 'search.document'."
+				message: "Could not find a property named 'notAField' on type 'search.document'."
 			}
 		};
 		stubUpstream(400, JSON.stringify(azureError));
@@ -97,7 +99,7 @@ describe("POST /search upstream errors", () => {
 			{
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ search: "*", filter: "podcastName eq 'x'" })
+				body: JSON.stringify({ search: "*", filter: "notAField eq 'x'" })
 			},
 			env()
 		);

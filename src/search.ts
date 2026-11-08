@@ -3,6 +3,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
 import { searchLogCollector } from "./searchLogCollector";
 import { oDataSearchModel } from "./oDataSearchModel";
+import { rewriteLegacyPodcastNameInSearchRequest } from "./rewriteLegacyPodcastNameInSearchRequest";
 import { searchMode } from "./searchMode";
 
 /** Forward Azure AI Search error statuses: keep 4xx/5xx (incl. 429); other non-200 → 502. */
@@ -34,8 +35,11 @@ export async function search(c: ActionContext): Promise<Response> {
 		return c.req
 			.json()
 			.then(async (data: oDataSearchModel) => {
-				let requestBody = JSON.stringify(data);
+				// Collect inbound body first so logs still see legacy podcastName
+				// (stale-client signal + podcast-mode filter detection).
 				searchLog.collectSearchRequest(data);
+				rewriteLegacyPodcastNameInSearchRequest(data);
+				let requestBody = JSON.stringify(data);
 				const response = await fetch(c.env.apihost, {
 					cf: {
 						// JSON search responses need cacheEverything; TTL by status so 429/5xx are not sticky for 600s
