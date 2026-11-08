@@ -50,15 +50,16 @@ show 48                51 min · date 28
 
 ## Episode image height (standard)
 
-Episode art uses a **fixed max height**: the current wide box
-(`OG_WIDE_STYLE.artMaxHeight` = **440**). Square must not shrink art to fit a
-shorter canvas. Square 1:1 art is **440×440**; canvas **height grows**
-(`squareCanvasHeight` = brand + 440 + footer).
+**Wide** art max height is `OG_WIDE_STYLE.artMaxHeight` = **440**. **Square** uses
+a smaller box (`OG_SQUARE_ART_MAX` = **320**) so the title column on an 800-wide
+canvas can wrap multi-word titles instead of truncating ~one word per line
+(Api#244). Square canvas **height still grows** with that art
+(`squareCanvasHeight` = brand + 320 + footer).
 
 ## Square application
 
 Canvas **width** stays **800** (not `1200 × 2/3`). Canvas **height** is
-`squareCanvasHeight()` (brand + fixed 440 art + footer), not a fixed 418.
+`squareCanvasHeight()` (brand + `OG_SQUARE_ART_MAX` art + footer), not a fixed 418.
 Every other linear token (type, pads, icons, radius) is
 `Math.round(wide × 800/1200)` unless noted:
 
@@ -68,7 +69,7 @@ Every other linear token (type, pads, icons, radius) is
 | Site logo | 59×59 |
 | Brand size | 64px |
 | Icons | 21×21, gap 7 |
-| Art max box / radius | **440×440** (height = wide 440 standard) / 8 |
+| Art max box / radius | **320×320** (`OG_SQUARE_ART_MAX`) / 8 |
 | Art pad | 19 |
 | Chrome pad | 27×8 |
 | Show name | **Same rule as wide:** Figtree 600, **48px always** (do not shrink to 40/32). **Max 2 lines**, then `...`. Width is leftover footer after the stacked meta (`squareShowNameContentWidth`). |

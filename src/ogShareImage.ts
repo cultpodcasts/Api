@@ -96,8 +96,9 @@ const CARD_SCALE = {
 	},
 	/**
 	 * Square canvas (Spotify / Apple art). Chrome is the wide columns style guide
-	 * scaled by 800/1200 (see docs/og-share-image-cards.md). Episode art height is
-	 * the wide standard (440); canvas height grows to fit. Do not change `wide`.
+	 * scaled by 800/1200 (see docs/og-share-image-cards.md). Episode art uses
+	 * `OG_SQUARE_ART_MAX` (title column needs room on 800-wide); canvas height
+	 * grows to fit. Do not change `wide`.
 	 */
 	square: {
 		width: OG_SQUARE_STYLE.canvasWidth,

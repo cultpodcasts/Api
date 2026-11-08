@@ -62,18 +62,22 @@ export function scaleWidePx(widePx: number): number {
 }
 
 /**
- * Episode art height is fixed: the current wide max (`OG_WIDE_STYLE.artMaxHeight`).
- * Square canvas width stays 800; height grows to fit that art plus chrome.
- * Other linear tokens (type, pads, icons) stay wide × 800/1200 unless noted.
+ * Square 1:1 art box. Not wide’s 440: on an 800-wide canvas that left only ~269px
+ * for the title at 48px (≈ one word per line → early `...`). 320 leaves ~389px so
+ * multi-word titles wrap instead of truncating by line 5 (Api#244).
+ * Canvas height still grows with this art plus chrome. Other linear tokens stay
+ * wide × 800/1200 unless noted.
  */
+export const OG_SQUARE_ART_MAX = 320;
+
 export const OG_SQUARE_STYLE = {
 	canvasWidth: 800,
 	textPaddingX: scaleWidePx(OG_WIDE_STYLE.textPaddingX),
 	textPaddingY: scaleWidePx(OG_WIDE_STYLE.textPaddingY),
 	artPad: scaleWidePx(OG_WIDE_STYLE.artPad),
 	gap: scaleWidePx(OG_WIDE_STYLE.gap),
-	artMaxWidth: OG_WIDE_STYLE.artMaxHeight,
-	artMaxHeight: OG_WIDE_STYLE.artMaxHeight,
+	artMaxWidth: OG_SQUARE_ART_MAX,
+	artMaxHeight: OG_SQUARE_ART_MAX,
 	artRadius: scaleWidePx(OG_WIDE_STYLE.artRadius),
 	iconGap: scaleWidePx(OG_WIDE_STYLE.iconGap),
 	iconRadius: scaleWidePx(OG_WIDE_STYLE.iconRadius),
@@ -123,9 +127,9 @@ export function squareBrandBarHeight(): number {
 	return s.chromePadY + mark + s.brandBarExtraBottom;
 }
 
-/** Episode-art height standard — same as wide (`artMaxHeight` 440). */
+/** Square episode-art box (see `OG_SQUARE_ART_MAX`). */
 export function squareArtMaxHeight(): number {
-	return OG_WIDE_STYLE.artMaxHeight;
+	return OG_SQUARE_ART_MAX;
 }
 
 export function squareFooterHeight(): number {

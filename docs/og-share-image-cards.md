@@ -85,11 +85,12 @@ show 48               51 min · date 28 <!-- pragma: allowlist secret -->
 Full token tables, faces, and alignment rules:
 [`docs/og-share-image-style-guide.md`](og-share-image-style-guide.md).
 **Square application** (do not edit wide): multiply linear tokens by `800/1200`
-(title 48, logo 59, brand 64, icons 21). Episode-image **height is fixed at the
-wide standard (440)** — square 1:1 art is 440×440; canvas width 800, height
-`squareCanvasHeight()` (do not shrink art to 418). Show name is **48px always**
-(2 lines, then `...`) across the leftover footer next to stacked meta, **vertically
-centred** with that column for 1 or 2 rows (same as wide).
+(title 48, logo 59, brand 64, icons 21). Episode art uses **`OG_SQUARE_ART_MAX`
+(320)** — not wide’s 440 — so the title column on an 800-wide canvas can wrap
+multi-word titles (Api#244). Square 1:1 art is 320×320; canvas width 800, height
+`squareCanvasHeight()`. Show name is **48px always** (2 lines, then `...`) across
+the leftover footer next to stacked meta, **vertically centred** with that column
+for 1 or 2 rows (same as wide).
 
 | Zone (wide) | Content |
 |-------------|---------|
@@ -110,7 +111,7 @@ Preview-only `wl=` wide variants (page-details does not send this; default is `c
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
 | `a=wide` | 1200×630 | 700×440 | `summary_large_image` |
-| `a=square` | 800×`squareCanvasHeight()` | 440×440 (height = wide 440) | `summary_large_image` |
+| `a=square` | 800×`squareCanvasHeight()` | 320×320 (`OG_SQUARE_ART_MAX`) | `summary_large_image` |
 
 ## Query contract
 

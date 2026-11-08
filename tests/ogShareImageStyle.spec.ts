@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	OG_SQUARE_ART_MAX,
 	OG_SQUARE_FROM_WIDE_SCALE,
 	OG_SQUARE_STYLE,
 	OG_STYLE_COLORS,
@@ -56,7 +57,7 @@ describe("OG style guide tokens", () => {
 		expect(OG_WIDE_STYLE.textPaddingX).toBe(36);
 	});
 
-	it("derives every square linear token from wide × 800/1200", () => {
+	it("derives every square linear token from wide × 800/1200 (art uses OG_SQUARE_ART_MAX)", () => {
 		expect(OG_SQUARE_STYLE.canvasWidth).toBe(800);
 		expect(OG_SQUARE_STYLE.titleSize).toBe(OG_SQUARE_TITLE_PX);
 		expect(OG_SQUARE_STYLE.titleSize).toBe(scaleWidePx(OG_WIDE_STYLE.titleSize));
@@ -65,11 +66,22 @@ describe("OG style guide tokens", () => {
 		expect(OG_SQUARE_STYLE.brandGap).toBe(scaleWidePx(OG_WIDE_STYLE.brandGap));
 		expect(OG_SQUARE_STYLE.icon).toBe(scaleWidePx(OG_WIDE_STYLE.icon));
 		expect(OG_SQUARE_STYLE.iconGap).toBe(scaleWidePx(OG_WIDE_STYLE.iconGap));
-		expect(OG_SQUARE_STYLE.artMaxWidth).toBe(OG_WIDE_STYLE.artMaxHeight);
-		expect(OG_SQUARE_STYLE.artMaxHeight).toBe(OG_WIDE_STYLE.artMaxHeight);
-		expect(squareArtMaxHeight()).toBe(OG_WIDE_STYLE.artMaxHeight);
-		expect(squareArtMaxHeight()).toBe(440);
-		expect(squareCanvasHeight()).toBeGreaterThan(OG_WIDE_STYLE.artMaxHeight);
+		// Square art is intentionally smaller than wide’s 440 so the title column
+		// can wrap multi-word titles on an 800-wide canvas (Api#244).
+		expect(OG_SQUARE_ART_MAX).toBe(320);
+		expect(OG_SQUARE_ART_MAX).toBeLessThan(OG_WIDE_STYLE.artMaxHeight);
+		expect(OG_SQUARE_STYLE.artMaxWidth).toBe(OG_SQUARE_ART_MAX);
+		expect(OG_SQUARE_STYLE.artMaxHeight).toBe(OG_SQUARE_ART_MAX);
+		expect(squareArtMaxHeight()).toBe(OG_SQUARE_ART_MAX);
+		expect(squareCanvasHeight()).toBeGreaterThan(OG_SQUARE_ART_MAX);
+		const titleColumnApprox =
+			OG_SQUARE_STYLE.canvasWidth -
+			OG_SQUARE_STYLE.artPad -
+			OG_SQUARE_ART_MAX -
+			OG_SQUARE_STYLE.gap -
+			OG_SQUARE_STYLE.chromePadX -
+			OG_SQUARE_STYLE.titleColumnPadLeftExtra;
+		expect(titleColumnApprox).toBeGreaterThanOrEqual(380);
 		expect(OG_SQUARE_STYLE.artRadius).toBe(scaleWidePx(OG_WIDE_STYLE.artRadius));
 		expect(OG_SQUARE_STYLE.artPad).toBe(scaleWidePx(OG_WIDE_STYLE.artPad));
 		expect(OG_SQUARE_STYLE.metaSize).toBe(scaleWidePx(OG_WIDE_STYLE.metaSize));
