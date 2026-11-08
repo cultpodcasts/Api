@@ -1101,6 +1101,12 @@ export const indexPodcastResponseSchema = z.object({
 	searchIndexerState: searchIndexerStateSchema.optional()
 });
 
+/** Api.Dtos.CatalogueIndexRejection with `reason: "indexingInProgress"`: 409 when a curator index is already running. */
+export const podcastIndexBusySchema = z.object({
+	reason: z.literal("indexingInProgress"),
+	message: z.string()
+});
+
 /** Api.Dtos.CatalogueIndexResponse: the command outcome of a TV show / news organisation index (RPP). */
 export const catalogueIndexResponseSchema = z.object({
 	indexedItemIds: z.array(z.string().uuid()).describe("TV episodes / news reports the index saved (new, merged, or removed by elimination terms)."),
