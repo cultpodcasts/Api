@@ -120,6 +120,7 @@ import {
 	preProcessedHomepageResponseSchema,
 	searchSuggestionsResponseSchema,
 	indexPodcastResponseSchema,
+	podcastIndexBusySchema,
 	indexerStateDtoSchema,
 	jsonBody,
 	languagesResponseSchema,
@@ -877,10 +878,31 @@ export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
     schema: {
         tags: ["Podcasts"],
         summary: "Reindex podcast by name",
-        request: { params: nameParam },
+        description:
+            "Curate only. Proxies to Azure `POST /api/podcast/index/{name}`. " +
+            "Optional query `backlog=true|1|yes` clears the two-day hub Index lookback so Azure walks the full catalogue " +
+            "(RPP #1310). Default (no flag) keeps the short lookback. Query string is forwarded to Azure. " +
+            "409 means indexing is already running; 504 means the on-demand time budget cut the walk off (TimedOut).",
+        request: {
+            params: nameParam,
+            query: z.object({
+                backlog: z
+                    .string()
+                    .optional()
+                    .describe("When `true`, `1`, or `yes` (case-insensitive), request Azure backlog / cold-start mode")
+            })
+        },
         responses: {
             200: { description: "Indexed", ...contentJson(indexPodcastResponseSchema) },
             400: { description: "Bad request", ...contentJson(indexPodcastResponseSchema) },
+            409: {
+                description: "A curator index is already running for this podcast (`indexingInProgress`)",
+                ...contentJson(podcastIndexBusySchema)
+            },
+            504: {
+                description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
+                ...contentJson(catalogueIndexTimedOutSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
