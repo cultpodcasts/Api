@@ -1,0 +1,35 @@
+// Search-platform epic prototype. Standalone workers.dev demo — NOT the live
+// `api` Worker; the no-deploys rule still applies to `api`/`api-preview`.
+// Serves FTS5 search over a D1 database built from a Cosmos backup.
+// Local dev (state dir from the corpus loader, see search-demo/README.md):
+//   npx wrangler dev --config search-demo/wrangler.jsonc --persist-to <state-dir> --port 8788
+// The remote database_id below is the deployed search-demo-db (WEUR); for local
+// dev the id just needs to match the loader's wrangler config so both resolve
+// to the same local Miniflare SQLite file.
+{
+  "name": "search-demo",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Auth0 config comes from a gitignored search-demo/.dev.vars (same convention as
+  // the root Worker: auth0 identifiers are secret-managed config, never committed):
+  //   AUTH0_DOMAIN=…        (website environment.production.ts auth0.domain)
+  //   AUTH0_CLIENT_ID=…     (website environment.production.ts auth0.clientId)
+  //   AUTH0_AUDIENCE=…      (website app.config.ts authorizationParams.audience)
+  "vars": {
+    "REQUIRED_PERMISSIONS": "curate"
+  },
+  // workers.dev stays on for server-to-server tests: the zone's bot challenge
+  // blocks non-browser POSTs to the custom domain (a service binding avoids
+  // this entirely when the real api Worker fronts the D1 engine).
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "search-demo.cultpodcasts.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "SEARCH_DB",
+      "database_name": "search-demo-db",
+      "database_id": "f0162450-027a-46d8-af02-c771384534c7"
+    }
+  ]
+}
