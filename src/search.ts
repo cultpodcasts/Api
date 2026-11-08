@@ -38,8 +38,12 @@ export async function search(c: ActionContext): Promise<Response> {
 				searchLog.collectSearchRequest(data);
 				const response = await fetch(c.env.apihost, {
 					cf: {
+						// JSON search responses need cacheEverything; TTL by status so 429/5xx are not sticky for 600s
 						cacheEverything: true,
-						cacheTtl: 600
+						cacheTtlByStatus: {
+							"200-299": 600,
+							"400-599": 0
+						}
 					},
 					headers: {
 						"api-key": c.env.apikey,

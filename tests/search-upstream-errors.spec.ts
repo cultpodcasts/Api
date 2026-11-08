@@ -71,6 +71,11 @@ describe("parseUpstreamSearchErrorBody", () => {
 		const body = await parseUpstreamSearchErrorBody(new Response("throttle", { status: 429 }));
 		expect(body).toEqual({ error: "throttle" });
 	});
+
+	it("falls back when upstream body is empty", async () => {
+		const body = await parseUpstreamSearchErrorBody(new Response("", { status: 503 }));
+		expect(body).toEqual({ error: "Upstream search error" });
+	});
 });
 
 describe("POST /search upstream errors", () => {
@@ -146,5 +151,20 @@ describe("POST /search upstream errors", () => {
 		const body = (await resp.json()) as Record<string, unknown>;
 		expect(body["@odata.context"]).toBeNull();
 		expect(body.value).toEqual([{ id: "1" }]);
+	});
+
+	it("maps unexpected upstream 302 to 502", async () => {
+		stubUpstream(302, "");
+		const resp = await app().request(
+			"/search",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ search: "*" })
+			},
+			env()
+		);
+		expect(resp.status).toBe(502);
+		expect(await resp.json()).toEqual({ error: "Upstream search error" });
 	});
 });
