@@ -510,7 +510,7 @@ export const episodeChangeRequestSchema = z.object({
 	tweeted: z.boolean().optional().nullable(),
 	/** Same as tweeted: true sets the legacy Bluesky posted flag; true → false deletes the Bluesky post. */
 	blueskyPosted: z.boolean().optional().nullable(),
-	/** Backward-compat alias for blueskyPosted: false. */
+	/** `unBluesky: true` is a backward-compat Bluesky delete alias for `blueskyPosted: false`. */
 	unBluesky: z.boolean().optional().nullable(),
 	ignored: z.boolean().optional().nullable(),
 	removed: z.boolean().optional().nullable(),
