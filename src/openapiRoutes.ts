@@ -267,7 +267,7 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 			"including `guests` and `services` (per-key link patch; blank url+image removes the key; absolute http(s) only), " +
 			"plus `imdbId` / `tvdbId` / `tmdbId`. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the episode's search document (RPP #1053)." +
-			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
 			202: { description: "TV-show episode updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
@@ -357,7 +357,7 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
 			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, " +
 			"`subjects`, `guests`, `imdbId` and `tmdbId`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
-			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
 			202: { description: "Film updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
@@ -473,7 +473,7 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 			"`removed: true` also deletes the report's search document. `guests` follows the episode rule: it replaces the list, `[]` clears it, " +
 			"blank names are dropped and names trimmed. `services` follows the film / episode link patch: per-key url/image; " +
 			"blank url+image removes the key; absolute http(s) only (RPP #1130)." +
-			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
 		responses: {
 			202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },

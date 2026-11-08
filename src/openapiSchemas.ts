@@ -508,7 +508,9 @@ export const episodeChangeRequestSchema = z.object({
 	description: z.string().optional().nullable(),
 	posted: z.boolean().optional().nullable(),
 	tweeted: z.boolean().optional().nullable(),
-	/** When true, clear Bluesky post state and delete the remote post. Not settable via edit form. */
+	/** Same as tweeted: true sets the legacy Bluesky posted flag; true → false deletes the Bluesky post. */
+	blueskyPosted: z.boolean().optional().nullable(),
+	/** `unBluesky: true` is a backward-compat Bluesky delete alias for `blueskyPosted: false`. */
 	unBluesky: z.boolean().optional().nullable(),
 	ignored: z.boolean().optional().nullable(),
 	removed: z.boolean().optional().nullable(),
@@ -1490,12 +1492,14 @@ const guestsChange = z.array(z.string()).optional().nullable();
 
 /**
  * Post status, as in the episode edit API (`episodeChangeRequestSchema`): `posted` sets the flag; `tweeted` sets the
- * flag and true → false also deletes the tweet; `unBluesky: true` deletes the Bluesky post and clears the Bluesky
- * state only when it is gone. Bluesky posted cannot be set to true.
+ * flag and true → false also deletes the tweet; `blueskyPosted` mirrors tweeted (true = curator/manual mark; true →
+ * false deletes the Bluesky post and clears state only when it is gone); `unBluesky: true` is a backward-compat
+ * alias for the Bluesky delete path.
  */
 const postStatusChangeShape = {
 	posted: z.boolean().optional().nullable(),
 	tweeted: z.boolean().optional().nullable(),
+	blueskyPosted: z.boolean().optional().nullable(),
 	unBluesky: z.boolean().optional().nullable()
 };
 
