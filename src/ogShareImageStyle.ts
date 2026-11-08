@@ -141,7 +141,10 @@ export function squareFooterHeight(): number {
 	);
 }
 
-/** Square canvas height = brand + fixed art height + footer (do not shrink art). */
+/**
+ * Square canvas height grows with `OG_SQUARE_ART_MAX` art plus brand/footer chrome.
+ * Do not force a shorter fixed canvas when art shrinks (Api#244).
+ */
 export function squareCanvasHeight(): number {
 	return (
 		squareBrandBarHeight() +
@@ -149,6 +152,17 @@ export function squareCanvasHeight(): number {
 		OG_SQUARE_STYLE.bodyPadBottom +
 		squareFooterHeight()
 	);
+}
+
+/**
+ * Title column content width on the square card (wide columns chrome, scaled).
+ * Includes `textPaddingX` — same arithmetic as production compose.
+ * Default art width is `OG_SQUARE_ART_MAX` (389px at 320 art; was 269 at 440).
+ */
+export function squareTitleContentWidth(artWidth: number = OG_SQUARE_ART_MAX): number {
+	const s = OG_SQUARE_STYLE;
+	const textPadLeft = s.gap + s.titleColumnPadLeftExtra;
+	return s.canvasWidth - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
 }
 
 /** Gap between leftover show-name column and stacked duration / date / icons. */

@@ -24,7 +24,8 @@ import {
 	OG_SQUARE_FOOTER_GUTTER,
 	squareArtMaxHeight,
 	squareCanvasHeight,
-	squareShowNameContentWidth
+	squareShowNameContentWidth,
+	squareTitleContentWidth
 } from "./ogShareImageStyle";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
@@ -165,11 +166,9 @@ function columnsTitleContentWidth(artWidth: number): number {
 	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
 }
 
-/** Title column on the square card (wide columns chrome, scaled). */
+/** Title column on the square card — shared with style tokens / Api#244 lock. */
 function squareColumnsTitleContentWidth(artWidth: number): number {
-	const s = CARD_SCALE.square;
-	const textPadLeft = s.gap + OG_SQUARE_STYLE.titleColumnPadLeftExtra;
-	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
+	return squareTitleContentWidth(artWidth);
 }
 
 function formattedDuration(raw?: string): string {

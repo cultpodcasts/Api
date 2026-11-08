@@ -15,6 +15,7 @@ import {
 	squareShowNameContentWidth,
 	squareStackedMetaHeight,
 	squareStackedMetaWidth,
+	squareTitleContentWidth,
 	squareTwoLineShowNameHeight
 } from "../src/ogShareImageStyle";
 import { OG_SQUARE_TITLE_PX, OG_WIDE_TITLE_PX } from "../src/ogShareImageText";
@@ -74,14 +75,10 @@ describe("OG style guide tokens", () => {
 		expect(OG_SQUARE_STYLE.artMaxHeight).toBe(OG_SQUARE_ART_MAX);
 		expect(squareArtMaxHeight()).toBe(OG_SQUARE_ART_MAX);
 		expect(squareCanvasHeight()).toBeGreaterThan(OG_SQUARE_ART_MAX);
-		const titleColumnApprox =
-			OG_SQUARE_STYLE.canvasWidth -
-			OG_SQUARE_STYLE.artPad -
-			OG_SQUARE_ART_MAX -
-			OG_SQUARE_STYLE.gap -
-			OG_SQUARE_STYLE.chromePadX -
-			OG_SQUARE_STYLE.titleColumnPadLeftExtra;
-		expect(titleColumnApprox).toBeGreaterThanOrEqual(380);
+		// Production title column includes textPaddingX (Api#244: 440→269, 320→389).
+		expect(squareTitleContentWidth()).toBe(389);
+		expect(squareTitleContentWidth()).toBeGreaterThanOrEqual(380);
+		expect(squareTitleContentWidth(440)).toBe(269);
 		expect(OG_SQUARE_STYLE.artRadius).toBe(scaleWidePx(OG_WIDE_STYLE.artRadius));
 		expect(OG_SQUARE_STYLE.artPad).toBe(scaleWidePx(OG_WIDE_STYLE.artPad));
 		expect(OG_SQUARE_STYLE.metaSize).toBe(scaleWidePx(OG_WIDE_STYLE.metaSize));

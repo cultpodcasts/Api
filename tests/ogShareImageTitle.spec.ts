@@ -13,7 +13,7 @@ import {
 	ogTitleCharBudget,
 	truncateOgText
 } from "../src/ogShareImageText";
-import { squareShowNameContentWidth } from "../src/ogShareImageStyle";
+import { squareShowNameContentWidth, squareTitleContentWidth } from "../src/ogShareImageStyle";
 
 describe("longestTokenLength", () => {
 	it("returns 0 for blank input", () => {
@@ -111,6 +111,32 @@ describe("layoutOgTitle", () => {
 		});
 		expect(longWord.lines.length).toBeGreaterThan(1);
 		expect(longSentence.lines.length).toBeGreaterThan(1);
+	});
+
+	it("wraps a multi-word square title at OG_SQUARE_ART_MAX column instead of ellipsising by line 5", () => {
+		// Api#244: 440 art → 269px column (one word/line → early ...); 320 → 389px.
+		const episodeTitle = "Why fringe politics keep winning obscure borough races tonight";
+		const legacyColumn = squareTitleContentWidth(440);
+		const currentColumn = squareTitleContentWidth();
+		expect(legacyColumn).toBe(269);
+		expect(currentColumn).toBe(389);
+		const atLegacy = layoutOgTitle({
+			text: episodeTitle,
+			columnWidth: legacyColumn,
+			fontSize: OG_SQUARE_TITLE_PX,
+			maxLines: 5
+		});
+		const atCurrent = layoutOgTitle({
+			text: episodeTitle,
+			columnWidth: currentColumn,
+			fontSize: OG_SQUARE_TITLE_PX,
+			maxLines: 5
+		});
+		expect(atLegacy.lines.length).toBe(5);
+		expect(atLegacy.lines[atLegacy.lines.length - 1].endsWith(OG_TITLE_ELLIPSIS)).toBe(true);
+		expect(atCurrent.lines.length).toBeLessThanOrEqual(5);
+		expect(atCurrent.lines[atCurrent.lines.length - 1].endsWith(OG_TITLE_ELLIPSIS)).toBe(false);
+		expect(atCurrent.lines.join(" ")).toBe(episodeTitle);
 	});
 });
 
