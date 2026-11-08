@@ -829,6 +829,7 @@ describe("openapi Zod schemas", () => {
 	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {
 		const parsed = episodeChangeRequestSchema.parse({
 			title: "New title",
+			blueskyPosted: false,
 			unBluesky: true,
 			hashTag: "#Scenario",
 			urls: {
@@ -841,6 +842,7 @@ describe("openapi Zod schemas", () => {
 			images: { other: "" },
 			guests: ["Alice"]
 		});
+		expect(parsed.blueskyPosted).toBe(false);
 		expect(parsed.unBluesky).toBe(true);
 		expect(parsed.hashTag).toBe("#Scenario");
 		expect(parsed.urls?.apple).toBe("");
@@ -1456,11 +1458,13 @@ describe("openapi Zod schemas", () => {
 		expect(newsOrganisationChangeRequestSchema.parse(publisherEdit)).toEqual(publisherEdit);
 		expect(tvShowChangeRequestSchema.parse(publisherEdit)).toEqual(publisherEdit);
 		expect(filmChangeRequestSchema.parse({ publisher: "Synthetic Pictures" })).toEqual({ publisher: "Synthetic Pictures" });
-		const postStatus = { posted: true, tweeted: false, unBluesky: true };
+		const postStatus = { posted: true, tweeted: false, blueskyPosted: false, unBluesky: true };
 		expect(newsReportChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
 		expect(tvShowEpisodeChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
 		expect(filmChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
+		expect(newsReportChangeRequestSchema.parse({ blueskyPosted: true })).toEqual({ blueskyPosted: true });
 		expect(() => newsReportChangeRequestSchema.parse({ unBluesky: "yes" })).toThrow();
+		expect(() => newsReportChangeRequestSchema.parse({ blueskyPosted: "yes" })).toThrow();
 		expect(() => tvShowChangeRequestSchema.parse({ removed: "true" })).toThrow();
 		expect(() => newsOrganisationChangeRequestSchema.parse({ publisher: 1 })).toThrow();
 	});
