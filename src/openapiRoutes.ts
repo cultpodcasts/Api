@@ -40,6 +40,7 @@ import { createSubject } from "./createSubject";
 import { catalogueIdentityLookup } from "./catalogueIdentityLookup";
 import { deleteBookmark } from "./deleteBookmark";
 import { deletePodcastEpisode } from "./deleteEpisode";
+import { deleteFilm, deleteNewsReport, deleteTvShowEpisode } from "./deleteCatalogue";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
@@ -77,7 +78,7 @@ import { getSubjects } from "./getSubjects";
 import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { searchSuggestions } from "./searchSuggestions";
-import { indexPodcastByName } from "./indexPodcastByName";
+import { indexPodcastBacklogByName, indexPodcastByName } from "./indexPodcastByName";
 import { indexNewsOrganisation, indexTvShow } from "./indexCatalogueParent";
 import {
 	bookmarksListResponseSchema,
@@ -120,6 +121,7 @@ import {
 	preProcessedHomepageResponseSchema,
 	searchSuggestionsResponseSchema,
 	indexPodcastResponseSchema,
+	podcastIndexBusySchema,
 	indexerStateDtoSchema,
 	jsonBody,
 	languagesResponseSchema,
@@ -281,6 +283,24 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 	}
 });
 
+export const DeleteTvShowEpisodeRoute = createOpenApiRoute(deleteTvShowEpisode, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete TV-show episode by id",
+		description:
+			"`id` is the episode guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when episode is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
 export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 	auth: curateAuth,
 	schema: {
@@ -350,6 +370,24 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 					"Stored trailers include an id that was not in expectedTrailerIds. The keep-list was not applied.",
 				...contentJson(filmStaleTrailersConflictSchema)
 			},
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const DeleteFilmRoute = createOpenApiRoute(deleteFilm, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete film by id",
+		description:
+			"`id` is the film guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when film is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -444,6 +482,24 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 					"Invalid release (yyyy-MM-dd only), duration (non-negative h:mm:ss), or non-absolute `services.*.url` / `services.*.image`; nothing applied",
 				...contentJson(errorSchema)
 			},
+			...newsNotFoundIdResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const DeleteNewsReportRoute = createOpenApiRoute(deleteNewsReport, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete news report by id",
+		description:
+			"`id` is the report guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when report is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
 			...newsNotFoundIdResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -882,10 +938,55 @@ export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
     schema: {
         tags: ["Podcasts"],
         summary: "Reindex podcast by name",
-        request: { params: nameParam },
+        description:
+            "Curate only. Proxies to Azure `POST /api/podcast/index/{name}` with the short hub Index lookback. " +
+            "For curator cold-start / full catalogue walk use `POST /podcast/index/{name}/backlog`. " +
+            "409 means indexing is already running; 504 means the on-demand time budget cut the walk off (TimedOut).",
+        request: {
+            params: nameParam
+        },
         responses: {
             200: { description: "Indexed", ...contentJson(indexPodcastResponseSchema) },
             400: { description: "Bad request", ...contentJson(indexPodcastResponseSchema) },
+            409: {
+                description: "A curator index is already running for this podcast (`indexingInProgress`)",
+                ...contentJson(podcastIndexBusySchema)
+            },
+            504: {
+                description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
+                ...contentJson(catalogueIndexTimedOutSchema)
+            },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const IndexPodcastBacklogByNameRoute = createOpenApiRoute(indexPodcastBacklogByName, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Podcasts"],
+        summary: "Reindex podcast by name (backlog / cold-start)",
+        description:
+            "Curate only. Proxies to Azure `POST /api/podcast/index/{name}/backlog` so Azure clears the two-day hub Index lookback " +
+            "and walks the full catalogue (RPP #1328 / #1310; Api #245). " +
+            "Default short lookback remains `POST /podcast/index/{name}`. " +
+            "409 means indexing is already running; 504 means the on-demand time budget cut the walk off (TimedOut).",
+        request: {
+            params: nameParam
+        },
+        responses: {
+            200: { description: "Indexed", ...contentJson(indexPodcastResponseSchema) },
+            400: { description: "Bad request", ...contentJson(indexPodcastResponseSchema) },
+            409: {
+                description: "A curator index is already running for this podcast (`indexingInProgress`)",
+                ...contentJson(podcastIndexBusySchema)
+            },
+            504: {
+                description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
+                ...contentJson(catalogueIndexTimedOutSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
