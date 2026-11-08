@@ -827,6 +827,11 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
         responses: {
             202: { description: "Attached (command outcome; GET /film/:id for the film)", ...contentJson(episodeTrailerAttachResponseSchema) },
             400: { description: "Missing filmId, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
+            409: {
+                description:
+                    "The episode is already a trailer of another film (body filmId is that film). Re-send to that film to resume an interrupted attach.",
+                ...contentJson(episodeTrailerAttachResponseSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
