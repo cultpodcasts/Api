@@ -19,7 +19,7 @@ const okBody = {
 };
 const busyBody = {
 	reason: "indexingInProgress",
-	message: "Indexing is already in progress for this podcast."
+	message: "Another index of this parent is already running. Try again shortly."
 };
 const timedOutBody = {
 	reason: "TimedOut",
