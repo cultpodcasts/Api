@@ -403,7 +403,7 @@ export const episodeTrailerAttachRequestSchema = z.object({
 
 /** EpisodeTrailerAttachResponse — command outcome (not the film read model). GET /film/:id for the film. */
 export const episodeTrailerAttachResponseSchema = z.object({
-	filmId: z.string().uuid().optional().nullable().describe("The film that now holds the trailer."),
+	filmId: z.string().uuid().optional().nullable().describe("The film that now holds the trailer. On 409, the film that already holds the trailer."),
 	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
 	error: z.string().optional(),
 	failureIndexing: z.boolean().optional()
