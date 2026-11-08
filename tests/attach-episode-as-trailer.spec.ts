@@ -94,6 +94,7 @@ describe("attach episode as trailer", () => {
 	it.each([
 		[400, { error: "A removed film cannot take trailers" }],
 		[404, { podcastId, episodeId, filmId, error: "Film not found" }],
+		[409, { filmId, error: "This episode is already a trailer of another film", failureIndexing: false }],
 		[500, { error: "Unable to attach episode as a trailer" }]
 	] as const)("passes Azure %s through", async (status, body) => {
 		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));

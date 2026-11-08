@@ -18,7 +18,7 @@ export async function attachEpisodeAsTrailer(c: Auth0ActionContext): Promise<Res
 		method: "POST",
 		pathSuffix: `/${encodeURIComponent(podcastId)}/${encodeURIComponent(episodeId)}/trailer`,
 		successStatuses: [202],
-		forwardStatuses: [400, 404, 500],
+		forwardStatuses: [400, 404, 409, 500],
 		logName: "secure-episode-attach-trailer-endpoint"
 	};
 	const text = await c.req.text();
