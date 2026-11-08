@@ -3,6 +3,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
 import { searchLogCollector } from "./searchLogCollector";
 import { oDataSearchModel } from "./oDataSearchModel";
+import { rewriteLegacyPodcastNameInSearchRequest } from "./rewriteLegacyPodcastNameInSearchRequest";
 import { searchMode } from "./searchMode";
 
 /** Forward Azure AI Search error statuses: keep 4xx/5xx (incl. 429); other non-200 → 502. */
@@ -34,6 +35,7 @@ export async function search(c: ActionContext): Promise<Response> {
 		return c.req
 			.json()
 			.then(async (data: oDataSearchModel) => {
+				rewriteLegacyPodcastNameInSearchRequest(data as unknown as Record<string, unknown>);
 				let requestBody = JSON.stringify(data);
 				searchLog.collectSearchRequest(data);
 				const response = await fetch(c.env.apihost, {
