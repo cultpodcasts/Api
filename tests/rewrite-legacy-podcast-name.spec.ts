@@ -5,13 +5,14 @@ vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
 import { Hono } from "hono";
 import type { Env } from "../src/Env";
 import type { ActionContext } from "../src/ActionContext";
+import type { oDataSearchModel } from "../src/oDataSearchModel";
 import { rewriteLegacyPodcastNameInSearchRequest } from "../src/rewriteLegacyPodcastNameInSearchRequest";
 import { search } from "../src/search";
 import { testEnv } from "./honoTestApp";
 
 describe("rewriteLegacyPodcastNameInSearchRequest", () => {
 	it("rewrites podcastName to seriesName in filter, facets, orderby, and select", () => {
-		const data: Record<string, unknown> = {
+		const data: oDataSearchModel = {
 			search: "*",
 			filter: "(podcastName eq 'Associated Press')",
 			facets: ["podcastName,count:1000", "subjects,count:10"],
@@ -26,7 +27,7 @@ describe("rewriteLegacyPodcastNameInSearchRequest", () => {
 	});
 
 	it("rewrites the logged NewsReport + podcastName shape", () => {
-		const data: Record<string, unknown> = {
+		const data: oDataSearchModel = {
 			filter: "(contentKind eq 'NewsReport') and (podcastName eq 'Associated Press')"
 		};
 		rewriteLegacyPodcastNameInSearchRequest(data);
@@ -36,7 +37,7 @@ describe("rewriteLegacyPodcastNameInSearchRequest", () => {
 	});
 
 	it("leaves seriesName filters unchanged", () => {
-		const data: Record<string, unknown> = {
+		const data: oDataSearchModel = {
 			filter: "(seriesName eq 'Associated Press')",
 			facets: ["seriesName,count:1000"]
 		};

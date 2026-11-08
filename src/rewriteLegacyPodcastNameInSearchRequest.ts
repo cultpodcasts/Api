@@ -1,3 +1,5 @@
+import type { oDataSearchModel } from "./oDataSearchModel";
+
 /**
  * Stale clients still send Azure Search field `podcastName` after the index
  * rename to `seriesName` (cultpodcasts/Api#216). Rewrite request-side OData
@@ -9,7 +11,7 @@ function rewriteIdentifiers(value: string): string {
 	return value.replace(LEGACY_PODCAST_NAME, "seriesName");
 }
 
-export function rewriteLegacyPodcastNameInSearchRequest(data: Record<string, unknown>): void {
+export function rewriteLegacyPodcastNameInSearchRequest(data: oDataSearchModel): void {
 	if (typeof data.filter === "string") {
 		data.filter = rewriteIdentifiers(data.filter);
 	}

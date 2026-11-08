@@ -35,9 +35,11 @@ export async function search(c: ActionContext): Promise<Response> {
 		return c.req
 			.json()
 			.then(async (data: oDataSearchModel) => {
-				rewriteLegacyPodcastNameInSearchRequest(data as unknown as Record<string, unknown>);
-				let requestBody = JSON.stringify(data);
+				// Collect inbound body first so logs still see legacy podcastName
+				// (stale-client signal + podcast-mode filter detection).
 				searchLog.collectSearchRequest(data);
+				rewriteLegacyPodcastNameInSearchRequest(data);
+				let requestBody = JSON.stringify(data);
 				const response = await fetch(c.env.apihost, {
 					cf: {
 						// JSON search responses need cacheEverything; TTL by status so 429/5xx are not sticky for 600s
