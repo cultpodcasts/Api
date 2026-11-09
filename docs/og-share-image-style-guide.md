@@ -79,7 +79,7 @@ radius) is the **wide value, unscaled**:
 | Title column | 681px next to 1:1 art, 553px next to 4:3 art (`squareTitleContentWidth`) |
 | Show name | **Same rule as wide:** Figtree 600, **48px always** (do not shrink to 40/32). **Max 2 lines**, then `...`. Width is leftover footer after the stacked meta (`squareShowNameContentWidth`). |
 | Meta | 28px, **stacked** duration / date / icons, bottom-right — this is what frees the show-name column |
-| Title max lines | 5 (same rule) |
+| Title max lines | Max **5**, then capped by `ogTitleMaxLinesForArt(artHeight, lineBox, titleMaxLines)` (1:1→**4**, 4:3→**4**, 16:9→**3**) |
 | Faces / colours / columns / v-align | Same as wide |
 
 ### Square show-name (extrapolated from wide)
@@ -101,7 +101,12 @@ Satori does not honour `justify-content: center` on the title column. Compute:
 
 `titlePadTop = max(0, floor((artHeight − lineBox × lineCount) / 2))`
 
-and set that as `margin-top` on the title block. Same formula on wide and square.
+and set that as `margin-top` on the title block. Same pad formula on wide and square.
+
+**Square** also caps lines before `layoutOgTitle` / pad-top with
+`ogTitleMaxLinesForArt(artHeight, titleLineBox, titleMaxLines)` so a short
+letterboxed source (16:9 → 287px → 3 lines) cannot paint into the footer. Wide
+keeps the flat token max of 5.
 
 ### Podcast name in the footer (wide is the reference)
 

@@ -43,7 +43,9 @@ name across the leftover width, meta stacked right) differ. See the style guide 
 
 **Framing (Api#244):** both aspects are 1200×630 (≈1.91:1). X centre-crops
 `summary_large_image` art to 1.91:1, so any taller canvas loses its brand bar and
-show name on X. The old 800×522 square canvas did exactly that.
+show name on X. The old 800×522 square canvas did exactly that. Square title
+lines are capped to fitted art height via `ogTitleMaxLinesForArt` (1:1→4, 4:3→4,
+16:9→3).
 
 ## Wide style guide (source of truth)
 
