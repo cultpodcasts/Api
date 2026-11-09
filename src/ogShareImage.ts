@@ -22,8 +22,8 @@ import {
 	ogTitleFontSize,
 	ogTitlePadTop,
 	OG_SQUARE_FOOTER_GUTTER,
-	squareArtMaxHeight,
-	squareCanvasHeight,
+	ogCardArtMaxBox,
+	ogCardCanvasSize,
 	squareShowNameContentWidth,
 	squareTitleContentWidth
 } from "./ogShareImageStyle";
@@ -54,16 +54,16 @@ type CardAspect = "wide" | "square";
 /** Flush-left art (no frame) + packed text column — same layout for both aspects. */
 const CARD_SCALE = {
 	wide: {
-		width: OG_WIDE_STYLE.canvasWidth,
-		height: OG_WIDE_STYLE.canvasHeight,
+		width: ogCardCanvasSize("wide").width,
+		height: ogCardCanvasSize("wide").height,
 		/** Outer pad around the text column only; art bleeds to the left edge. */
 		textPaddingX: OG_WIDE_STYLE.textPaddingX,
 		textPaddingY: OG_WIDE_STYLE.textPaddingY,
 		artPad: OG_WIDE_STYLE.artPad,
 		gap: OG_WIDE_STYLE.gap,
 		/** Max box for episode art; displayed size keeps the source aspect ratio. */
-		artMaxWidth: OG_WIDE_STYLE.artMaxWidth,
-		artMaxHeight: OG_WIDE_STYLE.artMaxHeight,
+		artMaxWidth: ogCardArtMaxBox("wide").width,
+		artMaxHeight: ogCardArtMaxBox("wide").height,
 		artRadius: OG_WIDE_STYLE.artRadius,
 		iconGap: OG_WIDE_STYLE.iconGap,
 		iconRadius: OG_WIDE_STYLE.iconRadius,
@@ -96,20 +96,20 @@ const CARD_SCALE = {
 		podcastMax: 80 // pragma: allowlist secret
 	},
 	/**
-	 * Square canvas (Spotify / Apple art). Chrome is the wide columns style guide
-	 * scaled by 800/1200 (see docs/og-share-image-cards.md). Episode art uses
-	 * `OG_SQUARE_ART_MAX` (title column needs room on 800-wide); canvas height
-	 * grows to fit. Do not change `wide`.
+	 * Square-art card (Spotify / Apple / BBC Sounds). Same 1200×630 canvas and type
+	 * scale as wide so summary_large_image consumers (X crops to 1.91:1) show the
+	 * whole card (Api#244). Art box is sized to fit that fixed canvas; the canvas
+	 * never grows. See docs/og-share-image-cards.md. Do not change `wide`.
 	 */
 	square: {
-		width: OG_SQUARE_STYLE.canvasWidth,
-		height: squareCanvasHeight(),
+		width: ogCardCanvasSize("square").width,
+		height: ogCardCanvasSize("square").height,
 		textPaddingX: OG_SQUARE_STYLE.textPaddingX,
 		textPaddingY: OG_SQUARE_STYLE.textPaddingY,
 		artPad: OG_SQUARE_STYLE.artPad,
 		gap: OG_SQUARE_STYLE.gap,
-		artMaxWidth: OG_SQUARE_STYLE.artMaxWidth,
-		artMaxHeight: squareArtMaxHeight(),
+		artMaxWidth: ogCardArtMaxBox("square").width,
+		artMaxHeight: ogCardArtMaxBox("square").height,
 		artRadius: OG_SQUARE_STYLE.artRadius,
 		iconGap: OG_SQUARE_STYLE.iconGap,
 		iconRadius: OG_SQUARE_STYLE.iconRadius,

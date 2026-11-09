@@ -5,8 +5,15 @@ Source of truth for `GET /og-image` chrome. Tokens live in
 `tests/ogShareImageStyle.spec.ts` fail if the implementation drifts.
 
 **Wide** (`a=wide`, default `wl=columns`) is the design origin. **Square**
-(`a=square`, Spotify / Apple 1:1 art) is the same chrome scaled by
-`800 / 1200`. Do not change wide tokens to make square fit.
+(`a=square`, Spotify / Apple 1:1 art) uses the **same 1200×630 canvas and the
+same unscaled tokens**; only the art box and the footer differ. Do not change
+wide tokens to make square fit.
+
+**Framing (HARD, Api#244):** every card is **1200×630** (`OG_LARGE_CARD_ASPECT`,
+≈1.91:1). The website always sends `twitter:card=summary_large_image`, and X
+centre-crops large-card images to 1.91:1. The old square canvas (800×522, ≈1.53:1)
+lost ~52px top and bottom on X — half the `CULT PODCASTS` bar and the show name. <!-- pragma: allowlist secret -->
+Never let a canvas grow taller than 1.91:1 to fit content; shrink the art box.
 
 ## Typefaces
 
@@ -50,30 +57,28 @@ show 48                51 min · date 28
 
 ## Episode image height (standard)
 
-**Wide** art max height is `OG_WIDE_STYLE.artMaxHeight` = **440**. **Square** uses
-a smaller box (`OG_SQUARE_ART_MAX` = **320**) so the title column on an 800-wide
-canvas can wrap multi-word titles instead of truncating ~one word per line
-(Api#244). Square canvas **height still grows** with that art
-(`squareCanvasHeight` = brand + 320 + footer).
+**Wide** art max box is `OG_WIDE_STYLE` **700×440**. **Square** art max box is
+whatever the fixed 630 canvas leaves after the brand bar and a two-line footer:
+`squareArtMaxHeight()` = 630 − 112 − 4 − 131 = **383** (`OG_SQUARE_ART_MAX`), and
+`OG_SQUARE_ART_MAX_WIDTH` = **511** (4:3 at full height). Art keeps its source
+aspect and is never cropped: 1:1 → 383×383, 4:3 → 511×383, 16:9 → 511×287.
 
 ## Square application
 
-Canvas **width** stays **800** (not `1200 × 2/3`). Canvas **height** is
-`squareCanvasHeight()` (brand + `OG_SQUARE_ART_MAX` art + footer), not a fixed 418.
-Every other linear token (type, pads, icons, radius) is
-`Math.round(wide × 800/1200)` unless noted:
+Canvas **1200×630** (same as wide). Every linear token (type, pads, icons,
+radius) is the **wide value, unscaled**:
 
 | Token | Square |
 |-------|--------|
-| Title | 48px |
-| Site logo | 59×59 |
-| Brand size | 64px |
-| Icons | 21×21, gap 7 |
-| Art max box / radius | **320×320** (`OG_SQUARE_ART_MAX`) / 8 |
-| Art pad | 19 |
-| Chrome pad | 27×8 |
+| Title | 72px (same as wide) |
+| Site logo / brand | 88×88 / 96px |
+| Icons | 32×32, gap 10 |
+| Art max box / radius | **511×383** (`OG_SQUARE_ART_MAX_WIDTH` × `OG_SQUARE_ART_MAX`) / 12 |
+| Art pad | 28 |
+| Chrome pad | 40×12 |
+| Title column | 681px next to 1:1 art, 553px next to 4:3 art (`squareTitleContentWidth`) |
 | Show name | **Same rule as wide:** Figtree 600, **48px always** (do not shrink to 40/32). **Max 2 lines**, then `...`. Width is leftover footer after the stacked meta (`squareShowNameContentWidth`). |
-| Meta | 19px, **stacked** duration / date / icons, bottom-right — this is what frees the show-name column |
+| Meta | 28px, **stacked** duration / date / icons, bottom-right — this is what frees the show-name column |
 | Title max lines | 5 (same rule) |
 | Faces / colours / columns / v-align | Same as wide |
 

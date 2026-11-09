@@ -95,8 +95,7 @@ describe("layoutOgTitle", () => {
 
 	it("uses the same wide title size for a long word and a long sentence", () => {
 		expect(OG_WIDE_TITLE_PX).toBe(72);
-		expect(OG_SQUARE_TITLE_PX).toBe(48);
-		expect(OG_SQUARE_TITLE_PX).toBe(Math.round((OG_WIDE_TITLE_PX * 800) / 1200));
+		expect(OG_SQUARE_TITLE_PX).toBe(OG_WIDE_TITLE_PX);
 		const longWord = layoutOgTitle({
 			text: "Boroughboundaryreconsideration",
 			columnWidth: 364,
@@ -113,30 +112,20 @@ describe("layoutOgTitle", () => {
 		expect(longSentence.lines.length).toBeGreaterThan(1);
 	});
 
-	it("wraps a multi-word square title at OG_SQUARE_ART_MAX column instead of ellipsising by line 5", () => {
-		// Api#244: 440 art → 269px column (one word/line → early ...); 320 → 389px.
-		const episodeTitle = "Why fringe politics keep winning obscure borough races tonight";
-		const legacyColumn = squareTitleContentWidth(440);
-		const currentColumn = squareTitleContentWidth();
-		expect(legacyColumn).toBe(269);
-		expect(currentColumn).toBe(389);
-		const atLegacy = layoutOgTitle({
+	it("wraps a multi-word square title in the 1200×630 title column without an ellipsis", () => {
+		// Api#244 sample (The Central Cast): fits in ≤ 5 lines at 72px next to 383px art.
+		const episodeTitle = "11/8/26: After the Midterms: Healing, Hope, and the End of MAGA?";
+		const column = squareTitleContentWidth();
+		expect(column).toBe(681);
+		const laid = layoutOgTitle({
 			text: episodeTitle,
-			columnWidth: legacyColumn,
+			columnWidth: column,
 			fontSize: OG_SQUARE_TITLE_PX,
 			maxLines: 5
 		});
-		const atCurrent = layoutOgTitle({
-			text: episodeTitle,
-			columnWidth: currentColumn,
-			fontSize: OG_SQUARE_TITLE_PX,
-			maxLines: 5
-		});
-		expect(atLegacy.lines.length).toBe(5);
-		expect(atLegacy.lines[atLegacy.lines.length - 1].endsWith(OG_TITLE_ELLIPSIS)).toBe(true);
-		expect(atCurrent.lines.length).toBeLessThanOrEqual(5);
-		expect(atCurrent.lines[atCurrent.lines.length - 1].endsWith(OG_TITLE_ELLIPSIS)).toBe(false);
-		expect(atCurrent.lines.join(" ")).toBe(episodeTitle);
+		expect(laid.lines.length).toBeLessThanOrEqual(5);
+		expect(laid.lines[laid.lines.length - 1].endsWith(OG_TITLE_ELLIPSIS)).toBe(false);
+		expect(laid.lines.join(" ")).toBe(episodeTitle);
 	});
 });
 
