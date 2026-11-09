@@ -11,6 +11,7 @@ import {
 	ogCardArtMaxBox,
 	ogCardCanvasSize,
 	ogTitleFontSize,
+	ogTitleMaxLinesForArt,
 	ogTitlePadTop,
 	squareBrandBarHeight,
 	squareFooterHeight,
@@ -23,7 +24,7 @@ import {
 	squareTitleContentWidth,
 	squareTwoLineShowNameHeight
 } from "../src/ogShareImageStyle";
-import { OG_SQUARE_TITLE_PX, OG_WIDE_TITLE_PX } from "../src/ogShareImageText";
+import { layoutOgTitle, OG_SQUARE_TITLE_PX, OG_WIDE_TITLE_PX } from "../src/ogShareImageText";
 
 describe("OG style guide tokens", () => {
 	it("treats wide as the source of truth for the 1200×630 large-card aspect", () => {
@@ -124,6 +125,36 @@ describe("OG style guide tokens", () => {
 		it("leaves the title column room next to 4:3 square-card art", () => {
 			expect(squareTitleContentWidth(OG_SQUARE_ART_MAX_WIDTH)).toBe(553);
 		});
+
+		it("caps square title lines so a long title stays inside fitted art height (16:9 and 4:3)", () => {
+			const box = ogCardArtMaxBox("square");
+			const titleSize = OG_SQUARE_TITLE_PX;
+			const lineBox = Math.ceil(titleSize * OG_SQUARE_STYLE.titleLineHeight);
+			const longTitle =
+				"After the Midterms: Healing Hope and the End of Something Really Long That Wraps Across Several Lines On Purpose";
+			for (const source of [
+				{ w: 1280, h: 720, label: "16:9" },
+				{ w: 640, h: 480, label: "4:3" }
+			] as const) {
+				const art = fitArtWithin(source.w, source.h, box.width, box.height);
+				const maxLines = ogTitleMaxLinesForArt(art.height, lineBox, OG_SQUARE_STYLE.titleMaxLines);
+				expect(maxLines).toBeLessThanOrEqual(OG_SQUARE_STYLE.titleMaxLines);
+				expect(lineBox * maxLines).toBeLessThanOrEqual(art.height);
+				const column = squareTitleContentWidth(art.width);
+				const { lines } = layoutOgTitle({
+					text: longTitle,
+					columnWidth: column,
+					fontSize: titleSize,
+					maxLines
+				});
+				expect(lines.length).toBeLessThanOrEqual(maxLines);
+				expect(lineBox * lines.length).toBeLessThanOrEqual(art.height);
+			}
+			// Uncapped 5 lines at 16:9 art height would overflow (regression lock).
+			const art169 = fitArtWithin(1280, 720, box.width, box.height);
+			expect(lineBox * OG_SQUARE_STYLE.titleMaxLines).toBeGreaterThan(art169.height);
+			expect(ogTitleMaxLinesForArt(art169.height, lineBox, 5)).toBe(3);
+		});
 	});
 
 	it("uses one title size per canvas and centres the title on the art", () => {
@@ -132,6 +163,9 @@ describe("OG style guide tokens", () => {
 		const lineBox = Math.ceil(72 * 1.1);
 		expect(ogTitlePadTop(440, lineBox, 2)).toBe(Math.floor((440 - lineBox * 2) / 2));
 		expect(ogTitlePadTop(100, 80, 2)).toBe(0);
+		expect(ogTitleMaxLinesForArt(287, lineBox, 5)).toBe(3);
+		expect(ogTitleMaxLinesForArt(383, lineBox, 5)).toBe(4);
+		expect(ogTitleMaxLinesForArt(80, lineBox, 5)).toBe(1);
 	});
 
 	it("keeps square show name and stacked meta in separate footer columns", () => {

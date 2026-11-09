@@ -213,3 +213,15 @@ export function ogTitleFontSize(aspect: "wide" | "square"): number {
 export function ogTitlePadTop(artHeight: number, titleLineBox: number, lineCount: number): number {
 	return Math.max(0, Math.floor((artHeight - titleLineBox * lineCount) / 2));
 }
+
+/**
+ * Cap title lines to what fits in the art column. Square cards letterbox short
+ * sources (16:9 → 287px); a fixed 5-line / 400px block would paint into the footer.
+ */
+export function ogTitleMaxLinesForArt(
+	artHeight: number,
+	titleLineBox: number,
+	titleMaxLines: number
+): number {
+	return Math.min(titleMaxLines, Math.max(1, Math.floor(artHeight / titleLineBox)));
+}

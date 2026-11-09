@@ -22,8 +22,8 @@ card** that embeds episode art and brand type.
 
 ## Shared layout
 
-Wide and square share the same **content**. Aspect changes canvas size, type scale,
-and chrome.
+Wide and square share the same **content**, the same **1200×630 canvas**, and the
+same **type scale**. Aspect only picks the episode-art box and chrome/footer layout.
 
 **Wide** (YouTube 16:9 and similar) uses the empty column instead of packing
 everything into a centred right stack:
