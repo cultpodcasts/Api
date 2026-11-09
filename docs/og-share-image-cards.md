@@ -22,8 +22,8 @@ card** that embeds episode art and brand type.
 
 ## Shared layout
 
-Wide and square share the same **content**. Aspect changes canvas size, type scale,
-and chrome.
+Wide and square share the same **content**, the same **1200×630 canvas**, and the
+same **type scale**. Aspect only picks the episode-art box and chrome/footer layout.
 
 **Wide** (YouTube 16:9 and similar) uses the empty column instead of packing
 everything into a centred right stack:
@@ -37,8 +37,15 @@ show name              51 min  24 Aug 2026
                        [ yt  spotify  apple ]   ← same left edge as the title
 ```
 
-**Square** (Spotify / Apple 1:1 art) uses the **same columns chrome** as wide,
-scaled by canvas width `800/1200`. See the style guide below.
+**Square** (Spotify / Apple 1:1 art) uses the **same 1200×630 canvas and columns
+chrome** as wide, unscaled. Only the art box (511×383 max) and the footer (show
+name across the leftover width, meta stacked right) differ. See the style guide below.
+
+**Framing (Api#244):** both aspects are 1200×630 (≈1.91:1). X centre-crops
+`summary_large_image` art to 1.91:1, so any taller canvas loses its brand bar and
+show name on X. The old 800×522 square canvas did exactly that. Square title
+lines are capped to fitted art height via `ogTitleMaxLinesForArt` (1:1→4, 4:3→4,
+16:9→3).
 
 ## Wide style guide (source of truth)
 
@@ -84,12 +91,12 @@ show 48               51 min · date 28 <!-- pragma: allowlist secret -->
 
 Full token tables, faces, and alignment rules:
 [`docs/og-share-image-style-guide.md`](og-share-image-style-guide.md).
-**Square application** (do not edit wide): multiply linear tokens by `800/1200`
-(title 48, logo 59, brand 64, icons 21). Episode-image **height is fixed at the
-wide standard (440)** — square 1:1 art is 440×440; canvas width 800, height
-`squareCanvasHeight()` (do not shrink art to 418). Show name is **48px always**
-(2 lines, then `...`) across the leftover footer next to stacked meta, **vertically
-centred** with that column for 1 or 2 rows (same as wide).
+**Square application** (do not edit wide): same canvas and tokens as wide (title
+72, logo 88, brand 96, icons 32). Episode art fits a **511×383** box
+(`OG_SQUARE_ART_MAX_WIDTH` × `OG_SQUARE_ART_MAX`, derived from the fixed 630
+height), so 1:1 art is 383×383 and 4:3 art is 511×383. Show name is **48px
+always** (2 lines, then `...`) across the leftover footer next to stacked meta,
+**vertically centred** with that column for 1 or 2 rows (same as wide).
 
 | Zone (wide) | Content |
 |-------------|---------|
@@ -110,7 +117,7 @@ Preview-only `wl=` wide variants (page-details does not send this; default is `c
 | Aspect | Canvas | Art max box | Website twitter:card (episode art ON) |
 |--------|--------|-------------|---------------------------------------|
 | `a=wide` | 1200×630 | 700×440 | `summary_large_image` |
-| `a=square` | 800×`squareCanvasHeight()` | 440×440 (height = wide 440) | `summary_large_image` |
+| `a=square` | 1200×630 | 511×383 (`OG_SQUARE_ART_MAX_WIDTH` × `OG_SQUARE_ART_MAX`) | `summary_large_image` |
 
 ## Query contract
 
@@ -141,7 +148,7 @@ GET /og-image
 | Type | **Instrument Serif** (brand) + **Figtree Semibold** (title / podcast / meta); site logo mark inline with brand | Matches website display/UI fonts |
 | Colour | Ink `#0b0d12`, amber brand `#f5c056`, secondary/meta `#f0f2f5` / `#e8ebf0` | High contrast on dark card |
 | Platform icons | Copied from website assets / `apple-podcasts-svg` (Apple purple person + arcs; Spotify Material green; YouTube play; BBC Sounds bars) | Must match site marks at chip size |
-| Long titles | One title size per canvas (72 wide / 48 square); tokens wider than the column **hyphenate**; leftover after 5 lines gets `...` | Soft-wrap-only overflow hid the ellipsis and sat long tokens high |
+| Long titles | One title size (72px) on both canvases; tokens wider than the column **hyphenate**; leftover after 5 lines gets `...` | Soft-wrap-only overflow hid the ellipsis and sat long tokens high |
 | Failure | 307 → source `u` (+ `X-Og-Error` on preview/debug) | Crawlers still get an image |
 
 Do **not** use bare `@resvg/resvg-wasm` / Satori without module-bundled Yoga on Workers — that yields `Wasm code generation disallowed by embedder`.
