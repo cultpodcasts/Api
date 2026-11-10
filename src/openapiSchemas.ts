@@ -457,6 +457,48 @@ export const episodeTvShowMoveResponseSchema = z.object({
 	failureIndexing: z.boolean().optional()
 });
 
+/** EpisodeNewsMoveRequest - RedditPodcastPoster Api.Dtos.EpisodeNewsMoveRequest. Exactly one of newsOrganisationId / newsOrganisationName. */
+export const episodeNewsMoveRequestSchema = z.object({
+	newsOrganisationId: z.string().uuid().optional().nullable().describe("An existing news organisation, by id."),
+	newsOrganisationName: z
+		.string()
+		.optional()
+		.nullable()
+		.describe("A news organisation by name (case-insensitive, trimmed). Must not contain '/'. Only news organisations are matched."),
+	createOrganisation: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("With newsOrganisationName: create the organisation when no news organisation has the name (otherwise 404). An existing organisation with the name is joined and its publisher is not changed."),
+	publisher: z.string().optional().nullable().describe("Publisher of an organisation this move creates. Only valid with createOrganisation; omitted means none.")
+});
+
+/** PodcastNewsMoveRequest - RedditPodcastPoster Api.Dtos.PodcastNewsMoveRequest: the episode ids to move plus the organisation target. */
+export const podcastNewsMoveRequestSchema = episodeNewsMoveRequestSchema.extend({
+	episodeIds: z
+		.array(z.string().uuid())
+		.min(1)
+		.max(500)
+		.describe("Episode ids of this podcast to move (1-500). Only these move; the podcast and its other episodes are kept.")
+});
+
+/** EpisodeNewsMoveResponse - command outcome (not the news organisation read model). GET /newsorganisation/:id for the organisation. */
+export const episodeNewsMoveResponseSchema = z.object({
+	newsOrganisationId: z.string().uuid().optional().nullable().describe("The news organisation that now holds the reports."),
+	newsOrganisationName: z.string().optional().nullable().describe("News organisation name."),
+	createdOrganisation: z.boolean().optional().describe("True when this move created the news organisation."),
+	episodeId: z.string().uuid().optional().nullable().describe("The moved episode id (the news report keeps it). Only on the single-episode route."),
+	movedEpisodeIds: z.array(z.string().uuid()).optional().describe("Episode ids moved by this request (each is now a news report with the same id)."),
+	alreadyMovedEpisodeIds: z.array(z.string().uuid()).optional().describe("Episode ids an earlier request already moved to this organisation (a re-send)."),
+	notFoundEpisodeIds: z.array(z.string().uuid()).optional().describe("Requested ids that are not episodes of the podcast. Any of these refuses the whole request (404)."),
+	conflictEpisodeIds: z
+		.array(z.string().uuid())
+		.optional()
+		.describe("Requested ids that are already a TV episode, a film, or a news report of another organisation. Any of these refuses the whole request (409)."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional()
+});
+
 export const podcastRenameRequestSchema = z.object({
 	newPodcastName: z.string().min(1)
 });

@@ -103,6 +103,8 @@ import {
 	MoveEpisodeToFilmRoute,
 	AttachEpisodeAsTrailerRoute,
 	MoveEpisodeToTvShowRoute,
+	MoveEpisodeToNewsRoute,
+	MovePodcastEpisodesToNewsRoute,
 	UpdatePodcastRoute,
 	UpdateSubjectRoute,
 	GetTvShowRoute,
@@ -395,6 +397,7 @@ openapi.delete('/episode/:podcastId/:episodeId', DeletePodcastEpisodeRoute);
 openapi.post('/episode/:podcastId/:episodeId/film', MoveEpisodeToFilmRoute);
 openapi.post('/episode/:podcastId/:episodeId/trailer', AttachEpisodeAsTrailerRoute);
 openapi.post('/episode/:podcastId/:episodeId/tvshow', MoveEpisodeToTvShowRoute);
+openapi.post('/episode/:podcastId/:episodeId/news', MoveEpisodeToNewsRoute);
 // \New Episode Endpoints
 // Old Episode Endpoints
 openapi.get('/episode/:id', GetEpisodeRoute);
@@ -470,6 +473,8 @@ openapi.put('/hero-curation', PutHeroCurationRoute);
 openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);
 openapi.delete('/hero-curation/episodes', DeleteHeroCurationEpisodesRoute);
 openapi.post('/podcast/name/:name', RenamePodcastRoute);
+// After /podcast/index/:name and /podcast/name/:name so a podcast named "news" still indexes / renames.
+openapi.post('/podcast/:id/news', MovePodcastEpisodesToNewsRoute);
 openapi.post('/pushsubscription', PushSubscriptionRoute);
 openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);
 openapi.get('/og-image', GetOgShareImageRoute);

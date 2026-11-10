@@ -64,6 +64,9 @@ import {
 	episodeTrailerAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
 	episodeTvShowMoveResponseSchema,
+	episodeNewsMoveRequestSchema,
+	podcastNewsMoveRequestSchema,
+	episodeNewsMoveResponseSchema,
 	tvShowChangeRequestSchema,
 	tvShowDtoSchema,
 	tvShowEpisodeChangeRequestSchema,
@@ -1113,6 +1116,32 @@ describe("openapi Zod schemas", () => {
 		expect(() => episodeTrailerAttachRequestSchema.parse({ title: "Synthetic Teaser" })).toThrow();
 		expect(episodeTrailerAttachResponseSchema.parse({ filmId, name: "Synthetic Film Title", failureIndexing: false }).name)
 			.toBe("Synthetic Film Title");
+	});
+
+	it("parses the move-to-news requests and command outcome", () => {
+		const newsOrganisationId = "550e8400-e29b-41d4-a716-446655440000";
+		const episodeId = "0a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d";
+		expect(episodeNewsMoveRequestSchema.parse({ newsOrganisationId }).newsOrganisationId).toBe(newsOrganisationId);
+		expect(episodeNewsMoveRequestSchema.parse({ newsOrganisationName: "Synthetic News", createOrganisation: true, publisher: null }).createOrganisation)
+			.toBe(true);
+		expect(() => episodeNewsMoveRequestSchema.parse({ newsOrganisationId: "not-a-guid" })).toThrow();
+		expect(podcastNewsMoveRequestSchema.parse({ episodeIds: [episodeId], newsOrganisationId }).episodeIds).toEqual([episodeId]);
+		expect(() => podcastNewsMoveRequestSchema.parse({ episodeIds: [], newsOrganisationId })).toThrow();
+		expect(() => podcastNewsMoveRequestSchema.parse({ episodeIds: ["not-a-guid"], newsOrganisationId })).toThrow();
+		expect(() => podcastNewsMoveRequestSchema.parse({ newsOrganisationId })).toThrow();
+		const outcome = episodeNewsMoveResponseSchema.parse({
+			newsOrganisationId,
+			newsOrganisationName: "Synthetic News",
+			createdOrganisation: true,
+			episodeId,
+			movedEpisodeIds: [episodeId],
+			alreadyMovedEpisodeIds: [],
+			notFoundEpisodeIds: [],
+			conflictEpisodeIds: [],
+			failureIndexing: false
+		});
+		expect(outcome.movedEpisodeIds).toEqual([episodeId]);
+		expect(outcome.createdOrganisation).toBe(true);
 	});
 
 	it("parses the move-to-TV-show request and command outcome", () => {
