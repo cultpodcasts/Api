@@ -141,6 +141,9 @@ import {
 	episodeTrailerAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
 	episodeTvShowMoveResponseSchema,
+	episodeNewsMoveRequestSchema,
+	podcastNewsMoveRequestSchema,
+	episodeNewsMoveResponseSchema,
 	podcastRenameRequestSchema,
 	catalogueRenameRequestSchema,
 	catalogueRenameResponseSchema,
@@ -210,6 +213,7 @@ import { transferPodcastKind } from "./transferPodcastKind";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
 import { moveEpisodeToTvShow } from "./moveEpisodeToTvShow";
+import { moveEpisodeToNews, movePodcastEpisodesToNews } from "./moveToNews";
 import { updateSubject } from "./updateSubject";
 import { getTvShow } from "./getTvShow";
 import { updateTvShow } from "./updateTvShow";
@@ -915,6 +919,53 @@ export const MoveEpisodeToTvShowRoute = createOpenApiRoute(moveEpisodeToTvShow, 
             ...serverErrorResponse,
             ...authResponses
         }
+    }
+});
+
+const newsMoveOutcomeOrError = z.union([episodeNewsMoveResponseSchema, errorSchema]);
+const newsMoveDescription =
+    "The target is exactly one of newsOrganisationId or newsOrganisationName (case-insensitive; only news organisations are matched). " +
+    "createOrganisation with newsOrganisationName creates the organisation (fresh id, new news- file key, publisher, news creation indexing " +
+    "defaults, no YouTube / Spotify / Apple ids copied, latestReleased from the moved reports) when none has the name, otherwise joins it without " +
+    "changing its publisher. Each episode is mapped to a news report under the same guid (services, subjects, posted/tweeted/Bluesky state). " +
+    "Length-derived Ignored is cleared, as the kind transfer does; a manual ignore is kept. Unlike the TV and film moves, a removed episode can " +
+    "be moved: its removed flag is kept and its search document is deleted. Every other search document is swapped to contentKind NewsReport, " +
+    "then only the moved episode rows are deleted. After that, an existing organisation's latestReleased is raised and the moved episodes' " +
+    "short links are deleted (both best effort, neither fails the 202; the shortener falls back to search). An id deleted by someone else " +
+    "during the move already has its report and is listed in movedEpisodeIds. " +
+    "Not a kind transfer: the podcast, its other episodes, its Spotify / Apple / YouTube show ids and file key are kept, even when no episodes remain. " +
+    "A 404 or 409 refuses the whole request before anything is written. A failed step returns 500 with the source episodes kept; re-sending resumes.";
+const newsMoveResponses = {
+    202: { description: "Moved (command outcome; GET /newsorganisation/:id for the organisation)", ...contentJson(episodeNewsMoveResponseSchema) },
+    400: { description: "Invalid body (not exactly one of newsOrganisationId / newsOrganisationName, createOrganisation or publisher misused, '/' in the name, more than 500 episodeIds, or an empty guid 00000000-0000-0000-0000-000000000000 in episodeIds) or a removed organisation", ...contentJson(errorSchema) },
+    404: { description: "Podcast or news organisation not found (a name without createOrganisation never creates one), or an id that is not an episode of the podcast (notFoundEpisodeIds)", ...contentJson(newsMoveOutcomeOrError) },
+    409: { description: "Several news organisations have the name, or an id is already a TV episode, a film or a news report of another organisation (conflictEpisodeIds)", ...contentJson(episodeNewsMoveResponseSchema) },
+    500: { description: "Move did not finish (failureIndexing on a search swap failure); source episodes kept, re-send resumes", ...contentJson(newsMoveOutcomeOrError) },
+    ...authResponses
+};
+
+export const MoveEpisodeToNewsRoute = createOpenApiRoute(moveEpisodeToNews, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one podcast episode into a news organisation as a news report (keeps the guid)",
+        description: "Curator command (RPP #1388). " + newsMoveDescription,
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeNewsMoveRequestSchema) },
+        responses: newsMoveResponses
+    }
+});
+
+export const MovePodcastEpisodesToNewsRoute = createOpenApiRoute(movePodcastEpisodesToNews, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Podcasts"],
+        summary: "Move the listed episodes of a podcast into a news organisation as news reports (keeps the guids)",
+        description:
+            "Curator command (RPP #1388). Batch form of POST /episode/:podcastId/:episodeId/news: episodeIds (1-500) plus the same organisation " +
+            "fields; the organisation is created or resolved once and only the listed ids move. episodeId is not set on the outcome. " +
+            newsMoveDescription,
+        request: { params: idParam, body: jsonBody(podcastNewsMoveRequestSchema) },
+        responses: newsMoveResponses
     }
 });
 
