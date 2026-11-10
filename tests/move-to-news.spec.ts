@@ -1,8 +1,12 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
+import worker from "../src/index";
 import { moveEpisodeToNews, movePodcastEpisodesToNews } from "../src/moveToNews";
+import { MoveEpisodeToNewsRoute, MovePodcastEpisodesToNewsRoute } from "../src/openapiRoutes";
+import { episodeNewsMoveRequestSchema, episodeNewsMoveResponseSchema, podcastNewsMoveRequestSchema } from "../src/openapiSchemas";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
+import { testEnv as auth0TestEnv } from "./support/honoRoute";
 
 const podcastId = "7d1b9c40-2f6e-4a8b-9c3d-1e2f3a4b5c6d";
 const episodeId = "0a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -140,21 +144,66 @@ describe.each(routes)("move to news ($label)", (r) => {
 	});
 });
 
-describe("move to news route registration", () => {
-	const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-	const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
+describe("move to news OpenAPI route contract", () => {
+	type JsonContent = { content?: { "application/json"?: { schema?: unknown } } };
+	const newsRoutes = [
+		["POST /episode/:podcastId/:episodeId/news", MoveEpisodeToNewsRoute, episodeNewsMoveRequestSchema],
+		["POST /podcast/:id/news", MovePodcastEpisodesToNewsRoute, podcastNewsMoveRequestSchema]
+	] as const;
 
-	it("registers both openapi.post routes with documented schemas", () => {
-		expect(index).toContain("openapi.post('/episode/:podcastId/:episodeId/news', MoveEpisodeToNewsRoute)");
-		expect(index).toContain("openapi.post('/podcast/:id/news', MovePodcastEpisodesToNewsRoute)");
-		expect(routes).toContain("jsonBody(episodeNewsMoveRequestSchema)");
-		expect(routes).toContain("jsonBody(podcastNewsMoveRequestSchema)");
-		expect(routes).toContain("contentJson(episodeNewsMoveResponseSchema)");
+	it.each(newsRoutes)("%s documents its request body, the 202 command outcome and curate auth", (_, Route, requestSchema) => {
+		const schema = Route.openApiSchema;
+		const request = schema.request as { body?: JsonContent } | undefined;
+		expect(request?.body?.content?.["application/json"]?.schema).toBe(requestSchema);
+		const accepted = schema.responses?.[202] as JsonContent | undefined;
+		expect(accepted?.content?.["application/json"]?.schema).toBe(episodeNewsMoveResponseSchema);
+		for (const status of [400, 401, 403, 404, 409, 500]) {
+			expect(schema.responses?.[status]).toBeDefined();
+		}
+		expect(Route.requiresAuth).toBe(true);
+		expect(schema.security).toEqual([{ bearerAuth: [] }]);
 	});
 
-	it("registers POST /podcast/:id/news after the podcast index and rename routes so a podcast named news is not captured", () => {
-		const news = index.indexOf("openapi.post('/podcast/:id/news'");
-		expect(news).toBeGreaterThan(index.indexOf("openapi.post('/podcast/index/:name'"));
-		expect(news).toBeGreaterThan(index.indexOf("openapi.post('/podcast/name/:name'"));
+	it.each(newsRoutes)("%s documents the move contract agreed on RPP #1389", (_, Route) => {
+		const schema = Route.openApiSchema;
+		const description = schema.description ?? "";
+		expect(description).toMatch(/length-derived Ignored is cleared/i);
+		expect(description).toMatch(/removed flag is kept/i);
+		expect(description).toMatch(/latestReleased/);
+		expect(description).toMatch(/short links? .*deleted/i);
+		expect(description).toMatch(/movedEpisodeIds/);
+		expect(schema.responses?.[400]?.description).toMatch(/500/);
+		expect(schema.responses?.[400]?.description).toMatch(/empty guid/i);
+	});
+});
+
+describe("move to news on the Worker app", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it.each([
+		["/episode/:podcastId/:episodeId/news", `/episode/${podcastId}/${episodeId}/news`],
+		["/podcast/:id/news", `/podcast/${podcastId}/news`]
+	])("routes POST %s behind auth (401 without a token, not 404) and does not call Azure", async (_, path) => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const resp = await worker.fetch(
+			new Request(`https://api.example${path}`, { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }),
+			auth0TestEnv(),
+			{} as ExecutionContext
+		);
+		expect(resp.status).toBe(401);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("404s an unregistered episode command (guards the registration check above)", async () => {
+		const resp = await worker.fetch(
+			new Request(`https://api.example/episode/${podcastId}/${episodeId}/synthetickind`, { method: "POST", body: "{}" }),
+			auth0TestEnv(),
+			{} as ExecutionContext
+		);
+		expect(resp.status).toBe(404);
 	});
 });

@@ -43,6 +43,20 @@ export type ProxyToAzureOptions = {
 	observeAttempt?: (attempt: AzureProxyAttempt) => void;
 };
 
+/** proxyToAzure's gate: an authenticated principal holding `permission` (or any one of a list; none required when omitted). */
+export function isPermittedForAzureProxy(
+	auth0Payload: Auth0JwtPayload | null | undefined,
+	permission: ProxyToAzureOptions["permission"]
+): boolean {
+	return (
+		auth0Payload != null &&
+		(permission == null ||
+			(typeof permission === "string"
+				? hasPermission(auth0Payload, permission)
+				: permission.some((p) => hasPermission(auth0Payload, p))))
+	);
+}
+
 /**
  * Shared Azure Functions proxy: auth/permission gate + fetch + status mapping.
  * Success and `forwardStatuses` passthrough; other non-success become Worker 500
@@ -60,12 +74,7 @@ export async function proxyToAzure(
 	const successStatuses = opts.successStatuses ?? [200];
 	const forwardStatuses = opts.forwardStatuses ?? [];
 
-	const permitted =
-		auth0Payload != null &&
-		(opts.permission == null ||
-			(typeof opts.permission === "string"
-				? hasPermission(auth0Payload, opts.permission)
-				: opts.permission.some((p) => hasPermission(auth0Payload, p))));
+	const permitted = isPermittedForAzureProxy(auth0Payload, opts.permission);
 
 	try {
 		if (permitted) {
