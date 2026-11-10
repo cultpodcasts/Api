@@ -110,6 +110,23 @@ export const submitUrlPrepareResponseSchema = z.object({
 });
 
 /**
+ * Content-type fields Azure adds to any GET /submit/lookup arm (RPP SubmitUrlLookupResponse, epic RPP #1211 / G5-reject
+ * RPP #1357). Each is omitted when null / false.
+ */
+const submitUrlLookupContentFields = {
+	contentKind: z
+		.string()
+		.optional()
+		.describe("Catalogue content kind the URL resolves to (e.g. `Episode`, `NewsReport`, `TvShowEpisode`, `Film`)."),
+	parentName: z.string().optional().describe("Name of the matched news organisation / TV show, when the kind has a parent."),
+	rejected: z
+		.boolean()
+		.optional()
+		.describe("True when Azure would reject this URL on submit (e.g. a BBC News page with `submitContentTypes` on); a POST /submit returns 400."),
+	message: z.string().optional().describe("Why the URL is rejected, for the submitter (with `rejected: true`).")
+};
+
+/**
  * GET /submit/lookup 200 — Cosmos URL membership (passthrough of Azure SubmitUrlLookupResponse).
  * Three arms match website SubmitUrlLookupResponse:
  * unique known / unknown (kind required) / ambiguous (not 409).
@@ -121,7 +138,8 @@ export const submitUrlLookupKnownSchema = z
 		podcastId: z.string().uuid(),
 		podcastName: z.string(),
 		kind: submitUrlLookupKindSchema.optional(),
-		service: streamingServiceKeySchema.optional().nullable()
+		service: streamingServiceKeySchema.optional().nullable(),
+		...submitUrlLookupContentFields
 	})
 	.strict();
 
@@ -131,7 +149,8 @@ export const submitUrlLookupUnknownSchema = z
 		kind: submitUrlLookupKindSchema,
 		ambiguous: z.literal(false).optional(),
 		podcastName: z.string().optional().nullable(),
-		service: streamingServiceKeySchema.optional().nullable()
+		service: streamingServiceKeySchema.optional().nullable(),
+		...submitUrlLookupContentFields
 	})
 	.strict();
 
@@ -141,9 +160,19 @@ export const submitUrlLookupAmbiguousSchema = z
 		ambiguous: z.literal(true),
 		podcastIds: z.array(z.string().uuid()).min(1),
 		kind: submitUrlLookupKindSchema.optional(),
-		service: streamingServiceKeySchema.optional().nullable()
+		service: streamingServiceKeySchema.optional().nullable(),
+		...submitUrlLookupContentFields
 	})
 	.strict();
+
+/**
+ * POST /submit 400 body. Validation failures carry `{ message }` (or `{ error }`); a content-type rejection
+ * (RPP SubmitDispositionResponse, `SubmitUrlStatus.Rejected`) carries `{ contentKind?, rejected: true, message? }`.
+ */
+export const submitUrlBadRequestSchema = errorSchema.extend({
+	contentKind: z.string().optional().describe("Content kind Azure classified the URL as (rejections only)."),
+	rejected: z.boolean().optional().describe("True when Azure rejected the URL by content type (e.g. a BBC News page).")
+});
 
 export const submitUrlLookupResponseSchema = z.union([
 	submitUrlLookupAmbiguousSchema,
