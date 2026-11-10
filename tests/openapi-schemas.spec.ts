@@ -50,6 +50,8 @@ import {
 	searchResponseSchema,
 	subjectChangeRequestSchema,
 	subjectsNameListResponseSchema,
+	submitUrlBadRequestSchema,
+	submitUrlLookupResponseSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema,
 	catalogueIdentityLookupRequestSchema,
@@ -154,6 +156,38 @@ describe("openapi Zod schemas", () => {
 			submitUrlRequestSchema.parse({ podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" })
 		).toThrow();
 		expect(podcastRenameRequestSchema.parse({ newPodcastName: "New Name" }).newPodcastName).toBe("New Name");
+	});
+
+	it("documents the RPP content-type fields on GET /submit/lookup (rejected BBC News page, parent match)", () => {
+		const rejected = {
+			known: false,
+			kind: "unrecognised",
+			contentKind: "NewsReport",
+			rejected: true,
+			message: "Synthetic rejection message"
+		};
+		expect(submitUrlLookupResponseSchema.parse(rejected)).toEqual(rejected);
+		const parentMatch = {
+			known: true,
+			podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			podcastName: "Synthetic Desk",
+			contentKind: "NewsReport",
+			parentName: "Synthetic Desk"
+		};
+		expect(submitUrlLookupResponseSchema.parse(parentMatch)).toEqual(parentMatch);
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({ known: false, kind: "unrecognised", notAField: true })
+		).toThrow();
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({ known: false, kind: "unrecognised", rejected: "yes" })
+		).toThrow();
+	});
+
+	it("documents the POST /submit 400 content-type rejection body alongside the validation error body", () => {
+		const rejection = { contentKind: "NewsReport", rejected: true, message: "Synthetic rejection message" };
+		expect(submitUrlBadRequestSchema.parse(rejection)).toEqual(rejection);
+		expect(submitUrlBadRequestSchema.parse({ message: "Url is required" })).toEqual({ message: "Url is required" });
+		expect(() => submitUrlBadRequestSchema.parse({ rejected: "yes" })).toThrow();
 	});
 
 	it("rejects discovery submit without uuid arrays", () => {
