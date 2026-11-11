@@ -1886,6 +1886,14 @@ export const newsOrganisationChangeRequestSchema = z.object({
 	...additionalYouTubeChannelIdsShape
 });
 
+/** 400 body for `PATCH /newsorganisation/{id}`: RPP returns `{ message, code }` for the additional-channel refusals (RPP #1370). */
+export const newsOrganisationPatchBadRequestSchema = errorSchema.extend({
+	code: z
+		.enum(["invalidAdditionalYouTubeChannelId", "additionalYouTubeChannelIsMainChannel", "channelWideYouTubeConflict"])
+		.optional()
+		.describe("Refusal code for an `additionalYouTubeChannelIds` change; absent for other 400s")
+});
+
 /** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
 export const newsReportDtoSchema = z.object({
 	...playableFieldsDtoShape,

@@ -326,6 +326,7 @@ describe("news curation OpenAPI contracts", () => {
 		for (const [status, upstream] of [
 			[400, { message: "Additional YouTube channel ids must be YouTube channel ids.", code: "invalidAdditionalYouTubeChannelId" }],
 			[400, { message: "An additional YouTube channel is the main channel.", code: "additionalYouTubeChannelIsMainChannel" }],
+			[400, { message: "A channel-wide TV show or podcast already claims an additional YouTube channel.", code: "channelWideYouTubeConflict" }],
 			[409, { message: "additionalYouTubeChannelIds UCsyntheticChannel0000002 is already used", ids: [ambiguousIds[0]] }]
 		] as const) {
 			stubFetch(status, upstream);

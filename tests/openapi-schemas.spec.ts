@@ -72,6 +72,7 @@ import {
 	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	newsOrganisationChangeRequestSchema,
+	newsOrganisationPatchBadRequestSchema,
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
@@ -1514,6 +1515,15 @@ describe("openapi Zod schemas", () => {
 		};
 		expect(newsOrganisationDtoSchema.parse(dto).youTubePlaylistIdHistory).toEqual(dto.youTubePlaylistIdHistory);
 		expect(tvShowDtoSchema.parse({ id: dto.id, name: "Synthetic Show", spotifyId: "x" }).spotifyId).toBe("x");
+	});
+
+	it("parses the news organisation PATCH 400 body with its refusal code (RPP #1370, synthetic)", () => {
+		for (const code of ["invalidAdditionalYouTubeChannelId", "additionalYouTubeChannelIsMainChannel", "channelWideYouTubeConflict"] as const) {
+			const body = { message: "Synthetic refusal.", code };
+			expect(newsOrganisationPatchBadRequestSchema.parse(body)).toEqual(body);
+		}
+		expect(newsOrganisationPatchBadRequestSchema.parse({ message: "Invalid URL" })).toEqual({ message: "Invalid URL" });
+		expect(() => newsOrganisationPatchBadRequestSchema.parse({ message: "x", code: "somethingElse" })).toThrow();
 	});
 
 	it("parses news organisation additionalYouTubeChannelIds in PATCH (list, [] clear, null) and GET, and keeps them off TV shows (RPP #1370, synthetic)", () => {
