@@ -307,6 +307,48 @@ describe("news curation OpenAPI contracts", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("PATCH /newsorganisation/:id forwards additionalYouTubeChannelIds verbatim and passes its 400 and 409 refusals through (RPP #1370)", async () => {
+		const app = appWithPermissions("/newsorganisation/:id", "patch", updateNewsOrganisation, ["curate"]);
+		for (const body of [
+			{ additionalYouTubeChannelIds: ["UCsyntheticChannel0000002", "UCsyntheticChannel0000003"] },
+			{ additionalYouTubeChannelIds: [] }
+		]) {
+			const fetchMock = stubFetch(202, null);
+			const resp = await app.request(
+				`/newsorganisation/${id}`,
+				{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(body) },
+				testEnv()
+			);
+			expect(resp.status).toBe(202);
+			expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual(body);
+			vi.unstubAllGlobals();
+		}
+		for (const [status, upstream] of [
+			[400, { message: "Additional YouTube channel ids must be YouTube channel ids.", code: "invalidAdditionalYouTubeChannelId" }],
+			[400, { message: "An additional YouTube channel is the main channel.", code: "additionalYouTubeChannelIsMainChannel" }],
+			[409, { message: "additionalYouTubeChannelIds UCsyntheticChannel0000002 is already used", ids: [ambiguousIds[0]] }]
+		] as const) {
+			stubFetch(status, upstream);
+			const resp = await app.request(
+				`/newsorganisation/${id}`,
+				{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify({ additionalYouTubeChannelIds: ["UCsyntheticChannel0000002"] }) },
+				testEnv()
+			);
+			expect(resp.status).toBe(status);
+			expect(await resp.json()).toEqual(upstream);
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("documents additionalYouTubeChannelIds and its refusal codes on the organisation PATCH (RPP #1370)", () => {
+		const description = UpdateNewsOrganisationRoute.openApiSchema.description ?? "";
+		for (const text of ["additionalYouTubeChannelIds", "invalidAdditionalYouTubeChannelId", "additionalYouTubeChannelIsMainChannel", "channelWideYouTubeConflict"]) {
+			expect(description).toContain(text);
+		}
+		const conflict = UpdateNewsOrganisationRoute.openApiSchema.responses?.[409] as { description?: string } | undefined;
+		expect(conflict?.description).toMatch(/additionalYouTubeChannelIds/);
+	});
+
 	it("uses a news-specific 409 only on GET news organisation", () => {
 		expect(ambiguousNewsOrganisationNameConflict).not.toBe(ambiguousCatalogueNameConflict);
 		expect(ambiguousNewsOrganisationNameConflict.description).toMatch(/news organisation/i);

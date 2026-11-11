@@ -1861,14 +1861,30 @@ export const filmStaleTrailersConflictSchema = z.object({
 	unexpectedTrailerIds: z.array(z.string().uuid())
 });
 
-/** Api.Dtos.NewsOrganisationDto (RPP #1053). */
-export const newsOrganisationDtoSchema = z.object({ ...publisherFieldsDtoShape, ...serviceIdsDtoShape });
+/**
+ * Extra YouTube channel ids a news organisation owns besides `youTubeChannelId` (RPP #1370). Channel ids only, each
+ * claimed channel-wide; `youTubePlaylistId` scopes the main channel only.
+ */
+const additionalYouTubeChannelIdsShape = {
+	additionalYouTubeChannelIds: z.array(z.string()).optional().nullable()
+};
+
+/** Api.Dtos.NewsOrganisationDto (RPP #1053). `additionalYouTubeChannelIds` is `[]` when there are none (RPP #1370). */
+export const newsOrganisationDtoSchema = z.object({
+	...publisherFieldsDtoShape,
+	...serviceIdsDtoShape,
+	...additionalYouTubeChannelIdsShape
+});
 
 /**
  * Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields plus the service ids. Search terms, language and
  * removed are copied to reports (removal cascades). `name` is not here: rename is `POST /newsorganisation/name/:identifier`.
  */
-export const newsOrganisationChangeRequestSchema = z.object({ ...publisherFieldsChangeShape, ...serviceIdsChangeShape });
+export const newsOrganisationChangeRequestSchema = z.object({
+	...publisherFieldsChangeShape,
+	...serviceIdsChangeShape,
+	...additionalYouTubeChannelIdsShape
+});
 
 /** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
 export const newsReportDtoSchema = z.object({

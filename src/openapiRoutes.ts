@@ -430,7 +430,9 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		summary: "Patch news organisation fields",
 		description:
 			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
-			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
+			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). " +
+			"`additionalYouTubeChannelIds` (RPP #1370) lists extra YouTube channel ids the organisation owns and ingests from, each channel-wide (`youTubePlaylistId` scopes only the main channel): a list replaces the stored list, `[]` clears it, omitted or null leaves it. " +
+			"400 `invalidAdditionalYouTubeChannelId` when an id is not a `UC…` channel id, 400 `additionalYouTubeChannelIsMainChannel` when one equals the main `youTubeChannelId`, 400 `channelWideYouTubeConflict` when another channel-wide parent or podcast claims the channel. Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
 			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). New news organisations are created with `bypassShortEpisodeChecking` and `alwaysPromoteAsHero` saved as `true`; there is no read-time default, so GET returns exactly what is stored. " +
 			"`removed` cascades like a podcast removal: each report's `parentRemoved` is set / cleared (its own `removed` is untouched) and on removal " +
 			"every report's search document is deleted; restored reports are re-added by the next indexer run.",
@@ -439,7 +441,7 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 			202: { description: "News organisation updated (empty body)" },
 			400: { description: "Invalid request", ...contentJson(errorSchema) },
 			409: {
-				description: "A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast; `ids` names the owner(s). Nothing applied",
+				description: "A `youTubeChannelId`, an `additionalYouTubeChannelIds` entry, `spotifyId` or `appleId` is already owned by another news organisation / TV show (main or additional channel) or by a podcast; `ids` names the owner(s). Nothing applied",
 				...contentJson(serviceIdConflictSchema)
 			},
 			...newsNotFoundIdResponse,
