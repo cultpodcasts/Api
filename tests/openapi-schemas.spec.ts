@@ -72,6 +72,8 @@ import {
 	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	newsOrganisationChangeRequestSchema,
+	newsOrganisationPatchBadRequestSchema,
+	newsOrganisationPatchUnavailableSchema,
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
@@ -1514,6 +1516,88 @@ describe("openapi Zod schemas", () => {
 		};
 		expect(newsOrganisationDtoSchema.parse(dto).youTubePlaylistIdHistory).toEqual(dto.youTubePlaylistIdHistory);
 		expect(tvShowDtoSchema.parse({ id: dto.id, name: "Synthetic Show", spotifyId: "x" }).spotifyId).toBe("x");
+	});
+
+	it("parses the news organisation PATCH 400 body with its refusal code (RPP #1370, synthetic)", () => {
+		for (const code of [
+			"invalidAdditionalYouTubeChannelId",
+			"additionalYouTubeChannelIsMainChannel",
+			"channelWideYouTubeConflict",
+			"youTubePlaylistNotFound",
+			"youTubePlaylistIdInvalid",
+			"youTubePlaylistChannelMismatch"
+		] as const) {
+			const body = { message: "Synthetic refusal.", code };
+			expect(newsOrganisationPatchBadRequestSchema.parse(body)).toEqual(body);
+		}
+		expect(newsOrganisationPatchBadRequestSchema.parse({ message: "Invalid URL" })).toEqual({ message: "Invalid URL" });
+		expect(() => newsOrganisationPatchBadRequestSchema.parse({ message: "x", code: "somethingElse" })).toThrow();
+		expect(() => newsOrganisationPatchBadRequestSchema.parse({ message: "x", code: "youTubePlaylistLookupFailed" })).toThrow();
+	});
+
+	it("parses news organisation additionalYouTubeChannelIds in PATCH (list, [] clear, null) and GET, and keeps them off TV shows (RPP #1370, synthetic)", () => {
+		const change = { additionalYouTubeChannelIds: ["UCsyntheticChannel0000002", "UCsyntheticChannel0000003"] };
+		expect(newsOrganisationChangeRequestSchema.parse(change)).toEqual(change);
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: [] })).toEqual({ additionalYouTubeChannelIds: [] });
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: null })).toEqual({ additionalYouTubeChannelIds: null });
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: "UCsyntheticChannel0000002" })).toThrow();
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: [1] })).toThrow();
+		expect(tvShowChangeRequestSchema.parse(change)).not.toHaveProperty("additionalYouTubeChannelIds");
+		const idsDescription = newsOrganisationChangeRequestSchema.shape.additionalYouTubeChannelIds.description ?? "";
+		expect(idsDescription).toMatch(/already stored keeps its playlist and flags/);
+		expect(idsDescription).toMatch(/Only `additionalYouTubeChannels` can set or clear a playlist/);
+		expect(idsDescription).not.toMatch(/clears any stored playlist/);
+		const dto = {
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "",
+			description: "",
+			removed: false,
+			twitterHandle: "",
+			youTubeChannelId: "UCsyntheticChannel0000001",
+			additionalYouTubeChannelIds: ["UCsyntheticChannel0000002"]
+		};
+		expect(newsOrganisationDtoSchema.parse(dto).additionalYouTubeChannelIds).toEqual(dto.additionalYouTubeChannelIds);
+		expect(newsOrganisationDtoSchema.parse({ ...dto, additionalYouTubeChannelIds: [] }).additionalYouTubeChannelIds).toEqual([]);
+	});
+
+	it("parses news organisation additionalYouTubeChannels with optional per-channel playlists in PATCH and GET, and keeps them off TV shows (RPP #1370, synthetic)", () => {
+		const change = {
+			additionalYouTubeChannels: [
+				{ youTubeChannelId: "UCsyntheticChannel0000002" },
+				{ youTubeChannelId: "UCsyntheticChannel0000003", youTubePlaylistId: "PLsyntheticPlaylist0000001" },
+				{ youTubeChannelId: "UCsyntheticChannel0000004", youTubePlaylistId: null }
+			]
+		};
+		expect(newsOrganisationChangeRequestSchema.parse(change)).toEqual(change);
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: [] })).toEqual({ additionalYouTubeChannels: [] });
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: null })).toEqual({ additionalYouTubeChannels: null });
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: ["UCsyntheticChannel0000002"] })).toThrow();
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: [{ youTubePlaylistId: "PLx" }] })).toThrow();
+		expect(tvShowChangeRequestSchema.parse(change)).not.toHaveProperty("additionalYouTubeChannels");
+		const dto = {
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "",
+			description: "",
+			removed: false,
+			twitterHandle: "",
+			youTubeChannelId: "UCsyntheticChannel0000001",
+			additionalYouTubeChannels: [
+				{ youTubeChannelId: "UCsyntheticChannel0000002", youTubePlaylistId: null },
+				{ youTubeChannelId: "UCsyntheticChannel0000003", youTubePlaylistId: "PLsyntheticPlaylist0000001" }
+			],
+			additionalYouTubeChannelIds: ["UCsyntheticChannel0000002", "UCsyntheticChannel0000003"]
+		};
+		const parsed = newsOrganisationDtoSchema.parse(dto);
+		expect(parsed.additionalYouTubeChannels).toEqual(dto.additionalYouTubeChannels);
+		expect(parsed.additionalYouTubeChannelIds).toEqual(dto.additionalYouTubeChannelIds);
+	});
+
+	it("parses the news organisation PATCH 503 body only with youTubePlaylistLookupFailed (RPP #1370, synthetic)", () => {
+		const body = { message: "Synthetic lookup failure.", code: "youTubePlaylistLookupFailed" };
+		expect(newsOrganisationPatchUnavailableSchema.parse(body)).toEqual(body);
+		expect(() => newsOrganisationPatchUnavailableSchema.parse({ message: "x", code: "youTubePlaylistNotFound" })).toThrow();
 	});
 
 	it("parses publisher, description, cascading removed and episode-style post status in news/TV/film change requests (synthetic)", () => {

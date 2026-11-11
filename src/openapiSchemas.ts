@@ -1873,14 +1873,99 @@ export const filmStaleTrailersConflictSchema = z.object({
 	unexpectedTrailerIds: z.array(z.string().uuid())
 });
 
-/** Api.Dtos.NewsOrganisationDto (RPP #1053). */
-export const newsOrganisationDtoSchema = z.object({ ...publisherFieldsDtoShape, ...serviceIdsDtoShape });
+/**
+ * One extra YouTube channel a news organisation owns besides `youTubeChannelId` (RPP #1370), optionally scoped to one
+ * playlist on that channel. Without a playlist the channel is claimed channel-wide.
+ */
+export const additionalYouTubeChannelSchema = z.object({
+	youTubeChannelId: z.string().describe(
+		"YouTube channel id (`UC` + 22 characters). Trimmed. " +
+			"On PATCH, a missing or blank id with a playlist is a 400 `invalidAdditionalYouTubeChannelId`; a blank entry with no playlist is dropped."
+	),
+	youTubePlaylistId: z
+		.string()
+		.optional()
+		.nullable()
+		.describe(
+			"Optional playlist on this channel; only its videos belong to the organisation. Omitted, null or whitespace means the whole channel. " +
+				"Must be owned by `youTubeChannelId`."
+		)
+});
+
+/** GET: the channels with their playlists (null when whole channel), plus the channel ids alone for older clients. */
+const additionalYouTubeChannelsDtoShape = {
+	additionalYouTubeChannels: z.array(additionalYouTubeChannelSchema).optional().nullable(),
+	additionalYouTubeChannelIds: z.array(z.string()).optional().nullable()
+};
+
+/**
+ * PATCH: send `additionalYouTubeChannels` (objects) or the older `additionalYouTubeChannelIds` (ids only), not both.
+ * Either list replaces the stored list, `[]` clears it, omitted or null leaves it. In the ids-only form a channel already
+ * stored keeps its playlist and flags (no playlist check), new ids are added channel-wide and an id left out is removed;
+ * only `additionalYouTubeChannels` can set or clear a playlist (RPP #1392).
+ */
+const additionalYouTubeChannelsChangeShape = {
+	additionalYouTubeChannels: z.array(additionalYouTubeChannelSchema).optional().nullable(),
+	additionalYouTubeChannelIds: z
+		.array(z.string())
+		.optional()
+		.nullable()
+		.describe(
+			"Older ids-only form: a channel already stored keeps its playlist and flags; new ids are added channel-wide; an id left out is removed. " +
+				"Only `additionalYouTubeChannels` can set or clear a playlist. Not with `additionalYouTubeChannels`."
+		)
+};
+
+/**
+ * Api.Dtos.NewsOrganisationDto (RPP #1053). `additionalYouTubeChannels` and `additionalYouTubeChannelIds` are `[]`
+ * when there are none (RPP #1370).
+ */
+export const newsOrganisationDtoSchema = z.object({
+	...publisherFieldsDtoShape,
+	...serviceIdsDtoShape,
+	...additionalYouTubeChannelsDtoShape
+});
 
 /**
  * Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields plus the service ids. Search terms, language and
  * removed are copied to reports (removal cascades). `name` is not here: rename is `POST /newsorganisation/name/:identifier`.
  */
-export const newsOrganisationChangeRequestSchema = z.object({ ...publisherFieldsChangeShape, ...serviceIdsChangeShape });
+export const newsOrganisationChangeRequestSchema = z.object({
+	...publisherFieldsChangeShape,
+	...serviceIdsChangeShape,
+	...additionalYouTubeChannelsChangeShape
+});
+
+/**
+ * 400 body for `PATCH /newsorganisation/{id}`: RPP returns `{ message, code }` for playlist refusals (main channel or an
+ * additional channel's playlist), channel-wide claim conflicts (main or additional channel) and the additional-channel
+ * refusals (RPP #1370). `youTubePlaylistLookupFailed` is a 503, not a 400 code.
+ */
+export const newsOrganisationPatchBadRequestSchema = errorSchema.extend({
+	code: z
+		.enum([
+			"invalidAdditionalYouTubeChannelId",
+			"additionalYouTubeChannelIsMainChannel",
+			"channelWideYouTubeConflict",
+			"youTubePlaylistNotFound",
+			"youTubePlaylistIdInvalid",
+			"youTubePlaylistChannelMismatch"
+		])
+		.optional()
+		.describe(
+			"Refusal code: playlist refusals on the main or an additional channel (`youTubePlaylistNotFound`, `youTubePlaylistIdInvalid`, `youTubePlaylistChannelMismatch`), " +
+				"channel-wide claim conflicts on the main or an additional channel (`channelWideYouTubeConflict`) and the additional-channel refusals " +
+				"(`invalidAdditionalYouTubeChannelId`, `additionalYouTubeChannelIsMainChannel`); absent for other 400s"
+		)
+});
+
+/**
+ * 503 body for `PATCH /newsorganisation/{id}` when YouTube could not be asked about a playlist (main or additional
+ * channel). Nothing was saved; retry the same PATCH.
+ */
+export const newsOrganisationPatchUnavailableSchema = errorSchema.extend({
+	code: z.literal("youTubePlaylistLookupFailed").optional()
+});
 
 /** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
 export const newsReportDtoSchema = z.object({
