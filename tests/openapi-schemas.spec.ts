@@ -1543,6 +1543,10 @@ describe("openapi Zod schemas", () => {
 		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: "UCsyntheticChannel0000002" })).toThrow();
 		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: [1] })).toThrow();
 		expect(tvShowChangeRequestSchema.parse(change)).not.toHaveProperty("additionalYouTubeChannelIds");
+		const idsDescription = newsOrganisationChangeRequestSchema.shape.additionalYouTubeChannelIds.description ?? "";
+		expect(idsDescription).toMatch(/already stored keeps its playlist and flags/);
+		expect(idsDescription).toMatch(/Only `additionalYouTubeChannels` can set or clear a playlist/);
+		expect(idsDescription).not.toMatch(/clears any stored playlist/);
 		const dto = {
 			id: "550e8400-e29b-41d4-a716-446655440000",
 			name: "Synthetic News Org",

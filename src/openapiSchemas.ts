@@ -1899,8 +1899,10 @@ const additionalYouTubeChannelsDtoShape = {
 };
 
 /**
- * PATCH: send `additionalYouTubeChannels` (objects) or the older `additionalYouTubeChannelIds` (ids, each channel-wide),
- * not both. Either list replaces the stored list, `[]` clears it, omitted or null leaves it.
+ * PATCH: send `additionalYouTubeChannels` (objects) or the older `additionalYouTubeChannelIds` (ids only), not both.
+ * Either list replaces the stored list, `[]` clears it, omitted or null leaves it. In the ids-only form a channel already
+ * stored keeps its playlist and flags (no playlist check), new ids are added channel-wide and an id left out is removed;
+ * only `additionalYouTubeChannels` can set or clear a playlist (RPP #1392).
  */
 const additionalYouTubeChannelsChangeShape = {
 	additionalYouTubeChannels: z.array(additionalYouTubeChannelSchema).optional().nullable(),
@@ -1908,7 +1910,10 @@ const additionalYouTubeChannelsChangeShape = {
 		.array(z.string())
 		.optional()
 		.nullable()
-		.describe("Older ids-only form: each id is stored channel-wide (clears any stored playlist). Not with `additionalYouTubeChannels`.")
+		.describe(
+			"Older ids-only form: a channel already stored keeps its playlist and flags; new ids are added channel-wide; an id left out is removed. " +
+				"Only `additionalYouTubeChannels` can set or clear a playlist. Not with `additionalYouTubeChannels`."
+		)
 };
 
 /**

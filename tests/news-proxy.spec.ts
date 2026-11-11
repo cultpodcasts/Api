@@ -399,6 +399,9 @@ describe("news curation OpenAPI contracts", () => {
 		for (const text of ["additionalYouTubeChannelIds", "invalidAdditionalYouTubeChannelId", "additionalYouTubeChannelIsMainChannel", "channelWideYouTubeConflict"]) {
 			expect(description).toContain(text);
 		}
+		expect(description).toMatch(/already stored keeps its playlist and flags/);
+		expect(description).toMatch(/only `additionalYouTubeChannels` can set or clear a playlist/);
+		expect(description).not.toMatch(/each stored channel-wide|clears any stored playlist/);
 		const conflict = UpdateNewsOrganisationRoute.openApiSchema.responses?.[409] as { description?: string } | undefined;
 		expect(conflict?.description).toMatch(/additional YouTube channel/);
 	});
