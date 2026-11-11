@@ -214,6 +214,7 @@ import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
 import { moveEpisodeToTvShow } from "./moveEpisodeToTvShow";
 import { moveEpisodeToNews, movePodcastEpisodesToNews } from "./moveToNews";
+import { moveNewsReportToFilm, moveNewsReportToTvShow } from "./moveNewsReport";
 import { updateSubject } from "./updateSubject";
 import { getTvShow } from "./getTvShow";
 import { updateTvShow } from "./updateTvShow";
@@ -966,6 +967,62 @@ export const MovePodcastEpisodesToNewsRoute = createOpenApiRoute(movePodcastEpis
             newsMoveDescription,
         request: { params: idParam, body: jsonBody(podcastNewsMoveRequestSchema) },
         responses: newsMoveResponses
+    }
+});
+
+const newsReportMoveDescription =
+    "The news organisation is never changed or deleted, even when no reports remain; when the move took its last report the outcome carries " +
+    "emptiedNewsOrganisationId so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true, curate). " +
+    "A removed news report is refused (400). The search document is swapped under the same guid before the report row is deleted, and " +
+    "the report's short link is deleted afterwards (best effort; the shortener falls back to search). A failed step returns 500 with the " +
+    "report kept; re-sending resumes (an interrupted move reuses the TV episode or film, a completed one is accepted again, without emptiedNewsOrganisationId, so a client must not rely on the retire prompt on a retry).";
+
+export const MoveNewsReportToTvShowRoute = createOpenApiRoute(moveNewsReportToTvShow, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one news report into a TV show (keeps the guid)",
+        description:
+            "Curator command (RPP #1368). Same body, rules and outcome as POST /episode/:podcastId/:episodeId/tvshow: target is exactly one of " +
+            "tvShowId or tvShowName (case-insensitive); createShow with tvShowName creates the show (fresh id, publisher, no indexing) when no " +
+            "show has the name, otherwise joins it. The report is saved as a TV episode under the report guid (services, subjects, " +
+            "posted/tweeted/Bluesky state), the search document is swapped to contentKind TvShowEpisode, the show and TV episode are re-read, " +
+            "then the report row is deleted and the show's latestReleased is raised. episodeId on the outcome is the report guid. " +
+            newsReportMoveDescription,
+        request: { params: idParam, body: jsonBody(episodeTvShowMoveRequestSchema) },
+        responses: {
+            202: { description: "Moved (command outcome; GET /tvshow/:id for the show)", ...contentJson(episodeTvShowMoveResponseSchema) },
+            400: { description: "Not exactly one of tvShowId / tvShowName, createShow or publisher misused, '/' in the name, or a removed report or show", ...contentJson(errorSchema) },
+            404: { description: "News report or TV show not found (a name without createShow never creates a show)", ...contentJson(errorSchema) },
+            409: { description: "Several shows have the name, or the report id is already a TV episode of another show or a film", ...contentJson(episodeTvShowMoveResponseSchema) },
+            500: { description: "Move did not finish (failureIndexing on a search swap failure); report kept, re-send resumes", ...contentJson(z.union([episodeTvShowMoveResponseSchema, errorSchema])) },
+            ...authResponses
+        }
+    }
+});
+
+export const MoveNewsReportToFilmRoute = createOpenApiRoute(moveNewsReportToFilm, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one news report into a new film (keeps the guid)",
+        description:
+            "Curator command (RPP #1368). Same body, rules and outcome as POST /episode/:podcastId/:episodeId/film: the film is named from title " +
+            "(else the report title), takes the report's services, subjects and posted/tweeted/Bluesky state and the news organisation's " +
+            "publisher fields, is saved under the report guid, its search document is swapped to contentKind Film and re-read, then the report " +
+            "row is deleted. Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and " +
+            "selectedIdentityKey (or continue/cancel). " +
+            newsReportMoveDescription,
+        request: { params: idParam, body: jsonBody(episodeFilmMoveRequestSchema) },
+        responses: {
+            202: { description: "Moved (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
+            200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(episodeFilmMoveResponseSchema) },
+            400: { description: "Film name blank or containing '/', or a removed report", ...contentJson(errorSchema) },
+            404: { description: "News report not found", ...contentJson(errorSchema) },
+            409: { description: "Another film already has the name, or the report id is already a TV episode", ...contentJson(episodeFilmMoveResponseSchema) },
+            500: { description: "Move did not finish (failureIndexing on a search swap failure); report kept, re-send resumes", ...contentJson(z.union([episodeFilmMoveResponseSchema, errorSchema])) },
+            ...authResponses
+        }
     }
 });
 

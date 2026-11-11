@@ -454,7 +454,13 @@ export const episodeTvShowMoveResponseSchema = z.object({
 	episodeId: z.string().uuid().optional().nullable().describe("The TV episode id (same as the episode id)."),
 	createdShow: z.boolean().optional().describe("True when this move created the show."),
 	error: z.string().optional(),
-	failureIndexing: z.boolean().optional()
+	failureIndexing: z.boolean().optional(),
+	emptiedNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.nullable()
+		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
 });
 
 /** EpisodeNewsMoveRequest - RedditPodcastPoster Api.Dtos.EpisodeNewsMoveRequest. Exactly one of newsOrganisationId / newsOrganisationName. */
@@ -1256,7 +1262,13 @@ export const episodeFilmMoveResponseSchema = z.object({
 	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
 		.describe("Present on 200 when authority search is ambiguous; nothing was created. Re-POST with identityDecision + selectedIdentityKey."),
 	cancelled: z.boolean().optional()
-		.describe("True on 200 when the curator cancelled the identity prompt; nothing was created.")
+		.describe("True on 200 when the curator cancelled the identity prompt; nothing was created."),
+	emptiedNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.nullable()
+		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
 });
 
 /** Api.Dtos.CatalogueIdentityIdsBody */
