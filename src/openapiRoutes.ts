@@ -165,6 +165,7 @@ import {
 	filmDtoSchema,
 	newsOrganisationChangeRequestSchema,
 	newsOrganisationPatchBadRequestSchema,
+	newsOrganisationPatchUnavailableSchema,
 	serviceIdConflictSchema,
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
@@ -312,7 +313,7 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 		tags: ["Catalogue"],
 		summary: "Patch TV show publisher fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
-			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}` except `additionalYouTubeChannelIds` (news organisations only, RPP #1370), " +
+			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}` except `additionalYouTubeChannels` / `additionalYouTubeChannelIds` (news organisations only, RPP #1370), " +
 			"plus `imdbId` / `tvdbId` / `tmdbId`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
 			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). TV shows have no flag defaults. " +
 			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
@@ -432,8 +433,10 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		description:
 			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
 			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). " +
-			"`additionalYouTubeChannelIds` (RPP #1370) lists extra YouTube channel ids the organisation owns and ingests from, each channel-wide (`youTubePlaylistId` scopes only the main channel): a list replaces the stored list, `[]` clears it, omitted or null leaves it. " +
-			"400 `invalidAdditionalYouTubeChannelId` when an id is not a `UC…` channel id, 400 `additionalYouTubeChannelIsMainChannel` when one equals the main `youTubeChannelId`, 400 `channelWideYouTubeConflict` when a channel-wide TV show or podcast already claims an additional channel (checked before the 409; another news organisation on the channel is the 409). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
+			"`additionalYouTubeChannels` (RPP #1370) lists extra YouTube channels the organisation owns and ingests from, as `{ youTubeChannelId, youTubePlaylistId? }`: with a playlist only that playlist's videos belong to the organisation, without one the whole channel does (`youTubePlaylistId` at the top level still scopes only the main channel). " +
+			"A list replaces the stored list, `[]` clears it, omitted or null leaves it. The older `additionalYouTubeChannelIds` (ids only, each stored channel-wide) is still accepted; sending both is a 400. GET returns both fields. " +
+			"Each new or changed additional playlist is checked with YouTube like the main playlist: 400 `youTubePlaylistIdInvalid`, `youTubePlaylistNotFound`, or `youTubePlaylistChannelMismatch` (the playlist is not on that channel); 503 `youTubePlaylistLookupFailed` when YouTube could not be asked (retry). " +
+			"400 `invalidAdditionalYouTubeChannelId` when an id is not a `UC…` channel id, a playlist has no channel id, both list fields are sent, or one channel is listed with two different playlists; 400 `additionalYouTubeChannelIsMainChannel` when one equals the main `youTubeChannelId`; 400 `channelWideYouTubeConflict` when a channel-wide TV show or podcast already claims a whole additional channel (checked before the 409; a playlist-scoped additional channel makes no channel-wide claim; another news organisation or TV show on the channel, with or without a playlist, is the 409). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
 			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). New news organisations are created with `bypassShortEpisodeChecking` and `alwaysPromoteAsHero` saved as `true`; there is no read-time default, so GET returns exactly what is stored. " +
 			"`removed` cascades like a podcast removal: each report's `parentRemoved` is set / cleared (its own `removed` is untouched) and on removal " +
 			"every report's search document is deleted; restored reports are re-added by the next indexer run.",
@@ -441,14 +444,18 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		responses: {
 			202: { description: "News organisation updated (empty body)" },
 			400: {
-				description: "Invalid request; `code` is set for playlist refusals, channel-wide claim conflicts (main or additional channel) and the `additionalYouTubeChannelIds` refusals; absent for other 400s",
+				description: "Invalid request; `code` is set for playlist refusals (main or additional channel), channel-wide claim conflicts (main or additional channel) and the additional-channel refusals; absent for other 400s",
 				...contentJson(newsOrganisationPatchBadRequestSchema)
 			},
 			409: {
-				description: "A `youTubeChannelId`, an `additionalYouTubeChannelIds` entry, `spotifyId` or `appleId` is already owned by another news organisation / TV show (main or additional channel) or by a podcast; `ids` names the owner(s). Nothing applied",
+				description: "A `youTubeChannelId`, an additional YouTube channel (with or without a playlist), `spotifyId` or `appleId` is already owned by another news organisation / TV show (main or additional channel) or by a podcast; `ids` names the owner(s). Nothing applied",
 				...contentJson(serviceIdConflictSchema)
 			},
 			...newsNotFoundIdResponse,
+			503: {
+				description: "`youTubePlaylistLookupFailed`: YouTube could not be asked about the main or an additional channel's playlist. Nothing applied; retry the same PATCH",
+				...contentJson(newsOrganisationPatchUnavailableSchema)
+			},
 			500: {
 				description: "Update failed (e.g. the removal cascade's search delete failed); safe to retry the same PATCH",
 				...contentJson(errorSchema)

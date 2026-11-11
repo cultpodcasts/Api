@@ -5,7 +5,8 @@ import { proxyToAzure } from "./proxyToAzure";
 
 /**
  * Curator PATCH of a news organisation (command): 202 with an empty body on success.
- * Forwards 400/401/404/500 bodies.
+ * Forwards 400/401/404/409/500 bodies, and 503 (`youTubePlaylistLookupFailed`: YouTube could not check the main or an
+ * additional channel's playlist; nothing applied, retry) so the curator sees the retryable refusal (RPP #1370).
  */
 export async function updateNewsOrganisation(c: Auth0ActionContext): Promise<Response> {
 	const id = c.req.param("id");
@@ -20,7 +21,7 @@ export async function updateNewsOrganisation(c: Auth0ActionContext): Promise<Res
 		body,
 		successStatuses: [202],
 		emptyAcknowledgement: true,
-		forwardStatuses: [400, 401, 404, 409, 500],
+		forwardStatuses: [400, 401, 404, 409, 500, 503],
 		logName: "secure-newsorganisation-update-endpoint"
 	});
 }

@@ -341,13 +341,66 @@ describe("news curation OpenAPI contracts", () => {
 		}
 	});
 
+	it("PATCH /newsorganisation/:id forwards additionalYouTubeChannels with optional playlists verbatim and passes the additional playlist 400s and the 503 lookup failure through (RPP #1370)", async () => {
+		const app = appWithPermissions("/newsorganisation/:id", "patch", updateNewsOrganisation, ["curate"]);
+		const body = {
+			additionalYouTubeChannels: [
+				{ youTubeChannelId: "UCsyntheticChannel0000002" },
+				{ youTubeChannelId: "UCsyntheticChannel0000003", youTubePlaylistId: "PLsyntheticPlaylist0000001" }
+			]
+		};
+		const fetchMock = stubFetch(202, null);
+		const accepted = await app.request(
+			`/newsorganisation/${id}`,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(body) },
+			testEnv()
+		);
+		expect(accepted.status).toBe(202);
+		expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual(body);
+		vi.unstubAllGlobals();
+		for (const [status, upstream] of [
+			[400, { message: "Additional YouTube channel 'UCsyntheticChannel0000003': the playlist was not found.", code: "youTubePlaylistNotFound" }],
+			[400, { message: "Additional YouTube channel 'UCsyntheticChannel0000003': the playlist id is invalid.", code: "youTubePlaylistIdInvalid" }],
+			[400, { message: "Additional YouTube channel 'UCsyntheticChannel0000003': the playlist is on another channel.", code: "youTubePlaylistChannelMismatch" }],
+			[400, { message: "Send additionalYouTubeChannels or additionalYouTubeChannelIds, not both.", code: "invalidAdditionalYouTubeChannelId" }],
+			[503, { message: "Additional YouTube channel 'UCsyntheticChannel0000003': the playlist could not be checked.", code: "youTubePlaylistLookupFailed" }]
+		] as const) {
+			stubFetch(status, upstream);
+			const resp = await app.request(
+				`/newsorganisation/${id}`,
+				{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(body) },
+				testEnv()
+			);
+			expect(resp.status).toBe(status);
+			expect(await resp.json()).toEqual(upstream);
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("documents additionalYouTubeChannels with per-channel playlists, the playlist codes and the 503 on the organisation PATCH (RPP #1370)", () => {
+		const description = UpdateNewsOrganisationRoute.openApiSchema.description ?? "";
+		for (const text of [
+			"additionalYouTubeChannels",
+			"youTubePlaylistId?",
+			"youTubePlaylistNotFound",
+			"youTubePlaylistIdInvalid",
+			"youTubePlaylistChannelMismatch",
+			"youTubePlaylistLookupFailed",
+			"sending both is a 400"
+		]) {
+			expect(description).toContain(text);
+		}
+		const unavailable = UpdateNewsOrganisationRoute.openApiSchema.responses?.[503] as { description?: string } | undefined;
+		expect(unavailable?.description).toMatch(/youTubePlaylistLookupFailed/);
+	});
+
 	it("documents additionalYouTubeChannelIds and its refusal codes on the organisation PATCH (RPP #1370)", () => {
 		const description = UpdateNewsOrganisationRoute.openApiSchema.description ?? "";
 		for (const text of ["additionalYouTubeChannelIds", "invalidAdditionalYouTubeChannelId", "additionalYouTubeChannelIsMainChannel", "channelWideYouTubeConflict"]) {
 			expect(description).toContain(text);
 		}
 		const conflict = UpdateNewsOrganisationRoute.openApiSchema.responses?.[409] as { description?: string } | undefined;
-		expect(conflict?.description).toMatch(/additionalYouTubeChannelIds/);
+		expect(conflict?.description).toMatch(/additional YouTube channel/);
 	});
 
 	it("uses a news-specific 409 only on GET news organisation", () => {
