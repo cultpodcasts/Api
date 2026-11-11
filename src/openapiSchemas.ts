@@ -460,7 +460,7 @@ export const episodeTvShowMoveResponseSchema = z.object({
 		.uuid()
 		.optional()
 		.nullable()
-		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted otherwise.")
+		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
 });
 
 /** EpisodeNewsMoveRequest - RedditPodcastPoster Api.Dtos.EpisodeNewsMoveRequest. Exactly one of newsOrganisationId / newsOrganisationName. */
@@ -1268,7 +1268,7 @@ export const episodeFilmMoveResponseSchema = z.object({
 		.uuid()
 		.optional()
 		.nullable()
-		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted otherwise.")
+		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
 });
 
 /** Api.Dtos.CatalogueIdentityIdsBody */

@@ -975,7 +975,7 @@ const newsReportMoveDescription =
     "emptiedNewsOrganisationId so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true, curate). " +
     "A removed news report is refused (400). The search document is swapped under the same guid before the report row is deleted, and " +
     "the report's short link is deleted afterwards (best effort; the shortener falls back to search). A failed step returns 500 with the " +
-    "report kept; re-sending resumes (an interrupted move reuses the TV episode or film, a completed one is accepted again).";
+    "report kept; re-sending resumes (an interrupted move reuses the TV episode or film, a completed one is accepted again, without emptiedNewsOrganisationId, so a client must not rely on the retire prompt on a retry).";
 
 export const MoveNewsReportToTvShowRoute = createOpenApiRoute(moveNewsReportToTvShow, {
     auth: curateAuth,
