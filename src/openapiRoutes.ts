@@ -449,7 +449,7 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 				...contentJson(newsOrganisationPatchBadRequestSchema)
 			},
 			409: {
-				description: "A `youTubeChannelId`, an additional YouTube channel (with or without a playlist), `spotifyId` or `appleId` is already owned by another news organisation / TV show (main or additional channel) or by a podcast; `ids` names the owner(s). Nothing applied",
+				description: "A `youTubeChannelId`, an additional YouTube channel (with or without a playlist), `spotifyId` or `appleId` is already owned by another news organisation (main or additional channel), a TV show (main channel), or a podcast; `ids` names the owner(s). Nothing applied",
 				...contentJson(serviceIdConflictSchema)
 			},
 			...newsNotFoundIdResponse,
