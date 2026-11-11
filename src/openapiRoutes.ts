@@ -441,7 +441,7 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		responses: {
 			202: { description: "News organisation updated (empty body)" },
 			400: {
-				description: "Invalid request; `code` is set for the `additionalYouTubeChannelIds` refusals",
+				description: "Invalid request; `code` is set for playlist refusals, channel-wide claim conflicts (main or additional channel) and the `additionalYouTubeChannelIds` refusals; absent for other 400s",
 				...contentJson(newsOrganisationPatchBadRequestSchema)
 			},
 			409: {

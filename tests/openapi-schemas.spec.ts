@@ -1518,12 +1518,20 @@ describe("openapi Zod schemas", () => {
 	});
 
 	it("parses the news organisation PATCH 400 body with its refusal code (RPP #1370, synthetic)", () => {
-		for (const code of ["invalidAdditionalYouTubeChannelId", "additionalYouTubeChannelIsMainChannel", "channelWideYouTubeConflict"] as const) {
+		for (const code of [
+			"invalidAdditionalYouTubeChannelId",
+			"additionalYouTubeChannelIsMainChannel",
+			"channelWideYouTubeConflict",
+			"youTubePlaylistNotFound",
+			"youTubePlaylistIdInvalid",
+			"youTubePlaylistChannelMismatch"
+		] as const) {
 			const body = { message: "Synthetic refusal.", code };
 			expect(newsOrganisationPatchBadRequestSchema.parse(body)).toEqual(body);
 		}
 		expect(newsOrganisationPatchBadRequestSchema.parse({ message: "Invalid URL" })).toEqual({ message: "Invalid URL" });
 		expect(() => newsOrganisationPatchBadRequestSchema.parse({ message: "x", code: "somethingElse" })).toThrow();
+		expect(() => newsOrganisationPatchBadRequestSchema.parse({ message: "x", code: "youTubePlaylistLookupFailed" })).toThrow();
 	});
 
 	it("parses news organisation additionalYouTubeChannelIds in PATCH (list, [] clear, null) and GET, and keeps them off TV shows (RPP #1370, synthetic)", () => {

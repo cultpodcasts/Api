@@ -1886,12 +1886,27 @@ export const newsOrganisationChangeRequestSchema = z.object({
 	...additionalYouTubeChannelIdsShape
 });
 
-/** 400 body for `PATCH /newsorganisation/{id}`: RPP returns `{ message, code }` for the additional-channel refusals (RPP #1370). */
+/**
+ * 400 body for `PATCH /newsorganisation/{id}`: RPP returns `{ message, code }` for playlist refusals,
+ * channel-wide claim conflicts (main or additional channel) and the additional-channel refusals (RPP #1370).
+ * `youTubePlaylistLookupFailed` is a 503, not a 400 code.
+ */
 export const newsOrganisationPatchBadRequestSchema = errorSchema.extend({
 	code: z
-		.enum(["invalidAdditionalYouTubeChannelId", "additionalYouTubeChannelIsMainChannel", "channelWideYouTubeConflict"])
+		.enum([
+			"invalidAdditionalYouTubeChannelId",
+			"additionalYouTubeChannelIsMainChannel",
+			"channelWideYouTubeConflict",
+			"youTubePlaylistNotFound",
+			"youTubePlaylistIdInvalid",
+			"youTubePlaylistChannelMismatch"
+		])
 		.optional()
-		.describe("Refusal code for an `additionalYouTubeChannelIds` change; absent for other 400s")
+		.describe(
+			"Refusal code: playlist refusals (`youTubePlaylistNotFound`, `youTubePlaylistIdInvalid`, `youTubePlaylistChannelMismatch`), " +
+				"channel-wide claim conflicts on the main or an additional channel (`channelWideYouTubeConflict`) and the additional-channel refusals " +
+				"(`invalidAdditionalYouTubeChannelId`, `additionalYouTubeChannelIsMainChannel`); absent for other 400s"
+		)
 });
 
 /** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
