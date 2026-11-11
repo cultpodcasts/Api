@@ -1866,7 +1866,10 @@ export const filmStaleTrailersConflictSchema = z.object({
  * playlist on that channel. Without a playlist the channel is claimed channel-wide.
  */
 export const additionalYouTubeChannelSchema = z.object({
-	youTubeChannelId: z.string().describe("YouTube channel id (`UC` + 22 characters). Trimmed."),
+	youTubeChannelId: z.string().describe(
+		"YouTube channel id (`UC` + 22 characters). Trimmed. " +
+			"On PATCH, a missing or blank id with a playlist is a 400 `invalidAdditionalYouTubeChannelId`; a blank entry with no playlist is dropped."
+	),
 	youTubePlaylistId: z
 		.string()
 		.optional()
