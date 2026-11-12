@@ -112,7 +112,7 @@ describe("move news organisation reports proxy", () => {
 	it.each([
 		[404, { notFoundReportIds: [reportId], error: "Some report ids were not found" }],
 		[409, { conflictReportIds: [reportId], error: "Some report ids belong elsewhere" }],
-		[409, { movedReportIds: [], error: "One of the news organisations is being indexed. Nothing was moved; retry in a few minutes" }],
+		[409, { movedReportIds: [], error: "One of the news organisations is being indexed. Nothing was moved; retry in a few minutes", retryable: true }],
 		[500, { movedReportIds: [reportId], error: "1 of 2 reports moved; 1 source row(s) could not be deleted", failureIndexing: false }]
 	] as const)("passes Azure %s through", async (status, body) => {
 		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));
@@ -136,7 +136,8 @@ describe("move news organisation reports OpenAPI contract", () => {
 		}
 		expect(schema.responses?.[403]?.description).toMatch(/curate/);
 		expect(schema.responses?.[403]?.description).not.toMatch(/admin/);
-		expect(schema.responses?.[409]?.description).toMatch(/being indexed/);
+		expect(schema.responses?.[409]?.description).toMatch(/retryable: true/);
+		expect(newsReportOrganisationMoveResponseSchema.parse({ retryable: true }).retryable).toBe(true);
 		expect(schema.responses?.[500]?.description).toMatch(/not yet moved/);
 		expect(MoveNewsOrganisationReportsRoute.requiresAuth).toBe(true);
 	});

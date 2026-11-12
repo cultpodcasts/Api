@@ -76,7 +76,7 @@ describe("delete news organisation proxy", () => {
 	it.each([
 		[400, { error: "A redirect from 'Old' to 'New' would loop. Nothing was deleted" }],
 		[409, { message: "The news organisation still has reports. Move them first", remainingReportCount: 3 }],
-		[409, { message: "The news organisation is being indexed. Retry in a few minutes" }],
+		[409, { message: "The news organisation is being indexed. Retry in a few minutes", retryable: true }],
 		[500, { error: "Unable to delete news organisation" }]
 	] as const)("forwards Azure %s with its body", async (status, body) => {
 		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));
@@ -105,7 +105,8 @@ describe("delete news organisation OpenAPI contract", () => {
 	});
 
 	it("accepts a 409 body without remainingReportCount (being indexed) and a guid-only redirect query", () => {
-		expect(newsOrganisationDeleteConflictSchema.parse({ message: "busy" }).remainingReportCount).toBeUndefined();
+		expect(newsOrganisationDeleteConflictSchema.parse({ message: "busy", retryable: true }).retryable).toBe(true);
+		expect(newsOrganisationDeleteConflictSchema.parse({ message: "busy", retryable: true }).remainingReportCount).toBeUndefined();
 		expect(newsOrganisationDeleteQuerySchema.parse({ redirectToNewsOrganisationId: targetId }).redirectToNewsOrganisationId).toBe(targetId);
 		expect(() => newsOrganisationDeleteQuerySchema.parse({ redirectToNewsOrganisationId: "not-a-guid" })).toThrow();
 	});

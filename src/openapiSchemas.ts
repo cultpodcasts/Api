@@ -530,13 +530,18 @@ export const newsReportOrganisationMoveResponseSchema = z.object({
 		.optional()
 		.describe("The reports moved but the channel move failed or was refused. Usually the source's channels were restored: re-send with moveYouTubeChannels to retry. When error says so (a main channel indexing another channel's playlist, or a failed restore), set the channels with PATCH /newsorganisation/:id."),
 	error: z.string().optional().nullable(),
-	failureIndexing: z.boolean().optional()
+	failureIndexing: z.boolean().optional(),
+	retryable: z
+		.boolean()
+		.optional()
+		.describe("True on a 409 when an organisation is being indexed (nothing written): re-send shortly. Omitted for id conflicts (conflictReportIds), which a re-send cannot fix.")
 });
 
 /** Azure 409 body for DELETE /newsorganisation/:id while reports remain or it is being indexed (RPP #1397). */
 export const newsOrganisationDeleteConflictSchema = z.object({
 	message: z.string(),
-	remainingReportCount: z.number().int().optional().describe("Reports still in the organisation. Omitted when the 409 is because it is being indexed.")
+	remainingReportCount: z.number().int().optional().describe("Reports still in the organisation. Omitted when the 409 is because it is being indexed."),
+	retryable: z.boolean().optional().describe("True when the organisation is being indexed: retry shortly. Omitted while reports remain.")
 });
 
 /** Query of DELETE /newsorganisation/:id (RPP #1397). */

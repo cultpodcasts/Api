@@ -535,7 +535,7 @@ export const MoveNewsOrganisationReportsRoute = createOpenApiRoute(moveNewsOrgan
 			202: { description: "Moved (command outcome; GET /newsorganisation/:id for the organisations)", ...contentJson(newsReportOrganisationMoveResponseSchema) },
 			400: { description: "Missing or same target, empty or more than 500 reportIds, or a removed target; nothing written", ...contentJson(errorSchema) },
 			404: { description: "Source or target organisation not found, or requested report ids not found (notFoundReportIds); nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
-			409: { description: "Requested ids belong to a third organisation, are a TV episode or film, or are a video the target already has (conflictReportIds); or an organisation is being indexed (error, retry shortly). Nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			409: { description: "Requested ids belong to a third organisation, are a TV episode or film, or are a video the target already has (conflictReportIds); or an organisation is being indexed (retryable: true, retry shortly). Nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
 			500: { description: "Move did not finish (failureIndexing on a search swap failure). Reports not yet moved are kept in the source; movedReportIds lists any that did move; re-send resumes", ...contentJson(z.union([newsReportOrganisationMoveResponseSchema, errorSchema])) },
 			...authResponses
 		}
@@ -558,7 +558,7 @@ export const DeleteNewsOrganisationRoute = createOpenApiRoute(deleteNewsOrganisa
 			200: { description: "Deleted (empty body)" },
 			400: { description: "redirectToNewsOrganisationId is not a guid, is missing, removed or the organisation itself, or the redirect would loop; nothing deleted", ...contentJson(errorSchema) },
 			404: { description: "News organisation not found, or a non-guid id (empty body)" },
-			409: { description: "The organisation still has reports (remainingReportCount), or is being indexed (message only, retry shortly)", ...contentJson(newsOrganisationDeleteConflictSchema) },
+			409: { description: "The organisation still has reports (remainingReportCount), or is being indexed (retryable: true, retry shortly)", ...contentJson(newsOrganisationDeleteConflictSchema) },
 			...serverErrorResponse,
 			...authResponses
 		}
