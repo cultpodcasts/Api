@@ -168,6 +168,10 @@ import {
 	newsOrganisationPatchUnavailableSchema,
 	serviceIdConflictSchema,
 	newsOrganisationDtoSchema,
+	newsOrganisationDeleteConflictSchema,
+	newsOrganisationDeleteQuerySchema,
+	newsReportOrganisationMoveRequestSchema,
+	newsReportOrganisationMoveResponseSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
 	notFoundIdSchema,
@@ -226,6 +230,8 @@ import { getFilm } from "./getFilm";
 import { updateFilm } from "./updateFilm";
 import { getNewsOrganisation } from "./getNewsOrganisation";
 import { updateNewsOrganisation } from "./updateNewsOrganisation";
+import { deleteNewsOrganisation } from "./deleteNewsOrganisation";
+import { moveNewsOrganisationReports } from "./moveNewsOrganisationReports";
 import { getNewsReport } from "./getNewsReport";
 import { updateNewsReport } from "./updateNewsReport";
 
@@ -501,6 +507,58 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 				...contentJson(errorSchema)
 			},
 			...newsNotFoundIdResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const MoveNewsOrganisationReportsRoute = createOpenApiRoute(moveNewsOrganisationReports, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Move news reports from this news organisation into another (merge; keeps the guids)",
+		description:
+			"Curator command (RPP #1397). `id` is the source news organisation guid. Every requested id is planned before any write: " +
+			"an id in a third organisation, already a TV episode or film, or whose YouTube video the target already has as another report refuses " +
+			"the request (409), an id found nowhere refuses it (404), " +
+			"and an id already only in the target is reported as alreadyMovedReportIds. Each report takes the target's properties, is saved " +
+			"in the target, its search document is swapped (seriesName becomes the target name) and re-read, then the source row is deleted, " +
+			"latestReleased is raised and its short link is deleted (the shortener falls back to search). reportIds omitted moves the next 500; " +
+			"repeat until remainingReportCount is 0. moveYouTubeChannels also moves the source's YouTube channels into the target's " +
+			"additionalYouTubeChannels; if that fails the source's channels are restored and re-sending with moveYouTubeChannels retries. " +
+			"Both organisations hold the indexing lease for the request, so a 409 can also mean one is being indexed (retry shortly). " +
+			"A failure returns 500: reports not yet moved are kept in the source, movedReportIds lists any that did move, and re-sending resumes. " +
+			"The source is never deleted here: emptiedNewsOrganisationId marks an emptied source for DELETE /newsorganisation/:id (admin).",
+		request: { params: idParam, body: jsonBody(newsReportOrganisationMoveRequestSchema) },
+		responses: {
+			202: { description: "Moved (command outcome; GET /newsorganisation/:id for the organisations)", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			400: { description: "Missing or same target, empty or more than 500 reportIds, or a removed target; nothing written", ...contentJson(errorSchema) },
+			404: { description: "Source or target organisation not found, or requested report ids not found (notFoundReportIds); nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			409: { description: "Requested ids belong to a third organisation, are a TV episode or film, or are a video the target already has (conflictReportIds); or an organisation is being indexed (retryable: true, retry shortly). Nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			500: { description: "Move did not finish (failureIndexing on a search swap failure). Reports not yet moved are kept in the source; movedReportIds lists any that did move; re-send resumes", ...contentJson(z.union([newsReportOrganisationMoveResponseSchema, errorSchema])) },
+			...authResponses
+		}
+	}
+});
+
+export const DeleteNewsOrganisationRoute = createOpenApiRoute(deleteNewsOrganisation, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete an empty news organisation by id",
+		description:
+			"`id` is the news organisation guid (RPP #1397). Hard-deletes the organisation and releases its file key, so its name can be reused. " +
+			"Refused with 409 while any report (removed ones included) remains: move them first with POST /newsorganisation/:id/reports/move. " +
+			"Optional redirectToNewsOrganisationId (the organisation the reports went to): when its name differs, the old name route is " +
+			"redirected to it, with the same redirect and loop guard as the admin rename (none while another news organisation still has the " +
+			"old name). The redirect is written before the delete, so a failed delete can be retried.",
+		request: { params: idParam, query: newsOrganisationDeleteQuerySchema },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "redirectToNewsOrganisationId is not a guid, is missing, removed or the organisation itself, or the redirect would loop; nothing deleted", ...contentJson(errorSchema) },
+			404: { description: "News organisation not found, or a non-guid id (empty body)" },
+			409: { description: "The organisation still has reports (remainingReportCount), or is being indexed (retryable: true, retry shortly)", ...contentJson(newsOrganisationDeleteConflictSchema) },
 			...serverErrorResponse,
 			...authResponses
 		}
