@@ -516,7 +516,7 @@ export const newsReportOrganisationMoveResponseSchema = z.object({
 	conflictReportIds: z
 		.array(z.string().uuid())
 		.optional()
-		.describe("Requested ids that are a report of a third organisation, a TV episode or a film. Any of these refuses the whole request (409)."),
+		.describe("Requested ids that are a report of a third organisation, a TV episode or a film, or whose YouTube video the target already has as another report. Any of these refuses the whole request (409)."),
 	remainingReportCount: z.number().int().optional().nullable().describe("Reports (removed included) still in the source after this request."),
 	emptiedNewsOrganisationId: z
 		.string()
@@ -525,15 +525,27 @@ export const newsReportOrganisationMoveResponseSchema = z.object({
 		.nullable()
 		.describe("The source, when it now has no reports and is not removed, so the client can offer DELETE /newsorganisation/:id (admin)."),
 	movedYouTubeChannelIds: z.array(z.string()).optional().nullable().describe("YouTube channel ids added to the target's additionalYouTubeChannels."),
-	youTubeChannelMoveFailed: z.boolean().optional().describe("The reports moved but the channel move failed; fix it with PATCH /newsorganisation/:id."),
+	youTubeChannelMoveFailed: z
+		.boolean()
+		.optional()
+		.describe("The reports moved but the channel move failed or was refused. Usually the source's channels were restored: re-send with moveYouTubeChannels to retry. When error says so (a main channel indexing another channel's playlist, or a failed restore), set the channels with PATCH /newsorganisation/:id."),
 	error: z.string().optional().nullable(),
 	failureIndexing: z.boolean().optional()
 });
 
-/** Azure 409 body for DELETE /newsorganisation/:id while reports remain (RPP #1397). */
+/** Azure 409 body for DELETE /newsorganisation/:id while reports remain or it is being indexed (RPP #1397). */
 export const newsOrganisationDeleteConflictSchema = z.object({
 	message: z.string(),
-	remainingReportCount: z.number().int()
+	remainingReportCount: z.number().int().optional().describe("Reports still in the organisation. Omitted when the 409 is because it is being indexed.")
+});
+
+/** Query of DELETE /newsorganisation/:id (RPP #1397). */
+export const newsOrganisationDeleteQuerySchema = z.object({
+	redirectToNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.describe("The organisation the reports went to. When its name differs, the deleted organisation's name route redirects to it.")
 });
 /** EpisodeNewsMoveResponse - command outcome (not the news organisation read model). GET /newsorganisation/:id for the organisation. */
 export const episodeNewsMoveResponseSchema = z.object({
