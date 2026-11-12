@@ -116,6 +116,8 @@ import {
 	DeleteTvShowEpisodeRoute,
 	GetNewsOrganisationRoute,
 	UpdateNewsOrganisationRoute,
+	MoveNewsOrganisationReportsRoute,
+	DeleteNewsOrganisationRoute,
 	GetNewsReportRoute,
 	UpdateNewsReportRoute,
 	DeleteNewsReportRoute,
@@ -423,6 +425,8 @@ openapi.delete('/film/:id', DeleteFilmRoute);
 openapi.post('/catalogue/identity/lookup', CatalogueIdentityLookupRoute);
 openapi.get('/newsorganisation/:identifier{.+}', GetNewsOrganisationRoute);
 openapi.patch('/newsorganisation/:id', UpdateNewsOrganisationRoute);
+openapi.delete('/newsorganisation/:id', DeleteNewsOrganisationRoute);
+openapi.post('/newsorganisation/:id/reports/move', MoveNewsOrganisationReportsRoute);
 openapi.post('/newsorganisation/name/:identifier{.+}', RenameNewsOrganisationRoute);
 openapi.post('/tvshow/name/:identifier{.+}', RenameTvShowRoute);
 openapi.post('/film/name/:identifier{.+}', RenameFilmRoute);

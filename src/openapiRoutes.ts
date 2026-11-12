@@ -168,6 +168,9 @@ import {
 	newsOrganisationPatchUnavailableSchema,
 	serviceIdConflictSchema,
 	newsOrganisationDtoSchema,
+	newsOrganisationDeleteConflictSchema,
+	newsReportOrganisationMoveRequestSchema,
+	newsReportOrganisationMoveResponseSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
 	notFoundIdSchema,
@@ -226,6 +229,7 @@ import { getFilm } from "./getFilm";
 import { updateFilm } from "./updateFilm";
 import { getNewsOrganisation } from "./getNewsOrganisation";
 import { updateNewsOrganisation } from "./updateNewsOrganisation";
+import { deleteNewsOrganisation, moveNewsOrganisationReports } from "./newsOrganisationMerge";
 import { getNewsReport } from "./getNewsReport";
 import { updateNewsReport } from "./updateNewsReport";
 
@@ -501,6 +505,51 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 				...contentJson(errorSchema)
 			},
 			...newsNotFoundIdResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const MoveNewsOrganisationReportsRoute = createOpenApiRoute(moveNewsOrganisationReports, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Move news reports from this news organisation into another (merge; keeps the guids)",
+		description:
+			"Curator command (RPP #1397). `id` is the source news organisation guid. Every requested id is planned before any write: " +
+			"an id in a third organisation or already a TV episode or film refuses the request (409), an id found nowhere refuses it (404), " +
+			"and an id already only in the target is reported as alreadyMovedReportIds. Each report takes the target's properties, is saved " +
+			"in the target, its search document is swapped (seriesName becomes the target name) and re-read, then the source row is deleted, " +
+			"latestReleased is raised and its short link is deleted (the shortener falls back to search). reportIds omitted moves the next 500; " +
+			"repeat until remainingReportCount is 0. moveYouTubeChannels also moves the source's YouTube channels into the target's " +
+			"additionalYouTubeChannels. A search swap failure returns 500 with failureIndexing and the source rows kept; re-sending resumes. " +
+			"The source is never deleted here: emptiedNewsOrganisationId marks an emptied source for DELETE /newsorganisation/:id (admin).",
+		request: { params: idParam, body: jsonBody(newsReportOrganisationMoveRequestSchema) },
+		responses: {
+			202: { description: "Moved (command outcome; GET /newsorganisation/:id for the organisations)", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			400: { description: "Missing or same target, empty or more than 500 reportIds, or a removed target; nothing written", ...contentJson(errorSchema) },
+			404: { description: "Source or target organisation not found, or requested report ids not found (notFoundReportIds); nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			409: { description: "Requested ids belong to a third organisation or are a TV episode or film (conflictReportIds); nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			500: { description: "Move did not finish (failureIndexing on a search swap failure); source rows kept, re-send resumes", ...contentJson(z.union([newsReportOrganisationMoveResponseSchema, errorSchema])) },
+			...authResponses
+		}
+	}
+});
+
+export const DeleteNewsOrganisationRoute = createOpenApiRoute(deleteNewsOrganisation, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete an empty news organisation by id",
+		description:
+			"`id` is the news organisation guid (RPP #1397). Hard-deletes the organisation and releases its file key, so its name can be reused. " +
+			"Refused with 409 while any report (removed ones included) remains: move them first with POST /newsorganisation/:id/reports/move.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			404: { description: "News organisation not found", ...contentJson(errorSchema) },
+			409: { description: "The organisation still has reports", ...contentJson(newsOrganisationDeleteConflictSchema) },
 			...serverErrorResponse,
 			...authResponses
 		}

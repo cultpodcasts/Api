@@ -488,6 +488,53 @@ export const podcastNewsMoveRequestSchema = episodeNewsMoveRequestSchema.extend(
 		.describe("Episode ids of this podcast to move (1-500). Only these move; the podcast and its other episodes are kept.")
 });
 
+/** NewsReportOrganisationMoveRequest - RedditPodcastPoster Api.Dtos.NewsReportOrganisationMoveRequest (RPP #1397). */
+export const newsReportOrganisationMoveRequestSchema = z.object({
+	targetNewsOrganisationId: z.string().uuid().describe("The news organisation that receives the reports. Must exist, differ from the source and not be removed."),
+	reportIds: z
+		.array(z.string().uuid())
+		.min(1)
+		.max(500)
+		.optional()
+		.nullable()
+		.describe("Report ids of the source organisation to move (1-500). Omitted moves the next 500; repeat until remainingReportCount is 0."),
+	moveYouTubeChannels: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("Also move the source's main and additional YouTube channels into the target's additionalYouTubeChannels (channels the target already has are skipped; the source's YouTube fields are cleared).")
+});
+
+/** NewsReportOrganisationMoveResponse - command outcome (RPP #1397). GET /newsorganisation/:id for either organisation. */
+export const newsReportOrganisationMoveResponseSchema = z.object({
+	sourceNewsOrganisationId: z.string().uuid().optional().nullable(),
+	targetNewsOrganisationId: z.string().uuid().optional().nullable(),
+	targetNewsOrganisationName: z.string().optional().nullable(),
+	movedReportIds: z.array(z.string().uuid()).optional().describe("Report ids moved by this request (same ids, now in the target)."),
+	alreadyMovedReportIds: z.array(z.string().uuid()).optional().describe("Requested ids already in the target only (a re-send)."),
+	notFoundReportIds: z.array(z.string().uuid()).optional().describe("Requested ids not found anywhere. Any of these refuses the whole request (404)."),
+	conflictReportIds: z
+		.array(z.string().uuid())
+		.optional()
+		.describe("Requested ids that are a report of a third organisation, a TV episode or a film. Any of these refuses the whole request (409)."),
+	remainingReportCount: z.number().int().optional().nullable().describe("Reports (removed included) still in the source after this request."),
+	emptiedNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.nullable()
+		.describe("The source, when it now has no reports and is not removed, so the client can offer DELETE /newsorganisation/:id (admin)."),
+	movedYouTubeChannelIds: z.array(z.string()).optional().nullable().describe("YouTube channel ids added to the target's additionalYouTubeChannels."),
+	youTubeChannelMoveFailed: z.boolean().optional().describe("The reports moved but the channel move failed; fix it with PATCH /newsorganisation/:id."),
+	error: z.string().optional().nullable(),
+	failureIndexing: z.boolean().optional()
+});
+
+/** Azure 409 body for DELETE /newsorganisation/:id while reports remain (RPP #1397). */
+export const newsOrganisationDeleteConflictSchema = z.object({
+	message: z.string(),
+	remainingReportCount: z.number().int()
+});
 /** EpisodeNewsMoveResponse - command outcome (not the news organisation read model). GET /newsorganisation/:id for the organisation. */
 export const episodeNewsMoveResponseSchema = z.object({
 	newsOrganisationId: z.string().uuid().optional().nullable().describe("The news organisation that now holds the reports."),
