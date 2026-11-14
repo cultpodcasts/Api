@@ -1116,6 +1116,12 @@ describe("openapi Zod schemas", () => {
 		const filmId = "550e8400-e29b-41d4-a716-446655440000";
 		expect(episodeTrailerAttachRequestSchema.parse({ filmId, title: null }).filmId).toBe(filmId);
 		expect(() => episodeTrailerAttachRequestSchema.parse({ title: "Synthetic Teaser" })).toThrow();
+		expect(episodeTrailerAttachRequestSchema.parse({ createFilm: true, filmName: "Synthetic Unreleased Film" }).filmName)
+			.toBe("Synthetic Unreleased Film");
+		expect(() => episodeTrailerAttachRequestSchema.parse({ createFilm: true, filmName: "  " })).toThrow();
+		expect(() => episodeTrailerAttachRequestSchema.parse({ filmId, createFilm: true, filmName: "Synthetic Unreleased Film" }))
+			.toThrow();
+		expect(episodeTrailerAttachResponseSchema.parse({ filmId, filmCreated: true }).filmCreated).toBe(true);
 		expect(episodeTrailerAttachResponseSchema.parse({ filmId, name: "Synthetic Film Title", failureIndexing: false }).name)
 			.toBe("Synthetic Film Title");
 	});

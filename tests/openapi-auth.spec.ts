@@ -8,6 +8,7 @@ vi.mock("workers-og", () => ({
 import { putHeroCurationOpenApiSchema } from "../src/heroCurationOpenApi";
 import {
 	AddBookmarkRoute,
+	AttachEpisodeAsTrailerRoute,
 	CreatePersonRoute,
 	DeletePodcastEpisodeRoute,
 	GetDiscoveryScheduleRoute,
@@ -47,10 +48,23 @@ describe("OpenAPI auth and response contracts", () => {
 	api.post("/person", CreatePersonRoute);
 	api.post("/submit", SubmitRoute);
 	api.get("/submit/lookup", SubmitLookupRoute);
+	api.post("/episode/:podcastId/:episodeId/trailer", AttachEpisodeAsTrailerRoute);
 	const doc = (api as unknown as { schema: {
 		components?: { securitySchemes?: Record<string, { type?: string; scheme?: string }> };
 		paths?: Record<string, Record<string, unknown>>;
 	} }).schema;
+
+	it("documents attach-as-trailer createFilm in the request body and the 200 identity prompt (#1418)", () => {
+		const attach = operation(doc, "/episode/{podcastId}/{episodeId}/trailer", "post") as ReturnType<typeof operation> & {
+			requestBody?: { content?: Record<string, unknown> };
+		};
+		const body = JSON.stringify(attach.requestBody?.content?.["application/json"]);
+		expect(body).toMatch(/"createFilm"/);
+		expect(body).toMatch(/"filmName"/);
+		expect(body).toMatch(/"selectedIdentityKey"/);
+		expect(JSON.stringify(attach.responses?.["200"]?.content?.["application/json"])).toMatch(/"identityDecision"/);
+		expect(JSON.stringify(attach.responses?.["202"]?.content?.["application/json"])).toMatch(/"filmCreated"/);
+	});
 
 	it("publishes a bearer scheme and does not treat ID-token roles as the check", () => {
 		const bearer = doc.components?.securitySchemes?.bearerAuth;
