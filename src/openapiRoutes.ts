@@ -1871,13 +1871,18 @@ function catalogueIndexSchema(kind: string) {
         description:
             `Curate only, like \`POST /podcast/index/:name\`. \`identifier\` is the ${kind} guid or its route-form name ` +
             `(may contain \`/\`, percent-encoded \`%2F\`; the Worker matches with \`:identifier{.+}\`). No request body. ` +
-            `Runs the hourly indexer's pass for this one ${kind} and pushes what it saved to search. Allowed at any time. ` +
+            `Runs the hourly indexer's pass for this one ${kind} and pushes what it saved to search. A ${kind} that is not ` +
+            `auto-indexed but has a Spotify or Apple id gets an enrich-only pass instead (missing Spotify / Apple links only, ` +
+            `no discovery; 200 with \`enrichOnly: true\`). Allowed at any time. ` +
             `Command outcome, not the read model: re-read the hub page after.`,
         request: { params: identifierParam },
         responses: {
             200: { description: `${kind[0].toUpperCase()}${kind.slice(1)} indexed`, ...contentJson(catalogueIndexResponseSchema) },
             400: {
-                description: "Not indexable: removed or not auto-indexed (`NotAutoIndexed`), or the podcast it was migrated from still exists (`SourcePodcastStillExists`)",
+                description:
+                    "Not indexed: removed (`Removed`); not auto-indexed with no Spotify / Apple id (`NotAutoIndexed`); " +
+                    "not auto-indexed, so an enrich-only pass looked up Spotify / Apple links and none was filled (`NothingToEnrich`); " +
+                    "or the podcast it was migrated from still exists (`SourcePodcastStillExists`). `message` says why",
                 ...contentJson(catalogueIndexRejectionSchema)
             },
             409: { description: "The identifier name is ambiguous (JSON array of guids)", ...contentJson(z.array(z.string().uuid())) },

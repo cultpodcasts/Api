@@ -1238,13 +1238,21 @@ export const podcastIndexBusySchema = z.object({
 
 /** Api.Dtos.CatalogueIndexResponse: the command outcome of a TV show / news organisation index (RPP). */
 export const catalogueIndexResponseSchema = z.object({
-	indexedItemIds: z.array(z.string().uuid()).describe("TV episodes / news reports the index saved (new, merged, or removed by elimination terms)."),
-	searchIndexerState: searchIndexerStateSchema
+	indexedItemIds: z.array(z.string().uuid()).describe("TV episodes / news reports the index saved (new, merged, enriched, or removed by elimination terms)."),
+	searchIndexerState: searchIndexerStateSchema,
+	enrichOnly: z.boolean().optional().describe(
+		"True when the parent is not auto-indexed, so only missing Spotify / Apple links were filled in (no discovery; RPP #1400). indexedItemIds are then the enriched items.")
 });
 
-/** Api.Dtos.CatalogueIndexRejection: 400 body when the index was refused. */
+/**
+ * Api.Dtos.CatalogueIndexRejection: 400 body when the index was refused (RPP #1400). Removed: the parent is removed.
+ * NotAutoIndexed: not auto-indexed and no Spotify / Apple id to enrich from. NothingToEnrich: not auto-indexed, so
+ * only Spotify / Apple links were looked up, and no recent item gained one. SourcePodcastStillExists: the podcast it
+ * was migrated from still exists and is indexed instead.
+ */
 export const catalogueIndexRejectionSchema = z.object({
-	reason: z.enum(["NotAutoIndexed", "SourcePodcastStillExists"])
+	reason: z.enum(["Removed", "NotAutoIndexed", "NothingToEnrich", "SourcePodcastStillExists"]),
+	message: z.string().optional().describe("Says why, for the curator; absent on older responses and on SourcePodcastStillExists.")
 });
 
 /**

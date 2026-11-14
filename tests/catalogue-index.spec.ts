@@ -90,6 +90,8 @@ describe("catalogue parent index Azure proxies", () => {
 		const app = appWithPermissions(route, "post", handler, ["curate"]);
 		for (const [status, body] of [
 			[400, { reason: "NotAutoIndexed" }],
+			[400, { reason: "Removed", message: "It is removed, so it is not indexed." }],
+			[400, { reason: "NothingToEnrich", message: "It is not auto-indexed, so only Spotify and Apple links were looked up, and no recent item gained one." }],
 			[400, { reason: "SourcePodcastStillExists" }],
 			[404, null],
 			[409, itemIds],
@@ -135,6 +137,13 @@ describe("catalogue parent index schemas and OpenAPI route contracts", () => {
 		expect(() => catalogueIndexResponseSchema.parse({ indexedItemIds: ["not-a-guid"], searchIndexerState: "Executed" })).toThrow();
 		expect(catalogueIndexRejectionSchema.parse({ reason: "NotAutoIndexed" })).toEqual({ reason: "NotAutoIndexed" });
 		expect(() => catalogueIndexRejectionSchema.parse({ reason: "Other" })).toThrow();
+		for (const reason of ["Removed", "NotAutoIndexed", "NothingToEnrich", "SourcePodcastStillExists"] as const) {
+			expect(catalogueIndexRejectionSchema.parse({ reason, message: "why" })).toEqual({ reason, message: "why" });
+		}
+		expect(() => catalogueIndexRejectionSchema.parse({ reason: "NothingToEnrich", message: 1 })).toThrow();
+		const enriched = { indexedItemIds: [], searchIndexerState: "NoDocuments", enrichOnly: true };
+		expect(catalogueIndexResponseSchema.parse(enriched)).toEqual(enriched);
+		expect(() => catalogueIndexResponseSchema.parse({ ...enriched, enrichOnly: "yes" })).toThrow();
 		expect(catalogueIndexTimedOutSchema.parse(timedOutBody)).toEqual(timedOutBody);
 		expect(() => catalogueIndexTimedOutSchema.parse({ reason: "NotAutoIndexed", message: "x" })).toThrow();
 	});
