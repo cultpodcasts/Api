@@ -949,19 +949,27 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
     auth: curateAuth,
     schema: {
         tags: ["Catalogue"],
-        summary: "Attach one podcast episode to an existing film as a trailer",
+        summary: "Attach one podcast episode to a film as a trailer (optionally creating the film)",
         description:
             "Curator command. Adds a trailer (id = episode guid; YouTube link first, otherwise a video link, otherwise an audio link) to the film, " +
             "pushes the film's search document (its `trailers` list), deletes the episode's search document, then deletes the episode row. " +
             "The source podcast is kept. The episode's short link is pointed at /film/{name}/{shortId}. " +
-            "A failed search step keeps the episode row; re-sending resumes without adding the trailer twice.",
+            "A failed search step keeps the episode row; re-sending resumes without adding the trailer twice. " +
+            "With `createFilm` and `filmName` instead of `filmId`, the trailer goes to the film with that name (case-insensitive); when no film has it, " +
+            "a film is created first with no release, services or video (an unreleased film), after the same IMDb/TMDB identity check as Move to film. " +
+            "Every episode check runs before the film is created, and a re-send finds the film by its trailer or name, so it is never created twice.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeTrailerAttachRequestSchema) },
         responses: {
-            202: { description: "Attached (command outcome; GET /film/:id for the film)", ...contentJson(episodeTrailerAttachResponseSchema) },
-            400: { description: "Missing filmId, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
+            200: {
+                description:
+                    "createFilm only: the new film's identity is ambiguous (identityDecision) or the prompt was cancelled (cancelled). Nothing was written.",
+                ...contentJson(episodeTrailerAttachResponseSchema)
+            },
+            202: { description: "Attached (command outcome; GET /film/:id for the film). filmCreated is true when createFilm created it.", ...contentJson(episodeTrailerAttachResponseSchema) },
+            400: { description: "Missing filmId (or filmName with createFilm), both filmId and createFilm, an invalid film name, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
             409: {
                 description:
-                    "The episode is already a trailer of another film (body filmId is that film). Re-send to that film to resume an interrupted attach.",
+                    "The episode is already a trailer of another film (body filmId is that film), or with createFilm more than one film has the name. Re-send to that film to resume an interrupted attach.",
                 ...contentJson(episodeTrailerAttachResponseSchema)
             },
             ...notFoundResponse,

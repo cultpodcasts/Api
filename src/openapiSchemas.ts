@@ -424,20 +424,6 @@ export const podcastKindTransferJobStatusResponseSchema = z.object({
 /** Legacy alias — same shape as the enqueue command outcome after RPP #1162. */
 export const podcastKindTransferResponseSchema = podcastKindTransferEnqueueResponseSchema;
 
-/** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
-export const episodeTrailerAttachRequestSchema = z.object({
-	filmId: z.string().uuid().describe("The existing film that takes the episode as a trailer."),
-	title: z.string().optional().nullable().describe("Trailer title. Blank or missing keeps the episode title.")
-});
-
-/** EpisodeTrailerAttachResponse — command outcome (not the film read model). GET /film/:id for the film. */
-export const episodeTrailerAttachResponseSchema = z.object({
-	filmId: z.string().uuid().optional().nullable().describe("The film that now holds the trailer. On 409, the film that already holds the trailer."),
-	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
-	error: z.string().optional(),
-	failureIndexing: z.boolean().optional()
-});
-
 /** EpisodeTvShowMoveRequest — RedditPodcastPoster Api.Dtos.EpisodeTvShowMoveRequest. Exactly one of tvShowId / tvShowName. */
 export const episodeTvShowMoveRequestSchema = z.object({
 	tvShowId: z.string().uuid().optional().nullable().describe("An existing TV show, by id."),
@@ -1333,6 +1319,38 @@ export const episodeFilmMoveResponseSchema = z.object({
 		.optional()
 		.nullable()
 		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
+});
+
+/** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
+export const episodeTrailerAttachRequestSchema = z.object({
+	filmId: z.string().uuid().optional().nullable()
+		.describe("The existing film that takes the episode as a trailer. Omit when createFilm is true."),
+	title: z.string().optional().nullable().describe("Trailer title. Blank or missing keeps the episode title."),
+	createFilm: z.boolean().optional().nullable()
+		.describe("With filmName instead of filmId: attach to the film with that name (case-insensitive), creating it when no film has it. A new film has no release, services or video (e.g. an unreleased film whose trailer is out first)."),
+	filmName: z.string().optional().nullable().describe("Film name used with createFilm. Must not contain '/'."),
+	identityDecision: z.enum(["select", "continue", "cancel"]).nullable().optional()
+		.describe("createFilm only: answer after an ambiguous IMDb/TMDB prompt for the new film (same as Move to film)."),
+	selectedIdentityKey: z.string().nullable().optional()
+		.describe("Candidate key when identityDecision is select (e.g. tmdb:123).")
+}).refine(
+	(body) => body.createFilm === true
+		? body.filmId == null && (body.filmName ?? "").trim().length > 0
+		: body.filmId != null,
+	"Give filmId, or createFilm with filmName (not both)."
+);
+
+/** EpisodeTrailerAttachResponse — command outcome (not the film read model). GET /film/:id for the film. */
+export const episodeTrailerAttachResponseSchema = z.object({
+	filmId: z.string().uuid().optional().nullable().describe("The film that now holds the trailer. On 409, the film that already holds the trailer."),
+	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional(),
+	filmCreated: z.boolean().optional().describe("True when createFilm created the film on this call."),
+	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
+		.describe("createFilm only: present on 200 when the new film's IMDb/TMDB match is ambiguous; nothing was written. Re-POST with identityDecision + selectedIdentityKey."),
+	cancelled: z.boolean().optional()
+		.describe("createFilm only: true on 200 when the curator cancelled the identity prompt; nothing was written.")
 });
 
 /** Api.Dtos.CatalogueIdentityIdsBody */
