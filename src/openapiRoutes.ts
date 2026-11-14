@@ -969,7 +969,9 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
             400: { description: "Missing filmId (or filmName with createFilm), both filmId and createFilm, an invalid film name, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
             409: {
                 description:
-                    "The episode is already a trailer of another film (body filmId is that film), or with createFilm more than one film has the name. Re-send to that film to resume an interrupted attach.",
+                    "The episode is already a trailer of another film (body filmId is that film; re-send to it to resume an interrupted attach), " +
+                    "or, with createFilm, more than one film has the name or the film first created under that name has since been renamed " +
+                    "(body filmId is one of those films, not a film to resume; attach by id instead).",
                 ...contentJson(episodeTrailerAttachResponseSchema)
             },
             ...notFoundResponse,
