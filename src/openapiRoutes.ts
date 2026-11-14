@@ -181,7 +181,8 @@ import {
 	catalogueIdentityLookupResponseSchema,
 	catalogueIndexResponseSchema,
 	catalogueIndexRejectionSchema,
-	catalogueIndexTimedOutSchema
+	catalogueIndexTimedOutSchema,
+	catalogueIndexEnrichFailedSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishEpisode, publishPodcastEpisode } from "./publish";
@@ -1886,6 +1887,12 @@ function catalogueIndexSchema(kind: string) {
                 ...contentJson(catalogueIndexRejectionSchema)
             },
             409: { description: "The identifier name is ambiguous (JSON array of guids)", ...contentJson(z.array(z.string().uuid())) },
+            503: {
+                description:
+                    "Not auto-indexed, and the enrich-only pass's Spotify / Apple lookups failed or were rate-limited before " +
+                    "finishing, so nothing was saved (`EnrichFailed`). Retryable: try again later",
+                ...contentJson(catalogueIndexEnrichFailedSchema)
+            },
             504: {
                 description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
                 ...contentJson(catalogueIndexTimedOutSchema)

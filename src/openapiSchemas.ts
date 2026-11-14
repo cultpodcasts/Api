@@ -1264,6 +1264,16 @@ export const catalogueIndexTimedOutSchema = z.object({
 	message: z.string().describe("Says the index ran out of time and to try again later; makes no claim about what was saved.")
 });
 
+/**
+ * Api.Dtos.CatalogueIndexRejection with `reason: "EnrichFailed"`: 503 body when the parent is not auto-indexed and the
+ * enrich-only pass's Spotify / Apple lookups failed, were rate-limited or were cut off before finishing, and nothing
+ * was saved (RPP #1400). Retryable, unlike the 400 `NothingToEnrich`.
+ */
+export const catalogueIndexEnrichFailedSchema = z.object({
+	reason: z.literal("EnrichFailed"),
+	message: z.string().describe("Says the Spotify / Apple lookup failed or was rate-limited before it finished, and to try again later.")
+});
+
 /** Api.Dtos.IndexerStateDto */
 export const indexerStateDtoSchema = z.object({
 	state: z.string(),

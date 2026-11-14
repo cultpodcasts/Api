@@ -4,7 +4,7 @@ vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
 import worker from "../src/index";
 import { indexNewsOrganisation, indexTvShow } from "../src/indexCatalogueParent";
 import { IndexNewsOrganisationRoute, IndexTvShowRoute } from "../src/openapiRoutes";
-import { catalogueIndexRejectionSchema, catalogueIndexResponseSchema, catalogueIndexTimedOutSchema } from "../src/openapiSchemas";
+import { catalogueIndexEnrichFailedSchema, catalogueIndexRejectionSchema, catalogueIndexResponseSchema, catalogueIndexTimedOutSchema } from "../src/openapiSchemas";
 import { appWithAuthPayload, appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 import { testEnv as auth0TestEnv } from "./support/honoRoute";
 
@@ -86,7 +86,7 @@ describe("catalogue parent index Azure proxies", () => {
 		expect(String(url)).toBe(`https://functions.example${azurePrefix}${encodeURIComponent(slashName)}`);
 	});
 
-	it.each(routes)("POST %s forwards 400 {reason}, 404, 409 (guid array), 500 {error} and 504 {reason: TimedOut}, and maps other statuses to 500", async (route, prefix, handler) => {
+	it.each(routes)("POST %s forwards 400 {reason}, 404, 409 (guid array), 500 {error}, 503 {reason: EnrichFailed} and 504 {reason: TimedOut}, and maps other statuses to 500", async (route, prefix, handler) => {
 		const app = appWithPermissions(route, "post", handler, ["curate"]);
 		for (const [status, body] of [
 			[400, { reason: "NotAutoIndexed" }],
@@ -96,6 +96,7 @@ describe("catalogue parent index Azure proxies", () => {
 			[404, null],
 			[409, itemIds],
 			[500, { error: "Unable to index TV show" }],
+			[503, { reason: "EnrichFailed", message: "It is not auto-indexed, so only Spotify and Apple links were looked up, but the lookup failed or was rate-limited before it finished. Try again later." }],
 			[504, timedOutBody]
 		] as const) {
 			stubFetch(status, body);
@@ -146,9 +147,14 @@ describe("catalogue parent index schemas and OpenAPI route contracts", () => {
 		expect(() => catalogueIndexResponseSchema.parse({ ...enriched, enrichOnly: "yes" })).toThrow();
 		expect(catalogueIndexTimedOutSchema.parse(timedOutBody)).toEqual(timedOutBody);
 		expect(() => catalogueIndexTimedOutSchema.parse({ reason: "NotAutoIndexed", message: "x" })).toThrow();
+		const enrichFailed = { reason: "EnrichFailed", message: "Try again later." };
+		expect(catalogueIndexEnrichFailedSchema.parse(enrichFailed)).toEqual(enrichFailed);
+		expect(() => catalogueIndexEnrichFailedSchema.parse({ reason: "EnrichFailed" })).toThrow();
+		expect(() => catalogueIndexEnrichFailedSchema.parse({ reason: "NothingToEnrich", message: "x" })).toThrow();
+		expect(() => catalogueIndexRejectionSchema.parse({ reason: "EnrichFailed", message: "x" })).toThrow();
 	});
 
-	it.each(routeClasses)("%s route is curate-only, has no request body, and documents 200, 400, 404, 409 and 504", (_prefix, Route) => {
+	it.each(routeClasses)("%s route is curate-only, has no request body, and documents 200, 400, 404, 409, 503 and 504", (_prefix, Route) => {
 		expect(Route.requiresAuth).toBe(true);
 		const schema = Route.openApiSchema;
 		expect(schema.security).toEqual([{ bearerAuth: [] }]);
@@ -164,6 +170,8 @@ describe("catalogue parent index schemas and OpenAPI route contracts", () => {
 		}
 		const timedOut = schema.responses?.[504] as { content?: { "application/json"?: { schema?: unknown } } } | undefined;
 		expect(timedOut?.content?.["application/json"]?.schema).toBe(catalogueIndexTimedOutSchema);
+		const enrichFailed = schema.responses?.[503] as { content?: { "application/json"?: { schema?: unknown } } } | undefined;
+		expect(enrichFailed?.content?.["application/json"]?.schema).toBe(catalogueIndexEnrichFailedSchema);
 	});
 
 	it.each(routeClasses)("the deployed Worker app routes POST %s{identifier} (401 without a token, not 404)", async (prefix) => {
