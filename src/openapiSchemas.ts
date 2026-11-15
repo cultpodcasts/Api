@@ -1976,7 +1976,9 @@ export const filmChangeRequestSchema = z.object({
 	subjects: z.array(z.string()).optional().nullable(),
 	guests: guestsChange,
 	alternativeTitles: z.array(z.string()).optional().nullable()
-		.describe("Other titles the film is known by (RedditPodcastPoster#1431). Replaces the list; [] clears it. [] (a curator cleared them or TMDB had none) is not refilled, except when a later PATCH changes the IMDb or TMDB id and does not send this field. Blanks, the film's own name and repeats (case-insensitive) are dropped.")
+		.describe("Other titles the film is known by (RedditPodcastPoster#1431). Replaces the list; [] clears it. [] (a curator cleared them or TMDB had none) is not refilled, except when a later PATCH changes the IMDb or TMDB id and does not send this field. Blanks, the film's own name and repeats (case-insensitive) are dropped."),
+	image: z.union([z.literal(""), z.string().url()]).optional().nullable()
+		.describe("The film's identity image (TMDB backdrop or poster; RedditPodcastPoster#1435). `\"\"` clears; omitted = unchanged. A value sent here is not overwritten by identity fill in the same PATCH.")
 });
 
 /** PATCH /film 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
