@@ -1947,7 +1947,7 @@ export const filmDtoSchema = z.object({
 		image: z.string().url().optional().nullable()
 			.describe("Image from the film's identity (TMDB backdrop, else poster; RedditPodcastPoster#1430). Search uses it only when no service has an image."),
 		alternativeTitles: z.array(z.string()).optional().nullable()
-			.describe("Other titles the film is known by (original, alternative and translated; RedditPodcastPoster#1431). Omitted when never set; [] when a curator cleared them.")
+			.describe("Other titles the film is known by (original, alternative and translated; RedditPodcastPoster#1431). Omitted when never set; [] when a curator cleared them or TMDB had none.")
 	})
 });
 
@@ -1976,7 +1976,7 @@ export const filmChangeRequestSchema = z.object({
 	subjects: z.array(z.string()).optional().nullable(),
 	guests: guestsChange,
 	alternativeTitles: z.array(z.string()).optional().nullable()
-		.describe("Other titles the film is known by (RedditPodcastPoster#1431). Replaces the list; [] clears it and it stays cleared. Blanks, the film's own name and repeats (case-insensitive) are dropped.")
+		.describe("Other titles the film is known by (RedditPodcastPoster#1431). Replaces the list; [] clears it. [] (a curator cleared them or TMDB had none) is not refilled, except when a later PATCH changes the IMDb or TMDB id and does not send this field. Blanks, the film's own name and repeats (case-insensitive) are dropped.")
 });
 
 /** PATCH /film 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
