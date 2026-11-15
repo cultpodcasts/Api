@@ -323,7 +323,7 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 		summary: "Patch TV show publisher fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
 			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}` except `additionalYouTubeChannels` / `additionalYouTubeChannelIds` (news organisations only, RPP #1370), " +
-			"plus `imdbId` / `tvdbId` / `tmdbId`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
+			"plus `imdbId` / `tvdbId` / `tmdbId`. When the show has an IMDb or TMDB id, an empty publisher is filled from TMDB (first named network, else first named production company); a publisher sent or cleared in this PATCH is left alone (RedditPodcastPoster#1436). A change to `imdbId`, `tvdbId` or `tmdbId` is also copied onto every episode of the show as series identity ids (RedditPodcastPoster#1437). `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
 			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). TV shows have no flag defaults. " +
 			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
 			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
@@ -370,15 +370,15 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 		summary: "Patch film publisher and playable fields and IMDb/TMDB identity ids",
 		description:
 			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
-			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, " +
+			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `image` (absolute http(s) URL, or `\"\"` to clear), `explicit`, `ignored`, " +
 			"`subjects`, `guests`, `imdbId`, `tmdbId` and `alternativeTitles`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
-			" When the film has an IMDb or TMDB id, its empty description, release, runtime, image and alternative titles are filled from TMDB; values already set are never overwritten (RedditPodcastPoster#1430, #1431)." +
+			" When the film has an IMDb or TMDB id, its empty description, release, runtime, image, publisher and alternative titles are filled from TMDB; values already set, and fields sent or cleared in this PATCH, are never overwritten (RedditPodcastPoster#1430, #1431, #1436)." +
 			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
 			202: { description: "Film updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
 			400: {
-				description: "Invalid URL, release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
+				description: "Invalid image (absolute http(s) URL, or blank to clear), release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
 			},
 			409: {

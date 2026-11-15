@@ -1425,6 +1425,14 @@ describe("openapi Zod schemas", () => {
 		expect(film.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
 	});
 
+
+	it("accepts a film image URL or \"\" and rejects a non-URL (RedditPodcastPoster#1435)", () => {
+		expect(filmChangeRequestSchema.parse({ image: "https://image.tmdb.org/t/p/w1280/example.jpg" }).image)
+			.toBe("https://image.tmdb.org/t/p/w1280/example.jpg");
+		expect(filmChangeRequestSchema.parse({ image: "" }).image).toBe("");
+		expect(filmChangeRequestSchema.parse({ image: null }).image).toBeNull();
+		expect(filmChangeRequestSchema.safeParse({ image: "not-a-url" }).success).toBe(false);
+	});
 	it("parses TV and film change requests with publisher/playable fields, guests, and identity ids", () => {
 		expect(
 			tvShowChangeRequestSchema.parse({
