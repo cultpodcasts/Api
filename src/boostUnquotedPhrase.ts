@@ -10,11 +10,19 @@ import type { oDataSearchModel } from "./oDataSearchModel";
  * Unquoted multi-word queries gain a boosted Lucene phrase clause for the whole
  * query, alongside the original terms so broader matches remain. Queries the
  * user already quoted, or that already use search operators, are left unchanged.
+ *
+ * In the terms clause, whole-word AND/OR/NOT are lowercased so a trailing or
+ * standalone operator cannot 400 Azure, and & and | are escaped so && and ||
+ * stay literal. A standalone + or - is not rewritten, so 12 + 1 keeps its
+ * simple-syntax meaning.
  */
 export const UNQUOTED_PHRASE_BOOST = 10;
 
-/** Lucene reserved characters that must be escaped outside a phrase. */
-const LUCENE_RESERVED = /[+\-!(){}[\]^"~*?:\\/]/g;
+/** Lucene reserved characters that must be escaped outside a phrase, including & and |. */
+const LUCENE_RESERVED = /[+\-!(){}[\]^"~*?:\\/&|]/g;
+
+/** Whole-word Lucene boolean operators; they are case-sensitive and 400 at the end of a query. */
+const LUCENE_BOOLEAN_OPERATOR = /(^|\s)(AND|OR|NOT)(?=\s|$)/g;
 
 /** Client fielded searches such as title:Faderhuset. Not a title colon like Going Clear: .... */
 const SEARCH_FIELD_PREFIX =
@@ -26,7 +34,7 @@ export function boostUnquotedPhrase(search: string): string {
 		return search;
 	}
 	const phrase = normalized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-	const terms = normalized.replace(LUCENE_RESERVED, "\\$&");
+	const terms = lowercaseLuceneBooleanOperators(normalized.replace(LUCENE_RESERVED, "\\$&"));
 	return `"${phrase}"^${UNQUOTED_PHRASE_BOOST} OR (${terms})`;
 }
 
@@ -38,16 +46,17 @@ export function shouldBoostUnquotedPhrase(search: string): boolean {
 	if (/["|^(){}[\]~*\\?]/.test(trimmed)) {
 		return false;
 	}
-	if (/^[+-]/.test(trimmed) || /\s[+-]\S/.test(trimmed)) {
-		return false;
-	}
-	if (/^(AND|OR|NOT)\s/.test(trimmed) || /\s(AND|OR|NOT)\s/.test(trimmed)) {
+	if (/^[+\-]/.test(trimmed) || /\s[+\-]/.test(trimmed)) {
 		return false;
 	}
 	if (SEARCH_FIELD_PREFIX.test(trimmed)) {
 		return false;
 	}
 	return true;
+}
+
+function lowercaseLuceneBooleanOperators(terms: string): string {
+	return terms.replace(LUCENE_BOOLEAN_OPERATOR, (_match, pre: string, op: string) => `${pre}${op.toLowerCase()}`);
 }
 
 export function boostUnquotedPhraseInSearchRequest(data: oDataSearchModel): void {

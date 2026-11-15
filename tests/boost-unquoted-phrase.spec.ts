@@ -59,6 +59,36 @@ describe("boostUnquotedPhrase", () => {
 			`"Father's House"^${UNQUOTED_PHRASE_BOOST} OR (Father's House)`
 		);
 	});
+
+	it("lowercases a trailing or standalone AND, OR or NOT in the terms clause so Azure does not 400", () => {
+		expect(boostUnquotedPhrase("cult AND")).toBe(
+			`"cult AND"^${UNQUOTED_PHRASE_BOOST} OR (cult and)`
+		);
+		expect(boostUnquotedPhrase("scientology NOT")).toBe(
+			`"scientology NOT"^${UNQUOTED_PHRASE_BOOST} OR (scientology not)`
+		);
+		expect(boostUnquotedPhrase("Father's House AND")).toBe(
+			`"Father's House AND"^${UNQUOTED_PHRASE_BOOST} OR (Father's House and)`
+		);
+		expect(boostUnquotedPhrase("WACO the AND")).toBe(
+			`"WACO the AND"^${UNQUOTED_PHRASE_BOOST} OR (WACO the and)`
+		);
+	});
+
+	it("escapes & and && in the terms clause so they stay literal instead of becoming AND", () => {
+		const ampersand = boostUnquotedPhrase("q&a session");
+		expect(ampersand).toBe(
+			`"q&a session"^${UNQUOTED_PHRASE_BOOST} OR (q\\&a session)`
+		);
+		expect(ampersand).toContain("q\\&a");
+		expect(boostUnquotedPhrase("Tom && Jerry")).toBe(
+			`"Tom && Jerry"^${UNQUOTED_PHRASE_BOOST} OR (Tom \\&\\& Jerry)`
+		);
+	});
+
+	it("leaves a standalone + unchanged so 12 + 1 keeps its simple-syntax meaning", () => {
+		expect(boostUnquotedPhrase("12 + 1")).toBe("12 + 1");
+	});
 });
 
 describe("boostUnquotedPhraseInSearchRequest", () => {
