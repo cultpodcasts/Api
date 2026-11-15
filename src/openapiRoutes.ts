@@ -281,6 +281,7 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 			"including `guests` and `services` (per-key link patch; blank url+image removes the key; absolute http(s) only), " +
 			"plus `imdbId` / `tvdbId` / `tmdbId`. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the episode's search document (RPP #1053)." +
+			" When the episode has an IMDb or TheTVDB id, its empty name, overview, air date, runtime and still are filled from TMDB; values already set are never overwritten (RedditPodcastPoster#1430)." +
 			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
@@ -370,7 +371,8 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 		description:
 			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
 			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, " +
-			"`subjects`, `guests`, `imdbId` and `tmdbId`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
+			"`subjects`, `guests`, `imdbId`, `tmdbId` and `alternativeTitles`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
+			" When the film has an IMDb or TMDB id, its empty description, release, runtime, image and alternative titles are filled from TMDB; values already set are never overwritten (RedditPodcastPoster#1430, #1431)." +
 			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
