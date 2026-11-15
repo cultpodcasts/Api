@@ -657,6 +657,54 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.parentId).toBeUndefined();
 	});
 
+	it("accepts alternativeTitles on film, public-episode and episode GET DTOs, including a cleared empty list (RedditPodcastPoster#1431)", () => {
+		const titles = ["Father's House", "La casa del padre"];
+		const film = filmDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Faderhuset",
+			description: "",
+			image: "https://image.tmdb.org/t/p/w1280/example.jpg",
+			alternativeTitles: titles
+		});
+		expect(film.image).toBe("https://image.tmdb.org/t/p/w1280/example.jpg");
+		expect(film.alternativeTitles).toEqual(titles);
+		expect(filmDtoSchema.parse({ id: film.id, name: film.name, description: "", alternativeTitles: [] }).alternativeTitles).toEqual([]);
+
+		const publicFilm = publicEpisodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastName: "Faderhuset",
+			title: "Faderhuset",
+			description: "",
+			release: "2026-11-19T00:00:00Z",
+			duration: "01:30:00",
+			explicit: false,
+			subjects: [],
+			contentKind: "Film",
+			alternativeTitles: titles
+		});
+		expect(publicFilm.alternativeTitles).toEqual(titles);
+
+		const episode = episodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			podcastName: "Faderhuset",
+			title: "Faderhuset",
+			description: "",
+			release: "2026-11-19T00:00:00Z",
+			duration: "01:30:00",
+			explicit: false,
+			posted: false,
+			tweeted: false,
+			ignored: false,
+			removed: false,
+			urls: {},
+			subjects: [],
+			contentKind: "Film",
+			alternativeTitles: titles
+		});
+		expect(episode.alternativeTitles).toEqual(titles);
+	});
+
 	it("rejects an unknown contentKind on PublicEpisodeDto", () => {
 		expect(() => publicEpisodeDtoSchema.parse({
 			id: "550e8400-e29b-41d4-a716-446655440000",

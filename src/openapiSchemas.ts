@@ -826,7 +826,9 @@ export const episodeDtoSchema = z.object({
 	primaryPostService: serviceNameSchema.optional().nullable(),
 	image: z.string().url().optional().nullable(),
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
-	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable()
+	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when never set or when the playable is not a film; [] when a curator cleared them.")
 });
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
@@ -844,7 +846,9 @@ export const publicEpisodeDtoSchema = z.object({
 	subjects: z.array(z.string()),
 	ids: episodeIdsSchema.optional().nullable(),
 	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	image: z.string().url().optional().nullable()
+	image: z.string().url().optional().nullable(),
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when never set or when the playable is not a film; [] when a curator cleared them.")
 });
 
 /** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
