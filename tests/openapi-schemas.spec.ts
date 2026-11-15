@@ -705,6 +705,18 @@ describe("openapi Zod schemas", () => {
 		expect(episode.alternativeTitles).toEqual(titles);
 	});
 
+	it("accepts image on the TV episode GET DTO (TMDB still; RedditPodcastPoster#1430)", () => {
+		const parsed = tvShowEpisodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			tvShowId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			title: "Pilot",
+			description: "",
+			image: "https://image.tmdb.org/t/p/w780/still.jpg"
+		});
+		expect(parsed.image).toBe("https://image.tmdb.org/t/p/w780/still.jpg");
+		expect(tvShowEpisodeDtoSchema.parse({ id: parsed.id, tvShowId: parsed.tvShowId, title: "Pilot", description: "" }).image).toBeUndefined();
+	});
+
 	it("rejects an unknown contentKind on PublicEpisodeDto", () => {
 		expect(() => publicEpisodeDtoSchema.parse({
 			id: "550e8400-e29b-41d4-a716-446655440000",

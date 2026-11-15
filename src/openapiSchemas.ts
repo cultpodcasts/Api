@@ -828,7 +828,7 @@ export const episodeDtoSchema = z.object({
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
 	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
 	alternativeTitles: z.array(z.string()).optional().nullable()
-		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when never set or when the playable is not a film; [] when a curator cleared them.")
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
@@ -848,7 +848,7 @@ export const publicEpisodeDtoSchema = z.object({
 	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
 	image: z.string().url().optional().nullable(),
 	alternativeTitles: z.array(z.string()).optional().nullable()
-		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when never set or when the playable is not a film; [] when a curator cleared them.")
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 /** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
@@ -1874,7 +1874,9 @@ export const tvShowEpisodeDtoSchema = z.object({
 	tvdb: z.string().url().optional().nullable(),
 	tvdbId: z.number().int().optional().nullable(),
 	tmdbId: z.number().int().optional().nullable(),
-	...optionalShape(playableFieldsDtoExtras)
+	...optionalShape(playableFieldsDtoExtras),
+	image: z.string().url().optional().nullable()
+		.describe("Image from the episode's identity (TMDB still; RedditPodcastPoster#1430). Search uses it only when no service has an image.")
 });
 
 /**
