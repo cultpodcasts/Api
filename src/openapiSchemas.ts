@@ -826,7 +826,9 @@ export const episodeDtoSchema = z.object({
 	primaryPostService: serviceNameSchema.optional().nullable(),
 	image: z.string().url().optional().nullable(),
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
-	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable()
+	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
@@ -844,7 +846,9 @@ export const publicEpisodeDtoSchema = z.object({
 	subjects: z.array(z.string()),
 	ids: episodeIdsSchema.optional().nullable(),
 	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	image: z.string().url().optional().nullable()
+	image: z.string().url().optional().nullable(),
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 /** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
@@ -1870,7 +1874,9 @@ export const tvShowEpisodeDtoSchema = z.object({
 	tvdb: z.string().url().optional().nullable(),
 	tvdbId: z.number().int().optional().nullable(),
 	tmdbId: z.number().int().optional().nullable(),
-	...optionalShape(playableFieldsDtoExtras)
+	...optionalShape(playableFieldsDtoExtras),
+	image: z.string().url().optional().nullable()
+		.describe("Image from the episode's identity (TMDB still; RedditPodcastPoster#1430). Search uses it only when no service has an image.")
 });
 
 /**
@@ -1937,7 +1943,11 @@ export const filmDtoSchema = z.object({
 		guestPeople: z.array(personDtoSchema).optional().nullable(),
 		guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
 		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
-		trailers: z.array(filmTrailerDtoSchema).optional().nullable()
+		trailers: z.array(filmTrailerDtoSchema).optional().nullable(),
+		image: z.string().url().optional().nullable()
+			.describe("Image from the film's identity (TMDB backdrop, else poster; RedditPodcastPoster#1430). Search uses it only when no service has an image."),
+		alternativeTitles: z.array(z.string()).optional().nullable()
+			.describe("Other titles the film is known by (original, alternative and translated; RedditPodcastPoster#1431). Omitted when never set; [] when a curator cleared them or TMDB had none.")
 	})
 });
 
@@ -1964,7 +1974,9 @@ export const filmChangeRequestSchema = z.object({
 	ignored: z.boolean().optional().nullable(),
 	...postStatusChangeShape,
 	subjects: z.array(z.string()).optional().nullable(),
-	guests: guestsChange
+	guests: guestsChange,
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Other titles the film is known by (RedditPodcastPoster#1431). Replaces the list; [] clears it. [] (a curator cleared them or TMDB had none) is not refilled, except when a later PATCH changes the IMDb or TMDB id and does not send this field. Blanks, the film's own name and repeats (case-insensitive) are dropped.")
 });
 
 /** PATCH /film 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
