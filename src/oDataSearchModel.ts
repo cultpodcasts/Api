@@ -9,4 +9,7 @@ export interface oDataSearchModel {
     facets?: string | string[];
     /** Azure Search $select field list. */
     select?: string;
+    searchMode?: string;
+    /** Azure Search query language. Set to full when an unquoted phrase is boosted (RPP #1434). */
+    queryType?: string;
 }

@@ -3,6 +3,7 @@ import { AddResponseHeaders } from "./AddResponseHeaders";
 import { ActionContext } from "./ActionContext";
 import { searchLogCollector } from "./searchLogCollector";
 import { oDataSearchModel } from "./oDataSearchModel";
+import { boostUnquotedPhraseInSearchRequest } from "./boostUnquotedPhrase";
 import { rewriteLegacyPodcastNameInSearchRequest } from "./rewriteLegacyPodcastNameInSearchRequest";
 import { searchMode } from "./searchMode";
 
@@ -39,6 +40,7 @@ export async function search(c: ActionContext): Promise<Response> {
 				// (stale-client signal + podcast-mode filter detection).
 				searchLog.collectSearchRequest(data);
 				rewriteLegacyPodcastNameInSearchRequest(data);
+				boostUnquotedPhraseInSearchRequest(data);
 				let requestBody = JSON.stringify(data);
 				const response = await fetch(c.env.apihost, {
 					cf: {
