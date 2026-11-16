@@ -59,12 +59,20 @@ export async function docsSearch(request: Request, env: SearchEnv): Promise<Resp
 	} catch (e) {
 		if (e instanceof SearchRequestError) return badRequest(e);
 		// D1 runtime failure (overload, timeout, reset, missing schema): retryable, never a 4xx.
-		return json(
-			{ error: { code: "ServiceUnavailable", message: e instanceof Error ? e.message : String(e) } },
-			503
-		);
+		// The detail (SQL, schema names) goes to Workers logs only: since SP-1.5 the api Worker
+		// forwards an upstream JSON error body to the browser.
+		const message = (e instanceof Error ? e.message : String(e)).slice(0, ERROR_LOG_LIMIT);
+		console.error("search: D1 failure", { message, name: e instanceof Error ? e.name : typeof e });
+		return json(SERVICE_UNAVAILABLE, 503);
 	}
 }
+
+/** Same cap as the api Worker's upstream error logging (UPSTREAM_ERROR_LOG_LIMIT, #268). */
+const ERROR_LOG_LIMIT = 500;
+
+export const SERVICE_UNAVAILABLE = {
+	error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." }
+} as const;
 
 function badRequest(e: unknown): Response {
 	// Azure's own 400 envelope leaves `code` empty and puts the reason in `message`.

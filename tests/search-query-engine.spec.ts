@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import searchWorker from "../workers/search/src/index";
 import {
 	LIVE_AZURE_RETRIEVABLE_KEYS,
@@ -9,7 +9,7 @@ import {
 	toAzureSearchEnvelope,
 	type AzureSearchDocRow
 } from "../workers/search/src/azure-response";
-import { parseRequest } from "../workers/search/src/docs-search";
+import { parseRequest, SERVICE_UNAVAILABLE } from "../workers/search/src/docs-search";
 import { SearchRequestError } from "../workers/search/src/errors";
 import { parseFacet, parseODataFilter } from "../workers/search/src/odata";
 import { MAX_OPERATOR_CHANGES, MAX_QUERY_ATOMS, toMatch } from "../workers/search/src/query";
@@ -577,7 +577,7 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		expect(resp.body).toEqual({ error: { code: "", message: expect.any(String) } });
 	});
 
-	it("returns 503 (retryable, never 400) when D1 fails", async () => {
+	it("returns a generic 503 (retryable, never 400) when D1 fails, logging the detail", async () => {
 		const failing = {
 			prepare() {
 				return {
@@ -587,18 +587,38 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 				};
 			},
 			async batch() {
-				throw new Error("D1_ERROR: D1 DB is overloaded. Too many requests queued.");
+				throw new Error("D1_ERROR: D1 DB is overloaded. Too many requests queued. " + "x".repeat(1000));
 			}
 		} as unknown as D1Database;
-		const resp = await post({ search: "scientology" }, { SEARCH_DB: failing });
-		expect(resp.status).toBe(503);
-		expect(resp.body).toEqual({ error: { code: "ServiceUnavailable", message: expect.stringMatching(/overloaded/) } });
+		const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const resp = await post({ search: "scientology" }, { SEARCH_DB: failing });
+			expect(resp.status).toBe(503);
+			expect(resp.body).toEqual(SERVICE_UNAVAILABLE);
+			expect(resp.body).toEqual({ error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." } });
+			expect(JSON.stringify(resp.body)).not.toMatch(/D1_ERROR|overloaded/);
+			expect(logged).toHaveBeenCalledWith("search: D1 failure", {
+				message: expect.stringMatching(/^D1_ERROR: D1 DB is overloaded/),
+				name: "Error"
+			});
+			expect((logged.mock.calls[0][1] as { message: string }).message).toHaveLength(500);
+		} finally {
+			logged.mockRestore();
+		}
 	});
 
-	it("returns 503 when the schema is missing (migrations not applied)", async () => {
+	it("returns the generic 503 without SQL or schema names when the schema is missing", async () => {
 		const { DatabaseSync } = await import("node:sqlite");
-		const resp = await post({ search: "x" }, { SEARCH_DB: d1(new DatabaseSync(":memory:")) });
-		expect(resp.status).toBe(503);
+		const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const resp = await post({ search: "x" }, { SEARCH_DB: d1(new DatabaseSync(":memory:")) });
+			expect(resp.status).toBe(503);
+			expect(resp.body).toEqual(SERVICE_UNAVAILABLE);
+			expect(JSON.stringify(resp.body)).not.toMatch(/search_docs|search_fts|SELECT/);
+			expect(logged).toHaveBeenCalledWith("search: D1 failure", expect.objectContaining({ message: expect.stringMatching(/no such table/) }));
+		} finally {
+			logged.mockRestore();
+		}
 	});
 
 	it("never writes: the search route leaves the database unchanged", async () => {

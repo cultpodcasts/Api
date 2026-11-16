@@ -127,8 +127,19 @@ over a service binding.
 - **Indexed, not returned:** full descriptions are indexed uncapped and returned in full. `guests`
   and the hidden curator terms are searchable but, as in Azure, never returned.
 - **Errors:** a bad body, filter or facet is **400** `{ error: { code: "", message } }` like Azure;
-  a D1 failure, overload or missing schema is **503** `{ error: { code: "ServiceUnavailable", … } }`,
-  which is retryable and never a 400.
+  a D1 failure, overload or missing schema is **503** with the fixed body
+  `{ error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." } }`,
+  which is retryable and never a 400. The D1 detail goes only to Workers logs
+  (`console.error("search: D1 failure", …)`, 500 characters), because the api Worker forwards
+  upstream error bodies to the browser.
+- **Limits (400 past them):** `top` / `skip` are non-negative integers (`top` clamps to 1000;
+  `skip` at most 100,000, as in Azure); `search` at most 8 KB, 256 terms and 32 operator changes;
+  `filter` at most 32 KB and 32 levels of parentheses; body at most 256 KB.
+- **D1's 100 bound parameters per statement:** lists (`search.in`, the page's subject lookup)
+  bind as one JSON parameter through `json_each(?)`; a filter with more than 98 separate
+  comparisons is a 400. The test adapter (`tests/support/searchD1.ts`) enforces the limit.
+- **FTS5 nesting:** the translator keeps runs of one operator flat and parenthesises only operator
+  changes, so long queries stay well inside the FTS5 parser's ~96-level stack.
 - **Not yet:** bm25 column weights and title/AKA phrase-first ranking (SP-1.8), the `id`
   tie-break (SP-1.7), Sessions API (SP-1.2).
 
