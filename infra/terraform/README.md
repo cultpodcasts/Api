@@ -136,25 +136,21 @@ job uses `search-stack-preview` and production apply `search-stack-production`, 
 cancel-in-progress (a running apply is never cancelled; a newer queued run may supersede an older
 queued one, re-plan and deploy the newer code).
 
-### One-time state split (SP-1.11), done by CI
+### State split history (SP-1.11)
 
-Before #273 the production workspace held **both** databases at root addresses (created by the
-#270 first apply). No manual `terraform state` command is needed:
+Before [#273](https://github.com/cultpodcasts/Api/issues/273) the production workspace held
+**both** databases at root addresses (created by the #270 first apply). #273 split them with
+one-time `moved`, `removed { destroy = false }` and `import` blocks, run by CI with no manual
+`terraform state` command: production kept `f3d9b5b2-…` and forgot the preview database, and the
+preview workspace adopted `83ae1e81-…`. Both applies ran on 16 Nov 2026, so
+[#275](https://github.com/cultpodcasts/Api/issues/275) deleted the blocks: an `import` of a fixed
+id fails once that database is gone, which would break *Rebuild from scratch*. The roots now hold
+no `import`, `moved` or `removed` blocks (tested); add one only for a new, reviewed state change,
+and remove it in a follow-up once it has applied.
 
-| Where | Block | Effect |
-|-------|-------|--------|
-| [`search/production/state-migration.tf`](./search/production/state-migration.tf) | `moved` `cloudflare_d1_database.search` → `module.search.cloudflare_d1_database.this` | prod database `f3d9b5b2-…` stays, same id, no change |
-| same | `removed` `cloudflare_d1_database.search_preview`, `destroy = false` | prod state forgets the preview database; Cloudflare untouched |
-| [`search/preview/adopt.tf`](./search/preview/adopt.tf) | `import` `83ae1e81-…` → `module.search.cloudflare_d1_database.this` | preview state adopts the existing preview database |
-
-The first PR run imports the preview database into the preview workspace; until the production
-apply on `main` forgets it, both states track it, which is harmless (neither plans a change).
-The module ignores `primary_location_hint` changes because the API does not return it: without
-that, the imported database would plan a forced replace (the guard would refuse it).
-
-**Follow-up ([#275](https://github.com/cultpodcasts/Api/issues/275)):** once both applies have run, delete `state-migration.tf` and `adopt.tf` in
-a PR. The import would fail after a teardown (the id would no longer exist), so it must go for the
-rebuild rule to hold.
+Keep the module's `ignore_changes = [primary_location_hint]`: the D1 API does not return the
+hint, so the imported preview database has none in state and would otherwise plan a forced
+replace (the guard would refuse it). The hint only matters when a database is created.
 
 ## Rebuild from scratch
 
