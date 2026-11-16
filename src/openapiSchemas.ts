@@ -189,10 +189,10 @@ const discoveryCreateDecisionFields = {
 		"Discovery result id to add or continue after an unsupported-language prompt."
 	),
 	kindDecisions: discoveryDecisionMapSchema.describe(
-		"Discovery result id to select or continue after a suggest-only kind prompt. continue keeps the item as a podcast."
+		"Discovery result id to select, continue or cancel after a suggest-only kind prompt. continue keeps the item as a podcast. cancel drops it."
 	),
 	selectedKindKeys: discoverySelectedKeyMapSchema.describe(
-		"Candidate key when kindDecisions is select (catalogue:film:, catalogue:tvshow:, catalogue:newsreport:, tmdb:, imdb:)."
+		"Candidate key when kindDecisions is select (catalogue:film:{filmId}, catalogue:tvshow:{showId}, catalogue:newsreport:{organisationId}:{reportId}, tmdb:{id}, imdb:{id})."
 	),
 	identityDecisions: discoveryDecisionMapSchema.describe(
 		"Discovery result id to select or continue after an ambiguous identity prompt."
@@ -1043,7 +1043,7 @@ export const discoverySubmitResponseSchema = z.object({
 	languageDecisionsRequired: z.array(discoveryLanguageDecisionSchema).optional().nullable()
 		.describe("Items whose detected language is not supported yet. Empty results accompany this. Re-POST with languageDecisions."),
 	kindDecisionsRequired: z.array(discoveryIdentityDecisionSchema).optional().nullable()
-		.describe("Unmapped items with a suggest-only kind hint. Empty results accompany this. Re-POST with kindDecisions; continue keeps the item as a podcast."),
+		.describe("Unmapped items with a suggest-only kind hint. Empty results accompany this. Re-POST with kindDecisions; continue keeps the item as a podcast. Gates run language → kind → identity; a re-POST may return the next hold."),
 	identityDecisionsRequired: z.array(discoveryIdentityDecisionSchema).optional().nullable()
 		.describe("Items whose authority search is ambiguous. Empty results accompany this. Re-POST with identityDecisions.")
 });
