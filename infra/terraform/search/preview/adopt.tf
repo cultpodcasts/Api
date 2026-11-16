@@ -5,7 +5,7 @@
 #
 # An import block is a no-op once the database is in this state. It FAILS if the database no
 # longer exists, so remove this file in the follow-up once the first preview apply has run
-# (tracked on cultpodcasts/Api#273); after that, a torn-down preview stack is rebuilt by CI.
+# (cultpodcasts/Api#275); after that, a torn-down preview stack is rebuilt by CI.
 
 import {
   to = module.search.cloudflare_d1_database.this

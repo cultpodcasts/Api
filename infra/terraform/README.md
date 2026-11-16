@@ -34,6 +34,9 @@ Jon, 16 Nov 2026: *"terraform is infra. it would always come before pure code de
 | Push to `main` | — | plan, then after **Jon's approval** in `cloudflare-production`: apply + migrations + `npm run deploy:search` |
 | Manual run on `main` | — | as push; `allow_d1_create` lets the guard create the production database |
 
+Preview deliberately deploys whatever the PR contains: it is the staging slot for trying PR code.
+The `Test` workflow (unit tests + `tsc`) gates merging, and so production.
+
 There is one preview stack, so **the last PR to deploy wins** (like `api-preview`). Only one
 preview apply/deploy runs at a time (concurrency group `search-stack-preview`, never cancelled
 mid-run). Fork PRs only get `fmt` and `validate`.
@@ -149,7 +152,7 @@ apply on `main` forgets it, both states track it, which is harmless (neither pla
 The module ignores `primary_location_hint` changes because the API does not return it: without
 that, the imported database would plan a forced replace (the guard would refuse it).
 
-**Follow-up (on #273):** once both applies have run, delete `state-migration.tf` and `adopt.tf` in
+**Follow-up ([#275](https://github.com/cultpodcasts/Api/issues/275)):** once both applies have run, delete `state-migration.tf` and `adopt.tf` in
 a PR. The import would fail after a teardown (the id would no longer exist), so it must go for the
 rebuild rule to hold.
 

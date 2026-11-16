@@ -13,7 +13,9 @@
 #                        (first apply, or a deliberate rebuild from scratch).
 #
 # The code deploy is a later step of the SAME job as the apply, so it never runs unless the
-# apply (and the migrations) succeeded in that run. Terraform owns only the empty Worker shell
+# apply (and the migrations) succeeded in that run. Preview deliberately deploys whatever the PR
+# contains (it is the staging slot for trying PR code); the Test workflow (unit tests + tsc)
+# gates merging, and so production. Terraform owns only the empty Worker shell
 # and the database; wrangler owns the code, bindings and settings (wrangler.search.jsonc).
 # There is deliberately no destroy path anywhere in this workflow.
 #
@@ -291,7 +293,7 @@ jobs:
         run: |
           {
             echo "<!-- terraform-search-preview-plan -->"
-            echo "### Terraform plan: search PREVIEW stack for \`${HEAD_SHA}\` (applied and deployed by this PR run)"
+            echo "### Terraform plan: search PREVIEW stack for \`${HEAD_SHA}\` (the preview job applies this, migrates and deploys; its status shows the outcome)"
             echo '```'
             terraform -chdir="$TF_DIR" show -no-color tfplan 2>/dev/null | tail -c 60000 || echo "(no plan)"
             echo '```'
@@ -314,7 +316,12 @@ jobs:
       - name: Check wrangler.search.jsonc ids match Terraform
         run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json"
 
+      # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
+      # token out of this step (step env overrides job env). Later steps get them back.
       - name: Install wrangler
+        env:
+          TF_VAR_cloudflare_api_token: ""
+          TF_TOKEN_app_terraform_io: ""
         run: npm ci
 
       # Schema before code: the migrations config is generated from this stack's Terraform
@@ -398,7 +405,12 @@ jobs:
       - name: Check wrangler.search.jsonc ids match Terraform
         run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json"
 
+      # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
+      # token out of this step (step env overrides job env). Later steps get them back.
       - name: Install wrangler
+        env:
+          TF_VAR_cloudflare_api_token: ""
+          TF_TOKEN_app_terraform_io: ""
         run: npm ci
 
       - name: D1 migrations (production database)

@@ -8,7 +8,7 @@
 #     destroyed (destroy = false). The preview workspace adopts it (../preview/adopt.tf).
 #
 # Both blocks are no-ops once applied and on an empty (rebuilt) state. Remove this file in
-# the follow-up once the production apply has run (tracked on cultpodcasts/Api#273).
+# the follow-up once the production apply has run (cultpodcasts/Api#275).
 
 moved {
   from = cloudflare_d1_database.search

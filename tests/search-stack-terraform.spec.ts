@@ -219,6 +219,9 @@ describe("state split (#273): the live databases are never destroyed or recreate
 			/import\s*\{\s*to\s*=\s*module\.search\.cloudflare_d1_database\.this\s*id\s*=\s*"\$\{var\.cloudflare_account_id\}\/83ae1e81-bf07-4be8-aabf-2d4138959f74"/
 		);
 		expect(productionTf).not.toMatch(/import\s*\{/);
+		// One-time blocks: removal is tracked on its own ticket, not the (closing) feature ticket.
+		expect(previewTf).toContain("cultpodcasts/Api#275");
+		expect(productionTf).toContain("cultpodcasts/Api#275");
 		expect(previewTf).not.toMatch(/moved\s*\{|removed\s*\{/);
 	});
 });
@@ -264,6 +267,16 @@ describe("search stack workflow", () => {
 		expect(j.slice(apply)).not.toMatch(/if:\s*always\(\)|continue-on-error/);
 		// The deploy is the last step of the job.
 		expect(j.indexOf("- name:", deploy)).toBe(-1);
+	});
+
+	it.each([["preview"], ["apply"]])("%s: npm ci (dependency install scripts) never sees the Edit or HCP token", (name) => {
+		const j = job(name);
+		const install = step(j, "Install wrangler");
+		expect(install).toBeGreaterThan(-1);
+		const installStep = j.slice(install, j.indexOf("- name:", install + 1));
+		expect(installStep).toMatch(/env:\s*\n\s*TF_VAR_cloudflare_api_token: ""\s*\n\s*TF_TOKEN_app_terraform_io: ""\s*\n\s*run: npm ci/);
+		expect(installStep).not.toContain("secrets.");
+		expect(j.match(/run: npm ci/g)).toHaveLength(1);
 	});
 
 	it("deploys nowhere else: no other job runs wrangler deploy or an apply", () => {
@@ -373,6 +386,8 @@ describe("search stack workflow", () => {
 		expect(job("preview")).toContain(`sticky-plan-comment.mjs "$PR" "$RUNNER_TEMP/plan.md" "${PREVIEW_PLAN_MARKER}"`);
 		expect(workflow).not.toContain("--edit-last");
 		expect(workflow).toContain("github.event.pull_request.head.sha");
+		// Posted before the apply, so it must not claim the deploy already happened.
+		expect(job("preview")).not.toMatch(/applied and deployed by this PR run/);
 	});
 
 	it("builds the migrations config from Terraform outputs, not a hand-written copy", () => {
