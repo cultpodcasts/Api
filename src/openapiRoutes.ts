@@ -152,7 +152,9 @@ import {
 	publishHomepageResponseSchema,
 	pushSubscriptionRequestSchema,
 	searchRequestSchema,
+	searchForwardedErrorSchema,
 	searchResponseSchema,
+	searchUpstreamErrorSchema,
 	subjectChangeRequestSchema,
 	subjectDtoSchema,
 	subjectsNameListResponseSchema,
@@ -724,7 +726,14 @@ export const SearchRoute = createOpenApiRoute(search, {
         tags: ["Search"],
         summary: "Search episodes",
         request: { body: jsonBody(searchRequestSchema) },
-        responses: { 200: { description: "Search results", ...contentJson(searchResponseSchema) } }
+        description: "Proxies an OData search to the search service. Errors: 400 for a request body the Worker cannot read, or Azure's 400 forwarded (its message names the bad field). Upstream 4xx/5xx statuses are forwarded with their body and Retry-After; 502 means the upstream could not be reached or answered unreadably. 429, 502 and 503 are retryable.",
+        responses: {
+            200: { description: "Search results", ...contentJson(searchResponseSchema) },
+            400: { description: "Bad request: `{ error: \"Bad request\" }` when the request body is not JSON the Worker can read, or Azure's error envelope (message names the bad field)", ...contentJson(searchForwardedErrorSchema) },
+            429: { description: "Upstream search throttled. Azure's error body and its Retry-After header are forwarded; retry after that many seconds", ...contentJson(searchForwardedErrorSchema) },
+            502: { description: "Upstream search unreachable, unexpected status or unreadable response. Retryable", ...contentJson(searchUpstreamErrorSchema) },
+            503: { description: "Upstream search unavailable. Azure's error body and any Retry-After header are forwarded; retryable", ...contentJson(searchForwardedErrorSchema) }
+        }
     }
 });
 

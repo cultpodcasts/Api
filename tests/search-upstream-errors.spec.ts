@@ -8,11 +8,20 @@ import type { ActionContext } from "../src/ActionContext";
 import {
 	parseUpstreamSearchErrorBody,
 	search,
+	UPSTREAM_ERROR_LOG_LIMIT,
 	upstreamSearchErrorStatus
 } from "../src/search";
 import { testEnv } from "./honoTestApp";
+import { AllowedOrigins } from "../src/AllowedOrigins";
 
 const searchHost = "https://search.example/indexes/test/docs/search";
+
+/** The website reads cross-origin: every error must carry CORS and JSON headers, and only a forwarded 429/503 may carry Retry-After. */
+function expectReadableErrorHeaders(resp: Response) {
+	expect(resp.headers.get("access-control-allow-origin")).toBe(AllowedOrigins[0]);
+	expect(resp.headers.get("content-type")).toMatch(/^application\/json/);
+	expect(resp.headers.get("retry-after")).toBeNull();
+}
 
 function app() {
 	const hono = new Hono<{ Bindings: Env }>();
@@ -67,9 +76,28 @@ describe("parseUpstreamSearchErrorBody", () => {
 		expect(body).toEqual(azure);
 	});
 
-	it("wraps non-JSON upstream text", async () => {
-		const body = await parseUpstreamSearchErrorBody(new Response("throttle", { status: 429 }));
-		expect(body).toEqual({ error: "throttle" });
+	it("replaces non-JSON upstream text with a generic body and hands the raw text to the log", async () => {
+		const unparsed: string[] = [];
+		const body = await parseUpstreamSearchErrorBody(
+			new Response("<html>gateway secret detail</html>", { status: 502 }),
+			(raw) => unparsed.push(raw)
+		);
+		expect(body).toEqual({ error: "Upstream search error" });
+		expect(unparsed).toEqual(["<html>gateway secret detail</html>"]);
+	});
+
+	it("cuts the logged raw text to the limit", async () => {
+		const unparsed: string[] = [];
+		await parseUpstreamSearchErrorBody(
+			new Response("x".repeat(UPSTREAM_ERROR_LOG_LIMIT + 50), { status: 503 }),
+			(raw) => unparsed.push(raw)
+		);
+		expect(unparsed[0]).toHaveLength(UPSTREAM_ERROR_LOG_LIMIT);
+	});
+
+	it("treats a JSON primitive error body as not an envelope", async () => {
+		const body = await parseUpstreamSearchErrorBody(new Response("42", { status: 500 }));
+		expect(body).toEqual({ error: "Upstream search error" });
 	});
 
 	it("falls back when upstream body is empty", async () => {
@@ -206,6 +234,7 @@ describe("POST /search upstream errors", () => {
 			error: { code: "UpstreamSearchError", message: "Upstream search unavailable" }
 		});
 		expect(errorLog).toHaveBeenCalledTimes(1);
+		expectReadableErrorHeaders(resp);
 	});
 
 	it("returns 502, not 400, when upstream 200 has an unreadable body", async () => {
@@ -214,6 +243,40 @@ describe("POST /search upstream errors", () => {
 		const resp = await post({ search: "*" });
 		expect(resp.status).toBe(502);
 		expect(await resp.json()).toMatchObject({ error: { code: "UpstreamSearchError" } });
+		expectReadableErrorHeaders(resp);
+	});
+
+	it.each([
+		["null", "null"],
+		["an array", "[1,2]"],
+		["a number", "7"]
+	])("returns 502, not a bare 500, when upstream 200 body is %s", async (_label, raw) => {
+		stubUpstream(200, raw);
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await post({ search: "*" });
+		expect(resp.status).toBe(502);
+		expect(await resp.json()).toMatchObject({ error: { code: "UpstreamSearchError" } });
+		expectReadableErrorHeaders(resp);
+	});
+
+	it("never forwards a non-JSON upstream error page to the browser, but logs it", async () => {
+		stubUpstream(503, "<html>internal gateway detail</html>", "text/html");
+		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await post({ search: "*" });
+		expect(resp.status).toBe(503);
+		expect(await resp.json()).toEqual({ error: "Upstream search error" });
+		expect(JSON.stringify(errorLog.mock.calls)).toContain("internal gateway detail");
+	});
+
+	it("sends CORS headers on the legacy 400", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await app().request(
+			"/search",
+			{ method: "POST", headers: { "content-type": "application/json" }, body: "{not json" },
+			env()
+		);
+		expect(resp.status).toBe(400);
+		expectReadableErrorHeaders(resp);
 	});
 
 	it("still returns 400 for an invalid JSON request body without calling upstream", async () => {

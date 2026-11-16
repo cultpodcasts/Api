@@ -15,21 +15,40 @@ export function upstreamSearchErrorStatus(status: number): ContentfulStatusCode 
 	return 502;
 }
 
-export async function parseUpstreamSearchErrorBody(response: Response): Promise<object> {
+/** Most of a non-JSON upstream error body kept in the search log (never sent to the client). */
+export const UPSTREAM_ERROR_LOG_LIMIT = 500;
+
+const GENERIC_UPSTREAM_ERROR = { error: "Upstream search error" } as const;
+
+/**
+ * Body to forward for an upstream (Azure AI Search) error. A JSON envelope is forwarded
+ * unchanged, because the website reads field names from Azure's messages. Anything else (an
+ * HTML gateway page, plaintext) is replaced by a generic body so it never reaches the browser;
+ * `onUnparsed` receives the raw text, cut to {@link UPSTREAM_ERROR_LOG_LIMIT}, for the log.
+ */
+export async function parseUpstreamSearchErrorBody(
+	response: Response,
+	onUnparsed?: (raw: string) => void
+): Promise<object> {
 	let raw: string;
 	try {
 		raw = await response.text();
 	} catch {
-		return { error: "Upstream search error" };
+		return GENERIC_UPSTREAM_ERROR;
 	}
 	if (!raw) {
-		return { error: "Upstream search error" };
+		return GENERIC_UPSTREAM_ERROR;
 	}
 	try {
-		return JSON.parse(raw) as object;
+		const parsed: unknown = JSON.parse(raw);
+		if (parsed !== null && typeof parsed === "object") {
+			return parsed as object;
+		}
 	} catch {
-		return { error: raw };
+		// fall through: not JSON
 	}
+	onUnparsed?.(raw.slice(0, UPSTREAM_ERROR_LOG_LIMIT));
+	return GENERIC_UPSTREAM_ERROR;
 }
 
 /** Upstream headers worth forwarding on an error: how long a retryable 429/503 should wait. */
@@ -45,14 +64,29 @@ function forwardUpstreamErrorHeaders(c: ActionContext, response: Response): void
 }
 
 /**
+ * Every non-200 `POST /search` response goes through here, so each one carries the CORS headers
+ * the cross-origin website needs to read it. The envelopes (also in the OpenAPI spec,
+ * `SearchRoute` in openapiRoutes.ts):
+ *
+ * | Status | Body | When |
+ * | --- | --- | --- |
+ * | 400 | `{ error: "Bad request" }` | Request body is not JSON the Worker can rewrite. Legacy shape kept for the website. |
+ * | 4xx/5xx (incl. 429, 503) | Azure's JSON envelope, else `{ error: "Upstream search error" }` | Upstream error, status forwarded with `Retry-After`. |
+ * | 502 | `{ error: { code: "UpstreamSearchError", message } }` | Upstream unreachable, unexpected status or unreadable 200 body. |
+ */
+function searchError(c: ActionContext, status: ContentfulStatusCode, body: object): Response {
+	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+	return c.json(body, status);
+}
+
+/**
  * Upstream unreachable (fetch threw) or returned an unreadable success body. Bad gateway, not
  * the client's fault: never a 400, which the website treats as a request/field error.
  */
 function badGateway(c: ActionContext, searchLog: searchLogCollector, message: string): Response {
 	searchLog.addMessage("upstream_error");
 	searchLog.emitError({ message: `search upstream error: ${message}` });
-	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-	return c.json({ error: { code: "UpstreamSearchError", message: "Upstream search unavailable" } }, 502);
+	return searchError(c, 502, { error: { code: "UpstreamSearchError", message: "Upstream search unavailable" } });
 }
 
 export async function search(c: ActionContext): Promise<Response> {
@@ -79,7 +113,7 @@ export async function search(c: ActionContext): Promise<Response> {
 	} catch {
 		searchLog.addMessage("bad_json");
 		searchLog.emitError({ message: "search bad_json error" });
-		return c.json({ error: "Bad request" }, 400);
+		return searchError(c, 400, { error: "Bad request" });
 	}
 
 	let response: Response;
@@ -105,12 +139,14 @@ export async function search(c: ActionContext): Promise<Response> {
 	}
 
 	searchLog.add({ searchStatus: response.status });
-	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	if (response.status != 200) {
-		searchLog.emitError();
-		const errorBody = await parseUpstreamSearchErrorBody(response);
+		let unparsed: string | undefined;
+		const errorBody = await parseUpstreamSearchErrorBody(response, (raw) => { unparsed = raw; });
+		searchLog.emitError(
+			unparsed === undefined ? undefined : { message: `search upstream non-JSON error body: ${unparsed}` }
+		);
 		forwardUpstreamErrorHeaders(c, response);
-		return c.json(errorBody, upstreamSearchErrorStatus(response.status));
+		return searchError(c, upstreamSearchErrorStatus(response.status), errorBody);
 	}
 
 	let body: any;
@@ -119,6 +155,10 @@ export async function search(c: ActionContext): Promise<Response> {
 	} catch (e) {
 		return badGateway(c, searchLog, `unreadable 200 body: ${e instanceof Error ? e.message : String(e)}`);
 	}
+	if (body === null || typeof body !== "object" || Array.isArray(body)) {
+		return badGateway(c, searchLog, "non-object 200 body");
+	}
+	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	body["@odata.context"] = null;
 	if (searchLog.error) {
 		searchLog.emitError();
