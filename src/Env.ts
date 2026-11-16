@@ -13,7 +13,8 @@ export type Env = {
 	SCRAPE_US?: Fetcher;
 	/**
 	 * Search platform Worker (service binding, SP-1.3): `search` on api, `search-preview` on
-	 * api-preview. Serves `POST /indexes/{index}/docs/search` over D1. Not used for live search
+	 * api-preview, `search-local` locally (`npm run search:dev`; wrangler.search.jsonc env.local has
+	 * no name, so wrangler registers `search-local`). Serves `POST /indexes/{index}/docs/search` over D1. Not used for live search
 	 * yet: Azure AI Search stays the default until an opt-in soak flag or cutover (SP-4.x).
 	 */
 	SEARCH?: Fetcher;
