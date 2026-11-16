@@ -16,6 +16,7 @@
  */
 
 import { authorize, type AuthEnv } from "./auth";
+import { toAzureSearchDocument, toAzureSearchEnvelope, formatAzureRelease } from "./azure-response";
 import { renderPage } from "./page";
 import { toMatch, type SearchMode } from "./query";
 import { parseODataFilter, parseFacet } from "./odata";
@@ -216,7 +217,7 @@ export default {
         seriesName: d.series_name,
         snippet: d.snip,
         description: d.description,
-        release: new Date(d.release * 1000).toISOString(),
+        release: formatAzureRelease(d.release),
         duration: d.duration,
         lang: d.lang,
         spotifyId: d.spotify_id,
@@ -320,39 +321,22 @@ async function odataSearch(req: ODataSearchRequest, env: Env): Promise<Response>
     for (const k of want) if (k in full) out[k] = full[k];
     return out;
   };
-  const body: Record<string, unknown> = {
-    "@odata.context": null,
-    value: docs.map((d) => project({
-      "@search.score": d.score,
-      id: d.id,
-      contentKind: d.kind, // pragma: allowlist secret
-      title: d.title,
-      seriesName: d.series_name,
-      podcastName: d.series_name,
-      description: d.description,
-      release: new Date(d.release * 1000).toISOString(),
-      duration: d.duration,
-      lang: d.lang,
-      spotifyId: d.spotify_id,
-      appleId: d.apple_id,
-      podcastAppleId: d.podcast_apple_id,
-      youtubeId: d.youtube_id,
-      image: d.image,
-      svc: d.svc,
-      bbc: d.bbc,
-      // Not carried in the demo corpus; present for shape parity with the Azure index.
-      internetArchive: null,
-      trailers: null,
-      subjects: subjectsByDoc.get(d.rowid) ?? [], // pragma: allowlist secret
-    } as Record<string, unknown>)),
-  };
-  if (req.count) body["@odata.count"] = total;
+  const facets: Record<string, unknown> = {};
   if (facetSpecs.length) {
-    const facets: Record<string, unknown> = {};
     facetSpecs.forEach((f, idx) => {
       facets[f.field] = results[2 + idx].results;
     });
-    body["@search.facets"] = facets;
   }
+  const body = toAzureSearchEnvelope(
+    docs.map((d) => project(toAzureSearchDocument(
+      d,
+      d.score,
+      subjectsByDoc.get(d.rowid) ?? [] // pragma: allowlist secret
+    ))),
+    {
+      ...(req.count ? { count: total } : {}),
+      ...(facetSpecs.length ? { facets } : {})
+    }
+  );
   return Response.json(body, { headers: { "cache-control": "no-store" } });
 }

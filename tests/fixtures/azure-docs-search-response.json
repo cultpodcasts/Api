@@ -1,0 +1,27 @@
+{
+  "@odata.context": null,
+  "@odata.count": 1,
+  "value": [
+    {
+      "@search.score": 1.25,
+      "id": "bbbbbbbb-0000-4000-8000-000000000002",
+      "contentKind": "Episode",
+      "title": "A Synthetic Episode Title",
+      "seriesName": "Synthetic Series",
+      "description": "A short description used only as a shape fixture.",
+      "release": "2026-10-01T10:00:00Z",
+      "duration": "01:00:00",
+      "lang": null,
+      "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
+      "appleId": "1234567890",
+      "podcastAppleId": "123456789",
+      "youtubeId": "abcdefghijk",
+      "image": "https://example.invalid/cover.jpg",
+      "svc": "",
+      "bbc": "",
+      "internetArchive": null,
+      "trailers": null,
+      "subjects": ["Scientology"]
+    }
+  ]
+}
