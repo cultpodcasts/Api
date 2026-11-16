@@ -1,0 +1,76 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	// Search platform Worker (SP-1.1, cultpodcasts/Api#219; epic RedditPodcastPoster#1312).
+	// Owns the dedicated search D1 database. Service-binding only: the api Worker reaches it
+	// over a service binding (SP-1.3) because zone Bot Fight Mode challenges server POSTs to
+	// public hostnames. No workers.dev, no preview URLs, no routes.
+	// Not part of Api Workers Builds (one Builds project = one Worker name). Deploy is a
+	// local ops step, only when explicitly asked: see workers/search/README.md.
+	"name": "search",
+	"main": "workers/search/src/index.ts",
+	"compatibility_date": "2026-10-01",
+	"account_id": "bae3f835f19899c6eee1ec48f2d658cf",
+	"workers_dev": false,
+	"preview_urls": false,
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"invocation_logs": false
+		}
+	},
+	"vars": {
+		"searchEnvironment": "production"
+	},
+	"d1_databases": [
+		{
+			"binding": "SEARCH_DB",
+			"database_name": "cultpodcasts-search",
+			// PLACEHOLDER until Jon runs `npx wrangler d1 create cultpodcasts-search --location weur`
+			// and pastes the returned id here and in env.preview below.
+			"database_id": "PLACEHOLDER-cultpodcasts-search-database-id",
+			"migrations_dir": "workers/search/migrations"
+		}
+	],
+	"env": {
+		"preview": {
+			// Explicit so a future Builds name-check can target search-preview.
+			"name": "search-preview",
+			"workers_dev": false,
+			"preview_urls": false,
+			"observability": {
+				"enabled": true,
+				"logs": {
+					"invocation_logs": false
+				}
+			},
+			"vars": {
+				"searchEnvironment": "preview"
+			},
+			// Same database as production, matching the api Worker's apiDB convention: the
+			// preview soak and G4 preview flip must read the index the backend actually syncs.
+			"d1_databases": [
+				{
+					"binding": "SEARCH_DB",
+					"database_name": "cultpodcasts-search",
+					// PLACEHOLDER: same id as the top-level binding.
+					"database_id": "PLACEHOLDER-cultpodcasts-search-database-id",
+					"migrations_dir": "workers/search/migrations"
+				}
+			]
+		},
+		"local": {
+			"vars": {
+				"searchEnvironment": "local"
+			},
+			"d1_databases": [
+				{
+					"binding": "SEARCH_DB",
+					"database_name": "cultpodcasts-search",
+					// Local Miniflare only; any stable id works.
+					"database_id": "local-cultpodcasts-search",
+					"migrations_dir": "workers/search/migrations"
+				}
+			]
+		}
+	}
+}

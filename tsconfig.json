@@ -21,7 +21,8 @@
 		"skipLibCheck": true
 	},
 	"include": [
-		"src/**/*.ts"
+		"src/**/*.ts",
+		"workers/search/src/**/*.ts"
 	],
 	"exclude": [
 		"tests",
