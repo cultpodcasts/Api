@@ -7,13 +7,16 @@
  * exists. Unlike `gh pr comment --edit-last`, it never touches another bot comment, and a
  * human quoting the marker is ignored.
  *
- * Usage (in Actions): GH_TOKEN=… GITHUB_REPOSITORY=owner/repo node sticky-plan-comment.mjs <pr> <body.md>
+ * Usage (in Actions): GH_TOKEN=… GITHUB_REPOSITORY=owner/repo node sticky-plan-comment.mjs <pr> <body.md> [marker]
+ * One comment per marker: the production plan uses {@link PLAN_MARKER} (default), the preview
+ * stack (SP-1.11, #273) passes {@link PREVIEW_PLAN_MARKER}, so the two plans never overwrite each other.
  * Exit 0 = edited or created, 1 = error.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const PLAN_MARKER = "<!-- terraform-search-d1-plan -->";
+export const PREVIEW_PLAN_MARKER = "<!-- terraform-search-preview-plan -->";
 export const WORKFLOW_AUTHOR = "github-actions[bot]";
 
 /**
@@ -47,16 +50,16 @@ async function api(token, method, path, body) {
 }
 
 async function main(argv) {
-	const [pr, bodyFile] = argv.slice(2);
+	const [pr, bodyFile, marker = PLAN_MARKER] = argv.slice(2);
 	const token = process.env.GH_TOKEN;
 	const repo = process.env.GITHUB_REPOSITORY;
 	if (!pr || !bodyFile || !token || !repo) {
-		console.error("usage: GH_TOKEN=… GITHUB_REPOSITORY=owner/repo sticky-plan-comment.mjs <pr> <body.md>");
+		console.error("usage: GH_TOKEN=… GITHUB_REPOSITORY=owner/repo sticky-plan-comment.mjs <pr> <body.md> [marker]");
 		return 1;
 	}
 	const body = readFileSync(bodyFile, "utf8");
-	if (!body.includes(PLAN_MARKER)) {
-		console.error(`::error::plan comment body must contain ${PLAN_MARKER}`);
+	if (!body.includes(marker)) {
+		console.error(`::error::plan comment body must contain ${marker}`);
 		return 1;
 	}
 	try {
@@ -66,7 +69,7 @@ async function main(argv) {
 			comments.push(...batch);
 			if (batch.length < 100) break;
 		}
-		const id = findPlanCommentId(comments);
+		const id = findPlanCommentId(comments, marker);
 		if (id === undefined) {
 			const created = await api(token, "POST", `/repos/${repo}/issues/${pr}/comments`, { body });
 			console.log(`Created plan comment ${created.id}.`);

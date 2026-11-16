@@ -17,7 +17,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-export const DEFAULT_VERSIONS_TF = "infra/terraform/search-d1/versions.tf";
+export const DEFAULT_VERSIONS_TF = "infra/terraform/search/production/versions.tf";
 export const HCP_API = "https://app.terraform.io/api/v2";
 
 /** `{ organization, workspace }` from the `cloud {}` block of a Terraform file. */
