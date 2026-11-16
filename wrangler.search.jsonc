@@ -25,8 +25,8 @@
 		{
 			"binding": "SEARCH_DB",
 			"database_name": "cultpodcasts-search",
-			// PLACEHOLDER until Jon runs `npx wrangler d1 create cultpodcasts-search --location weur`
-			// and pastes the returned id here and in env.preview below.
+			// PLACEHOLDER until Terraform provisions the database (SP-1.10, cultpodcasts/Api#270)
+			// and its output replaces this id. Do not create it by hand.
 			"database_id": "PLACEHOLDER-cultpodcasts-search-database-id",
 			"migrations_dir": "workers/search/migrations"
 		}
@@ -46,14 +46,14 @@
 			"vars": {
 				"searchEnvironment": "preview"
 			},
-			// Same database as production, matching the api Worker's apiDB convention: the
-			// preview soak and G4 preview flip must read the index the backend actually syncs.
+			// Separate preview database (Jon, 16 Nov 2026): preview code and preview sync never
+			// touch the production search index.
 			"d1_databases": [
 				{
 					"binding": "SEARCH_DB",
-					"database_name": "cultpodcasts-search",
-					// PLACEHOLDER: same id as the top-level binding.
-					"database_id": "PLACEHOLDER-cultpodcasts-search-database-id",
+					"database_name": "cultpodcasts-search-preview",
+					// PLACEHOLDER until Terraform provisions it (SP-1.10, cultpodcasts/Api#270).
+					"database_id": "PLACEHOLDER-cultpodcasts-search-preview-database-id",
 					"migrations_dir": "workers/search/migrations"
 				}
 			]

@@ -112,22 +112,32 @@ describe("wrangler.search.jsonc", () => {
 	);
 
 	it.each([
-		["production", config, "search"],
-		["preview", config.env.preview, "search-preview"]
-	])("%s Worker binds SEARCH_DB to the dedicated cultpodcasts-search database", (_label, env, name) => {
+		["production", config, "search", "cultpodcasts-search"],
+		["preview", config.env.preview, "search-preview", "cultpodcasts-search-preview"]
+	])("%s Worker binds SEARCH_DB to its dedicated search database", (_label, env, name, databaseName) => {
 		expect(env.name ?? config.name).toBe(name);
 		expect(env.d1_databases).toHaveLength(1);
 		const [binding] = env.d1_databases;
 		expect(binding.binding).toBe("SEARCH_DB");
-		expect(binding.database_name).toBe("cultpodcasts-search");
+		expect(binding.database_name).toBe(databaseName);
 		expect(binding.migrations_dir).toBe("workers/search/migrations");
 		// Dedicated: never the api Worker's apiDB.
 		expect(binding.database_name).not.toBe("cultpodcasts-api");
 		expect(apiDbIds.has(binding.database_id)).toBe(false);
 	});
 
-	it("preview and production bind the same database id", () => {
-		expect(config.env.preview.d1_databases[0].database_id).toBe(config.d1_databases[0].database_id);
+	it("preview and production bind separate databases", () => {
+		const production = config.d1_databases[0];
+		const preview = config.env.preview.d1_databases[0];
+		expect(preview.database_name).not.toBe(production.database_name);
+		expect(preview.database_id).not.toBe(production.database_id);
+	});
+
+	it("keeps clearly marked placeholder ids until Terraform provisions the databases (SP-1.10)", () => {
+		expect(config.d1_databases[0].database_id).toBe("PLACEHOLDER-cultpodcasts-search-database-id");
+		expect(config.env.preview.d1_databases[0].database_id).toBe(
+			"PLACEHOLDER-cultpodcasts-search-preview-database-id"
+		);
 	});
 
 	it.each([

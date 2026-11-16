@@ -1,7 +1,7 @@
 # search
 
 Search platform Worker (epic [RedditPodcastPoster#1312](https://github.com/cultpodcasts/RedditPodcastPoster/issues/1312),
-Gate G1). It owns the **dedicated search D1 database** `cultpodcasts-search` (SP-1.1,
+Gate G1). It owns the **dedicated search D1 databases** `cultpodcasts-search` and `cultpodcasts-search-preview` (SP-1.1,
 [Api#219](https://github.com/cultpodcasts/Api/issues/219)) and will serve the D1 FTS5 engine
 that replaces Azure AI Search, running side by side with Azure until cutover (G4).
 
@@ -12,16 +12,15 @@ Design docs: RedditPodcastPoster `docs/search-platform/` (start at `README.md`).
 | Worker | Config | D1 binding | Database |
 |--------|--------|-----------|----------|
 | `search` (production) | `wrangler.search.jsonc` top level | `SEARCH_DB` | `cultpodcasts-search` |
-| `search-preview` | `wrangler.search.jsonc` `--env preview` | `SEARCH_DB` | `cultpodcasts-search` (same id) |
+| `search-preview` | `wrangler.search.jsonc` `--env preview` | `SEARCH_DB` | `cultpodcasts-search-preview` |
 | local | `--env local` | `SEARCH_DB` | Miniflare only |
 
 - **Dedicated:** never the api Worker's `apiDB` (`cultpodcasts-api`), and the api Worker does
   not bind this database. It reaches this Worker over a **service binding** (SP-1.3), because
   zone Bot Fight Mode challenges server POSTs to public hostnames.
 - **Service-binding only:** `workers_dev: false`, `preview_urls: false`, no routes.
-- **Preview and production share one database**, like `apiDB`: the preview soak and the G4
-  preview `apihost` flip must read the index the backend actually syncs. Writes come only from
-  the backend sync path (G2), never from preview code paths.
+- **Preview and production have separate databases** (Jon, 16 Nov 2026), so preview code and
+  preview sync never touch the production index. The G2 sync path must therefore feed both.
 - Region: primary in **WEUR** (near Azure Functions / Cosmos). Read replication
   (`mode: auto`) and Sessions API reads are SP-1.2.
 - Not part of Api Workers Builds (one Builds project = one Worker name).
@@ -42,22 +41,21 @@ Design docs: RedditPodcastPoster `docs/search-platform/` (start at `README.md`).
 - `search_meta`: `schema_version`. `GET /health` returns 503 until it matches
   `SEARCH_SCHEMA_VERSION` in `src/health.ts`.
 
-## Provision (Jon, once; not done by agents)
+## Provisioning (Terraform, SP-1.10)
 
-```powershell
-# 1. Create the database in WEUR. Copy the printed database_id.
-npx wrangler d1 create cultpodcasts-search --location weur
+Both databases are provisioned by **Terraform**, not by hand: SP-1.10
+([Api#270](https://github.com/cultpodcasts/Api/issues/270)) adds the `cloudflare` provider
+with a `cloudflare_d1_database` for `cultpodcasts-search` and `cultpodcasts-search-preview`
+(both primary in `weur`), and a CI workflow that runs `wrangler d1 migrations apply --remote`
+for each database after `terraform apply`. Terraform outputs replace the
+`PLACEHOLDER-…-database-id` values in `wrangler.search.jsonc`.
 
-# 2. Replace both PLACEHOLDER-cultpodcasts-search-database-id values in
-#    wrangler.search.jsonc (top level + env.preview) with that id, in a PR.
+Deletion protection is part of SP-1.10: `prevent_destroy` on both databases, a CI plan guard
+that fails on any destroy or replace, apply behind a GitHub environment approval, and D1 Time
+Travel documented for point-in-time restore. Azure stays on bicep.
 
-# 3. Apply the schema to the remote database.
-npx wrangler d1 migrations apply cultpodcasts-search --remote -c ./wrangler.search.jsonc --env=""
-
-# 4. Deploy only when explicitly decided (preview first).
-npm run deploy:search:preview
-npm run deploy:search
-```
+Until then the ids stay placeholders. Do not run `wrangler d1 create` by hand, and do not deploy
+`search` / `search-preview` (deploy is blocked on SP-1.10).
 
 ## Local
 

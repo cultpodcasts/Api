@@ -1,6 +1,7 @@
 -- Migration number: 0001 	 2026-11-16
 -- Search platform (SP-1.1, cultpodcasts/Api#219): schema for the dedicated search D1
--- database (`cultpodcasts-search`, binding SEARCH_DB on Worker `search` / `search-preview`).
+-- databases (binding SEARCH_DB): `cultpodcasts-search` on Worker `search` and
+-- `cultpodcasts-search-preview` on Worker `search-preview`. Applied to both by CI (SP-1.10).
 --
 -- One row per playable document in the unified search index: Episode, TvShowEpisode,
 -- Film, NewsReport. Columns mirror RPP `EpisodeSearchRecord` (the Azure AI Search
