@@ -114,8 +114,9 @@ describe("Terraform config", () => {
 		expect(protectedCount.length).toBe(resources.length);
 	});
 
-	it("keeps state in HCP Terraform like cultpodcasts/freedomtimes (no S3/R2 backend)", () => {
-		expect(tf).toMatch(/cloud\s*\{\s*organization\s*=\s*"freedomtimes"/);
+	it("keeps state in HCP Terraform in the cultpodcasts organisation (no S3/R2 backend)", () => {
+		expect(tf).toMatch(/cloud\s*\{\s*organization\s*=\s*"cultpodcasts"/);
+		expect(tf).not.toMatch(/organization\s*=\s*"freedomtimes"/);
 		expect(tf).toMatch(/name\s*=\s*"cultpodcasts-api-search-d1"/);
 		expect(tf).not.toMatch(/backend "s3"/);
 		expect(tf).not.toContain("r2.cloudflarestorage.com");
@@ -340,20 +341,20 @@ describe("sticky plan comment", () => {
 describe("HCP workspace check", () => {
 	it("reads the organisation and workspace from the single cloud block", () => {
 		const versions = readFileSync(resolve(tfDir, "versions.tf"), "utf8");
-		expect(readCloudBlock(versions)).toEqual({ organization: "freedomtimes", workspace: "cultpodcasts-api-search-d1" });
+		expect(readCloudBlock(versions)).toEqual({ organization: "cultpodcasts", workspace: "cultpodcasts-api-search-d1" });
 		expect(versions.match(/organization\s*=/g)).toHaveLength(1);
 	});
 
 	it("follows a changed organisation without other edits", () => {
-		const text = `terraform {\n  cloud {\n    organization = "cultpodcasts"\n\n    workspaces {\n      name = "cultpodcasts-api-search-d1"\n    }\n  }\n}\n`;
-		expect(readCloudBlock(text).organization).toBe("cultpodcasts");
+		const text = `terraform {\n  cloud {\n    organization = "some-other-org"\n\n    workspaces {\n      name = "cultpodcasts-api-search-d1"\n    }\n  }\n}\n`;
+		expect(readCloudBlock(text).organization).toBe("some-other-org");
 	});
 
 	it("rejects a file without a cloud block", () => {
 		expect(() => readCloudBlock("terraform {}\n")).toThrow(/cloud/);
 	});
 
-	const target = { organization: "freedomtimes", workspace: "cultpodcasts-api-search-d1" };
+	const target = { organization: "cultpodcasts", workspace: "cultpodcasts-api-search-d1" };
 	const ws = (mode: string) => ({ data: { attributes: { "execution-mode": mode } } });
 
 	it("passes only for an existing Local workspace", () => {

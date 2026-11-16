@@ -8,8 +8,8 @@
 # run stays green. Apply also stays skipped until the environment has required reviewers.
 # There is deliberately no destroy path anywhere in this workflow.
 #
-# Conventions follow cultpodcasts/freedomtimes: state in HCP Terraform (organisation and
-# workspace set once, in the cloud {} block of infra/terraform/search-d1/versions.tf;
+# Conventions follow cultpodcasts/freedomtimes: state in HCP Terraform (organisation
+# `cultpodcasts` and workspace set once, in the cloud {} block of infra/terraform/search-d1/versions.tf;
 # Execution Mode: Local), HCP auth via TF_TOKEN_APP_TERRAFORM_IO, Cloudflare credentials as
 # TF_VAR_* from GitHub secrets. Local execution keeps a saved plan for the plan guard.
 #

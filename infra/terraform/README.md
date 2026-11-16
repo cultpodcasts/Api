@@ -61,14 +61,14 @@ and run it by hand. CI will keep refusing.
   for copies beyond the Time Travel window. Not built; Jon to decide. The search index can also
   be rebuilt from Cosmos (SP-2.3), so it is not the system of record.
 
-## State: HCP Terraform (same as cultpodcasts/freedomtimes)
+## State: HCP Terraform (own `cultpodcasts` organisation)
 
-State lives in **HCP Terraform**, following `cultpodcasts/freedomtimes`
-(`infra/terraform/environments/*/versions.tf`):
+State lives in **HCP Terraform**, in CultPodcasts' own organisation, following the conventions of
+`cultpodcasts/freedomtimes` (`infra/terraform/environments/*/versions.tf`):
 
 | Setting | Value |
 |---------|-------|
-| Organisation | `freedomtimes` (the same organisation freedomtimes uses), pending Jon's call on a separate `cultpodcasts` organisation |
+| Organisation | `cultpodcasts` (Jon, 16 Nov 2026: separate from the `freedomtimes` organisation, so its tokens, team access and billing are separate and a freedomtimes token cannot touch CultPodcasts state) |
 | Workspace | `cultpodcasts-api-search-d1` (`<repo>-<stack>`, like `freedomtimes-production`) |
 | Execution Mode | **Local** |
 | Auth | `TF_TOKEN_app_terraform_io` (GitHub secret `TF_TOKEN_APP_TERRAFORM_IO`) |
@@ -115,10 +115,10 @@ run stays green. Fork PRs never get secrets, so they only run fmt and validate.
 
 Agents create no Cloudflare or HCP resources and never see secret values.
 
-1. **HCP Terraform workspace** `cultpodcasts-api-search-d1` in organisation `freedomtimes`
-   (or the new organisation, if Jon moves it; see State above), CLI-driven workflow, with
-   **Execution Mode: Local**. No workspace variables are needed: credentials come from GitHub
-   secrets as `TF_VAR_*`, as in freedomtimes.
+1. **HCP Terraform organisation** `cultpodcasts` (app.terraform.io → Create organization), then
+   the **workspace** `cultpodcasts-api-search-d1` in it: CLI-driven workflow, with **Execution
+   Mode: Local**. No workspace variables are needed: credentials come from GitHub secrets as
+   `TF_VAR_*`, as in freedomtimes.
 2. **Two Cloudflare API tokens** (My Profile → API Tokens → Custom), each with account resources
    limited to account `bae3f835f19899c6eee1ec48f2d658cf` (optional: client IP filtering, expiry):
    - **Plan token:** Account → **D1 → Read**
@@ -128,9 +128,10 @@ Agents create no Cloudflare or HCP resources and never see secret values.
    - `TF_APPLY_CLOUDFLARE_API_TOKEN`: the D1 **Edit** token. Do **not** also create it as a repo
      secret; the workflow fails if it can see it outside the environment.
 4. **GitHub repo secrets** on cultpodcasts/Api (Settings → Secrets and variables → Actions):
-   - `TF_TOKEN_APP_TERRAFORM_IO`: an HCP Terraform **team token** for a team with access to
-     this workspace only (same secret name as freedomtimes). A token scoped to one workspace
-     limits what a PR plan could do with it.
+   - `TF_TOKEN_APP_TERRAFORM_IO`: an HCP Terraform token for the **`cultpodcasts`**
+     organisation (a team or user token there; the freedomtimes token will not work). Prefer a
+     **team token** for a team with access to this workspace only (same secret name as
+     freedomtimes): it limits what a PR plan could do with it.
    - `TF_PLAN_CLOUDFLARE_API_TOKEN`: the D1 **Read** token.
 
 The account id is not a secret; it defaults in `variables.tf` (override locally with
