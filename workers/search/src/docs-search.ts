@@ -1,4 +1,5 @@
 import { DOC_COLUMNS, toAzureSearchDocument, toAzureSearchEnvelope, type AzureSearchDocRow } from "./azure-response";
+import { logServedBy, readSession } from "./d1-session";
 import type { SearchEnv } from "./env";
 import { SearchRequestError } from "./errors";
 import { json } from "./health";
@@ -17,6 +18,9 @@ import { toMatch, type SearchMode } from "./query";
  *
  * Errors: a bad body, filter or facet is 400 `{ error: { code, message } }` like Azure; a D1
  * failure or overload is 503 (retryable).
+ *
+ * Reads go through one D1 session per request (SP-1.2, {@link readSession}), so they can be
+ * served by the nearest read replica, and each successful request logs where it was served.
  */
 export type ODataSearchRequest = {
 	search?: string;
@@ -55,7 +59,7 @@ export async function docsSearch(request: Request, env: SearchEnv): Promise<Resp
 		return badRequest(e);
 	}
 	try {
-		return await runSearch(req, env);
+		return await runSearch(req, env, readSession(env));
 	} catch (e) {
 		if (e instanceof SearchRequestError) return badRequest(e);
 		// D1 runtime failure (overload, timeout, reset, missing schema): retryable, never a 4xx.
@@ -123,7 +127,8 @@ export function parseRequest(raw: string): ODataSearchRequest {
 	return req;
 }
 
-async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Response> {
+/** `db` is the request's read session: every statement below must use it, never `env.SEARCH_DB`. */
+async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1DatabaseSession): Promise<Response> {
 	const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
 	const matched = toMatch(req.search ?? "", mode);
 	const match = matched.kind === "match" ? matched.expr : null;
@@ -171,14 +176,14 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Respo
 
 	const select = `${scoreSql} AS score, ${DOC_COLUMNS.map((c) => `d.${c}`).join(", ")}`;
 	const statements = [
-		env.SEARCH_DB.prepare(`SELECT ${select} FROM ${from} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`).bind(
+		db.prepare(`SELECT ${select} FROM ${from} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`).bind(
 			...binds,
 			top,
 			skip
 		)
 	];
 	if (req.count) {
-		statements.push(env.SEARCH_DB.prepare(`SELECT COUNT(*) AS n FROM ${from} ${whereSql}`).bind(...binds));
+		statements.push(db.prepare(`SELECT COUNT(*) AS n FROM ${from} ${whereSql}`).bind(...binds));
 	}
 	for (const f of facetSpecs) {
 		// f.count is a parsed integer (parseFacet), safe to inline.
@@ -188,10 +193,11 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Respo
 				: f.field === "lang"
 					? `SELECT COALESCE(d.lang, 'en') AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY COALESCE(d.lang, 'en') ORDER BY count DESC LIMIT ${f.count}`
 					: `SELECT ${f.field === "contentKind" ? "d.kind" : "d.series_name"} AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY 1 ORDER BY count DESC LIMIT ${f.count}`;
-		statements.push(env.SEARCH_DB.prepare(facetSql).bind(...binds));
+		statements.push(db.prepare(facetSql).bind(...binds));
 	}
 
-	const results = await env.SEARCH_DB.batch(statements);
+	const results = await db.batch(statements);
+	const reads: { meta?: D1Meta }[] = [...results];
 	const docs = results[0].results as unknown as (AzureSearchDocRow & { score: number })[];
 	const total = req.count ? (results[1].results[0] as { n: number }).n : undefined;
 	const facetOffset = req.count ? 2 : 1;
@@ -206,12 +212,13 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Respo
 		: null;
 	const subjectsByDoc = new Map<number, string[]>(); // pragma: allowlist secret
 	if (docs.length && (!want || want.has("subjects"))) { // pragma: allowlist secret
-		const subjectRows = await env.SEARCH_DB.prepare(
+		const subjectRows = await db.prepare(
 			// One JSON bind: a page can hold up to MAX_TOP hits, far past D1's 100-parameter limit.
 			"SELECT rowid_ref, subject FROM doc_subjects WHERE rowid_ref IN (SELECT value FROM json_each(?))" // pragma: allowlist secret
 		)
 			.bind(JSON.stringify(docs.map((d) => d.rowid)))
 			.all<{ rowid_ref: number; subject: string }>();
+		reads.push(subjectRows);
 		for (const row of subjectRows.results) {
 			const list = subjectsByDoc.get(row.rowid_ref) ?? []; // pragma: allowlist secret
 			list.push(row.subject);
@@ -236,5 +243,6 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Respo
 			...(facetSpecs.length ? { facets } : {})
 		}
 	);
+	logServedBy("docs/search", env, reads);
 	return json(body, 200);
 }

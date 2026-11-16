@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import searchWorker from "../workers/search/src/index";
 import {
 	LIVE_AZURE_RETRIEVABLE_KEYS,
@@ -358,6 +358,13 @@ function seeded(): D1Database {
 const ids = (body: any) => (body.value as { id: string }[]).map((d) => d.id);
 
 describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
+	// Silence the per-request "search: d1 read" line (SP-1.2); search-d1-session.spec.ts asserts it.
+	let quiet: MockInstance;
+	beforeEach(() => {
+		quiet = vi.spyOn(console, "log").mockImplementation(() => {});
+	});
+	afterEach(() => quiet.mockRestore());
+
 	it("searches full descriptions beyond Azure's index cap (SP-0.3 option A)", async () => {
 		const { status, body } = await post({ search: "xenu", count: true });
 		expect(status).toBe(200);
@@ -588,6 +595,9 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 			},
 			async batch() {
 				throw new Error("D1_ERROR: D1 DB is overloaded. Too many requests queued. " + "x".repeat(1000));
+			},
+			withSession() {
+				return this;
 			}
 		} as unknown as D1Database;
 		const logged = vi.spyOn(console, "error").mockImplementation(() => {});

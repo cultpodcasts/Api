@@ -26,11 +26,31 @@ export function migratedSearchDb(): DatabaseSync {
 /** D1 rejects a statement with more than 100 bound parameters; the adapter does too. */
 export const D1_MAX_BOUND_PARAMETERS = 100;
 
+/** What the adapter saw: the session constraints opened and any reads that bypassed a session. */
+export type D1Spy = {
+	/** `withSession` arguments, in call order (SP-1.2: one `first-unconstrained` per request). */
+	sessions: (string | undefined)[];
+	/** Statements prepared on the database itself instead of a session (always on the primary in D1). */
+	directPrepares: string[];
+};
+
+export type D1AdapterOptions = {
+	/** `meta` every result carries, e.g. `{ served_by_region: "ENAM", served_by_primary: false }`. */
+	meta?: Partial<D1Meta>;
+	spy?: D1Spy;
+};
+
+export function d1Spy(): D1Spy {
+	return { sessions: [], directPrepares: [] };
+}
+
 /**
- * Minimal D1Database over node:sqlite: prepare().bind() with first(), all(), and batch().
+ * Minimal D1Database over node:sqlite: prepare().bind() with first(), all(), batch() and
+ * withSession() (a session runs on the same database; `getBookmark` returns a fixed token).
  * Enforces D1's 100-bound-parameter limit, which node:sqlite would otherwise allow.
  */
-export function d1(db: DatabaseSync): D1Database {
+export function d1(db: DatabaseSync, options: D1AdapterOptions = {}): D1Database {
+	const meta = { ...(options.meta ?? {}) };
 	const statement = (sql: string) => {
 		let params: unknown[] = [];
 		const stmt = {
@@ -45,15 +65,21 @@ export function d1(db: DatabaseSync): D1Database {
 				return (db.prepare(sql).get(...(params as never[])) ?? null) as T | null;
 			},
 			async all<T>() {
-				return { results: db.prepare(sql).all(...(params as never[])) as T[], success: true, meta: {} };
+				return { results: db.prepare(sql).all(...(params as never[])) as T[], success: true, meta: { ...meta } };
 			}
 		};
 		return stmt;
 	};
+	const batch = async (statements: { all(): Promise<unknown> }[]) => Promise.all(statements.map((s) => s.all()));
 	return {
-		prepare: statement,
-		async batch(statements: { all(): Promise<unknown> }[]) {
-			return Promise.all(statements.map((s) => s.all()));
+		prepare(sql: string) {
+			options.spy?.directPrepares.push(sql);
+			return statement(sql);
+		},
+		batch,
+		withSession(constraintOrBookmark?: string) {
+			options.spy?.sessions.push(constraintOrBookmark);
+			return { prepare: statement, batch, getBookmark: () => "test-bookmark" };
 		}
 	} as unknown as D1Database;
 }
