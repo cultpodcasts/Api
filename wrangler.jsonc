@@ -432,9 +432,10 @@
           "service": "streaming-scrape-us-preview"
         },
         {
-          // `npm run search:dev` (wrangler.search.jsonc --env local) registers as `search` locally.
+          // `npm run search:dev` (wrangler.search.jsonc --env local) registers as `search-local`:
+          // env.local sets no name, so wrangler derives `<name>-<env>`.
           "binding": "SEARCH",
-          "service": "search"
+          "service": "search-local"
         }
       ],
       "analytics_engine_datasets": [

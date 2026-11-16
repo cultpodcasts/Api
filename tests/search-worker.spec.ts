@@ -167,7 +167,7 @@ describe("wrangler.search.jsonc", () => {
 		["production (top level)", apiConfig, "search"],
 		["production env", apiConfig.env.production, "search"],
 		["preview", apiConfig.env.preview, "search-preview"],
-		["local", apiConfig.env.local, "search"]
+		["local", apiConfig.env.local, "search-local"]
 	])("api %s binds SEARCH to the %s Worker over a service binding (SP-1.3)", (_label, env, service) => {
 		const bindings = (env.services ?? []).filter((s: any) => s.binding === "SEARCH");
 		expect(bindings).toEqual([{ binding: "SEARCH", service }]);
@@ -180,6 +180,8 @@ describe("wrangler.search.jsonc", () => {
 	it("api SEARCH targets are the search Worker names in wrangler.search.jsonc", () => {
 		expect(config.name).toBe("search");
 		expect(config.env.preview.name).toBe("search-preview");
+		// env.local has no explicit name, so `wrangler dev --env local` registers `search-local`.
+		expect(config.env.local.name).toBeUndefined();
 	});
 
 	it("does not bind the search database on the api Worker (reached via service binding, SP-1.3)", () => {
