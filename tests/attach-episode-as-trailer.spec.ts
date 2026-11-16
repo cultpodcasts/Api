@@ -41,6 +41,51 @@ describe("attach episode as trailer", () => {
 		expect(JSON.parse(String(init.body))).toEqual(body);
 	});
 
+	it("forwards createFilm, filmName and the identity answer to Azure and returns 202 with filmCreated", async () => {
+		const outcome = { filmId, name: "Synthetic Unreleased Film", failureIndexing: false, filmCreated: true };
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(outcome), { status: 202 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const body = {
+			createFilm: true,
+			filmName: "Synthetic Unreleased Film",
+			identityDecision: "select",
+			selectedIdentityKey: "tmdb:123"
+		};
+
+		const resp = await appWithCurate().request(
+			trailerPath,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify(body) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(202);
+		expect(await resp.json()).toEqual(outcome);
+		const [, init] = fetchMock.mock.calls[0] as [URL | string, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual(body);
+	});
+
+	it("returns Azure's 200 identity prompt for createFilm, so the client can show the candidates", async () => {
+		const prompt = {
+			filmId: null,
+			failureIndexing: false,
+			identityDecision: {
+				target: "Film",
+				query: "Synthetic Unreleased Film",
+				candidates: [{ key: "tmdb:123", title: "Synthetic Unreleased Film", year: 2026, kind: "Film", source: "tmdb", tmdbId: 123 }]
+			}
+		};
+		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(prompt), { status: 200 })));
+
+		const resp = await appWithCurate().request(
+			trailerPath,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ createFilm: true, filmName: "Synthetic Unreleased Film" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(prompt);
+	});
+
 	it("sends {} to Azure when the request has no body, so Azure reports the missing filmId", async () => {
 		const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: "filmId is required" }), { status: 400 }));
 		vi.stubGlobal("fetch", fetchMock);
@@ -94,6 +139,7 @@ describe("attach episode as trailer", () => {
 	it.each([
 		[400, { error: "A removed film cannot take trailers" }],
 		[404, { podcastId, episodeId, filmId, error: "Film not found" }],
+		[409, { filmId, error: "This episode is already a trailer of another film", failureIndexing: false }],
 		[500, { error: "Unable to attach episode as a trailer" }]
 	] as const)("passes Azure %s through", async (status, body) => {
 		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));

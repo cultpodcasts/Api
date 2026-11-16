@@ -110,6 +110,23 @@ export const submitUrlPrepareResponseSchema = z.object({
 });
 
 /**
+ * Content-type fields Azure adds to any GET /submit/lookup arm (RPP SubmitUrlLookupResponse, epic RPP #1211 / G5-reject
+ * RPP #1357). Each is omitted when null / false.
+ */
+const submitUrlLookupContentFields = {
+	contentKind: z
+		.string()
+		.optional()
+		.describe("Catalogue content kind the URL resolves to (e.g. `Episode`, `NewsReport`, `TvShowEpisode`, `Film`)."),
+	parentName: z.string().optional().describe("Name of the matched news organisation / TV show, when the kind has a parent."),
+	rejected: z
+		.boolean()
+		.optional()
+		.describe("True when Azure would reject this URL on submit (e.g. a BBC News page with `submitContentTypes` on); a POST /submit returns 400."),
+	message: z.string().optional().describe("Why the URL is rejected, for the submitter (with `rejected: true`).")
+};
+
+/**
  * GET /submit/lookup 200 — Cosmos URL membership (passthrough of Azure SubmitUrlLookupResponse).
  * Three arms match website SubmitUrlLookupResponse:
  * unique known / unknown (kind required) / ambiguous (not 409).
@@ -121,7 +138,8 @@ export const submitUrlLookupKnownSchema = z
 		podcastId: z.string().uuid(),
 		podcastName: z.string(),
 		kind: submitUrlLookupKindSchema.optional(),
-		service: streamingServiceKeySchema.optional().nullable()
+		service: streamingServiceKeySchema.optional().nullable(),
+		...submitUrlLookupContentFields
 	})
 	.strict();
 
@@ -131,7 +149,8 @@ export const submitUrlLookupUnknownSchema = z
 		kind: submitUrlLookupKindSchema,
 		ambiguous: z.literal(false).optional(),
 		podcastName: z.string().optional().nullable(),
-		service: streamingServiceKeySchema.optional().nullable()
+		service: streamingServiceKeySchema.optional().nullable(),
+		...submitUrlLookupContentFields
 	})
 	.strict();
 
@@ -141,9 +160,19 @@ export const submitUrlLookupAmbiguousSchema = z
 		ambiguous: z.literal(true),
 		podcastIds: z.array(z.string().uuid()).min(1),
 		kind: submitUrlLookupKindSchema.optional(),
-		service: streamingServiceKeySchema.optional().nullable()
+		service: streamingServiceKeySchema.optional().nullable(),
+		...submitUrlLookupContentFields
 	})
 	.strict();
+
+/**
+ * POST /submit 400 body. Validation failures carry `{ message }` (or `{ error }`); a content-type rejection
+ * (RPP SubmitDispositionResponse, `SubmitUrlStatus.Rejected`) carries `{ contentKind?, rejected: true, message? }`.
+ */
+export const submitUrlBadRequestSchema = errorSchema.extend({
+	contentKind: z.string().optional().describe("Content kind Azure classified the URL as (rejections only)."),
+	rejected: z.boolean().optional().describe("True when Azure rejected the URL by content type (e.g. a BBC News page).")
+});
 
 export const submitUrlLookupResponseSchema = z.union([
 	submitUrlLookupAmbiguousSchema,
@@ -151,9 +180,32 @@ export const submitUrlLookupResponseSchema = z.union([
 	submitUrlLookupUnknownSchema
 ]);
 
+const discoveryDecisionMapSchema = z.record(z.string().uuid(), z.string()).optional().nullable();
+const discoverySelectedKeyMapSchema = z.record(z.string().uuid(), z.string()).optional().nullable();
+
+/** Discovery accept language/kind/identity re-POST fields shared by submit, apply and retry. */
+const discoveryCreateDecisionFields = {
+	languageDecisions: discoveryDecisionMapSchema.describe(
+		"Discovery result id to add or continue after an unsupported-language prompt."
+	),
+	kindDecisions: discoveryDecisionMapSchema.describe(
+		"Discovery result id to select, continue or cancel after a suggest-only kind prompt. continue keeps the item as a podcast. cancel drops it."
+	),
+	selectedKindKeys: discoverySelectedKeyMapSchema.describe(
+		"Candidate key when kindDecisions is select (catalogue:film:{filmId}, catalogue:tvshow:{showId}, catalogue:newsreport:{organisationId}:{reportId}, tmdb:{id}, imdb:{id})."
+	),
+	identityDecisions: discoveryDecisionMapSchema.describe(
+		"Discovery result id to select or continue after an ambiguous identity prompt."
+	),
+	selectedIdentityKeys: discoverySelectedKeyMapSchema.describe(
+		"Candidate key when identityDecisions is select (e.g. tmdb:123)."
+	)
+};
+
 export const discoverySubmitRequestSchema = z.object({
 	ids: z.array(z.string().uuid()),
-	resultIds: z.array(z.string().uuid())
+	resultIds: z.array(z.string().uuid()),
+	...discoveryCreateDecisionFields
 });
 
 export const discoveryScheduleUpdateRequestSchema = z.object({
@@ -395,20 +447,6 @@ export const podcastKindTransferJobStatusResponseSchema = z.object({
 /** Legacy alias — same shape as the enqueue command outcome after RPP #1162. */
 export const podcastKindTransferResponseSchema = podcastKindTransferEnqueueResponseSchema;
 
-/** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
-export const episodeTrailerAttachRequestSchema = z.object({
-	filmId: z.string().uuid().describe("The existing film that takes the episode as a trailer."),
-	title: z.string().optional().nullable().describe("Trailer title. Blank or missing keeps the episode title.")
-});
-
-/** EpisodeTrailerAttachResponse — command outcome (not the film read model). GET /film/:id for the film. */
-export const episodeTrailerAttachResponseSchema = z.object({
-	filmId: z.string().uuid().optional().nullable().describe("The film that now holds the trailer."),
-	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
-	error: z.string().optional(),
-	failureIndexing: z.boolean().optional()
-});
-
 /** EpisodeTvShowMoveRequest — RedditPodcastPoster Api.Dtos.EpisodeTvShowMoveRequest. Exactly one of tvShowId / tvShowName. */
 export const episodeTvShowMoveRequestSchema = z.object({
 	tvShowId: z.string().uuid().optional().nullable().describe("An existing TV show, by id."),
@@ -424,6 +462,118 @@ export const episodeTvShowMoveResponseSchema = z.object({
 	tvShowName: z.string().optional().nullable().describe("Show name; the /tv/{name}/{shortId} slug."),
 	episodeId: z.string().uuid().optional().nullable().describe("The TV episode id (same as the episode id)."),
 	createdShow: z.boolean().optional().describe("True when this move created the show."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional(),
+	emptiedNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.nullable()
+		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
+});
+
+/** EpisodeNewsMoveRequest - RedditPodcastPoster Api.Dtos.EpisodeNewsMoveRequest. Exactly one of newsOrganisationId / newsOrganisationName. */
+export const episodeNewsMoveRequestSchema = z.object({
+	newsOrganisationId: z.string().uuid().optional().nullable().describe("An existing news organisation, by id."),
+	newsOrganisationName: z
+		.string()
+		.optional()
+		.nullable()
+		.describe("A news organisation by name (case-insensitive, trimmed). Must not contain '/'. Only news organisations are matched."),
+	createOrganisation: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("With newsOrganisationName: create the organisation when no news organisation has the name (otherwise 404). An existing organisation with the name is joined and its publisher is not changed."),
+	publisher: z.string().optional().nullable().describe("Publisher of an organisation this move creates. Only valid with createOrganisation; omitted means none.")
+});
+
+/** PodcastNewsMoveRequest - RedditPodcastPoster Api.Dtos.PodcastNewsMoveRequest: the episode ids to move plus the organisation target. */
+export const podcastNewsMoveRequestSchema = episodeNewsMoveRequestSchema.extend({
+	episodeIds: z
+		.array(z.string().uuid())
+		.min(1)
+		.max(500)
+		.describe("Episode ids of this podcast to move (1-500). Only these move; the podcast and its other episodes are kept.")
+});
+
+/** NewsReportOrganisationMoveRequest - RedditPodcastPoster Api.Dtos.NewsReportOrganisationMoveRequest (RPP #1397). */
+export const newsReportOrganisationMoveRequestSchema = z.object({
+	targetNewsOrganisationId: z.string().uuid().describe("The news organisation that receives the reports. Must exist, differ from the source and not be removed."),
+	reportIds: z
+		.array(z.string().uuid())
+		.min(1)
+		.max(500)
+		.optional()
+		.nullable()
+		.describe("Report ids of the source organisation to move (1-500). Omitted moves the next 500; repeat until remainingReportCount is 0."),
+	moveYouTubeChannels: z
+		.boolean()
+		.optional()
+		.nullable()
+		.describe("Also move the source's main and additional YouTube channels into the target's additionalYouTubeChannels (channels the target already has are skipped; the source's YouTube fields are cleared).")
+});
+
+/** NewsReportOrganisationMoveResponse - command outcome (RPP #1397). GET /newsorganisation/:id for either organisation. */
+export const newsReportOrganisationMoveResponseSchema = z.object({
+	sourceNewsOrganisationId: z.string().uuid().optional().nullable(),
+	targetNewsOrganisationId: z.string().uuid().optional().nullable(),
+	targetNewsOrganisationName: z.string().optional().nullable(),
+	movedReportIds: z.array(z.string().uuid()).optional().describe("Report ids moved by this request (same ids, now in the target)."),
+	alreadyMovedReportIds: z.array(z.string().uuid()).optional().describe("Requested ids already in the target only (a re-send)."),
+	notFoundReportIds: z.array(z.string().uuid()).optional().describe("Requested ids not found anywhere. Any of these refuses the whole request (404)."),
+	conflictReportIds: z
+		.array(z.string().uuid())
+		.optional()
+		.describe("Requested ids that are a report of a third organisation, a TV episode or a film, or whose YouTube video the target already has as another report. Any of these refuses the whole request (409)."),
+	remainingReportCount: z.number().int().optional().nullable().describe("Reports (removed included) still in the source after this request."),
+	emptiedNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.nullable()
+		.describe("The source, when it now has no reports and is not removed, so the client can offer DELETE /newsorganisation/:id (admin)."),
+	movedYouTubeChannelIds: z.array(z.string()).optional().nullable().describe("YouTube channel ids added to the target's additionalYouTubeChannels."),
+	youTubeChannelMoveFailed: z
+		.boolean()
+		.optional()
+		.describe("The reports moved but the channel move failed or was refused. Usually the source's channels were restored: re-send with moveYouTubeChannels to retry. When error says so (a main channel indexing another channel's playlist, or a failed restore), set the channels with PATCH /newsorganisation/:id."),
+	error: z.string().optional().nullable(),
+	failureIndexing: z.boolean().optional(),
+	retryable: z
+		.boolean()
+		.optional()
+		.describe("True on a 409 when an organisation is being indexed (nothing written): re-send shortly. Omitted for id conflicts (conflictReportIds), which a re-send cannot fix.")
+});
+
+/** Azure 409 body for DELETE /newsorganisation/:id while reports remain or it is being indexed (RPP #1397). */
+export const newsOrganisationDeleteConflictSchema = z.object({
+	message: z.string(),
+	remainingReportCount: z.number().int().optional().describe("Reports still in the organisation. Omitted when the 409 is because it is being indexed."),
+	retryable: z.boolean().optional().describe("True when the organisation is being indexed: retry shortly. Omitted while reports remain.")
+});
+
+/** Query of DELETE /newsorganisation/:id (RPP #1397). */
+export const newsOrganisationDeleteQuerySchema = z.object({
+	redirectToNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.describe("The organisation the reports went to. When its name differs, the deleted organisation's name route redirects to it.")
+});
+/** EpisodeNewsMoveResponse - command outcome (not the news organisation read model). GET /newsorganisation/:id for the organisation. */
+export const episodeNewsMoveResponseSchema = z.object({
+	newsOrganisationId: z.string().uuid().optional().nullable().describe("The news organisation that now holds the reports."),
+	newsOrganisationName: z.string().optional().nullable().describe("News organisation name."),
+	createdOrganisation: z.boolean().optional().describe("True when this move created the news organisation."),
+	episodeId: z.string().uuid().optional().nullable().describe("The moved episode id (the news report keeps it). Only on the single-episode route."),
+	movedEpisodeIds: z.array(z.string().uuid()).optional().describe("Episode ids moved by this request (each is now a news report with the same id)."),
+	alreadyMovedEpisodeIds: z.array(z.string().uuid()).optional().describe("Episode ids an earlier request already moved to this organisation (a re-send)."),
+	notFoundEpisodeIds: z.array(z.string().uuid()).optional().describe("Requested ids that are not episodes of the podcast. Any of these refuses the whole request (404)."),
+	conflictEpisodeIds: z
+		.array(z.string().uuid())
+		.optional()
+		.describe("Requested ids that are already a TV episode, a film, or a news report of another organisation. Any of these refuses the whole request (409)."),
 	error: z.string().optional(),
 	failureIndexing: z.boolean().optional()
 });
@@ -508,7 +658,9 @@ export const episodeChangeRequestSchema = z.object({
 	description: z.string().optional().nullable(),
 	posted: z.boolean().optional().nullable(),
 	tweeted: z.boolean().optional().nullable(),
-	/** When true, clear Bluesky post state and delete the remote post. Not settable via edit form. */
+	/** Same as tweeted: true sets the legacy Bluesky posted flag; true → false deletes the Bluesky post. */
+	blueskyPosted: z.boolean().optional().nullable(),
+	/** `unBluesky: true` is a backward-compat Bluesky delete alias for `blueskyPosted: false`. */
 	unBluesky: z.boolean().optional().nullable(),
 	ignored: z.boolean().optional().nullable(),
 	removed: z.boolean().optional().nullable(),
@@ -697,7 +849,9 @@ export const episodeDtoSchema = z.object({
 	primaryPostService: serviceNameSchema.optional().nullable(),
 	image: z.string().url().optional().nullable(),
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
-	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable()
+	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
@@ -715,7 +869,9 @@ export const publicEpisodeDtoSchema = z.object({
 	subjects: z.array(z.string()),
 	ids: episodeIdsSchema.optional().nullable(),
 	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	image: z.string().url().optional().nullable()
+	image: z.string().url().optional().nullable(),
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 /** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
@@ -834,6 +990,45 @@ export const discoverySubmitBadRequestSchema = z.object({
 	)
 });
 
+/** Api.Dtos.SubmitUrlResponse.IdentityCandidateBody — ambiguous identity picker row. */
+export const catalogueIdentityCandidateSchema = z.object({
+	key: z.string(),
+	title: z.string(),
+	year: z.number().int().nullable().optional(),
+	kind: z.string(),
+	source: z.string(),
+	tmdbId: z.number().int().nullable().optional(),
+	tvdbId: z.number().int().nullable().optional(),
+	pageUrl: z.string().nullable().optional()
+		.describe("Absolute provider page URL when Azure supplies one; not Zod-.url()-validated."),
+	thumbnailUrl: z.string().nullable().optional()
+		.describe("Absolute thumbnail URL when Azure supplies one; not Zod-.url()-validated."),
+	description: z.string().nullable().optional()
+});
+
+/** Api.Dtos.SubmitUrlResponse.IdentityDecisionBody */
+
+export const discoveryLanguageSignalSchema = z.object({
+	field: z.string(),
+	label: z.string(),
+	excerpt: z.string(),
+	reason: z.string()
+});
+
+export const discoveryLanguageDecisionSchema = z.object({
+	discoveryItemId: z.string().uuid(),
+	code: z.string(),
+	name: z.string(),
+	signals: z.array(discoveryLanguageSignalSchema)
+});
+
+export const discoveryIdentityDecisionSchema = z.object({
+	discoveryItemId: z.string().uuid(),
+	target: z.string(),
+	query: z.string(),
+	candidates: z.array(catalogueIdentityCandidateSchema)
+});
+
 export const discoverySubmitResponseSchema = z.object({
 	message: z.string(),
 	errorsOccurred: z.boolean(),
@@ -844,7 +1039,13 @@ export const discoverySubmitResponseSchema = z.object({
 		message: z.string(),
 		error: z.string().nullable().optional().describe("Why the item failed (exception type and message). null on success.")
 	})),
-	searchIndexerState: searchIndexerStateSchema
+	searchIndexerState: searchIndexerStateSchema.optional(),
+	languageDecisionsRequired: z.array(discoveryLanguageDecisionSchema).optional().nullable()
+		.describe("Items whose detected language is not supported yet. Empty results accompany this. Re-POST with languageDecisions."),
+	kindDecisionsRequired: z.array(discoveryIdentityDecisionSchema).optional().nullable()
+		.describe("Unmapped items with a suggest-only kind hint. Empty results accompany this. Re-POST with kindDecisions; continue keeps the item as a podcast. Gates run language → kind → identity; a re-POST may return the next hold."),
+	identityDecisionsRequired: z.array(discoveryIdentityDecisionSchema).optional().nullable()
+		.describe("Items whose authority search is ambiguous. Empty results accompany this. Re-POST with identityDecisions.")
 });
 
 const nullableUuidArray = z.array(z.string().uuid()).nullable().optional();
@@ -1002,7 +1203,8 @@ export const discoverySubmissionApplyRequestSchema = z.object({
 	etag: z.string(),
 	acceptedResultIds: z.array(z.string().uuid()).nullable().optional().describe(
 		"Optional final accepted set; when omitted the saved review set (else the submitter's set) applies."
-	)
+	),
+	...discoveryCreateDecisionFields
 });
 
 /** Api.Dtos.DiscoverySubmissionCommandResponse — command outcome for review (202) / apply (200, 500 on ApplyFailed). Not the read model. */
@@ -1021,7 +1223,8 @@ export const discoverySubmissionCommandResponseSchema = z.object({
 /** Api.Dtos.DiscoverySubmissionRetryRequestDto — POST /discovery-submissions/{id}/retry. */
 export const discoverySubmissionRetryRequestSchema = z.object({
 	etag: z.string(),
-	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying.")
+	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying."),
+	...discoveryCreateDecisionFields
 });
 
 /** Api.Dtos.DiscoverySubmissionSetStateRequestDto — POST /discovery-submissions/{id}/state (admin). */
@@ -1101,15 +1304,29 @@ export const indexPodcastResponseSchema = z.object({
 	searchIndexerState: searchIndexerStateSchema.optional()
 });
 
-/** Api.Dtos.CatalogueIndexResponse: the command outcome of a TV show / news organisation index (RPP). */
-export const catalogueIndexResponseSchema = z.object({
-	indexedItemIds: z.array(z.string().uuid()).describe("TV episodes / news reports the index saved (new, merged, or removed by elimination terms)."),
-	searchIndexerState: searchIndexerStateSchema
+/** Api.Dtos.CatalogueIndexRejection with `reason: "indexingInProgress"`: 409 when a curator index is already running. */
+export const podcastIndexBusySchema = z.object({
+	reason: z.literal("indexingInProgress"),
+	message: z.string()
 });
 
-/** Api.Dtos.CatalogueIndexRejection: 400 body when the index was refused. */
+/** Api.Dtos.CatalogueIndexResponse: the command outcome of a TV show / news organisation index (RPP). */
+export const catalogueIndexResponseSchema = z.object({
+	indexedItemIds: z.array(z.string().uuid()).describe("TV episodes / news reports the index saved (new, merged, enriched, or removed by elimination terms)."),
+	searchIndexerState: searchIndexerStateSchema,
+	enrichOnly: z.boolean().optional().describe(
+		"True when the parent is not auto-indexed, so only missing Spotify / Apple links were filled in (no discovery; RPP #1400). indexedItemIds are then the enriched items.")
+});
+
+/**
+ * Api.Dtos.CatalogueIndexRejection: 400 body when the index was refused (RPP #1400). Removed: the parent is removed.
+ * NotAutoIndexed: not auto-indexed and no Spotify / Apple id to enrich from. NothingToEnrich: not auto-indexed, so
+ * only Spotify / Apple links were looked up, and no recent item gained one. SourcePodcastStillExists: the podcast it
+ * was migrated from still exists and is indexed instead.
+ */
 export const catalogueIndexRejectionSchema = z.object({
-	reason: z.enum(["NotAutoIndexed", "SourcePodcastStillExists"])
+	reason: z.enum(["Removed", "NotAutoIndexed", "NothingToEnrich", "SourcePodcastStillExists"]),
+	message: z.string().optional().describe("Says why, for the curator; absent on older responses and on SourcePodcastStillExists.")
 });
 
 /**
@@ -1119,6 +1336,16 @@ export const catalogueIndexRejectionSchema = z.object({
 export const catalogueIndexTimedOutSchema = z.object({
 	reason: z.literal("TimedOut"),
 	message: z.string().describe("Says the index ran out of time and to try again later; makes no claim about what was saved.")
+});
+
+/**
+ * Api.Dtos.CatalogueIndexRejection with `reason: "EnrichFailed"`: 503 body when the parent is not auto-indexed and the
+ * enrich-only pass's Spotify / Apple lookups failed, were rate-limited or were cut off before finishing, and nothing
+ * was saved (RPP #1400). Retryable, unlike the 400 `NothingToEnrich`.
+ */
+export const catalogueIndexEnrichFailedSchema = z.object({
+	reason: z.literal("EnrichFailed"),
+	message: z.string().describe("Says the Spotify / Apple lookup failed or was rate-limited before it finished, and to try again later.")
 });
 
 /** Api.Dtos.IndexerStateDto */
@@ -1136,23 +1363,7 @@ const submitUrlItemStateSchema = z.enum([
 	"EpisodeAlreadyExists"
 ]);
 
-/** Api.Dtos.SubmitUrlResponse.IdentityCandidateBody — ambiguous identity picker row. */
-export const catalogueIdentityCandidateSchema = z.object({
-	key: z.string(),
-	title: z.string(),
-	year: z.number().int().nullable().optional(),
-	kind: z.string(),
-	source: z.string(),
-	tmdbId: z.number().int().nullable().optional(),
-	tvdbId: z.number().int().nullable().optional(),
-	pageUrl: z.string().nullable().optional()
-		.describe("Absolute provider page URL when Azure supplies one; not Zod-.url()-validated."),
-	thumbnailUrl: z.string().nullable().optional()
-		.describe("Absolute thumbnail URL when Azure supplies one; not Zod-.url()-validated."),
-	description: z.string().nullable().optional()
-});
 
-/** Api.Dtos.SubmitUrlResponse.IdentityDecisionBody */
 export const catalogueIdentityDecisionSchema = z.object({
 	target: z.string(),
 	query: z.string(),
@@ -1177,7 +1388,45 @@ export const episodeFilmMoveResponseSchema = z.object({
 	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
 		.describe("Present on 200 when authority search is ambiguous; nothing was created. Re-POST with identityDecision + selectedIdentityKey."),
 	cancelled: z.boolean().optional()
-		.describe("True on 200 when the curator cancelled the identity prompt; nothing was created.")
+		.describe("True on 200 when the curator cancelled the identity prompt; nothing was created."),
+	emptiedNewsOrganisationId: z
+		.string()
+		.uuid()
+		.optional()
+		.nullable()
+		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
+});
+
+/** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
+export const episodeTrailerAttachRequestSchema = z.object({
+	filmId: z.string().uuid().optional().nullable()
+		.describe("The existing film that takes the episode as a trailer. Omit when createFilm is true."),
+	title: z.string().optional().nullable().describe("Trailer title. Blank or missing keeps the episode title."),
+	createFilm: z.boolean().optional().nullable()
+		.describe("With filmName instead of filmId: attach to the film with that name (case-insensitive), creating it when no film has it. A new film has no release, services or video (e.g. an unreleased film whose trailer is out first)."),
+	filmName: z.string().optional().nullable().describe("Film name used with createFilm. Must not contain '/'."),
+	identityDecision: z.enum(["select", "continue", "cancel"]).nullable().optional()
+		.describe("createFilm only: answer after an ambiguous IMDb/TMDB prompt for the new film (same as Move to film)."),
+	selectedIdentityKey: z.string().nullable().optional()
+		.describe("Candidate key when identityDecision is select (e.g. tmdb:123).")
+}).refine(
+	(body) => body.createFilm === true
+		? body.filmId == null && (body.filmName ?? "").trim().length > 0
+		: body.filmId != null,
+	"Give filmId, or createFilm with filmName (not both)."
+);
+
+/** EpisodeTrailerAttachResponse — command outcome (not the film read model). GET /film/:id for the film. */
+export const episodeTrailerAttachResponseSchema = z.object({
+	filmId: z.string().uuid().optional().nullable().describe("The film that now holds the trailer. On 409, the film that already holds the trailer."),
+	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional(),
+	filmCreated: z.boolean().optional().describe("True when createFilm created the film on this call."),
+	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
+		.describe("createFilm only: present on 200 when the new film's IMDb/TMDB match is ambiguous; nothing was written. Re-POST with identityDecision + selectedIdentityKey."),
+	cancelled: z.boolean().optional()
+		.describe("createFilm only: true on 200 when the curator cancelled the identity prompt; nothing was written.")
 });
 
 /** Api.Dtos.CatalogueIdentityIdsBody */
@@ -1484,12 +1733,14 @@ const guestsChange = z.array(z.string()).optional().nullable();
 
 /**
  * Post status, as in the episode edit API (`episodeChangeRequestSchema`): `posted` sets the flag; `tweeted` sets the
- * flag and true → false also deletes the tweet; `unBluesky: true` deletes the Bluesky post and clears the Bluesky
- * state only when it is gone. Bluesky posted cannot be set to true.
+ * flag and true → false also deletes the tweet; `blueskyPosted` mirrors tweeted (true = curator/manual mark; true →
+ * false deletes the Bluesky post and clears state only when it is gone); `unBluesky: true` is a backward-compat
+ * alias for the Bluesky delete path.
  */
 const postStatusChangeShape = {
 	posted: z.boolean().optional().nullable(),
 	tweeted: z.boolean().optional().nullable(),
+	blueskyPosted: z.boolean().optional().nullable(),
 	unBluesky: z.boolean().optional().nullable()
 };
 
@@ -1677,7 +1928,9 @@ export const tvShowEpisodeDtoSchema = z.object({
 	tvdb: z.string().url().optional().nullable(),
 	tvdbId: z.number().int().optional().nullable(),
 	tmdbId: z.number().int().optional().nullable(),
-	...optionalShape(playableFieldsDtoExtras)
+	...optionalShape(playableFieldsDtoExtras),
+	image: z.string().url().optional().nullable()
+		.describe("Image from the episode's identity (TMDB still; RedditPodcastPoster#1430). Search uses it only when no service has an image.")
 });
 
 /**
@@ -1744,7 +1997,11 @@ export const filmDtoSchema = z.object({
 		guestPeople: z.array(personDtoSchema).optional().nullable(),
 		guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
 		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
-		trailers: z.array(filmTrailerDtoSchema).optional().nullable()
+		trailers: z.array(filmTrailerDtoSchema).optional().nullable(),
+		image: z.string().url().optional().nullable()
+			.describe("Image from the film's identity (TMDB backdrop, else poster; RedditPodcastPoster#1430). Search uses it only when no service has an image."),
+		alternativeTitles: z.array(z.string()).optional().nullable()
+			.describe("Other titles the film is known by (original, alternative and translated; RedditPodcastPoster#1431). Omitted when never set; [] when a curator cleared them or TMDB had none.")
 	})
 });
 
@@ -1771,7 +2028,11 @@ export const filmChangeRequestSchema = z.object({
 	ignored: z.boolean().optional().nullable(),
 	...postStatusChangeShape,
 	subjects: z.array(z.string()).optional().nullable(),
-	guests: guestsChange
+	guests: guestsChange,
+	alternativeTitles: z.array(z.string()).optional().nullable()
+		.describe("Other titles the film is known by (RedditPodcastPoster#1431). Replaces the list; [] clears it. [] (a curator cleared them or TMDB had none) is not refilled, except when a later PATCH changes the IMDb or TMDB id and does not send this field. Blanks, the film's own name and repeats (case-insensitive) are dropped."),
+	image: z.union([z.literal(""), z.string().url()]).optional().nullable()
+		.describe("The film's identity image (TMDB backdrop or poster; RedditPodcastPoster#1435). `\"\"` clears; omitted = unchanged. A value sent here is not overwritten by identity fill in the same PATCH.")
 });
 
 /** PATCH /film 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
@@ -1780,14 +2041,99 @@ export const filmStaleTrailersConflictSchema = z.object({
 	unexpectedTrailerIds: z.array(z.string().uuid())
 });
 
-/** Api.Dtos.NewsOrganisationDto (RPP #1053). */
-export const newsOrganisationDtoSchema = z.object({ ...publisherFieldsDtoShape, ...serviceIdsDtoShape });
+/**
+ * One extra YouTube channel a news organisation owns besides `youTubeChannelId` (RPP #1370), optionally scoped to one
+ * playlist on that channel. Without a playlist the channel is claimed channel-wide.
+ */
+export const additionalYouTubeChannelSchema = z.object({
+	youTubeChannelId: z.string().describe(
+		"YouTube channel id (`UC` + 22 characters). Trimmed. " +
+			"On PATCH, a missing or blank id with a playlist is a 400 `invalidAdditionalYouTubeChannelId`; a blank entry with no playlist is dropped."
+	),
+	youTubePlaylistId: z
+		.string()
+		.optional()
+		.nullable()
+		.describe(
+			"Optional playlist on this channel; only its videos belong to the organisation. Omitted, null or whitespace means the whole channel. " +
+				"Must be owned by `youTubeChannelId`."
+		)
+});
+
+/** GET: the channels with their playlists (null when whole channel), plus the channel ids alone for older clients. */
+const additionalYouTubeChannelsDtoShape = {
+	additionalYouTubeChannels: z.array(additionalYouTubeChannelSchema).optional().nullable(),
+	additionalYouTubeChannelIds: z.array(z.string()).optional().nullable()
+};
+
+/**
+ * PATCH: send `additionalYouTubeChannels` (objects) or the older `additionalYouTubeChannelIds` (ids only), not both.
+ * Either list replaces the stored list, `[]` clears it, omitted or null leaves it. In the ids-only form a channel already
+ * stored keeps its playlist and flags (no playlist check), new ids are added channel-wide and an id left out is removed;
+ * only `additionalYouTubeChannels` can set or clear a playlist (RPP #1392).
+ */
+const additionalYouTubeChannelsChangeShape = {
+	additionalYouTubeChannels: z.array(additionalYouTubeChannelSchema).optional().nullable(),
+	additionalYouTubeChannelIds: z
+		.array(z.string())
+		.optional()
+		.nullable()
+		.describe(
+			"Older ids-only form: a channel already stored keeps its playlist and flags; new ids are added channel-wide; an id left out is removed. " +
+				"Only `additionalYouTubeChannels` can set or clear a playlist. Not with `additionalYouTubeChannels`."
+		)
+};
+
+/**
+ * Api.Dtos.NewsOrganisationDto (RPP #1053). `additionalYouTubeChannels` and `additionalYouTubeChannelIds` are `[]`
+ * when there are none (RPP #1370).
+ */
+export const newsOrganisationDtoSchema = z.object({
+	...publisherFieldsDtoShape,
+	...serviceIdsDtoShape,
+	...additionalYouTubeChannelsDtoShape
+});
 
 /**
  * Api.Dtos.NewsOrganisationChangeRequest: the shared publisher fields plus the service ids. Search terms, language and
  * removed are copied to reports (removal cascades). `name` is not here: rename is `POST /newsorganisation/name/:identifier`.
  */
-export const newsOrganisationChangeRequestSchema = z.object({ ...publisherFieldsChangeShape, ...serviceIdsChangeShape });
+export const newsOrganisationChangeRequestSchema = z.object({
+	...publisherFieldsChangeShape,
+	...serviceIdsChangeShape,
+	...additionalYouTubeChannelsChangeShape
+});
+
+/**
+ * 400 body for `PATCH /newsorganisation/{id}`: RPP returns `{ message, code }` for playlist refusals (main channel or an
+ * additional channel's playlist), channel-wide claim conflicts (main or additional channel) and the additional-channel
+ * refusals (RPP #1370). `youTubePlaylistLookupFailed` is a 503, not a 400 code.
+ */
+export const newsOrganisationPatchBadRequestSchema = errorSchema.extend({
+	code: z
+		.enum([
+			"invalidAdditionalYouTubeChannelId",
+			"additionalYouTubeChannelIsMainChannel",
+			"channelWideYouTubeConflict",
+			"youTubePlaylistNotFound",
+			"youTubePlaylistIdInvalid",
+			"youTubePlaylistChannelMismatch"
+		])
+		.optional()
+		.describe(
+			"Refusal code: playlist refusals on the main or an additional channel (`youTubePlaylistNotFound`, `youTubePlaylistIdInvalid`, `youTubePlaylistChannelMismatch`), " +
+				"channel-wide claim conflicts on the main or an additional channel (`channelWideYouTubeConflict`) and the additional-channel refusals " +
+				"(`invalidAdditionalYouTubeChannelId`, `additionalYouTubeChannelIsMainChannel`); absent for other 400s"
+		)
+});
+
+/**
+ * 503 body for `PATCH /newsorganisation/{id}` when YouTube could not be asked about a playlist (main or additional
+ * channel). Nothing was saved; retry the same PATCH.
+ */
+export const newsOrganisationPatchUnavailableSchema = errorSchema.extend({
+	code: z.literal("youTubePlaylistLookupFailed").optional()
+});
 
 /** Api.Dtos.NewsReportDto (RPP #1053). `release` is `yyyy-MM-dd`; `duration` is `h:mm:ss`. */
 export const newsReportDtoSchema = z.object({

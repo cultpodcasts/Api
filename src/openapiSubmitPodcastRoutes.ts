@@ -17,6 +17,7 @@ import {
 	errorSchema,
 	jsonBody,
 	podcastDtoSchema,
+	submitUrlBadRequestSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema,
 	submitUrlLookupQuerySchema,
@@ -39,8 +40,9 @@ export const SubmitRoute = createOpenApiRoute(submit, {
 			400: {
 				description:
 					"Bad request — missing or invalid Url, Azure SubmitUrl binding failure, or missing url on D1 fallback. " +
-					"Parent attach (RPP #1054): unknown `parentKind`, `parentKind` without `parentId`, or parent fields combined with `podcastId` / `podcastName`.",
-				...contentJson(errorSchema)
+					"Parent attach (RPP #1054): unknown `parentKind`, `parentKind` without `parentId`, or parent fields combined with `podcastId` / `podcastName`. " +
+					"Content-type rejection (RPP #1357, `submitContentTypes` on): `{ contentKind?, rejected: true, message? }`, passed through unchanged.",
+				...contentJson(submitUrlBadRequestSchema)
 			},
 			409: ambiguousPodcastNameConflict,
 			404: {

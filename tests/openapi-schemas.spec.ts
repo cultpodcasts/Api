@@ -50,6 +50,8 @@ import {
 	searchResponseSchema,
 	subjectChangeRequestSchema,
 	subjectsNameListResponseSchema,
+	submitUrlBadRequestSchema,
+	submitUrlLookupResponseSchema,
 	submitUrlRequestSchema,
 	submitUrlResponseSchema,
 	catalogueIdentityLookupRequestSchema,
@@ -62,11 +64,16 @@ import {
 	episodeTrailerAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
 	episodeTvShowMoveResponseSchema,
+	episodeNewsMoveRequestSchema,
+	podcastNewsMoveRequestSchema,
+	episodeNewsMoveResponseSchema,
 	tvShowChangeRequestSchema,
 	tvShowDtoSchema,
 	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	newsOrganisationChangeRequestSchema,
+	newsOrganisationPatchBadRequestSchema,
+	newsOrganisationPatchUnavailableSchema,
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
@@ -133,6 +140,101 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.resultIds).toHaveLength(1);
 	});
 
+	it("accepts discovery submit, apply and retry language, kind and identity decision fields", () => {
+		const itemId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const submit = discoverySubmitRequestSchema.parse({
+			ids: ["550e8400-e29b-41d4-a716-446655440000"],
+			resultIds: [itemId],
+			languageDecisions: { [itemId]: "continue" },
+			kindDecisions: { [itemId]: "select" },
+			selectedKindKeys: { [itemId]: "catalogue:film:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+			identityDecisions: { [itemId]: "continue" }
+		});
+		expect(submit.kindDecisions?.[itemId]).toBe("select");
+		expect(submit.selectedKindKeys?.[itemId]).toContain("catalogue:film:");
+		const apply = discoverySubmissionApplyRequestSchema.parse({
+			etag: "etag",
+			acceptedResultIds: [itemId],
+			kindDecisions: { [itemId]: "continue" }
+		});
+		expect(apply.kindDecisions?.[itemId]).toBe("continue");
+		const retry = discoverySubmissionRetryRequestSchema.parse({
+			etag: "etag",
+			abandonResultIds: [],
+			kindDecisions: { [itemId]: "select" },
+			selectedKindKeys: { [itemId]: "tmdb:123" }
+		});
+		expect(retry.selectedKindKeys?.[itemId]).toBe("tmdb:123");
+	});
+
+	it("accepts a suggest-only kind hold on the discovery submit response", () => {
+		const parsed = discoverySubmitResponseSchema.parse({
+			message: "Kind decision required",
+			errorsOccurred: false,
+			results: [],
+			kindDecisionsRequired: [{
+				discoveryItemId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				target: "film",
+				query: "Father's House",
+				candidates: [{
+					key: "tmdb:1",
+					title: "Father's House",
+					kind: "Film",
+					source: "tmdb",
+					year: 2020
+				}]
+			}]
+		});
+		expect(parsed.kindDecisionsRequired).toHaveLength(1);
+		expect(parsed.kindDecisionsRequired?.[0].candidates[0].key).toBe("tmdb:1");
+	});
+
+	it("pins a kind hold on submit, apply and retry outcomes", () => {
+		const itemId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const submissionId = "550e8400-e29b-41d4-a716-446655440000";
+		const reportId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+		const organisationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+		const hold = {
+			message: "Kind decision required",
+			errorsOccurred: false,
+			results: [],
+			kindDecisionsRequired: [{
+				discoveryItemId: itemId,
+				target: "news report",
+				query: "An existing report",
+				candidates: [{
+					key: `catalogue:newsreport:${organisationId}:${reportId}`,
+					title: "An existing report",
+					kind: "News report",
+					source: "catalogue"
+				}]
+			}]
+		};
+		expect(discoverySubmitResponseSchema.parse(hold).kindDecisionsRequired?.[0].candidates[0].key)
+			.toBe(`catalogue:newsreport:${organisationId}:${reportId}`);
+		const apply = discoverySubmissionCommandResponseSchema.parse({
+			submissionId,
+			status: "Pending",
+			etag: "etag",
+			message: "A kind decision is required before anything is created.",
+			outcome: hold
+		});
+		expect(apply.outcome?.kindDecisionsRequired).toHaveLength(1);
+		const retry = discoverySubmissionCommandResponseSchema.parse({
+			submissionId,
+			status: "ApplyFailed",
+			etag: "etag",
+			message: "A kind decision is required before anything is created.",
+			outcome: hold
+		});
+		expect(retry.outcome?.kindDecisionsRequired?.[0].discoveryItemId).toBe(itemId);
+		expect(discoverySubmitRequestSchema.parse({
+			ids: [submissionId],
+			resultIds: [itemId],
+			kindDecisions: { [itemId]: "cancel" }
+		}).kindDecisions?.[itemId]).toBe("cancel");
+	});
+
 	it("accepts search and submit-url request shapes", () => {
 		expect(searchRequestSchema.parse({ search: "cult", orderby: "release desc" }).search).toBe("cult");
 		expect(submitUrlRequestSchema.parse({ url: "https://example.com/ep" }).url).toContain("example.com");
@@ -154,6 +256,38 @@ describe("openapi Zod schemas", () => {
 			submitUrlRequestSchema.parse({ podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" })
 		).toThrow();
 		expect(podcastRenameRequestSchema.parse({ newPodcastName: "New Name" }).newPodcastName).toBe("New Name");
+	});
+
+	it("documents the RPP content-type fields on GET /submit/lookup (rejected BBC News page, parent match)", () => {
+		const rejected = {
+			known: false,
+			kind: "unrecognised",
+			contentKind: "NewsReport",
+			rejected: true,
+			message: "Synthetic rejection message"
+		};
+		expect(submitUrlLookupResponseSchema.parse(rejected)).toEqual(rejected);
+		const parentMatch = {
+			known: true,
+			podcastId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			podcastName: "Synthetic Desk",
+			contentKind: "NewsReport",
+			parentName: "Synthetic Desk"
+		};
+		expect(submitUrlLookupResponseSchema.parse(parentMatch)).toEqual(parentMatch);
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({ known: false, kind: "unrecognised", notAField: true })
+		).toThrow();
+		expect(() =>
+			submitUrlLookupResponseSchema.parse({ known: false, kind: "unrecognised", rejected: "yes" })
+		).toThrow();
+	});
+
+	it("documents the POST /submit 400 content-type rejection body alongside the validation error body", () => {
+		const rejection = { contentKind: "NewsReport", rejected: true, message: "Synthetic rejection message" };
+		expect(submitUrlBadRequestSchema.parse(rejection)).toEqual(rejection);
+		expect(submitUrlBadRequestSchema.parse({ message: "Url is required" })).toEqual({ message: "Url is required" });
+		expect(() => submitUrlBadRequestSchema.parse({ rejected: "yes" })).toThrow();
 	});
 
 	it("rejects discovery submit without uuid arrays", () => {
@@ -618,6 +752,66 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.parentId).toBeUndefined();
 	});
 
+	it("accepts alternativeTitles on film, public-episode and episode GET DTOs, including a cleared empty list (RedditPodcastPoster#1431)", () => {
+		const titles = ["Father's House", "La casa del padre"];
+		const film = filmDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Faderhuset",
+			description: "",
+			image: "https://image.tmdb.org/t/p/w1280/example.jpg",
+			alternativeTitles: titles
+		});
+		expect(film.image).toBe("https://image.tmdb.org/t/p/w1280/example.jpg");
+		expect(film.alternativeTitles).toEqual(titles);
+		expect(filmDtoSchema.parse({ id: film.id, name: film.name, description: "", alternativeTitles: [] }).alternativeTitles).toEqual([]);
+
+		const publicFilm = publicEpisodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastName: "Faderhuset",
+			title: "Faderhuset",
+			description: "",
+			release: "2026-11-19T00:00:00Z",
+			duration: "01:30:00",
+			explicit: false,
+			subjects: [],
+			contentKind: "Film",
+			alternativeTitles: titles
+		});
+		expect(publicFilm.alternativeTitles).toEqual(titles);
+
+		const episode = episodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			podcastName: "Faderhuset",
+			title: "Faderhuset",
+			description: "",
+			release: "2026-11-19T00:00:00Z",
+			duration: "01:30:00",
+			explicit: false,
+			posted: false,
+			tweeted: false,
+			ignored: false,
+			removed: false,
+			urls: {},
+			subjects: [],
+			contentKind: "Film",
+			alternativeTitles: titles
+		});
+		expect(episode.alternativeTitles).toEqual(titles);
+	});
+
+	it("accepts image on the TV episode GET DTO (TMDB still; RedditPodcastPoster#1430)", () => {
+		const parsed = tvShowEpisodeDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			tvShowId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			title: "Pilot",
+			description: "",
+			image: "https://image.tmdb.org/t/p/w780/still.jpg"
+		});
+		expect(parsed.image).toBe("https://image.tmdb.org/t/p/w780/still.jpg");
+		expect(tvShowEpisodeDtoSchema.parse({ id: parsed.id, tvShowId: parsed.tvShowId, title: "Pilot", description: "" }).image).toBeUndefined();
+	});
+
 	it("rejects an unknown contentKind on PublicEpisodeDto", () => {
 		expect(() => publicEpisodeDtoSchema.parse({
 			id: "550e8400-e29b-41d4-a716-446655440000",
@@ -829,6 +1023,7 @@ describe("openapi Zod schemas", () => {
 	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {
 		const parsed = episodeChangeRequestSchema.parse({
 			title: "New title",
+			blueskyPosted: false,
 			unBluesky: true,
 			hashTag: "#Scenario",
 			urls: {
@@ -841,6 +1036,7 @@ describe("openapi Zod schemas", () => {
 			images: { other: "" },
 			guests: ["Alice"]
 		});
+		expect(parsed.blueskyPosted).toBe(false);
 		expect(parsed.unBluesky).toBe(true);
 		expect(parsed.hashTag).toBe("#Scenario");
 		expect(parsed.urls?.apple).toBe("");
@@ -1075,8 +1271,40 @@ describe("openapi Zod schemas", () => {
 		const filmId = "550e8400-e29b-41d4-a716-446655440000";
 		expect(episodeTrailerAttachRequestSchema.parse({ filmId, title: null }).filmId).toBe(filmId);
 		expect(() => episodeTrailerAttachRequestSchema.parse({ title: "Synthetic Teaser" })).toThrow();
+		expect(episodeTrailerAttachRequestSchema.parse({ createFilm: true, filmName: "Synthetic Unreleased Film" }).filmName)
+			.toBe("Synthetic Unreleased Film");
+		expect(() => episodeTrailerAttachRequestSchema.parse({ createFilm: true, filmName: "  " })).toThrow();
+		expect(() => episodeTrailerAttachRequestSchema.parse({ filmId, createFilm: true, filmName: "Synthetic Unreleased Film" }))
+			.toThrow();
+		expect(episodeTrailerAttachResponseSchema.parse({ filmId, filmCreated: true }).filmCreated).toBe(true);
 		expect(episodeTrailerAttachResponseSchema.parse({ filmId, name: "Synthetic Film Title", failureIndexing: false }).name)
 			.toBe("Synthetic Film Title");
+	});
+
+	it("parses the move-to-news requests and command outcome", () => {
+		const newsOrganisationId = "550e8400-e29b-41d4-a716-446655440000";
+		const episodeId = "0a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d";
+		expect(episodeNewsMoveRequestSchema.parse({ newsOrganisationId }).newsOrganisationId).toBe(newsOrganisationId);
+		expect(episodeNewsMoveRequestSchema.parse({ newsOrganisationName: "Synthetic News", createOrganisation: true, publisher: null }).createOrganisation)
+			.toBe(true);
+		expect(() => episodeNewsMoveRequestSchema.parse({ newsOrganisationId: "not-a-guid" })).toThrow();
+		expect(podcastNewsMoveRequestSchema.parse({ episodeIds: [episodeId], newsOrganisationId }).episodeIds).toEqual([episodeId]);
+		expect(() => podcastNewsMoveRequestSchema.parse({ episodeIds: [], newsOrganisationId })).toThrow();
+		expect(() => podcastNewsMoveRequestSchema.parse({ episodeIds: ["not-a-guid"], newsOrganisationId })).toThrow();
+		expect(() => podcastNewsMoveRequestSchema.parse({ newsOrganisationId })).toThrow();
+		const outcome = episodeNewsMoveResponseSchema.parse({
+			newsOrganisationId,
+			newsOrganisationName: "Synthetic News",
+			createdOrganisation: true,
+			episodeId,
+			movedEpisodeIds: [episodeId],
+			alreadyMovedEpisodeIds: [],
+			notFoundEpisodeIds: [],
+			conflictEpisodeIds: [],
+			failureIndexing: false
+		});
+		expect(outcome.movedEpisodeIds).toEqual([episodeId]);
+		expect(outcome.createdOrganisation).toBe(true);
 	});
 
 	it("parses the move-to-TV-show request and command outcome", () => {
@@ -1292,6 +1520,14 @@ describe("openapi Zod schemas", () => {
 		expect(film.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
 	});
 
+
+	it("accepts a film image URL or \"\" and rejects a non-URL (RedditPodcastPoster#1435)", () => {
+		expect(filmChangeRequestSchema.parse({ image: "https://image.tmdb.org/t/p/w1280/example.jpg" }).image)
+			.toBe("https://image.tmdb.org/t/p/w1280/example.jpg");
+		expect(filmChangeRequestSchema.parse({ image: "" }).image).toBe("");
+		expect(filmChangeRequestSchema.parse({ image: null }).image).toBeNull();
+		expect(filmChangeRequestSchema.safeParse({ image: "not-a-url" }).success).toBe(false);
+	});
 	it("parses TV and film change requests with publisher/playable fields, guests, and identity ids", () => {
 		expect(
 			tvShowChangeRequestSchema.parse({
@@ -1451,16 +1687,100 @@ describe("openapi Zod schemas", () => {
 		expect(tvShowDtoSchema.parse({ id: dto.id, name: "Synthetic Show", spotifyId: "x" }).spotifyId).toBe("x");
 	});
 
+	it("parses the news organisation PATCH 400 body with its refusal code (RPP #1370, synthetic)", () => {
+		for (const code of [
+			"invalidAdditionalYouTubeChannelId",
+			"additionalYouTubeChannelIsMainChannel",
+			"channelWideYouTubeConflict",
+			"youTubePlaylistNotFound",
+			"youTubePlaylistIdInvalid",
+			"youTubePlaylistChannelMismatch"
+		] as const) {
+			const body = { message: "Synthetic refusal.", code };
+			expect(newsOrganisationPatchBadRequestSchema.parse(body)).toEqual(body);
+		}
+		expect(newsOrganisationPatchBadRequestSchema.parse({ message: "Invalid URL" })).toEqual({ message: "Invalid URL" });
+		expect(() => newsOrganisationPatchBadRequestSchema.parse({ message: "x", code: "somethingElse" })).toThrow();
+		expect(() => newsOrganisationPatchBadRequestSchema.parse({ message: "x", code: "youTubePlaylistLookupFailed" })).toThrow();
+	});
+
+	it("parses news organisation additionalYouTubeChannelIds in PATCH (list, [] clear, null) and GET, and keeps them off TV shows (RPP #1370, synthetic)", () => {
+		const change = { additionalYouTubeChannelIds: ["UCsyntheticChannel0000002", "UCsyntheticChannel0000003"] };
+		expect(newsOrganisationChangeRequestSchema.parse(change)).toEqual(change);
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: [] })).toEqual({ additionalYouTubeChannelIds: [] });
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: null })).toEqual({ additionalYouTubeChannelIds: null });
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: "UCsyntheticChannel0000002" })).toThrow();
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannelIds: [1] })).toThrow();
+		expect(tvShowChangeRequestSchema.parse(change)).not.toHaveProperty("additionalYouTubeChannelIds");
+		const idsDescription = newsOrganisationChangeRequestSchema.shape.additionalYouTubeChannelIds.description ?? "";
+		expect(idsDescription).toMatch(/already stored keeps its playlist and flags/);
+		expect(idsDescription).toMatch(/Only `additionalYouTubeChannels` can set or clear a playlist/);
+		expect(idsDescription).not.toMatch(/clears any stored playlist/);
+		const dto = {
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "",
+			description: "",
+			removed: false,
+			twitterHandle: "",
+			youTubeChannelId: "UCsyntheticChannel0000001",
+			additionalYouTubeChannelIds: ["UCsyntheticChannel0000002"]
+		};
+		expect(newsOrganisationDtoSchema.parse(dto).additionalYouTubeChannelIds).toEqual(dto.additionalYouTubeChannelIds);
+		expect(newsOrganisationDtoSchema.parse({ ...dto, additionalYouTubeChannelIds: [] }).additionalYouTubeChannelIds).toEqual([]);
+	});
+
+	it("parses news organisation additionalYouTubeChannels with optional per-channel playlists in PATCH and GET, and keeps them off TV shows (RPP #1370, synthetic)", () => {
+		const change = {
+			additionalYouTubeChannels: [
+				{ youTubeChannelId: "UCsyntheticChannel0000002" },
+				{ youTubeChannelId: "UCsyntheticChannel0000003", youTubePlaylistId: "PLsyntheticPlaylist0000001" },
+				{ youTubeChannelId: "UCsyntheticChannel0000004", youTubePlaylistId: null }
+			]
+		};
+		expect(newsOrganisationChangeRequestSchema.parse(change)).toEqual(change);
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: [] })).toEqual({ additionalYouTubeChannels: [] });
+		expect(newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: null })).toEqual({ additionalYouTubeChannels: null });
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: ["UCsyntheticChannel0000002"] })).toThrow();
+		expect(() => newsOrganisationChangeRequestSchema.parse({ additionalYouTubeChannels: [{ youTubePlaylistId: "PLx" }] })).toThrow();
+		expect(tvShowChangeRequestSchema.parse(change)).not.toHaveProperty("additionalYouTubeChannels");
+		const dto = {
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic News Org",
+			publisher: "",
+			description: "",
+			removed: false,
+			twitterHandle: "",
+			youTubeChannelId: "UCsyntheticChannel0000001",
+			additionalYouTubeChannels: [
+				{ youTubeChannelId: "UCsyntheticChannel0000002", youTubePlaylistId: null },
+				{ youTubeChannelId: "UCsyntheticChannel0000003", youTubePlaylistId: "PLsyntheticPlaylist0000001" }
+			],
+			additionalYouTubeChannelIds: ["UCsyntheticChannel0000002", "UCsyntheticChannel0000003"]
+		};
+		const parsed = newsOrganisationDtoSchema.parse(dto);
+		expect(parsed.additionalYouTubeChannels).toEqual(dto.additionalYouTubeChannels);
+		expect(parsed.additionalYouTubeChannelIds).toEqual(dto.additionalYouTubeChannelIds);
+	});
+
+	it("parses the news organisation PATCH 503 body only with youTubePlaylistLookupFailed (RPP #1370, synthetic)", () => {
+		const body = { message: "Synthetic lookup failure.", code: "youTubePlaylistLookupFailed" };
+		expect(newsOrganisationPatchUnavailableSchema.parse(body)).toEqual(body);
+		expect(() => newsOrganisationPatchUnavailableSchema.parse({ message: "x", code: "youTubePlaylistNotFound" })).toThrow();
+	});
+
 	it("parses publisher, description, cascading removed and episode-style post status in news/TV/film change requests (synthetic)", () => {
 		const publisherEdit = { publisher: "Synthetic Studios", description: "", removed: true };
 		expect(newsOrganisationChangeRequestSchema.parse(publisherEdit)).toEqual(publisherEdit);
 		expect(tvShowChangeRequestSchema.parse(publisherEdit)).toEqual(publisherEdit);
 		expect(filmChangeRequestSchema.parse({ publisher: "Synthetic Pictures" })).toEqual({ publisher: "Synthetic Pictures" });
-		const postStatus = { posted: true, tweeted: false, unBluesky: true };
+		const postStatus = { posted: true, tweeted: false, blueskyPosted: false, unBluesky: true };
 		expect(newsReportChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
 		expect(tvShowEpisodeChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
 		expect(filmChangeRequestSchema.parse(postStatus)).toEqual(postStatus);
+		expect(newsReportChangeRequestSchema.parse({ blueskyPosted: true })).toEqual({ blueskyPosted: true });
 		expect(() => newsReportChangeRequestSchema.parse({ unBluesky: "yes" })).toThrow();
+		expect(() => newsReportChangeRequestSchema.parse({ blueskyPosted: "yes" })).toThrow();
 		expect(() => tvShowChangeRequestSchema.parse({ removed: "true" })).toThrow();
 		expect(() => newsOrganisationChangeRequestSchema.parse({ publisher: 1 })).toThrow();
 	});
