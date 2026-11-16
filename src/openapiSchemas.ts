@@ -180,9 +180,32 @@ export const submitUrlLookupResponseSchema = z.union([
 	submitUrlLookupUnknownSchema
 ]);
 
+const discoveryDecisionMapSchema = z.record(z.string().uuid(), z.string()).optional().nullable();
+const discoverySelectedKeyMapSchema = z.record(z.string().uuid(), z.string()).optional().nullable();
+
+/** Discovery accept language/kind/identity re-POST fields shared by submit, apply and retry. */
+const discoveryCreateDecisionFields = {
+	languageDecisions: discoveryDecisionMapSchema.describe(
+		"Discovery result id to add or continue after an unsupported-language prompt."
+	),
+	kindDecisions: discoveryDecisionMapSchema.describe(
+		"Discovery result id to select, continue or cancel after a suggest-only kind prompt. continue keeps the item as a podcast. cancel drops it."
+	),
+	selectedKindKeys: discoverySelectedKeyMapSchema.describe(
+		"Candidate key when kindDecisions is select (catalogue:film:{filmId}, catalogue:tvshow:{showId}, catalogue:newsreport:{organisationId}:{reportId}, tmdb:{id}, imdb:{id})."
+	),
+	identityDecisions: discoveryDecisionMapSchema.describe(
+		"Discovery result id to select or continue after an ambiguous identity prompt."
+	),
+	selectedIdentityKeys: discoverySelectedKeyMapSchema.describe(
+		"Candidate key when identityDecisions is select (e.g. tmdb:123)."
+	)
+};
+
 export const discoverySubmitRequestSchema = z.object({
 	ids: z.array(z.string().uuid()),
-	resultIds: z.array(z.string().uuid())
+	resultIds: z.array(z.string().uuid()),
+	...discoveryCreateDecisionFields
 });
 
 export const discoveryScheduleUpdateRequestSchema = z.object({
@@ -967,6 +990,45 @@ export const discoverySubmitBadRequestSchema = z.object({
 	)
 });
 
+/** Api.Dtos.SubmitUrlResponse.IdentityCandidateBody — ambiguous identity picker row. */
+export const catalogueIdentityCandidateSchema = z.object({
+	key: z.string(),
+	title: z.string(),
+	year: z.number().int().nullable().optional(),
+	kind: z.string(),
+	source: z.string(),
+	tmdbId: z.number().int().nullable().optional(),
+	tvdbId: z.number().int().nullable().optional(),
+	pageUrl: z.string().nullable().optional()
+		.describe("Absolute provider page URL when Azure supplies one; not Zod-.url()-validated."),
+	thumbnailUrl: z.string().nullable().optional()
+		.describe("Absolute thumbnail URL when Azure supplies one; not Zod-.url()-validated."),
+	description: z.string().nullable().optional()
+});
+
+/** Api.Dtos.SubmitUrlResponse.IdentityDecisionBody */
+
+export const discoveryLanguageSignalSchema = z.object({
+	field: z.string(),
+	label: z.string(),
+	excerpt: z.string(),
+	reason: z.string()
+});
+
+export const discoveryLanguageDecisionSchema = z.object({
+	discoveryItemId: z.string().uuid(),
+	code: z.string(),
+	name: z.string(),
+	signals: z.array(discoveryLanguageSignalSchema)
+});
+
+export const discoveryIdentityDecisionSchema = z.object({
+	discoveryItemId: z.string().uuid(),
+	target: z.string(),
+	query: z.string(),
+	candidates: z.array(catalogueIdentityCandidateSchema)
+});
+
 export const discoverySubmitResponseSchema = z.object({
 	message: z.string(),
 	errorsOccurred: z.boolean(),
@@ -977,7 +1039,13 @@ export const discoverySubmitResponseSchema = z.object({
 		message: z.string(),
 		error: z.string().nullable().optional().describe("Why the item failed (exception type and message). null on success.")
 	})),
-	searchIndexerState: searchIndexerStateSchema
+	searchIndexerState: searchIndexerStateSchema.optional(),
+	languageDecisionsRequired: z.array(discoveryLanguageDecisionSchema).optional().nullable()
+		.describe("Items whose detected language is not supported yet. Empty results accompany this. Re-POST with languageDecisions."),
+	kindDecisionsRequired: z.array(discoveryIdentityDecisionSchema).optional().nullable()
+		.describe("Unmapped items with a suggest-only kind hint. Empty results accompany this. Re-POST with kindDecisions; continue keeps the item as a podcast. Gates run language → kind → identity; a re-POST may return the next hold."),
+	identityDecisionsRequired: z.array(discoveryIdentityDecisionSchema).optional().nullable()
+		.describe("Items whose authority search is ambiguous. Empty results accompany this. Re-POST with identityDecisions.")
 });
 
 const nullableUuidArray = z.array(z.string().uuid()).nullable().optional();
@@ -1135,7 +1203,8 @@ export const discoverySubmissionApplyRequestSchema = z.object({
 	etag: z.string(),
 	acceptedResultIds: z.array(z.string().uuid()).nullable().optional().describe(
 		"Optional final accepted set; when omitted the saved review set (else the submitter's set) applies."
-	)
+	),
+	...discoveryCreateDecisionFields
 });
 
 /** Api.Dtos.DiscoverySubmissionCommandResponse — command outcome for review (202) / apply (200, 500 on ApplyFailed). Not the read model. */
@@ -1154,7 +1223,8 @@ export const discoverySubmissionCommandResponseSchema = z.object({
 /** Api.Dtos.DiscoverySubmissionRetryRequestDto — POST /discovery-submissions/{id}/retry. */
 export const discoverySubmissionRetryRequestSchema = z.object({
 	etag: z.string(),
-	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying.")
+	abandonResultIds: z.array(z.string().uuid()).nullable().optional().describe("Failed items to abandon instead of retrying."),
+	...discoveryCreateDecisionFields
 });
 
 /** Api.Dtos.DiscoverySubmissionSetStateRequestDto — POST /discovery-submissions/{id}/state (admin). */
@@ -1293,23 +1363,7 @@ const submitUrlItemStateSchema = z.enum([
 	"EpisodeAlreadyExists"
 ]);
 
-/** Api.Dtos.SubmitUrlResponse.IdentityCandidateBody — ambiguous identity picker row. */
-export const catalogueIdentityCandidateSchema = z.object({
-	key: z.string(),
-	title: z.string(),
-	year: z.number().int().nullable().optional(),
-	kind: z.string(),
-	source: z.string(),
-	tmdbId: z.number().int().nullable().optional(),
-	tvdbId: z.number().int().nullable().optional(),
-	pageUrl: z.string().nullable().optional()
-		.describe("Absolute provider page URL when Azure supplies one; not Zod-.url()-validated."),
-	thumbnailUrl: z.string().nullable().optional()
-		.describe("Absolute thumbnail URL when Azure supplies one; not Zod-.url()-validated."),
-	description: z.string().nullable().optional()
-});
 
-/** Api.Dtos.SubmitUrlResponse.IdentityDecisionBody */
 export const catalogueIdentityDecisionSchema = z.object({
 	target: z.string(),
 	query: z.string(),

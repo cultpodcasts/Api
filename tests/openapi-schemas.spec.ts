@@ -140,6 +140,101 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.resultIds).toHaveLength(1);
 	});
 
+	it("accepts discovery submit, apply and retry language, kind and identity decision fields", () => {
+		const itemId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const submit = discoverySubmitRequestSchema.parse({
+			ids: ["550e8400-e29b-41d4-a716-446655440000"],
+			resultIds: [itemId],
+			languageDecisions: { [itemId]: "continue" },
+			kindDecisions: { [itemId]: "select" },
+			selectedKindKeys: { [itemId]: "catalogue:film:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+			identityDecisions: { [itemId]: "continue" }
+		});
+		expect(submit.kindDecisions?.[itemId]).toBe("select");
+		expect(submit.selectedKindKeys?.[itemId]).toContain("catalogue:film:");
+		const apply = discoverySubmissionApplyRequestSchema.parse({
+			etag: "etag",
+			acceptedResultIds: [itemId],
+			kindDecisions: { [itemId]: "continue" }
+		});
+		expect(apply.kindDecisions?.[itemId]).toBe("continue");
+		const retry = discoverySubmissionRetryRequestSchema.parse({
+			etag: "etag",
+			abandonResultIds: [],
+			kindDecisions: { [itemId]: "select" },
+			selectedKindKeys: { [itemId]: "tmdb:123" }
+		});
+		expect(retry.selectedKindKeys?.[itemId]).toBe("tmdb:123");
+	});
+
+	it("accepts a suggest-only kind hold on the discovery submit response", () => {
+		const parsed = discoverySubmitResponseSchema.parse({
+			message: "Kind decision required",
+			errorsOccurred: false,
+			results: [],
+			kindDecisionsRequired: [{
+				discoveryItemId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				target: "film",
+				query: "Father's House",
+				candidates: [{
+					key: "tmdb:1",
+					title: "Father's House",
+					kind: "Film",
+					source: "tmdb",
+					year: 2020
+				}]
+			}]
+		});
+		expect(parsed.kindDecisionsRequired).toHaveLength(1);
+		expect(parsed.kindDecisionsRequired?.[0].candidates[0].key).toBe("tmdb:1");
+	});
+
+	it("pins a kind hold on submit, apply and retry outcomes", () => {
+		const itemId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const submissionId = "550e8400-e29b-41d4-a716-446655440000";
+		const reportId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+		const organisationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+		const hold = {
+			message: "Kind decision required",
+			errorsOccurred: false,
+			results: [],
+			kindDecisionsRequired: [{
+				discoveryItemId: itemId,
+				target: "news report",
+				query: "An existing report",
+				candidates: [{
+					key: `catalogue:newsreport:${organisationId}:${reportId}`,
+					title: "An existing report",
+					kind: "News report",
+					source: "catalogue"
+				}]
+			}]
+		};
+		expect(discoverySubmitResponseSchema.parse(hold).kindDecisionsRequired?.[0].candidates[0].key)
+			.toBe(`catalogue:newsreport:${organisationId}:${reportId}`);
+		const apply = discoverySubmissionCommandResponseSchema.parse({
+			submissionId,
+			status: "Pending",
+			etag: "etag",
+			message: "A kind decision is required before anything is created.",
+			outcome: hold
+		});
+		expect(apply.outcome?.kindDecisionsRequired).toHaveLength(1);
+		const retry = discoverySubmissionCommandResponseSchema.parse({
+			submissionId,
+			status: "ApplyFailed",
+			etag: "etag",
+			message: "A kind decision is required before anything is created.",
+			outcome: hold
+		});
+		expect(retry.outcome?.kindDecisionsRequired?.[0].discoveryItemId).toBe(itemId);
+		expect(discoverySubmitRequestSchema.parse({
+			ids: [submissionId],
+			resultIds: [itemId],
+			kindDecisions: { [itemId]: "cancel" }
+		}).kindDecisions?.[itemId]).toBe("cancel");
+	});
+
 	it("accepts search and submit-url request shapes", () => {
 		expect(searchRequestSchema.parse({ search: "cult", orderby: "release desc" }).search).toBe("cult");
 		expect(submitUrlRequestSchema.parse({ url: "https://example.com/ep" }).url).toContain("example.com");
