@@ -162,7 +162,11 @@ With the two HCP workspaces and the GitHub environments/secrets in place (bootst
 everything else is rebuilt by CI:
 
 - **Preview:** any same-repo PR touching the trigger paths creates the D1 database and Worker shell,
-  applies the migrations and deploys `search-preview`.
+  applies the migrations and deploys `search-preview`. The api's `SEARCH` service binding
+  (`wrangler.jsonc`, [#221](https://github.com/cultpodcasts/Api/issues/221)) makes `api-preview`
+  depend on `search-preview`: after a teardown, api-preview's Workers Builds fail until the preview
+  stack has run, and pass on api-preview's next build. Workers Builds is not ordered after this
+  workflow, so the first push can race it.
 - **Production:** run the workflow on `main` with **`allow_d1_create`** ticked and approve: it
   creates the database and Worker shell, applies the migrations and deploys `search`.
 

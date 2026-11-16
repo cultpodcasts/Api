@@ -41,6 +41,13 @@ on:
       - "workers/search/**"
       - "wrangler.search.jsonc"
       - ".github/workflows/search-stack.yml"
+      # The api's SEARCH service binding (cultpodcasts/Api#221): api-preview (Workers Builds) can
+      # only deploy once search-preview exists, so a PR changing the api bindings also runs the
+      # preview stack. Workers Builds is not ordered after this workflow: on a push where
+      # search-preview does not exist yet, api-preview can fail and passes on its next build.
+      # PRs only: production search already exists, and an api-only change on main must not queue
+      # a cloudflare-production approval.
+      - "wrangler.jsonc"
   push:
     branches:
       - main

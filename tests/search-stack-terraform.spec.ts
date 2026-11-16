@@ -241,6 +241,19 @@ describe("search stack workflow", () => {
 		return jobText.indexOf(`- name: ${name}`);
 	}
 
+	/** The `paths:` list under one trigger (`pull_request` or `push`). */
+	function triggerPaths(trigger: "pull_request" | "push"): string[] {
+		const on = workflow.slice(workflow.indexOf("\non:\n"), workflow.indexOf("\n  workflow_dispatch:"));
+		const block = on.slice(on.indexOf(`\n  ${trigger}:\n`) + 1).split(/\n  [a-z_]+:\n/)[0];
+		return [...block.matchAll(/^\s+- "([^"]+)"$/gm)].map((m) => m[1]);
+	}
+
+	it("runs the preview stack on PRs that change the api bindings, but not on push to main (#221)", () => {
+		expect(triggerPaths("pull_request")).toContain("wrangler.jsonc");
+		expect(triggerPaths("push")).not.toContain("wrangler.jsonc");
+		expect(triggerPaths("push")).toContain("wrangler.search.jsonc");
+	});
+
 	it("never runs destroy", () => {
 		expect(workflow).not.toMatch(/terraform\s+(-chdir=\S+\s+)?destroy/);
 		expect(workflow).not.toMatch(/-destroy\b/);
