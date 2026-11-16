@@ -30,7 +30,8 @@ Jon, 16 Nov 2026: the database must be managed properly and must never be delete
 5. **Least-privilege token, with a caveat.** Cloudflare's D1 token permission is either *Read* or
    *Edit*, and Edit includes deleting databases. There is no edit-without-delete scope. So the
    token cannot be the protection; items 1–4 are. The token is still scoped to this account and
-   D1 only, and is separate from the repo's existing `CLOUDFLARE_API_TOKEN`.
+   D1 only, and Terraform reads it from `TF_VAR_CLOUDFLARE_API_TOKEN`, not the repo's existing
+   `CLOUDFLARE_API_TOKEN`.
 
 Deliberately deleting or replacing a database is a manual, reviewed operation outside CI:
 remove `prevent_destroy` in a PR that says why, take a Time Travel bookmark and an export first,
@@ -45,16 +46,31 @@ and run it by hand. CI will keep refusing.
   npx wrangler d1 time-travel restore cultpodcasts-search --timestamp=2026-11-16T14:00:00Z
   ```
   A restore overwrites the database in place (same id), so Terraform state is unaffected.
-- **Optional:** a scheduled `wrangler d1 export cultpodcasts-search --remote --output=…` to R2
+- **Optional:** a scheduled `wrangler d1 export cultpodcasts-search --remote --output=…` kept off-platform
   for copies beyond the Time Travel window. Not built; Jon to decide. The search index can also
   be rebuilt from Cosmos (SP-2.3), so it is not the system of record.
 
-## State
+## State: HCP Terraform (same as cultpodcasts/freedomtimes)
 
-Remote state lives in R2 bucket **`cultpodcasts-terraform-state`**, key
-`api/search-d1/terraform.tfstate`, through the S3-compatible backend. R2 supports conditional
-`PutObject`, so `use_lockfile = true` gives real state locking. The workflow also allows only one
-Terraform run at a time (`concurrency: terraform-search-d1`).
+State lives in **HCP Terraform**, following `cultpodcasts/freedomtimes`
+(`infra/terraform/environments/*/versions.tf`):
+
+| Setting | Value |
+|---------|-------|
+| Organisation | `freedomtimes` (the same organisation freedomtimes uses) |
+| Workspace | `cultpodcasts-api-search-d1` (`<repo>-<stack>`, like `freedomtimes-production`) |
+| Execution Mode | **Local** |
+| Auth | `TF_TOKEN_app_terraform_io` (GitHub secret `TF_TOKEN_APP_TERRAFORM_IO`) |
+
+**Why Local execution:** as in freedomtimes, plan and apply run on the GitHub runner with the
+Cloudflare token passed as `TF_VAR_cloudflare_api_token` from a GitHub secret; HCP only stores and
+locks the state. Local execution also gives the runner a saved plan file, so the plan guard can
+read `terraform show -json tfplan` and the apply runs exactly that guarded plan. With Remote
+execution the `TF_VAR_*` secrets would not reach the run and the guard would have no local plan.
+
+HCP locks state during every run, and the workflow also allows only one Terraform run at a time
+(`concurrency: terraform-search-d1`). There is no `-backend-config`: the `cloud {}` block selects
+the workspace.
 
 ## CI ([`.github/workflows/terraform-search-d1.yml`](../../.github/workflows/terraform-search-d1.yml))
 
@@ -68,24 +84,25 @@ run stays green. Fork PRs never get secrets, so they only run fmt and validate.
 
 ## What Jon creates (once)
 
-Agents create no Cloudflare resources and never see secret values.
+Agents create no Cloudflare or HCP resources and never see secret values.
 
-1. **R2 bucket** `cultpodcasts-terraform-state` (dashboard → R2 → Create bucket). Optionally add
-   a bucket lock rule so state objects cannot be deleted.
-2. **R2 API token for state** (R2 → Manage API tokens): *Object Read & Write*, scoped to that
-   bucket only. Keep its **Access Key ID** and **Secret Access Key**.
-3. **Cloudflare API token for Terraform and migrations** (My Profile → API Tokens → Custom):
+1. **HCP Terraform workspace** `cultpodcasts-api-search-d1` in organisation `freedomtimes`
+   (CLI-driven workflow), with **Execution Mode: Local**. No workspace variables are needed:
+   credentials come from GitHub secrets as `TF_VAR_*`, as in freedomtimes.
+2. **Cloudflare API token for Terraform and migrations** (My Profile → API Tokens → Custom):
    - Permissions: **Account → D1 → Edit**
    - Account resources: include only account `bae3f835f19899c6eee1ec48f2d658cf`
    - Optional: client IP filtering, expiry date
-4. **GitHub repo secrets** on cultpodcasts/Api (Settings → Secrets and variables → Actions):
-   - `TF_CLOUDFLARE_API_TOKEN` (from step 3)
-   - `TF_STATE_R2_ACCESS_KEY_ID` (from step 2)
-   - `TF_STATE_R2_SECRET_ACCESS_KEY` (from step 2)
-5. **GitHub environment** `cloudflare-production` (Settings → Environments) with **Required
+3. **GitHub repo secrets** on cultpodcasts/Api (Settings → Secrets and variables → Actions),
+   same names as freedomtimes:
+   - `TF_TOKEN_APP_TERRAFORM_IO`: an HCP Terraform team or user token that can run on the
+     workspace (the freedomtimes one works if its team has access to the new workspace)
+   - `TF_VAR_CLOUDFLARE_API_TOKEN`: the token from step 2
+4. **GitHub environment** `cloudflare-production` (Settings → Environments) with **Required
    reviewers: Jon**, and deployment branches limited to `main`.
 
-The account id and R2 endpoint are not secrets; they are in the config.
+The account id is not a secret; it defaults in `variables.tf` (override locally with
+`TF_VAR_cloudflare_account_id` if ever needed).
 
 Then run the workflow on `main` (Actions → Terraform (search D1) → Run workflow), check the plan
 shows exactly two creates, and approve.
@@ -100,22 +117,23 @@ terraform -chdir=infra/terraform/search-d1 output -json > /tmp/tf-outputs.json
 node infra/terraform/scripts/sync-wrangler-ids.mjs /tmp/tf-outputs.json wrangler.search.jsonc
 ```
 
-Without local state access, take `search_database_id` / `search_preview_database_id` from the
+Locally, `terraform output` needs `TF_TOKEN_app_terraform_io` with access to the workspace.
+Without it, take `search_database_id` / `search_preview_database_id` from the
 apply job's log (or the dashboard) into a JSON file of the same shape. The apply job also checks
 `wrangler.search.jsonc` against the outputs and warns when they differ.
 
 ## Adopting databases that already exist
 
 If either database was created outside Terraform, import it instead of creating a duplicate: set
-`import_search_database_id` / `import_search_preview_database_id` (for example in a
-`TF_VAR_…` env or a tfvars file), plan, check it shows an import and no create, apply, then set
+`import_search_database_id` / `import_search_preview_database_id` (as a
+`TF_VAR_…` env in a one-off run), plan, check it shows an import and no create, apply, then set
 the variable back to `null`. The demo database `search-demo-db` stays out of Terraform.
 
 ## Local checks (no credentials)
 
 ```sh
 terraform fmt -check -recursive infra/terraform
-terraform -chdir=infra/terraform/search-d1 init -backend=false
+terraform -chdir=infra/terraform/search-d1 init -backend=false   # no HCP access needed
 terraform -chdir=infra/terraform/search-d1 validate
 npx vitest run tests/terraform-search-d1.spec.ts
 ```

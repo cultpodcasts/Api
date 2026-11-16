@@ -12,7 +12,7 @@
 # apply (preview first). Azure stays on bicep; nothing here touches it.
 
 resource "cloudflare_d1_database" "search" {
-  account_id            = var.account_id
+  account_id            = var.cloudflare_account_id
   name                  = "cultpodcasts-search"
   primary_location_hint = var.primary_location_hint
 
@@ -26,7 +26,7 @@ resource "cloudflare_d1_database" "search" {
 }
 
 resource "cloudflare_d1_database" "search_preview" {
-  account_id            = var.account_id
+  account_id            = var.cloudflare_account_id
   name                  = "cultpodcasts-search-preview"
   primary_location_hint = var.primary_location_hint
 

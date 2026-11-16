@@ -83,14 +83,20 @@ describe("Terraform config", () => {
 		expect(protectedCount.length).toBe(resources.length);
 	});
 
-	it("keeps state in the R2 backend with locking", () => {
-		expect(tf).toMatch(/backend "s3"/);
-		expect(tf).toContain("r2.cloudflarestorage.com");
-		expect(tf).toMatch(/use_lockfile\s*=\s*true/);
+	it("keeps state in HCP Terraform like cultpodcasts/freedomtimes (no S3/R2 backend)", () => {
+		expect(tf).toMatch(/cloud\s*\{\s*organization\s*=\s*"freedomtimes"/);
+		expect(tf).toMatch(/name\s*=\s*"cultpodcasts-api-search-d1"/);
+		expect(tf).not.toMatch(/backend "s3"/);
+		expect(tf).not.toContain("r2.cloudflarestorage.com");
+	});
+
+	it("takes the Cloudflare token from a sensitive variable", () => {
+		expect(tf).toMatch(/api_token\s*=\s*var\.cloudflare_api_token/);
+		expect(tf).toMatch(/variable "cloudflare_api_token"\s*\{[^}]*sensitive\s*=\s*true/);
 	});
 
 	it("contains no credentials", () => {
-		expect(tf).not.toMatch(/api_token\s*=|access_key\s*=|secret_key\s*=/);
+		expect(tf).not.toMatch(/api_token\s*=\s*"|access_key\s*=|secret_key\s*=|token\s*=\s*"/);
 	});
 });
 
@@ -113,7 +119,13 @@ describe("Terraform workflow", () => {
 		expect(production).toBeGreaterThan(preview);
 	});
 
-	it("serialises runs", () => {
+	it("authenticates to HCP and Cloudflare with the freedomtimes secret names", () => {
+		expect(workflow).toContain("TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}");
+		expect(workflow).toContain("TF_VAR_cloudflare_api_token: ${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}");
+		expect(workflow).not.toMatch(/AWS_|R2_/);
+	});
+
+		it("serialises runs", () => {
 		expect(workflow).toMatch(/concurrency:\s*\n\s*group:\s*terraform-search-d1/);
 	});
 });

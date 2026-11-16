@@ -8,8 +8,12 @@
 # run stays green. Apply also stays skipped until the environment has required reviewers.
 # There is deliberately no destroy path anywhere in this workflow.
 #
-# Uses its own TF_CLOUDFLARE_API_TOKEN (D1 Edit only), not the repo's existing
-# CLOUDFLARE_API_TOKEN, so Terraform never runs with a broader token.
+# Conventions follow cultpodcasts/freedomtimes: state in HCP Terraform (organisation
+# freedomtimes, workspace cultpodcasts-api-search-d1, Execution Mode: Local), HCP auth via
+# TF_TOKEN_APP_TERRAFORM_IO, Cloudflare credentials as TF_VAR_* from GitHub secrets. Local
+# execution keeps a local saved plan, so the plan guard can read `terraform show -json`.
+# Terraform uses its own TF_VAR_CLOUDFLARE_API_TOKEN (D1 Edit only), not the repo's existing
+# CLOUDFLARE_API_TOKEN, so it never runs with a broader token.
 name: Terraform (search D1)
 
 on:
@@ -32,13 +36,13 @@ on:
 permissions:
   contents: read
 
-# One Terraform run at a time across PRs and main (R2 lockfile is the second line of defence).
+# One Terraform run at a time across PRs and main (HCP state locking is the second line of defence).
 concurrency:
   group: terraform-search-d1
   cancel-in-progress: false
 
 env:
-  TF_VERSION: "1.13.4"
+  TF_VERSION: "1.14.8"
   TF_DIR: infra/terraform/search-d1
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
@@ -51,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
@@ -78,15 +82,14 @@ jobs:
       - id: secrets
         name: Check Terraform secrets exist
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.TF_CLOUDFLARE_API_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_R2_SECRET_ACCESS_KEY }}
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+          if [ -n "$TF_TOKEN_app_terraform_io" ] && [ -n "$TF_VAR_cloudflare_api_token" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Terraform (search D1)::Secrets not configured (TF_CLOUDFLARE_API_TOKEN, TF_STATE_R2_ACCESS_KEY_ID, TF_STATE_R2_SECRET_ACCESS_KEY). Plan and apply skipped. See infra/terraform/README.md."
+            echo "::notice title=Terraform (search D1)::Secrets not configured (TF_TOKEN_APP_TERRAFORM_IO, TF_VAR_CLOUDFLARE_API_TOKEN). Plan and apply skipped. See infra/terraform/README.md."
           fi
 
       - id: environment
@@ -113,13 +116,12 @@ jobs:
       contents: read
       pull-requests: write
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.TF_CLOUDFLARE_API_TOKEN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_R2_SECRET_ACCESS_KEY }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
@@ -168,13 +170,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: cloudflare-production
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.TF_CLOUDFLARE_API_TOKEN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_R2_SECRET_ACCESS_KEY }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
@@ -218,6 +219,7 @@ jobs:
       - name: D1 migrations (preview first, then production)
         if: hashFiles('workers/search/migrations/*.sql') != ''
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}
           SEARCH_DB_ID: ${{ steps.outputs.outputs.search_database_id }}
           SEARCH_PREVIEW_DB_ID: ${{ steps.outputs.outputs.search_preview_database_id }}
         run: |

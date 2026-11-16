@@ -1,5 +1,11 @@
-variable "account_id" {
-  description = "Cloudflare account that owns the search databases (same account as wrangler.jsonc)."
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token with Account > D1 > Edit (TF_VAR_cloudflare_api_token)."
+  type        = string
+  sensitive   = true
+}
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare account that owns the search databases (same account as wrangler.jsonc). Override with TF_VAR_cloudflare_account_id."
   type        = string
   default     = "bae3f835f19899c6eee1ec48f2d658cf"
 }
