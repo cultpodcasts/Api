@@ -1,0 +1,438 @@
+# Search stack: Terraform first, then the code (SP-1.10 #270, SP-1.11 #273).
+#
+# Jon, 16 Nov 2026: "terraform is infra. it would always come before pure code deploy", and
+# "if i wanted to tear everything down, i should be able to do that and run the ci again".
+# Each stack (Worker shell + D1 database) has its own Terraform root and HCP workspace:
+#
+#   PR (same-repo only)  PREVIEW / staging stack, environment cloudflare-preview (no reviewers):
+#                        plan -> guard -> apply -> preview D1 migrations -> deploy:search:preview.
+#                        Production is plan-only on PRs (sticky plan comment, read-only token).
+#   push to main         PRODUCTION stack: plan -> guard, then behind the cloudflare-production
+#                        approval: re-plan -> guard -> apply -> prod D1 migrations -> deploy:search.
+#   manual run on main   As main. allow_d1_create lets the guard CREATE the production database
+#                        (first apply, or a deliberate rebuild from scratch).
+#
+# The code deploy is a later step of the SAME job as the apply, so it never runs unless the
+# apply (and the migrations) succeeded in that run. Preview deliberately deploys whatever the PR
+# contains (it is the staging slot for trying PR code); the Test workflow (unit tests + tsc)
+# gates merging, and so production. Terraform owns only the empty Worker shell
+# and the database; wrangler owns the code, bindings and settings (wrangler.search.jsonc).
+# There is deliberately no destroy path anywhere in this workflow.
+#
+# Safe before setup: with the repo secrets missing, the secret-dependent jobs are skipped; the
+# preview job is skipped until the cloudflare-preview environment exists (a job naming a missing
+# environment would CREATE it, unprotected), and the production apply until cloudflare-production
+# has required reviewers.
+#
+# Three Cloudflare tokens, none of them the repo's broader CLOUDFLARE_API_TOKEN:
+#   TF_PLAN_CLOUDFLARE_API_TOKEN     repo secret, D1 Read + Workers Scripts Read: production plans
+#                                    on PRs and main. A PR branch can run its own workflow with
+#                                    it, so it cannot write.
+#   TF_PREVIEW_CLOUDFLARE_API_TOKEN  environment secret on cloudflare-preview, D1 Edit + Workers
+#                                    Scripts Edit: preview apply, migrations and deploy on PRs.
+#   TF_APPLY_CLOUDFLARE_API_TOKEN    environment secret on cloudflare-production, D1 Edit + Workers
+#                                    Scripts Edit: released only to the approved apply job on main.
+name: Search stack (Terraform, then deploy)
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - "workers/search/**"
+      - "wrangler.search.jsonc"
+      - ".github/workflows/search-stack.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/**"
+      - "workers/search/**"
+      - "wrangler.search.jsonc"
+      - ".github/workflows/search-stack.yml"
+  # Manual run on main: first apply, a rebuild from scratch, or a re-deploy. Still gated by the
+  # environment approval and the plan guard.
+  workflow_dispatch:
+    inputs:
+      allow_d1_create:
+        description: "Allow the plan to CREATE the production search D1 database. Only for the first apply or a deliberate rebuild from scratch; otherwise a create means the database vanished (see infra/terraform/README.md)."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# No workflow-level concurrency: GitHub keeps one running + one pending run per group and a new
+# run cancels the pending one, which could drop a main apply. Concurrency is per job instead;
+# HCP's state lock (-lock-timeout=5m) serialises state access across jobs.
+
+env:
+  TF_VERSION: "1.14.8"
+  TF_DIR_PRODUCTION: infra/terraform/search/production
+  TF_DIR_PREVIEW: infra/terraform/search/preview
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  NODE_VERSION: "22"
+  # Production: "--allow-d1-create" only from the manual allow_d1_create input; empty otherwise.
+  PLAN_GUARD_FLAGS: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_d1_create) && '--allow-d1-create' || '' }}
+
+jobs:
+  validate:
+    name: fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff infra/terraform
+
+      - name: terraform init (no backend) + validate, both stacks
+        run: |
+          for dir in "$TF_DIR_PRODUCTION" "$TF_DIR_PREVIEW"; do
+            terraform -chdir="$dir" init -backend=false
+            terraform -chdir="$dir" validate
+          done
+
+  readiness:
+    name: readiness (secrets + environments)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      configured: ${{ steps.secrets.outputs.configured }}
+      apply_protected: ${{ steps.environments.outputs.production_protected }}
+      preview_ready: ${{ steps.environments.outputs.preview_exists }}
+    steps:
+      - id: secrets
+        name: Check Terraform secrets exist (and the Edit tokens are not repo secrets)
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+          PLAN_TOKEN: ${{ secrets.TF_PLAN_CLOUDFLARE_API_TOKEN }}
+          # This job has no environment, so these are non-empty only if an Edit token was created
+          # as a repo (or org) secret, where any workflow on any branch could use it.
+          APPLY_TOKEN_OUTSIDE_ENVIRONMENT: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}
+          PREVIEW_TOKEN_OUTSIDE_ENVIRONMENT: ${{ secrets.TF_PREVIEW_CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$APPLY_TOKEN_OUTSIDE_ENVIRONMENT" ]; then
+            echo "::error title=Search stack::TF_APPLY_CLOUDFLARE_API_TOKEN is visible outside the cloudflare-production environment. Delete the repo/org secret and create it as an environment secret on cloudflare-production only."
+            exit 1
+          fi
+          if [ -n "$PREVIEW_TOKEN_OUTSIDE_ENVIRONMENT" ]; then
+            echo "::error title=Search stack::TF_PREVIEW_CLOUDFLARE_API_TOKEN is visible outside the cloudflare-preview environment. Delete the repo/org secret and create it as an environment secret on cloudflare-preview only."
+            exit 1
+          fi
+          if [ -n "$TF_TOKEN_app_terraform_io" ] && [ -n "$PLAN_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Search stack::Secrets not configured (TF_TOKEN_APP_TERRAFORM_IO, TF_PLAN_CLOUDFLARE_API_TOKEN). Plan, apply and deploy skipped. See infra/terraform/README.md."
+          fi
+
+      - id: environments
+        name: Check the deploy environments exist (production must require approval)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          reviewers=$(gh api "repos/$REPO/environments/cloudflare-production" \
+            --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' 2>/dev/null || echo 0)
+          if [ "${reviewers:-0}" -ge 1 ]; then
+            echo "production_protected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "production_protected=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Search stack::Environment cloudflare-production missing or has no required reviewers. Production apply and deploy skipped until it does."
+          fi
+          # Only check that it exists: a job that names a missing environment would create it.
+          if gh api "repos/$REPO/environments/cloudflare-preview" --jq .name >/dev/null 2>&1; then
+            echo "preview_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "preview_exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Search stack::Environment cloudflare-preview does not exist. Preview apply and deploy skipped until Jon creates it (infra/terraform/README.md)."
+          fi
+
+  plan:
+    name: production plan + guard
+    needs: [validate, readiness]
+    if: needs.readiness.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    # A newer push to the same PR supersedes an older PR plan. Main pushes and manual runs are
+    # never cancelled (a cancel mid-plan could leave the HCP lock held, or drop the first-apply
+    # dispatch), and the event name keeps a push and a dispatch on main in separate groups.
+    concurrency:
+      group: search-stack-plan-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      TF_DIR: infra/terraform/search/production
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+      # D1 + Workers Scripts Read only: refresh + plan, cannot change or delete anything.
+      TF_VAR_cloudflare_api_token: ${{ secrets.TF_PLAN_CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: HCP workspace exists with Execution Mode Local
+        run: node infra/terraform/scripts/hcp-workspace-check.mjs "$TF_DIR/versions.tf"
+
+      - name: terraform init
+        run: terraform -chdir="$TF_DIR" init -lock-timeout=5m
+
+      - name: terraform plan
+        run: terraform -chdir="$TF_DIR" plan -lock-timeout=5m -out=tfplan
+
+      - name: Plan guard (no destroy / replace of D1 or Worker shells; no unexpected D1 create)
+        run: |
+          terraform -chdir="$TF_DIR" show -json tfplan > "$RUNNER_TEMP/plan.json"
+          # shellcheck disable=SC2086 # PLAN_GUARD_FLAGS is empty or one flag
+          node infra/terraform/scripts/plan-guard.mjs "$RUNNER_TEMP/plan.json" $PLAN_GUARD_FLAGS
+
+      - name: Plan summary
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          {
+            echo "<!-- terraform-search-d1-plan -->"
+            echo "### Terraform plan: search PRODUCTION stack for \`${HEAD_SHA}\` (plan only on PRs; applied from main after approval)"
+            echo '```'
+            terraform -chdir="$TF_DIR" show -no-color tfplan 2>/dev/null | tail -c 60000 || echo "(no plan)"
+            echo '```'
+          } > "$RUNNER_TEMP/plan.md"
+          cat "$RUNNER_TEMP/plan.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # One sticky comment per PR and stack: edits the github-actions[bot] comment carrying the
+      # plan marker (never another bot comment), or creates it. No stale plan to approve against.
+      - name: Post plan to PR
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node infra/terraform/scripts/sticky-plan-comment.mjs "$PR" "$RUNNER_TEMP/plan.md"
+
+  preview:
+    name: "preview: apply -> migrations -> deploy"
+    needs: [validate, readiness]
+    # Same-repo PRs only: fork PRs never get the environment secret or a deploy.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      needs.readiness.outputs.configured == 'true' &&
+      needs.readiness.outputs.preview_ready == 'true'
+    runs-on: ubuntu-latest
+    environment: cloudflare-preview
+    # One preview stack, so one preview apply + deploy at a time across ALL PRs. Never cancel a
+    # running one (an apply cut short could leave the HCP lock held). The last PR to deploy wins,
+    # as with api-preview; a newer queued run may supersede an older queued one.
+    concurrency:
+      group: search-stack-preview
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      TF_DIR: infra/terraform/search/preview
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+      # D1 + Workers Scripts Edit, environment secret on cloudflare-preview only.
+      TF_VAR_cloudflare_api_token: ${{ secrets.TF_PREVIEW_CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Preview token present in the environment
+        run: |
+          if [ -z "$TF_VAR_cloudflare_api_token" ]; then
+            echo "::error title=Search stack::TF_PREVIEW_CLOUDFLARE_API_TOKEN is not set as an environment secret on cloudflare-preview."
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: HCP workspace exists with Execution Mode Local
+        run: node infra/terraform/scripts/hcp-workspace-check.mjs "$TF_DIR/versions.tf"
+
+      - name: terraform init
+        run: terraform -chdir="$TF_DIR" init -lock-timeout=5m
+
+      - name: terraform plan
+        run: terraform -chdir="$TF_DIR" plan -lock-timeout=5m -out=tfplan
+
+      # Preview data is a resyncable copy, so CI may (re)create the preview database: that is
+      # what lets a torn-down preview stack rebuild itself. Delete/replace is still refused.
+      - name: Plan guard (no destroy / replace; preview D1 create allowed)
+        run: |
+          terraform -chdir="$TF_DIR" show -json tfplan > "$RUNNER_TEMP/plan.json"
+          node infra/terraform/scripts/plan-guard.mjs "$RUNNER_TEMP/plan.json" --allow-d1-create
+
+      - name: Plan summary
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            echo "<!-- terraform-search-preview-plan -->"
+            echo "### Terraform plan: search PREVIEW stack for \`${HEAD_SHA}\` (the preview job applies this, migrates and deploys; its status shows the outcome)"
+            echo '```'
+            terraform -chdir="$TF_DIR" show -no-color tfplan 2>/dev/null | tail -c 60000 || echo "(no plan)"
+            echo '```'
+          } > "$RUNNER_TEMP/plan.md"
+          cat "$RUNNER_TEMP/plan.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post preview plan to PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node infra/terraform/scripts/sticky-plan-comment.mjs "$PR" "$RUNNER_TEMP/plan.md" "<!-- terraform-search-preview-plan -->"
+
+      - name: terraform apply (guarded saved plan only)
+        run: terraform -chdir="$TF_DIR" apply -lock-timeout=5m -input=false tfplan
+
+      - name: Terraform outputs
+        run: terraform -chdir="$TF_DIR" output -json > "$RUNNER_TEMP/tf-outputs.json"
+
+      - name: Check wrangler.search.jsonc ids match Terraform
+        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json"
+
+      # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
+      # token out of this step (step env overrides job env). Later steps get them back.
+      - name: Install wrangler
+        env:
+          TF_VAR_cloudflare_api_token: ""
+          TF_TOKEN_app_terraform_io: ""
+        run: npm ci
+
+      # Schema before code: the migrations config is generated from this stack's Terraform
+      # outputs only (account id, name, id).
+      - name: D1 migrations (preview database)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TF_PREVIEW_CLOUDFLARE_API_TOKEN }}
+        run: |
+          node infra/terraform/scripts/sync-wrangler-ids.mjs "$RUNNER_TEMP/tf-outputs.json" --migrations-config .wrangler.search-migrations.json
+          npx wrangler d1 migrations apply cultpodcasts-search-preview --remote -c .wrangler.search-migrations.json
+
+      - name: Deploy search-preview (after a successful apply + migrations in this job)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TF_PREVIEW_CLOUDFLARE_API_TOKEN }}
+        run: npm run deploy:search:preview
+
+  apply:
+    name: "production: apply -> migrations -> deploy (approval required)"
+    needs: [plan, readiness]
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
+      needs.readiness.outputs.configured == 'true' &&
+      needs.readiness.outputs.apply_protected == 'true'
+    runs-on: ubuntu-latest
+    environment: cloudflare-production
+    # Never cancel an apply. A newer main run may supersede a pending (not yet started) older
+    # one, which is fine: it re-plans, `migrations apply` applies everything pending, and it
+    # deploys the newer code.
+    concurrency:
+      group: search-stack-production
+      cancel-in-progress: false
+    env:
+      TF_DIR: infra/terraform/search/production
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+      # D1 + Workers Scripts Edit, environment secret: only released after approval.
+      TF_VAR_cloudflare_api_token: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Apply token present in the environment
+        run: |
+          if [ -z "$TF_VAR_cloudflare_api_token" ]; then
+            echo "::error title=Search stack::TF_APPLY_CLOUDFLARE_API_TOKEN is not set as an environment secret on cloudflare-production."
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: HCP workspace exists with Execution Mode Local
+        run: node infra/terraform/scripts/hcp-workspace-check.mjs "$TF_DIR/versions.tf"
+
+      - name: terraform init
+        run: terraform -chdir="$TF_DIR" init -lock-timeout=5m
+
+      # Re-plan after approval: state may have moved since the plan job ran.
+      - name: terraform plan
+        run: terraform -chdir="$TF_DIR" plan -lock-timeout=5m -out=tfplan
+
+      - name: Plan guard (no destroy / replace of D1 or Worker shells; no unexpected D1 create)
+        run: |
+          terraform -chdir="$TF_DIR" show -json tfplan > "$RUNNER_TEMP/plan.json"
+          # shellcheck disable=SC2086 # PLAN_GUARD_FLAGS is empty or one flag
+          node infra/terraform/scripts/plan-guard.mjs "$RUNNER_TEMP/plan.json" $PLAN_GUARD_FLAGS
+
+      - name: terraform apply (guarded saved plan only)
+        run: terraform -chdir="$TF_DIR" apply -lock-timeout=5m -input=false tfplan
+
+      - name: Terraform outputs
+        run: terraform -chdir="$TF_DIR" output -json > "$RUNNER_TEMP/tf-outputs.json"
+
+      - name: Check wrangler.search.jsonc ids match Terraform
+        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json"
+
+      # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
+      # token out of this step (step env overrides job env). Later steps get them back.
+      - name: Install wrangler
+        env:
+          TF_VAR_cloudflare_api_token: ""
+          TF_TOKEN_app_terraform_io: ""
+        run: npm ci
+
+      - name: D1 migrations (production database)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}
+        run: |
+          node infra/terraform/scripts/sync-wrangler-ids.mjs "$RUNNER_TEMP/tf-outputs.json" --migrations-config .wrangler.search-migrations.json
+          npx wrangler d1 migrations apply cultpodcasts-search --remote -c .wrangler.search-migrations.json
+
+      - name: Deploy search (after a successful apply + migrations in this job)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}
+        run: npm run deploy:search
+
+  apply-skipped:
+    name: production apply skipped (approval gate not set up)
+    needs: [plan, readiness]
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
+      needs.readiness.outputs.configured == 'true' &&
+      needs.readiness.outputs.apply_protected != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "::warning title=Search stack::Production apply and deploy skipped. Give environment cloudflare-production a required reviewer, then re-run (workflow_dispatch)."
