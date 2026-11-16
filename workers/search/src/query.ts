@@ -28,11 +28,20 @@
  *
  * Every atom is emitted as a double-quoted FTS5 string (inner quotes doubled),
  * so user text can never inject FTS5 syntax. The expression is folded
- * left-to-right with explicit parentheses, which makes binding deterministic.
+ * left-to-right; runs of one operator stay flat and parentheses mark each
+ * operator change, which keeps binding deterministic and nesting shallow.
  * A leading/solitary negated atom has nothing to subtract from and is dropped.
  */
 
+import { SearchRequestError } from "./errors";
+
 export type SearchMode = "any" | "all";
+
+/** More searchable terms than this is a 400. Azure's own cap on query terms is higher; 256 is ample for typed queries. */
+export const MAX_QUERY_ATOMS = 256;
+
+/** Each operator change (AND/OR switch or NOT) nests one level; FTS5's parser overflows near 96. */
+export const MAX_OPERATOR_CHANGES = 32;
 
 /** Lucene EnglishAnalyzer default stop set. */
 const STOPWORDS = new Set([
@@ -147,17 +156,41 @@ export function toMatch(q: string, mode: SearchMode = "any"): MatchResult {
 		return renderString(a.text, a.prefix);
 	};
 
-	let expr: string | null = null;
-	for (const { atom, op } of atoms) {
-		if (expr === null) {
-			if (atom.negated) continue; // nothing on the left to subtract from
-			expr = render(atom);
+	// A leading negated atom has nothing on its left to subtract from: drop it.
+	const firstPositive = atoms.findIndex(({ atom }) => !atom.negated);
+	const live = firstPositive === -1 ? [] : atoms.slice(firstPositive);
+	if (live.length > MAX_QUERY_ATOMS) {
+		throw new SearchRequestError(`search has too many terms (at most ${MAX_QUERY_ATOMS})`);
+	}
+
+	// Left-to-right fold, kept flat: a run of atoms joined by the same operator is one
+	// `a OR b OR c` group (AND and OR are associative), parenthesised only when the operator
+	// changes or a NOT follows. FTS5 binds NOT tighter than AND, and AND tighter than OR, so a
+	// `(x) NOT y` element at the head of a group keeps its meaning. One pair of parentheses per
+	// atom would overflow the FTS5 parser stack (~96 levels), a D1 runtime error (503).
+	let group: string[] = [];
+	let groupOp: Op | null = null;
+	let changes = 0;
+	const close = () => (group.length === 1 ? group[0] : group.join(` ${groupOp} `));
+	for (const { atom, op } of live) {
+		if (!group.length) {
+			group = [render(atom)];
 		} else if (atom.negated) {
-			expr = `(${expr}) NOT ${render(atom)}`;
+			group = [`(${close()}) NOT ${render(atom)}`];
+			groupOp = null;
+			changes++;
+		} else if (groupOp === null || groupOp === op) {
+			groupOp = op;
+			group.push(render(atom));
 		} else {
-			expr = `(${expr}) ${op} ${render(atom)}`;
+			group = [`(${close()})`, render(atom)];
+			groupOp = op;
+			changes++;
+		}
+		if (changes > MAX_OPERATOR_CHANGES) {
+			throw new SearchRequestError(`search mixes operators too often (at most ${MAX_OPERATOR_CHANGES} changes)`);
 		}
 	}
-	if (expr !== null) return { kind: "match", expr };
+	if (group.length) return { kind: "match", expr: close() };
 	return sawText ? { kind: "none" } : { kind: "browse" };
 }

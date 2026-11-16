@@ -12,7 +12,7 @@ import {
 import { parseRequest } from "../workers/search/src/docs-search";
 import { SearchRequestError } from "../workers/search/src/errors";
 import { parseFacet, parseODataFilter } from "../workers/search/src/odata";
-import { toMatch } from "../workers/search/src/query";
+import { MAX_OPERATOR_CHANGES, MAX_QUERY_ATOMS, toMatch } from "../workers/search/src/query";
 import { d1, migratedSearchDb, upsertSearchDoc } from "./support/searchD1";
 
 /** SP-1.9 (cultpodcasts/Api#269): the search-demo query engine, moved into workers/search. */
@@ -24,13 +24,13 @@ const expr = (q: string, mode: "any" | "all" = "any") => {
 
 describe("toMatch: Azure simple syntax -> FTS5 MATCH", () => {
 	it("ORs bare terms in searchMode any and ANDs them in all", () => {
-		expect(expr("scientology cooper")).toBe('("scientology") OR "cooper"');
-		expect(expr("scientology cooper", "all")).toBe('("scientology") AND "cooper"');
+		expect(expr("scientology cooper")).toBe('"scientology" OR "cooper"');
+		expect(expr("scientology cooper", "all")).toBe('"scientology" AND "cooper"');
 	});
 
 	it("honours + (AND), | (OR) and - (NOT at a term boundary)", () => {
-		expect(expr("scientology +cooper")).toBe('("scientology") AND "cooper"');
-		expect(expr("scientology |cooper", "all")).toBe('("scientology") OR "cooper"');
+		expect(expr("scientology +cooper")).toBe('"scientology" AND "cooper"');
+		expect(expr("scientology |cooper", "all")).toBe('"scientology" OR "cooper"');
 		expect(expr("scientology -hubbard")).toBe('("scientology") NOT "hubbard"');
 	});
 
@@ -47,21 +47,21 @@ describe("toMatch: Azure simple syntax -> FTS5 MATCH", () => {
 	});
 
 	it("treats AND / OR / NOT as plain terms, then drops them as stopwords", () => {
-		expect(expr('scientology AND "paulette cooper"')).toBe('("scientology") OR "paulette cooper"');
-		expect(expr("cults NOT religion")).toBe('("cults") OR "religion"');
+		expect(expr('scientology AND "paulette cooper"')).toBe('"scientology" OR "paulette cooper"');
+		expect(expr("cults NOT religion")).toBe('"cults" OR "religion"');
 	});
 
 	it("drops bare English stopwords; all-stopword text is 'none', empty text is 'browse'", () => {
-		expect(expr("the cult of the lamb")).toBe('("cult") OR "lamb"');
+		expect(expr("the cult of the lamb")).toBe('"cult" OR "lamb"');
 		expect(expr("the and of")).toBe("none");
 		expect(expr("")).toBe("browse");
 		expect(expr("  ( )  ")).toBe("browse");
 	});
 
 	it("splits hyphenated and slashed terms like StandardTokenizer", () => {
-		expect(expr("ex-mormon")).toBe('("ex") OR "mormon"');
-		expect(expr("multi-level marketing")).toBe('(("multi") OR "level") OR "marketing"');
-		expect(expr("ac/dc")).toBe('("ac") OR "dc"');
+		expect(expr("ex-mormon")).toBe('"ex" OR "mormon"');
+		expect(expr("multi-level marketing")).toBe('"multi" OR "level" OR "marketing"');
+		expect(expr("ac/dc")).toBe('"ac" OR "dc"');
 	});
 
 	it("expands possessives to the stripped form (EnglishPossessiveFilter)", () => {
@@ -69,10 +69,33 @@ describe("toMatch: Azure simple syntax -> FTS5 MATCH", () => {
 		expect(expr("heaven’s")).toBe('("heaven’s" OR "heaven")');
 	});
 
+	it("keeps same-operator runs flat and parenthesises only where the operator changes", () => {
+		expect(expr("a1 b2 +c3 +d4 e5")).toBe('(("a1" OR "b2") AND "c3" AND "d4") OR "e5"');
+		expect(expr("a1 b2 -c3 d4")).toBe('("a1" OR "b2") NOT "c3" OR "d4"');
+		expect(expr("a1 -b2 -c3", "all")).toBe('(("a1") NOT "b2") NOT "c3"');
+		expect(expr("heaven's gate cult")).toBe('("heaven\'s" OR "heaven") OR "gate" OR "cult"');
+	});
+
+	it("does not nest deeper as the query gets longer", () => {
+		const long = Array.from({ length: 256 }, (_, i) => `w${i}`).join(" ");
+		const r = expr(long);
+		expect(r).not.toContain("(");
+		expect(r.split(" OR ")).toHaveLength(256);
+	});
+
+	it("throws SearchRequestError past the term and operator-change caps", () => {
+		expect(MAX_QUERY_ATOMS).toBe(256);
+		expect(() => toMatch(Array.from({ length: 257 }, (_, i) => `w${i}`).join(" "))).toThrow(SearchRequestError);
+		const alternating = Array.from({ length: 40 }, (_, i) => `${i % 2 ? "+" : "|"}w${i}`).join(" ");
+		expect(() => toMatch(alternating)).toThrow(/mixes operators/);
+		const ok = Array.from({ length: MAX_OPERATOR_CHANGES + 1 }, (_, i) => `${i % 2 ? "+" : "|"}w${i}`).join(" ");
+		expect(() => toMatch(ok)).not.toThrow();
+	});
+
 	it("quotes every atom so user text cannot inject FTS5 syntax", () => {
-		expect(expr("NEAR(foo bar) col:baz")).toBe('((("NEAR") OR "foo") OR "bar") OR "col:baz"');
-		expect(expr('title:x" OR 1')).toBe('("title:x") OR " OR 1"');
-		expect(expr('say "hi ""there"')).toBe('(("say") OR "hi ") OR "there"');
+		expect(expr("NEAR(foo bar) col:baz")).toBe('"NEAR" OR "foo" OR "bar" OR "col:baz"');
+		expect(expr('title:x" OR 1')).toBe('"title:x" OR " OR 1"');
+		expect(expr('say "hi ""there"')).toBe('"say" OR "hi " OR "there"');
 	});
 });
 
@@ -426,6 +449,23 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		const { body } = await post({ search: "the and of", count: true });
 		expect(body.value).toEqual([]);
 		expect(body["@odata.count"]).toBe(0);
+	});
+
+	it("runs a 256-term pasted query in FTS5 (no parser stack overflow) and 400s past the cap", async () => {
+		const words = Array.from({ length: 256 }, (_, i) => `word${i}`);
+		expect((await post({ search: words.join(" ") })).status).toBe(200);
+		const withHit = [...words.slice(0, 255), "scientology"].join(" ");
+		const hit = await post({ search: withHit });
+		expect(hit.status).toBe(200);
+		expect(hit.body.value.length).toBe(2);
+		const over = await post({ search: [...words, "extra"].join(" ") });
+		expect(over.status).toBe(400);
+		expect(over.body.error.message).toMatch(/too many terms/);
+	});
+
+	it("runs a 256-term possessive query (512 FTS atoms) without overflowing", async () => {
+		const words = Array.from({ length: 256 }, (_, i) => `word${i}'s`).join(" ");
+		expect((await post({ search: words })).status).toBe(200);
 	});
 
 	it("runs FTS5-looking user text as plain terms (no MATCH syntax error, so no 400/503)", async () => {
