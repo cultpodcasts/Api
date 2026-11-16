@@ -35,7 +35,12 @@ export interface SqlFilter {
 interface P {
 	s: string;
 	i: number;
+	/** Current parenthesis / any() nesting, capped so deep input is a 400, not a stack overflow. */
+	depth: number;
 }
+
+/** Deepest filter nesting accepted; the website sends at most two or three levels. */
+export const MAX_FILTER_DEPTH = 32;
 
 const ws = (p: P) => {
 	while (p.i < p.s.length && /\s/.test(p.s[p.i])) p.i++;
@@ -129,8 +134,12 @@ function parseSearchInArgs(p: P): string[] {
 function clause(p: P, binds: unknown[]): string {
 	ws(p);
 	if (lit(p, "(")) {
+		if (++p.depth > MAX_FILTER_DEPTH) {
+			throw new SearchRequestError(`filter is nested too deeply (at most ${MAX_FILTER_DEPTH} levels)`);
+		}
 		const inner = expr(p, binds);
 		if (!lit(p, ")")) throw new SearchRequestError("expected )");
+		p.depth--;
 		return `(${inner})`;
 	}
 	if (lit(p, "search.in(")) {
@@ -190,7 +199,7 @@ function expr(p: P, binds: unknown[]): string {
 
 /** Throws SearchRequestError on unsupported syntax; the route maps that to a 400 like Azure. */
 export function parseODataFilter(filter: string): SqlFilter {
-	const p: P = { s: filter, i: 0 };
+	const p: P = { s: filter, i: 0, depth: 0 };
 	const binds: unknown[] = [];
 	const sql = expr(p, binds);
 	ws(p);

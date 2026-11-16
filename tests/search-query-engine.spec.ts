@@ -146,6 +146,10 @@ describe("parseODataFilter: website OData subset -> SQL", () => {
 		expect(parseODataFilter(`subjects/any(s: search.in(s, '${values.join("£")}', '£'))`).binds).toHaveLength(1);
 	});
 
+	it("accepts nesting up to 32 levels", () => {
+		expect(parseODataFilter(`${"(".repeat(32)}id eq 'x'${")".repeat(32)}`).binds).toEqual(["x"]);
+	});
+
 	it("parses and / or with parentheses", () => {
 		expect(parseODataFilter("(contentKind eq 'Film' or contentKind eq 'Episode') and lang eq 'fr'")).toEqual({
 			sql: "(d.kind = ? OR d.kind = ?) AND d.lang = ?",
@@ -159,7 +163,9 @@ describe("parseODataFilter: website OData subset -> SQL", () => {
 		["unterminated value", "seriesName eq 'x", /unterminated/],
 		["trailing input", "seriesName eq 'x' zzz", /trailing input/],
 		["missing operator", "seriesName 'x'", /expected eq\/ne/],
-		["variable mismatch", "subjects/any(s: t eq 'x')", /variable mismatch/]
+		["variable mismatch", "subjects/any(s: t eq 'x')", /variable mismatch/],
+		["nesting past 32 levels", `${"(".repeat(33)}id eq 'x'${")".repeat(33)}`, /nested too deeply/],
+		["a stack-overflowing run of (", "(".repeat(100000), /nested too deeply/]
 	])("throws SearchRequestError on %s", (_label, filter, message) => {
 		expect(() => parseODataFilter(filter)).toThrow(SearchRequestError);
 		expect(() => parseODataFilter(filter)).toThrow(message);
@@ -179,12 +185,27 @@ describe("parseFacet", () => {
 });
 
 describe("parseRequest", () => {
+	it("accepts integer top / skip (numbers or integer strings) and clamps top to 1000 like Azure", () => {
+		expect(parseRequest('{"top":"20","skip":"40"}')).toMatchObject({ top: 20, skip: 40 });
+		expect(parseRequest('{"top":5000,"skip":100000}')).toMatchObject({ top: 1000, skip: 100000 });
+		expect(parseRequest('{"top":0}')).toMatchObject({ top: 0 });
+	});
+
 	it.each([
 		["not JSON", "{", /not valid JSON/],
 		["an array", "[]", /JSON object/],
 		["null", "null", /JSON object/],
 		["a non-string filter", '{"filter":1}', /filter must be a string/],
-		["non-array facets", '{"facets":"lang"}', /facets must be an array/]
+		["non-array facets", '{"facets":"lang"}', /facets must be an array/],
+		["an infinite skip", '{"skip":1e400}', /skip must be a non-negative integer/],
+		["a fractional skip", '{"skip":1.5}', /skip must be a non-negative integer/],
+		["a fractional top", '{"top":2.5}', /top must be a non-negative integer/],
+		["a negative top", '{"top":-1}', /top must be a non-negative integer/],
+		["a non-numeric top", '{"top":"ten"}', /top must be a non-negative integer/],
+		["a skip past Azure's 100000", '{"skip":100001}', /skip must be at most 100000/],
+		["an oversized search", JSON.stringify({ search: "a".repeat(8 * 1024 + 1) }), /search is too long/],
+		["an oversized filter", JSON.stringify({ filter: "x".repeat(32 * 1024 + 1) }), /filter is too long/],
+		["an oversized body", JSON.stringify({ queryType: "x".repeat(256 * 1024) }), /body is too large/]
 	])("rejects a body that is %s", (_label, raw, message) => {
 		expect(() => parseRequest(raw)).toThrow(SearchRequestError);
 		expect(() => parseRequest(raw)).toThrow(message);
@@ -542,7 +563,14 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		["a bad filter", { filter: "seriesName eq" }],
 		["an unknown filter field", { filter: "guests eq 'x'" }],
 		["an unsupported facet", { facets: ["description"] }],
-		["invalid JSON", "{"]
+		["invalid JSON", "{"],
+		["a non-integer skip", { skip: 1.5 }],
+		["an infinite skip", '{"skip":1e400}'],
+		["a fractional top", { top: 2.5 }],
+		["a skip past 100000", { skip: 100001 }],
+		["deep filter nesting", { filter: "(".repeat(5000) }],
+		["an oversized search", { search: "word ".repeat(2000) }],
+		["an oversized filter", { filter: `id eq '${"x".repeat(40000)}'` }]
 	])("returns 400 with an Azure-like error for %s", async (_label, body) => {
 		const resp = await post(body);
 		expect(resp.status).toBe(400);

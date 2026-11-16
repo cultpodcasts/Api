@@ -37,9 +37,15 @@ export const DOCS_SEARCH_PATH = /^\/indexes\/([^/]+)\/docs\/search$/;
 /** D1's limit on bound parameters in one statement (developers.cloudflare.com/d1/platform/limits). */
 export const D1_MAX_BOUND_PARAMETERS = 100;
 
-/** Azure's default and maximum page size. */
+/** Azure's default and maximum page size; a larger `top` is clamped, as Azure pages at 1000. */
 const DEFAULT_TOP = 50;
 const MAX_TOP = 1000;
+/** Azure rejects `skip` above 100,000. */
+export const MAX_SKIP = 100_000;
+/** Our own caps (Azure's are not documented for POST bodies); generous for anything a person types. */
+export const MAX_SEARCH_LENGTH = 8 * 1024;
+export const MAX_FILTER_LENGTH = 32 * 1024;
+export const MAX_BODY_LENGTH = 256 * 1024;
 
 export async function docsSearch(request: Request, env: SearchEnv): Promise<Response> {
 	let req: ODataSearchRequest;
@@ -65,7 +71,16 @@ function badRequest(e: unknown): Response {
 	return json({ error: { code: "", message: e instanceof Error ? e.message : "bad request" } }, 400);
 }
 
+/** A non-negative integer (or integer string, as the demo accepted), else a 400. */
+function nonNegativeInteger(name: string, value: unknown): number | undefined {
+	if (value === undefined || value === null) return undefined;
+	const n = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
+	if (!Number.isSafeInteger(n) || n < 0) throw new SearchRequestError(`${name} must be a non-negative integer`);
+	return n;
+}
+
 export function parseRequest(raw: string): ODataSearchRequest {
+	if (raw.length > MAX_BODY_LENGTH) throw new SearchRequestError(`request body is too large (at most ${MAX_BODY_LENGTH} characters)`);
 	let body: unknown;
 	try {
 		body = JSON.parse(raw);
@@ -81,6 +96,17 @@ export function parseRequest(raw: string): ODataSearchRequest {
 			throw new SearchRequestError(`${key} must be a string`);
 		}
 	}
+	if ((req.search?.length ?? 0) > MAX_SEARCH_LENGTH) {
+		throw new SearchRequestError(`search is too long (at most ${MAX_SEARCH_LENGTH} characters)`);
+	}
+	if ((req.filter?.length ?? 0) > MAX_FILTER_LENGTH) {
+		throw new SearchRequestError(`filter is too long (at most ${MAX_FILTER_LENGTH} characters)`);
+	}
+	const top = nonNegativeInteger("top", req.top);
+	const skip = nonNegativeInteger("skip", req.skip);
+	if (skip !== undefined && skip > MAX_SKIP) throw new SearchRequestError(`skip must be at most ${MAX_SKIP}`);
+	req.top = top === undefined ? undefined : Math.min(top, MAX_TOP);
+	req.skip = skip;
 	if (req.facets !== undefined && req.facets !== null) {
 		if (!Array.isArray(req.facets) || !req.facets.every((f) => typeof f === "string")) {
 			throw new SearchRequestError("facets must be an array of strings");
@@ -93,8 +119,9 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Respo
 	const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
 	const matched = toMatch(req.search ?? "", mode);
 	const match = matched.kind === "match" ? matched.expr : null;
-	const top = Math.min(Math.max(Number(req.top ?? DEFAULT_TOP) || 0, 0), MAX_TOP);
-	const skip = Math.max(Number(req.skip ?? 0) || 0, 0);
+	// parseRequest has already checked these are integers in range.
+	const top = Number(req.top ?? DEFAULT_TOP);
+	const skip = Number(req.skip ?? 0);
 
 	const where: string[] = [];
 	const binds: unknown[] = [];
