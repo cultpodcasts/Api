@@ -74,15 +74,19 @@ Both databases are provisioned by **Terraform**, not by hand: SP-1.10
 ([Api#270](https://github.com/cultpodcasts/Api/issues/270)) adds the `cloudflare` provider
 with a `cloudflare_d1_database` for `cultpodcasts-search` and `cultpodcasts-search-preview`
 (both primary in `weur`), and a CI workflow that runs `wrangler d1 migrations apply --remote`
-for each database after `terraform apply`. Terraform outputs replace the
-`PLACEHOLDER-…-database-id` values in `wrangler.search.jsonc`.
+for each database after `terraform apply` (preview first, then production), from
+`workers/search/migrations`. Terraform created both databases on 16 Nov 2026; their ids are in
+`wrangler.search.jsonc`, written by `infra/terraform/scripts/sync-wrangler-ids.mjs` from the
+Terraform outputs. The local binding keeps its `local-cultpodcasts-search` id, which the sync
+script never touches.
 
 Deletion protection is part of SP-1.10: `prevent_destroy` on both databases, a CI plan guard
 that fails on any destroy or replace, apply behind a GitHub environment approval, and D1 Time
 Travel documented for point-in-time restore. Azure stays on bicep.
 
-Until then the ids stay placeholders. Do not run `wrangler d1 create` by hand, and do not deploy
-`search` / `search-preview` (deploy is blocked on SP-1.10).
+Never run `wrangler d1 create` / `d1 delete` for these by hand. Schema changes reach the remote
+databases only through the Terraform workflow's migration step (after Jon approves the
+`cloudflare-production` environment), not `wrangler d1 migrations apply --remote` from a laptop.
 
 ## Local
 

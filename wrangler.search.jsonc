@@ -25,9 +25,9 @@
 		{
 			"binding": "SEARCH_DB",
 			"database_name": "cultpodcasts-search",
-			// PLACEHOLDER until Terraform provisions the database (SP-1.10, cultpodcasts/Api#270)
-			// and its output replaces this id. Do not create it by hand.
-			"database_id": "PLACEHOLDER-cultpodcasts-search-database-id",
+			// Provisioned by Terraform (infra/terraform/search-d1, SP-1.10, cultpodcasts/Api#270);
+			// id from its output via infra/terraform/scripts/sync-wrangler-ids.mjs. Never create or delete by hand.
+			"database_id": "f3d9b5b2-7cfd-4194-8a85-e22d36aab42d",
 			"migrations_dir": "workers/search/migrations"
 		}
 	],
@@ -52,8 +52,8 @@
 				{
 					"binding": "SEARCH_DB",
 					"database_name": "cultpodcasts-search-preview",
-					// PLACEHOLDER until Terraform provisions it (SP-1.10, cultpodcasts/Api#270).
-					"database_id": "PLACEHOLDER-cultpodcasts-search-preview-database-id",
+					// Provisioned by Terraform (SP-1.10); id synced from its output.
+					"database_id": "83ae1e81-bf07-4be8-aabf-2d4138959f74",
 					"migrations_dir": "workers/search/migrations"
 				}
 			]
@@ -66,7 +66,8 @@
 				{
 					"binding": "SEARCH_DB",
 					"database_name": "cultpodcasts-search",
-					// Local Miniflare only; any stable id works.
+					// Local Miniflare only; any stable id works. The `local-` prefix keeps
+					// sync-wrangler-ids.mjs from overwriting it with the production id.
 					"database_id": "local-cultpodcasts-search",
 					"migrations_dir": "workers/search/migrations"
 				}

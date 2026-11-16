@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import searchWorker from "../workers/search/src/index";
 import { SEARCH_SCHEMA_VERSION } from "../workers/search/src/health";
 import type { SearchEnv } from "../workers/search/src/env";
+// @ts-ignore - plain .mjs CLI helper (SP-1.10)
+import { applyIds } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
 
 /** SP-1.1 (cultpodcasts/Api#219): dedicated search D1 database, bindings and schema. */
 
@@ -153,11 +155,26 @@ describe("wrangler.search.jsonc", () => {
 		expect(preview.database_id).not.toBe(production.database_id);
 	});
 
-	it("keeps clearly marked placeholder ids until Terraform provisions the databases (SP-1.10)", () => {
-		expect(config.d1_databases[0].database_id).toBe("PLACEHOLDER-cultpodcasts-search-database-id");
-		expect(config.env.preview.d1_databases[0].database_id).toBe(
-			"PLACEHOLDER-cultpodcasts-search-preview-database-id"
-		);
+	it("binds the Terraform-provisioned database ids (SP-1.10): UUIDs, preview ≠ production, local stays local", () => {
+		const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+		const production = config.d1_databases[0].database_id;
+		const preview = config.env.preview.d1_databases[0].database_id;
+		expect(production).toMatch(uuid);
+		expect(preview).toMatch(uuid);
+		expect(preview).not.toBe(production);
+		expect(config.env.local.d1_databases[0].database_id).toBe("local-cultpodcasts-search");
+		expect(readFileSync(resolve(root, "wrangler.search.jsonc"), "utf8")).not.toContain("PLACEHOLDER-");
+	});
+
+	it("is already in sync for the post-apply id check (sync-wrangler-ids.mjs is a no-op)", () => {
+		const text = readFileSync(resolve(root, "wrangler.search.jsonc"), "utf8");
+		const ids = {
+			"cultpodcasts-search": config.d1_databases[0].database_id,
+			"cultpodcasts-search-preview": config.env.preview.d1_databases[0].database_id
+		};
+		const result = applyIds(text, ids);
+		expect(result.text).toBe(text);
+		expect(result.found.sort()).toEqual(["cultpodcasts-search", "cultpodcasts-search-preview"]);
 	});
 
 	it.each([

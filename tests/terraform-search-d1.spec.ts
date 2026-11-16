@@ -257,11 +257,11 @@ describe("sync-wrangler-ids", () => {
 			"database_id": "PLACEHOLDER-cultpodcasts-search-preview-database-id"
 		}
 	] }, "local": { "d1_databases": [
-		{ "binding": "SEARCH_DB", "database_name": "local-only", "database_id": "local-cultpodcasts-search" }
+		{ "binding": "SEARCH_DB", "database_name": "cultpodcasts-search", "database_id": "local-cultpodcasts-search" }
 	] } }
 }`;
 
-	it("replaces both placeholders and keeps comments and other bindings", () => {
+	it("replaces both placeholders, keeps comments, and leaves the same-named local binding alone", () => {
 		const { text, found } = applyIds(config, idsFromOutputs(outputs));
 		expect(found.sort()).toEqual(["cultpodcasts-search", "cultpodcasts-search-preview"]);
 		expect(text).toContain('"database_id": "11111111-2222-3333-4444-555555555555"');
