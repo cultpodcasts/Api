@@ -1,4 +1,4 @@
-import { logServedBy, readSession, servedBy } from "./d1-session";
+import { readSession, servedBy } from "./d1-session";
 import type { SearchEnv } from "./env";
 
 /** Must match the `schema_version` row written by the latest migration in ../migrations. */
@@ -39,7 +39,6 @@ export async function health(env: SearchEnv): Promise<Response> {
 		const schemaVersion = result.results[0]?.value ?? null;
 		const ok = schemaVersion === SEARCH_SCHEMA_VERSION;
 		const { servedByRegion, servedByPrimary } = servedBy([result]);
-		logServedBy("health", env, [result]);
 		const body: Health = { ...base, ok, schemaVersion, servedByRegion, servedByPrimary };
 		if (!ok) body.error = "schema version mismatch: apply workers/search/migrations";
 		return json(body, ok ? 200 : 503);

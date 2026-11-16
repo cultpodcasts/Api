@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import searchWorker from "../workers/search/src/index";
-import { D1_READ_LOG, READ_SESSION_CONSTRAINT, servedBy } from "../workers/search/src/d1-session";
+import { D1_READ_LOG, servedBy } from "../workers/search/src/d1-session";
 import type { SearchEnv } from "../workers/search/src/env";
 import { d1, d1Spy, migratedSearchDb, upsertSearchDoc } from "./support/searchD1";
 
@@ -69,11 +69,7 @@ describe("Sessions API read path", () => {
 	});
 	afterEach(() => log.mockRestore());
 
-	it("uses first-unconstrained, so the first read may go to the nearest replica", () => {
-		expect(READ_SESSION_CONSTRAINT).toBe("first-unconstrained");
-	});
-
-	it("docs/search opens one session per request and never reads around it", async () => {
+	it("docs/search opens one first-unconstrained session per request and never reads around it", async () => {
 		const spy = d1Spy();
 		const env: SearchEnv = { SEARCH_DB: d1(seededDb(), { spy }) };
 		// Page + count + facets in one batch, then the page's subject lookup: two round trips.
@@ -125,7 +121,8 @@ describe("Sessions API read path", () => {
 		expect(await resp.json()).toMatchObject({ ok: true, servedByRegion: "ENAM", servedByPrimary: false });
 		expect(spy.sessions).toEqual(["first-unconstrained"]);
 		expect(spy.directPrepares).toEqual([]);
-		expect(log).toHaveBeenCalledWith(D1_READ_LOG, expect.objectContaining({ route: "health", environment: "production", servedByRegion: "ENAM" }));
+		// Probes return the region in the body; the soak log line is search traffic only.
+		expect(log).not.toHaveBeenCalled();
 	});
 
 	it("no Worker source reads SEARCH_DB directly except the session helper", () => {

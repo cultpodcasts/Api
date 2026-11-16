@@ -62,8 +62,10 @@ export function servedBy(results: readonly { meta?: Meta }[]): ServedBy {
 export const D1_READ_LOG = "search: d1 read";
 
 /**
- * One structured log line per successful read request: which region and colo served it and
+ * One structured log line per successful search request: which region and colo served it and
  * whether that was the primary. The soak (SP-3.2) charts replica use and latency by region from it.
+ * Search traffic only (`/health` returns the region in its body instead). Unsampled; if volume ever
+ * matters, set `observability.head_sampling_rate` in wrangler.search.jsonc rather than gating here.
  */
 export function logServedBy(route: string, env: SearchEnv, results: readonly { meta?: Meta }[]): void {
 	console.log(D1_READ_LOG, { route, environment: env.searchEnvironment ?? "unknown", ...servedBy(results) });

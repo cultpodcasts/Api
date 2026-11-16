@@ -122,7 +122,8 @@ EEUR, APAC, OC). D1 only routes a query to a replica when it runs through a **se
 - **Writes stay on the primary.** D1 always sends writes to the primary; the SP-1.4 admin route
   should use plain `env.SEARCH_DB` (or a `first-primary` session), not `readSession`.
 - **`GET /health` uses the same path**, so it reports the schema version search actually sees: right
-  after a migration a replica can briefly answer with the old version (503).
+  after a migration a replica can briefly answer with the old version (503). It returns
+  `servedByRegion` / `servedByPrimary` in its body and does not write the log line below.
 
 ```mermaid
 flowchart LR
@@ -136,11 +137,11 @@ flowchart LR
 
 ### `served_by_region` log (soak)
 
-Each successful read request logs one line, `search: d1 read`, from the D1 result `meta`:
+Each successful `docs/search` request logs one line, `search: d1 read`, from the D1 result `meta`:
 
 | Field | Meaning |
 |-------|---------|
-| `route` | `docs/search` or `health` |
+| `route` | `docs/search` |
 | `environment` | `production` / `preview` / `local` |
 | `servedByRegion` | Distinct `served_by_region` values in query order (`"ENAM"`, or `"ENAM,WEUR"` if a request spanned two) |
 | `servedByPrimary` | `true` only when every query ran on the primary |
@@ -150,7 +151,9 @@ Each successful read request logs one line, `search: d1 read`, from the D1 resul
 
 Fields D1 does not return (local Miniflare) are `null`. Failed requests log only the existing
 `search: D1 failure` line. Query in Workers Observability with `message = "search: d1 read"`,
-grouped by `servedByRegion`; the SP-3.2 soak dashboard charts it.
+grouped by `servedByRegion`; the SP-3.2 soak dashboard charts it. The line is unsampled; if volume
+ever matters, set `observability.head_sampling_rate` in `wrangler.search.jsonc`. Whether to keep it
+after cutover is for SP-3.2 to decide.
 
 ## Query engine (SP-1.9)
 
