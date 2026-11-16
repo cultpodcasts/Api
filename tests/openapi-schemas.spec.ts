@@ -140,6 +140,55 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.resultIds).toHaveLength(1);
 	});
 
+	it("accepts discovery submit, apply and retry language, kind and identity decision fields", () => {
+		const itemId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const submit = discoverySubmitRequestSchema.parse({
+			ids: ["550e8400-e29b-41d4-a716-446655440000"],
+			resultIds: [itemId],
+			languageDecisions: { [itemId]: "continue" },
+			kindDecisions: { [itemId]: "select" },
+			selectedKindKeys: { [itemId]: "catalogue:film:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+			identityDecisions: { [itemId]: "continue" }
+		});
+		expect(submit.kindDecisions?.[itemId]).toBe("select");
+		expect(submit.selectedKindKeys?.[itemId]).toContain("catalogue:film:");
+		const apply = discoverySubmissionApplyRequestSchema.parse({
+			etag: "etag",
+			acceptedResultIds: [itemId],
+			kindDecisions: { [itemId]: "continue" }
+		});
+		expect(apply.kindDecisions?.[itemId]).toBe("continue");
+		const retry = discoverySubmissionRetryRequestSchema.parse({
+			etag: "etag",
+			abandonResultIds: [],
+			kindDecisions: { [itemId]: "select" },
+			selectedKindKeys: { [itemId]: "tmdb:123" }
+		});
+		expect(retry.selectedKindKeys?.[itemId]).toBe("tmdb:123");
+	});
+
+	it("accepts a suggest-only kind hold on the discovery submit response", () => {
+		const parsed = discoverySubmitResponseSchema.parse({
+			message: "Kind decision required",
+			errorsOccurred: false,
+			results: [],
+			kindDecisionsRequired: [{
+				discoveryItemId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				target: "film",
+				query: "Father's House",
+				candidates: [{
+					key: "tmdb:1",
+					title: "Father's House",
+					kind: "Film",
+					source: "tmdb",
+					year: 2020
+				}]
+			}]
+		});
+		expect(parsed.kindDecisionsRequired).toHaveLength(1);
+		expect(parsed.kindDecisionsRequired?.[0].candidates[0].key).toBe("tmdb:1");
+	});
+
 	it("accepts search and submit-url request shapes", () => {
 		expect(searchRequestSchema.parse({ search: "cult", orderby: "release desc" }).search).toBe("cult");
 		expect(submitUrlRequestSchema.parse({ url: "https://example.com/ep" }).url).toContain("example.com");
