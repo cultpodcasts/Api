@@ -22,3 +22,4 @@ scripts/br-field-probe/.wrangler/
 scripts/streaming-scrape-survey/out/
 scripts/streaming-scrape-survey/.wrangler/
 packages/streaming-submit-contract/.publish/
+search-demo/harness/report.*
