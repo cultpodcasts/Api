@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("workers-og", () => ({
+	ImageResponse: class ImageResponse {}
+}));
 import {
 	appendHeroCurationEpisodesOpenApiSchema,
 	deleteHeroCurationEpisodesOpenApiSchema,
@@ -21,9 +25,30 @@ import {
 	submitUrlLookupResponseSchema,
 	submitUrlRequestSchema
 } from "../src/openapiSchemas";
+import { SearchRoute } from "../src/openapiRoutes";
+import { searchForwardedErrorSchema, searchUpstreamErrorSchema } from "../src/openapiSchemas";
 import { streamingMembershipShapeCases } from "./fixtures/streaming-submit-contract";
 
 describe("OpenAPI route contracts", () => {
+	it("documents POST /search error statuses, the 502 envelope and Retry-After", () => {
+		const responses = SearchRoute.openApiSchema.responses ?? {};
+		for (const status of [200, 400, 429, 502, 503]) {
+			expect(responses[status], `status ${status}`).toBeDefined();
+		}
+		const schema502 = (responses[502] as { content: { "application/json": { schema: unknown } } })
+			.content["application/json"].schema;
+		expect(schema502).toBe(searchUpstreamErrorSchema);
+		expect(searchUpstreamErrorSchema.safeParse({
+			error: { code: "UpstreamSearchError", message: "Upstream search unavailable" }
+		}).success).toBe(true);
+		expect(searchUpstreamErrorSchema.safeParse({ error: { code: "Other", message: "x" } }).success).toBe(false);
+		expect(responses[429]?.description).toContain("Retry-After");
+		expect(responses[503]?.description).toContain("Retry-After");
+		expect(searchForwardedErrorSchema.safeParse({ error: "Bad request" }).success).toBe(true);
+		expect(searchForwardedErrorSchema.safeParse({ error: { code: "", message: "Could not find a property named 'x'" } }).success).toBe(true);
+	});
+
+
 	it("shares one 409 UUID-array object across submit and GET podcast-by-name", () => {
 		expect(SubmitRoute.openApiSchema.responses?.[409]).toBe(
 			GetPodcastByNameRoute.openApiSchema.responses?.[409]
