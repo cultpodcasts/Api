@@ -1,0 +1,264 @@
+# Terraform for the search platform D1 databases (SP-1.10, cultpodcasts/Api#270).
+#
+#   PR:   fmt + validate (no secrets); plan + plan guard + plan posted to the PR (secrets only).
+#   main: re-plan, plan guard, then apply behind the `cloudflare-production` environment
+#         approval, then D1 schema migrations (preview first, then production).
+#
+# Safe before setup: with the secrets missing, the secret-dependent jobs are skipped and the
+# run stays green. Apply also stays skipped until the environment has required reviewers.
+# There is deliberately no destroy path anywhere in this workflow.
+#
+# Uses its own TF_CLOUDFLARE_API_TOKEN (D1 Edit only), not the repo's existing
+# CLOUDFLARE_API_TOKEN, so Terraform never runs with a broader token.
+name: Terraform (search D1)
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - "workers/search/migrations/**"
+      - ".github/workflows/terraform-search-d1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/**"
+      - "workers/search/migrations/**"
+      - ".github/workflows/terraform-search-d1.yml"
+  # Manual run on main, e.g. the first apply after the secrets are created. Still gated by
+  # the environment approval and the plan guard.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One Terraform run at a time across PRs and main (R2 lockfile is the second line of defence).
+concurrency:
+  group: terraform-search-d1
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.13.4"
+  TF_DIR: infra/terraform/search-d1
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  NODE_VERSION: "22"
+
+jobs:
+  validate:
+    name: fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff infra/terraform
+
+      - name: terraform init (no backend)
+        run: terraform -chdir="$TF_DIR" init -backend=false
+
+      - name: terraform validate
+        run: terraform -chdir="$TF_DIR" validate
+
+  readiness:
+    name: readiness (secrets + approval gate)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      configured: ${{ steps.secrets.outputs.configured }}
+      apply_protected: ${{ steps.environment.outputs.protected }}
+    steps:
+      - id: secrets
+        name: Check Terraform secrets exist
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TF_CLOUDFLARE_API_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_R2_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Terraform (search D1)::Secrets not configured (TF_CLOUDFLARE_API_TOKEN, TF_STATE_R2_ACCESS_KEY_ID, TF_STATE_R2_SECRET_ACCESS_KEY). Plan and apply skipped. See infra/terraform/README.md."
+          fi
+
+      - id: environment
+        name: Check apply environment requires approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          reviewers=$(gh api "repos/$REPO/environments/cloudflare-production" \
+            --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' 2>/dev/null || echo 0)
+          if [ "${reviewers:-0}" -ge 1 ]; then
+            echo "protected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "protected=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Terraform (search D1)::Environment cloudflare-production missing or has no required reviewers. Apply will be skipped until it does."
+          fi
+
+  plan:
+    name: plan + guard
+    needs: [validate, readiness]
+    if: needs.readiness.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.TF_CLOUDFLARE_API_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: terraform init
+        run: terraform -chdir="$TF_DIR" init -lock-timeout=5m
+
+      - name: terraform plan
+        run: terraform -chdir="$TF_DIR" plan -lock-timeout=5m -out=tfplan
+
+      - name: Plan guard (no destroy / replace of D1 databases)
+        run: |
+          terraform -chdir="$TF_DIR" show -json tfplan > "$RUNNER_TEMP/plan.json"
+          node infra/terraform/scripts/plan-guard.mjs "$RUNNER_TEMP/plan.json"
+
+      - name: Plan summary
+        if: always()
+        run: |
+          {
+            echo "### Terraform plan (search D1)"
+            echo '```'
+            terraform -chdir="$TF_DIR" show -no-color tfplan 2>/dev/null | tail -c 60000 || echo "(no plan)"
+            echo '```'
+          } > "$RUNNER_TEMP/plan.md"
+          cat "$RUNNER_TEMP/plan.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post plan to PR
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/plan.md"
+
+  apply:
+    name: apply + migrations (approval required)
+    needs: [plan, readiness]
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
+      needs.readiness.outputs.configured == 'true' &&
+      needs.readiness.outputs.apply_protected == 'true'
+    runs-on: ubuntu-latest
+    environment: cloudflare-production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.TF_CLOUDFLARE_API_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: terraform init
+        run: terraform -chdir="$TF_DIR" init -lock-timeout=5m
+
+      # Re-plan after approval: state may have moved since the plan job ran.
+      - name: terraform plan
+        run: terraform -chdir="$TF_DIR" plan -lock-timeout=5m -out=tfplan
+
+      - name: Plan guard (no destroy / replace of D1 databases)
+        run: |
+          terraform -chdir="$TF_DIR" show -json tfplan > "$RUNNER_TEMP/plan.json"
+          node infra/terraform/scripts/plan-guard.mjs "$RUNNER_TEMP/plan.json"
+
+      - name: terraform apply (guarded saved plan only)
+        run: terraform -chdir="$TF_DIR" apply -lock-timeout=5m -input=false tfplan
+
+      - name: Terraform outputs
+        id: outputs
+        run: |
+          terraform -chdir="$TF_DIR" output -json > "$RUNNER_TEMP/tf-outputs.json"
+          node -e '
+            const o = require(process.argv[1]);
+            for (const k of ["search_database_id", "search_preview_database_id"]) console.log(`${k}=${o[k].value}`);
+          ' "$RUNNER_TEMP/tf-outputs.json" >> "$GITHUB_OUTPUT"
+
+      - name: Install wrangler
+        if: hashFiles('workers/search/migrations/*.sql') != ''
+        run: npm ci
+
+      # Migrations use a generated wrangler config holding the Terraform ids, so they work
+      # whether or not wrangler.search.jsonc still has placeholder ids.
+      - name: D1 migrations (preview first, then production)
+        if: hashFiles('workers/search/migrations/*.sql') != ''
+        env:
+          SEARCH_DB_ID: ${{ steps.outputs.outputs.search_database_id }}
+          SEARCH_PREVIEW_DB_ID: ${{ steps.outputs.outputs.search_preview_database_id }}
+        run: |
+          cat > .wrangler.search-migrations.json <<JSON
+          {
+            "name": "search-migrations",
+            "compatibility_date": "2026-10-01",
+            "account_id": "bae3f835f19899c6eee1ec48f2d658cf",
+            "d1_databases": [
+              { "binding": "SEARCH_PREVIEW_DB", "database_name": "cultpodcasts-search-preview", "database_id": "$SEARCH_PREVIEW_DB_ID", "migrations_dir": "workers/search/migrations" },
+              { "binding": "SEARCH_DB", "database_name": "cultpodcasts-search", "database_id": "$SEARCH_DB_ID", "migrations_dir": "workers/search/migrations" }
+            ]
+          }
+          JSON
+          npx wrangler d1 migrations apply cultpodcasts-search-preview --remote -c .wrangler.search-migrations.json
+          npx wrangler d1 migrations apply cultpodcasts-search --remote -c .wrangler.search-migrations.json
+
+      - name: Check wrangler.search.jsonc ids
+        if: always() && steps.outputs.outcome == 'success'
+        run: |
+          if [ ! -f wrangler.search.jsonc ]; then
+            echo "wrangler.search.jsonc not on main yet (SP-1.1). Run sync-wrangler-ids.mjs once it lands." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          cp wrangler.search.jsonc "$RUNNER_TEMP/wrangler.search.jsonc"
+          node infra/terraform/scripts/sync-wrangler-ids.mjs "$RUNNER_TEMP/tf-outputs.json" "$RUNNER_TEMP/wrangler.search.jsonc"
+          if cmp -s wrangler.search.jsonc "$RUNNER_TEMP/wrangler.search.jsonc"; then
+            echo "wrangler.search.jsonc matches the Terraform database ids." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=wrangler.search.jsonc::Database ids differ from Terraform outputs. Open a PR running infra/terraform/scripts/sync-wrangler-ids.mjs."
+            echo "wrangler.search.jsonc needs the Terraform ids (run sync-wrangler-ids.mjs in a PR)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  apply-skipped:
+    name: apply skipped (approval gate not set up)
+    needs: [plan, readiness]
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
+      needs.readiness.outputs.configured == 'true' &&
+      needs.readiness.outputs.apply_protected != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "::warning title=Terraform (search D1)::Apply skipped. Create environment cloudflare-production with a required reviewer, then re-run (workflow_dispatch)."
