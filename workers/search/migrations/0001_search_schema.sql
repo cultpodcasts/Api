@@ -89,6 +89,13 @@ CREATE VIRTUAL TABLE search_fts USING fts5 (
 	tokenize = 'porter unicode61'
 );
 
+-- Write contract for these triggers (SP-1.4 writers and any manual fix-up):
+--   * Upsert ONLY with `INSERT INTO search_docs (...) VALUES (...) ON CONFLICT(id) DO UPDATE SET ...`.
+--     That keeps the rowid and fires search_docs_au, so search_fts stays in step.
+--   * NEVER `INSERT OR REPLACE` / `REPLACE INTO` on search_docs. REPLACE deletes the old row
+--     WITHOUT firing search_docs_ad unless PRAGMA recursive_triggers is on, so the old terms stay
+--     in search_fts (stale hits, a failing content-aware integrity-check) with no warning.
+-- Check after bulk work: INSERT INTO search_fts(search_fts, rank) VALUES ('integrity-check', 1);
 CREATE TRIGGER search_docs_ai AFTER INSERT ON search_docs BEGIN
 	INSERT INTO search_fts (
 		rowid, title, alternative_titles, series_name, subjects_text, description, guests,
@@ -109,7 +116,12 @@ CREATE TRIGGER search_docs_ad AFTER DELETE ON search_docs BEGIN
 	);
 END;
 
-CREATE TRIGGER search_docs_au AFTER UPDATE ON search_docs BEGIN
+-- Only updates that touch an FTS column re-index: modified_at, image, ids and other columns
+-- change without rewriting search_fts (fewer billed rows written, less segment churn).
+CREATE TRIGGER search_docs_au AFTER UPDATE OF
+	title, alternative_titles, series_name, subjects_text, description, guests,
+	publisher_search_terms, episode_search_terms
+ON search_docs BEGIN
 	INSERT INTO search_fts (
 		search_fts, rowid, title, alternative_titles, series_name, subjects_text, description,
 		guests, publisher_search_terms, episode_search_terms

@@ -41,6 +41,33 @@ Design docs: RedditPodcastPoster `docs/search-platform/` (start at `README.md`).
 - `search_meta`: `schema_version`. `GET /health` returns 503 until it matches
   `SEARCH_SCHEMA_VERSION` in `src/health.ts`.
 
+### Write contract (FTS triggers)
+
+`search_fts` is external-content: the triggers are the only thing keeping it in step with
+`search_docs`.
+
+- **Upsert only with `INSERT … ON CONFLICT(id) DO UPDATE SET …`.** It keeps the rowid and fires
+  `search_docs_au`.
+- **Never `INSERT OR REPLACE` / `REPLACE INTO` on `search_docs`.** REPLACE deletes the old row
+  without firing `search_docs_ad` (unless `PRAGMA recursive_triggers` is on, which every write
+  path would have to remember), so the old terms stay in `search_fts`: stale hits and a failing
+  integrity check, with no error at write time.
+- `search_docs_au` fires only when an FTS column changes (`AFTER UPDATE OF` the eight FTS
+  columns), so updating `modified_at`, `image` or ids does not rewrite the index.
+- After bulk work, check with the content-aware integrity check:
+  `INSERT INTO search_fts(search_fts, rank) VALUES ('integrity-check', 1);`
+
+`tests/search-worker.spec.ts` pins all of this.
+
+### Migrations and schema version
+
+- One migration per schema version: `0001_…` is version 1, `0002_…` is version 2, and so on.
+- Every migration after `0001` ends with
+  `UPDATE search_meta SET value = '<n>' WHERE key = 'schema_version';`
+  and bumps `SEARCH_SCHEMA_VERSION` in `src/health.ts` in the same PR.
+- The spec applies every file in `migrations/` in name order and checks the final
+  `schema_version` equals `SEARCH_SCHEMA_VERSION`, so a migration that forgets either fails CI.
+
 ## Provisioning (Terraform, SP-1.10)
 
 Both databases are provisioned by **Terraform**, not by hand: SP-1.10

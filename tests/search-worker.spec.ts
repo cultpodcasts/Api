@@ -53,7 +53,7 @@ function parseJsonc(text: string): any {
 function migratedDb(): DatabaseSync {
 	const db = new DatabaseSync(":memory:");
 	db.exec("PRAGMA foreign_keys = ON;");
-	for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()) {
+	for (const file of migrationFiles()) {
 		db.exec(readFileSync(resolve(migrationsDir, file), "utf8"));
 	}
 	return db;
@@ -90,6 +90,26 @@ function insertDoc(db: DatabaseSync, doc: Record<string, unknown>) {
 	db.prepare(`INSERT INTO search_docs (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`).run(
 		...(Object.values(row) as never[])
 	);
+}
+
+/** Migration files in apply order (wrangler applies them by name). */
+function migrationFiles(): string[] {
+	return readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
+}
+
+/**
+ * Content-aware FTS5 integrity check (rank = 1): compares search_fts with search_docs, so it
+ * catches stale terms left by a REPLACE. Throws (SQLITE_CORRUPT_VTAB) when they differ.
+ */
+function ftsIntegrity(db: DatabaseSync): void {
+	db.exec("INSERT INTO search_fts(search_fts, rank) VALUES ('integrity-check', 1)");
+}
+
+/** FTS rowids matching, without joining back to search_docs (shows stale index entries). */
+function ftsRowids(db: DatabaseSync, query: string): number[] {
+	return (db.prepare("SELECT rowid FROM search_fts WHERE search_fts MATCH ? ORDER BY rowid").all(query) as {
+		rowid: number;
+	}[]).map((r) => r.rowid);
 }
 
 function match(db: DatabaseSync, query: string): string[] {
@@ -160,12 +180,25 @@ describe("wrangler.search.jsonc", () => {
 });
 
 describe("search D1 schema (workers/search/migrations)", () => {
-	it("writes the schema version the Worker expects", () => {
+	it("applies every migration in order and ends at the schema version the Worker expects", () => {
 		const db = migratedDb();
 		const row = db.prepare("SELECT value FROM search_meta WHERE key = 'schema_version'").get() as {
 			value: string;
 		};
 		expect(row.value).toBe(SEARCH_SCHEMA_VERSION);
+		// Convention (workers/search/README.md): one migration per schema version.
+		expect(String(migrationFiles().length)).toBe(SEARCH_SCHEMA_VERSION);
+	});
+
+	it("every migration after 0001 moves schema_version to its own number", () => {
+		const files = migrationFiles();
+		expect(files[0]).toMatch(/^0001_/);
+		files.slice(1).forEach((file, i) => {
+			const sql = readFileSync(resolve(migrationsDir, file), "utf8");
+			expect(sql, file).toMatch(
+				new RegExp(`UPDATE\\s+search_meta\\s+SET\\s+value\\s*=\\s*'${i + 2}'\\s+WHERE\\s+key\\s*=\\s*'schema_version'`, "i")
+			);
+		});
 	});
 
 	it("uses porter unicode61 and the agreed FTS column order", () => {
@@ -237,7 +270,50 @@ describe("search D1 schema (workers/search/migrations)", () => {
 		db.prepare("DELETE FROM search_docs WHERE id = 'a'").run();
 		expect(match(db, "replacement")).toEqual([]);
 		expect((db.prepare("SELECT COUNT(*) AS n FROM doc_subjects").get() as { n: number }).n).toBe(0);
-		db.exec("INSERT INTO search_fts(search_fts) VALUES ('integrity-check')");
+		ftsIntegrity(db);
+	});
+
+	it("keeps FTS in step on the only allowed upsert, INSERT … ON CONFLICT(id) DO UPDATE", () => {
+		const db = migratedDb();
+		insertDoc(db, { id: "a", title: "Original wording" });
+		const before = db.prepare("SELECT rowid FROM search_docs WHERE id = 'a'").get() as { rowid: number };
+		db.prepare(
+			`INSERT INTO search_docs (id, kind, release, duration, title) VALUES ('a', 'Episode', '2026-11-02T00:00:00Z', '01:00:00', 'Replacement wording')
+			 ON CONFLICT(id) DO UPDATE SET title = excluded.title, release = excluded.release`
+		).run();
+		const after = db.prepare("SELECT rowid FROM search_docs WHERE id = 'a'").get() as { rowid: number };
+		expect(after.rowid).toBe(before.rowid);
+		ftsIntegrity(db);
+		expect(match(db, "replacement")).toEqual(["a"]);
+		expect(match(db, "original")).toEqual([]);
+		expect(ftsRowids(db, "original")).toEqual([]);
+	});
+
+	it("documents why INSERT OR REPLACE is banned: it leaves stale FTS terms behind", () => {
+		const db = migratedDb();
+		insertDoc(db, { id: "a", title: "Original wording" });
+		db.prepare(
+			"INSERT OR REPLACE INTO search_docs (id, kind, release, duration, title) VALUES ('a', 'Episode', '2026-11-02T00:00:00Z', '01:00:00', 'Replacement wording')"
+		).run();
+		// The old row's terms are still indexed under a rowid that no longer exists.
+		expect(ftsRowids(db, "original")).toHaveLength(1);
+		expect(() => ftsIntegrity(db)).toThrow();
+		const sql = readFileSync(resolve(migrationsDir, "0001_search_schema.sql"), "utf8");
+		expect(sql).toMatch(/ON CONFLICT\(id\) DO UPDATE/);
+		expect(sql).toMatch(/NEVER `INSERT OR REPLACE`/);
+	});
+
+	it("re-indexes only when an FTS column changes", () => {
+		const db = migratedDb();
+		const { sql } = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'search_docs_au'").get() as { sql: string };
+		const columns = (db.prepare("PRAGMA table_info(search_fts)").all() as { name: string }[]).map((c) => c.name);
+		const updateOf = /AFTER UPDATE OF([\s\S]*?)ON search_docs/.exec(sql)?.[1] ?? "";
+		expect(updateOf.split(",").map((c) => c.trim())).toEqual(columns);
+
+		insertDoc(db, { id: "a", title: "Stable wording" });
+		db.prepare("UPDATE search_docs SET image = 'https://img.example/a.jpg', modified_at = '2026-11-16T00:00:00Z' WHERE id = 'a'").run();
+		ftsIntegrity(db);
+		expect(match(db, "stable")).toEqual(["a"]);
 	});
 
 	it("rejects a duplicate document id", () => {
