@@ -89,15 +89,15 @@ describe("parseODataFilter: website OData subset -> SQL", () => {
 	it("treats stored NULL lang as English", () => {
 		expect(parseODataFilter("lang eq 'en'")).toEqual({ sql: "(d.lang IS NULL OR d.lang = 'en')", binds: [] });
 		expect(parseODataFilter("search.in(lang, 'en,fr')")).toEqual({
-			sql: "((d.lang IS NULL OR d.lang = 'en') OR d.lang IN (?))",
-			binds: ["fr"]
+			sql: "((d.lang IS NULL OR d.lang = 'en') OR d.lang IN (SELECT value FROM json_each(?)))",
+			binds: ['["fr"]']
 		});
 	});
 
 	it("parses search.in with a custom delimiter and OData quote doubling", () => {
 		expect(parseODataFilter("search.in(seriesName, 'Heaven''s Gate£Cults', '£')")).toEqual({
-			sql: "d.series_name IN (?,?)",
-			binds: ["Heaven's Gate", "Cults"]
+			sql: "d.series_name IN (SELECT value FROM json_each(?))",
+			binds: ['["Heaven\'s Gate","Cults"]']
 		});
 	});
 
@@ -111,7 +111,16 @@ describe("parseODataFilter: website OData subset -> SQL", () => {
 			sql: "EXISTS (SELECT 1 FROM doc_subjects s WHERE s.rowid_ref = d.rowid AND s.subject = ?)", // pragma: allowlist secret
 			binds: ["Scientology"]
 		});
-		expect(parseODataFilter("subjects/any(x: search.in(x, 'A£B', '£'))").binds).toEqual(["A", "B"]);
+		expect(parseODataFilter("subjects/any(x: search.in(x, 'A£B', '£'))")).toEqual({
+			sql: "EXISTS (SELECT 1 FROM doc_subjects s WHERE s.rowid_ref = d.rowid AND s.subject IN (SELECT value FROM json_each(?)))", // pragma: allowlist secret
+			binds: ['["A","B"]']
+		});
+	});
+
+	it("binds a search.in list as one JSON parameter however long it is (D1: 100 binds max)", () => {
+		const values = Array.from({ length: 500 }, (_, i) => `Series ${i}`);
+		expect(parseODataFilter(`search.in(seriesName, '${values.join("£")}', '£')`).binds).toEqual([JSON.stringify(values)]);
+		expect(parseODataFilter(`subjects/any(s: search.in(s, '${values.join("£")}', '£'))`).binds).toHaveLength(1);
 	});
 
 	it("parses and / or with parentheses", () => {
@@ -422,6 +431,67 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 	it("runs FTS5-looking user text as plain terms (no MATCH syntax error, so no 400/503)", async () => {
 		const { status } = await post({ search: 'NEAR(foo bar) col:baz title:x" OR 1 ^2 {a b}' });
 		expect(status).toBe(200);
+	});
+
+	describe("D1's 100-bound-parameter limit", () => {
+		function bigDb(n: number) {
+			const db = migratedSearchDb();
+			for (let i = 0; i < n; i++) {
+				upsertSearchDoc(
+					db,
+					{
+						id: `bulk-${String(i).padStart(4, "0")}`,
+						title: `Bulk episode ${i}`,
+						series_name: `Series ${i % 150}`,
+						release: `2026-01-01T00:00:${String(i % 60).padStart(2, "0")}Z`
+					},
+					[`Subject ${i % 150}`]
+				);
+			}
+			return db;
+		}
+
+		it("the test adapter rejects more than 100 binds, like D1", () => {
+			const stmt = d1(migratedSearchDb()).prepare("SELECT 1");
+			expect(() => stmt.bind(...Array(100).fill(1))).not.toThrow();
+			expect(() => stmt.bind(...Array(101).fill(1))).toThrow(/too many SQL variables/);
+		});
+
+		it("returns a top: 1000 page with more than 100 hits, subjects included", async () => {
+			const { status, body } = await post({ search: "bulk", top: 1000, count: true }, { SEARCH_DB: d1(bigDb(250)) });
+			expect(status).toBe(200);
+			expect(body.value).toHaveLength(250);
+			expect(body["@odata.count"]).toBe(250);
+			for (const d of body.value) expect(d.subjects).toHaveLength(1);
+		});
+
+		it("runs a 150-value search.in through the page, count and facet statements", async () => {
+			const series = Array.from({ length: 150 }, (_, i) => `Series ${i}`).join("£");
+			const subjects = Array.from({ length: 150 }, (_, i) => `Subject ${i}`).join("£");
+			const { status, body } = await post(
+				{
+					filter: `search.in(seriesName, '${series}', '£') and subjects/any(s: search.in(s, '${subjects}', '£'))`,
+					top: 1000,
+					count: true,
+					facets: ["seriesName,count:1000", "subjects,count:1000", "contentKind", "lang"]
+				},
+				{ SEARCH_DB: d1(bigDb(300)) }
+			);
+			expect(status).toBe(200);
+			expect(body.value).toHaveLength(300);
+			expect(body["@odata.count"]).toBe(300);
+			expect(body["@search.facets"].seriesName).toHaveLength(150);
+			expect(body["@search.facets"].subjects).toHaveLength(150);
+		});
+
+		it("returns 400 (not a D1 503) for a filter with more separate comparisons than D1 can bind", async () => {
+			const filter = Array.from({ length: 99 }, (_, i) => `id eq 'x${i}'`).join(" or ");
+			const resp = await post({ filter });
+			expect(resp.status).toBe(400);
+			expect(resp.body.error.message).toMatch(/too many values/);
+			const ok = await post({ filter: Array.from({ length: 98 }, (_, i) => `id eq 'x${i}'`).join(" or ") });
+			expect(ok.status).toBe(200);
+		});
 	});
 
 	it("accepts any index name, so the harness's /indexes/d1/… path works", async () => {

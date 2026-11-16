@@ -34,6 +34,9 @@ export type ODataSearchRequest = {
 
 export const DOCS_SEARCH_PATH = /^\/indexes\/([^/]+)\/docs\/search$/;
 
+/** D1's limit on bound parameters in one statement (developers.cloudflare.com/d1/platform/limits). */
+export const D1_MAX_BOUND_PARAMETERS = 100;
+
 /** Azure's default and maximum page size. */
 const DEFAULT_TOP = 50;
 const MAX_TOP = 1000;
@@ -113,6 +116,11 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Respo
 		where.push(`(${parsed.sql})`);
 		binds.push(...parsed.binds);
 	}
+	// Lists bind as one JSON parameter, so only a filter with ~100 separate comparisons gets here.
+	// The main statement adds LIMIT and OFFSET.
+	if (binds.length + 2 > D1_MAX_BOUND_PARAMETERS) {
+		throw new SearchRequestError(`filter has too many values (at most ${D1_MAX_BOUND_PARAMETERS - 2} comparisons)`);
+	}
 	const facetSpecs = (req.facets ?? []).map(parseFacet);
 	const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
@@ -164,9 +172,10 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv): Promise<Respo
 	const subjectsByDoc = new Map<number, string[]>(); // pragma: allowlist secret
 	if (docs.length && (!want || want.has("subjects"))) { // pragma: allowlist secret
 		const subjectRows = await env.SEARCH_DB.prepare(
-			`SELECT rowid_ref, subject FROM doc_subjects WHERE rowid_ref IN (${docs.map(() => "?").join(",")})` // pragma: allowlist secret
+			// One JSON bind: a page can hold up to MAX_TOP hits, far past D1's 100-parameter limit.
+			"SELECT rowid_ref, subject FROM doc_subjects WHERE rowid_ref IN (SELECT value FROM json_each(?))" // pragma: allowlist secret
 		)
-			.bind(...docs.map((d) => d.rowid))
+			.bind(JSON.stringify(docs.map((d) => d.rowid)))
 			.all<{ rowid_ref: number; subject: string }>();
 		for (const row of subjectRows.results) {
 			const list = subjectsByDoc.get(row.rowid_ref) ?? []; // pragma: allowlist secret

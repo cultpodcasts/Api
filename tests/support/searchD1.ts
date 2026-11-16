@@ -23,12 +23,21 @@ export function migratedSearchDb(): DatabaseSync {
 	return db;
 }
 
-/** Minimal D1Database over node:sqlite: prepare().bind() with first(), all(), and batch(). */
+/** D1 rejects a statement with more than 100 bound parameters; the adapter does too. */
+export const D1_MAX_BOUND_PARAMETERS = 100;
+
+/**
+ * Minimal D1Database over node:sqlite: prepare().bind() with first(), all(), and batch().
+ * Enforces D1's 100-bound-parameter limit, which node:sqlite would otherwise allow.
+ */
 export function d1(db: DatabaseSync): D1Database {
 	const statement = (sql: string) => {
 		let params: unknown[] = [];
 		const stmt = {
 			bind(...values: unknown[]) {
+				if (values.length > D1_MAX_BOUND_PARAMETERS) {
+					throw new Error(`D1_ERROR: too many SQL variables (${values.length} > ${D1_MAX_BOUND_PARAMETERS})`);
+				}
 				params = values;
 				return stmt;
 			},

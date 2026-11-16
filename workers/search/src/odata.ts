@@ -107,8 +107,9 @@ function searchInSql(name: string, values: string[], binds: unknown[]): string {
 	const plain = values.filter((v) => !(name === "lang" && v === "en"));
 	if (name === "lang" && values.includes("en")) parts.push(`(${col} IS NULL OR ${col} = 'en')`);
 	if (plain.length) {
-		parts.push(`${col} IN (${plain.map(() => "?").join(",")})`);
-		binds.push(...plain);
+		// One JSON bind however long the list: D1 allows at most 100 bound parameters per query.
+		parts.push(`${col} IN (SELECT value FROM json_each(?))`);
+		binds.push(JSON.stringify(plain));
 	}
 	// Empty list (`search.in(f, '')`) matches nothing, as in Azure.
 	if (!parts.length) return "0 = 1";
@@ -150,8 +151,10 @@ function clause(p: P, binds: unknown[]): string {
 			const v = identifier(p);
 			if (v !== varName) throw new SearchRequestError("any: variable mismatch");
 			const values = parseSearchInArgs(p);
-			valueSql = values.length ? `s.subject IN (${values.map(() => "?").join(",")})` : "0 = 1";
-			subBinds.push(...values);
+			if (values.length) {
+				valueSql = "s.subject IN (SELECT value FROM json_each(?))";
+				subBinds.push(JSON.stringify(values));
+			} else valueSql = "0 = 1";
 		} else {
 			const v = identifier(p);
 			if (v !== varName) throw new SearchRequestError("any: variable mismatch");
