@@ -16,3 +16,9 @@ output "search_preview_database_name" {
 output "search_preview_database_id" {
   value = cloudflare_d1_database.search_preview.id
 }
+
+# For the CI migrations config (sync-wrangler-ids.mjs --migrations-config), so the account id
+# lives only in variables.tf.
+output "account_id" {
+  value = var.cloudflare_account_id
+}

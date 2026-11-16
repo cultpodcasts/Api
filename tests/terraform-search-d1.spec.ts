@@ -1,10 +1,14 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-ignore - plain .mjs CLI helpers
 import { findForbiddenChanges, summarisePlan } from "../infra/terraform/scripts/plan-guard.mjs";
 // @ts-ignore - plain .mjs CLI helpers
-import { applyIds, idsFromOutputs } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
+import { applyIds, buildMigrationsConfig, idsFromOutputs } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
+// @ts-ignore - plain .mjs CLI helpers
+import { evaluateWorkspace, readCloudBlock } from "../infra/terraform/scripts/hcp-workspace-check.mjs";
 
 /** SP-1.10 (cultpodcasts/Api#270): Terraform for the search D1 databases. */
 
@@ -27,8 +31,32 @@ function plan(...changes: { type?: string; address?: string; actions: string[] }
 }
 
 describe("plan guard", () => {
-	it("allows creating the databases", () => {
-		expect(findForbiddenChanges(plan({ actions: ["create"] }, { actions: ["create"] }))).toEqual([]);
+	it("allows creating the databases only with allowCreate (the first apply)", () => {
+		expect(
+			findForbiddenChanges(plan({ actions: ["create"] }, { actions: ["create"] }), { allowCreate: true })
+		).toEqual([]);
+	});
+
+	it("fails on creating a D1 database without allowCreate (it vanished from state: drift recreation)", () => {
+		const forbidden = findForbiddenChanges(plan({ address: "cloudflare_d1_database.search", actions: ["create"] }));
+		expect(forbidden).toEqual([
+			expect.objectContaining({ address: "cloudflare_d1_database.search", reason: expect.stringMatching(/CREATED/) })
+		]);
+	});
+
+	it("allowCreate never allows a replace", () => {
+		expect(
+			findForbiddenChanges(plan({ actions: ["delete", "create"] }), { allowCreate: true })
+		).toHaveLength(1);
+	});
+
+	it("CLI exits 1 for an unexpected create and 0 with --allow-create", () => {
+		const dir = mkdtempSync(join(tmpdir(), "plan-guard-"));
+		const file = join(dir, "plan.json");
+		writeFileSync(file, JSON.stringify(plan({ actions: ["create"] })));
+		const script = resolve(process.cwd(), "infra/terraform/scripts/plan-guard.mjs");
+		expect(spawnSync(process.execPath, [script, file]).status).toBe(1);
+		expect(spawnSync(process.execPath, [script, file, "--allow-create"]).status).toBe(0);
 	});
 
 	it("allows in-place updates and no-ops", () => {
@@ -55,6 +83,7 @@ describe("plan guard", () => {
 
 	it("ignores deletes of unprotected resource types", () => {
 		expect(findForbiddenChanges(plan({ type: "cloudflare_workers_kv", actions: ["delete"] }))).toEqual([]);
+		expect(findForbiddenChanges(plan({ type: "cloudflare_workers_kv", actions: ["create"] }))).toEqual([]);
 	});
 
 	it("rejects input that is not a plan", () => {
@@ -119,14 +148,81 @@ describe("Terraform workflow", () => {
 		expect(production).toBeGreaterThan(preview);
 	});
 
-	it("authenticates to HCP and Cloudflare with the freedomtimes secret names", () => {
+	/** Text of one job (from its key to the next top-level job key). */
+	function job(name: string): string {
+		const start = workflow.indexOf(`\n  ${name}:\n`);
+		expect(start, `job ${name}`).toBeGreaterThan(-1);
+		const rest = workflow.slice(start + 1);
+		const next = rest.slice(1).search(/\n  [a-z-]+:\n/);
+		return next === -1 ? rest : rest.slice(0, next + 1);
+	}
+
+	it("authenticates to HCP like freedomtimes, with no R2/AWS secrets", () => {
 		expect(workflow).toContain("TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}");
-		expect(workflow).toContain("TF_VAR_cloudflare_api_token: ${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}");
 		expect(workflow).not.toMatch(/AWS_|R2_/);
 	});
 
-		it("serialises runs", () => {
-		expect(workflow).toMatch(/concurrency:\s*\n\s*group:\s*terraform-search-d1/);
+	it("plans with the D1 Read token and only the approved apply job gets the D1 Edit token", () => {
+		expect(job("plan")).toContain("TF_VAR_cloudflare_api_token: ${{ secrets.TF_PLAN_CLOUDFLARE_API_TOKEN }}");
+		expect(job("plan")).not.toContain("TF_APPLY_CLOUDFLARE_API_TOKEN");
+		const apply = job("apply");
+		expect(apply).toMatch(/environment:\s*cloudflare-production/);
+		expect(apply).toContain("TF_VAR_cloudflare_api_token: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}");
+		expect(apply).toContain("CLOUDFLARE_API_TOKEN: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}");
+		const applyUses = workflow.match(/secrets\.TF_APPLY_CLOUDFLARE_API_TOKEN/g)?.length ?? 0;
+		const applyInApplyJob = apply.match(/secrets\.TF_APPLY_CLOUDFLARE_API_TOKEN/g)?.length ?? 0;
+		// The only other use is readiness checking it is NOT visible outside the environment.
+		expect(applyUses - applyInApplyJob).toBe(1);
+		expect(job("readiness")).toMatch(/APPLY_TOKEN_OUTSIDE_ENVIRONMENT[\s\S]*exit 1/);
+		expect(workflow).not.toMatch(/secrets\.TF_VAR_CLOUDFLARE_API_TOKEN|secrets\.CLOUDFLARE_API_TOKEN\b/);
+	});
+
+	it("has no workflow-level concurrency; plans cancel per PR and applies queue without cancelling", () => {
+		expect(workflow).not.toMatch(/^concurrency:/m);
+		expect(job("plan")).toMatch(
+			/concurrency:\s*\n\s*group:\s*terraform-search-d1-plan-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}\s*\n\s*cancel-in-progress:\s*true/
+		);
+		expect(job("apply")).toMatch(
+			/concurrency:\s*\n\s*group:\s*terraform-search-d1-apply\s*\n\s*cancel-in-progress:\s*false/
+		);
+		expect(workflow.match(/-lock-timeout=5m/g)?.length).toBeGreaterThanOrEqual(4);
+	});
+
+	it("passes --allow-create to the guard only from the manual allow_d1_create input", () => {
+		expect(workflow).toMatch(/allow_d1_create:\s*\n[\s\S]*?type:\s*boolean\s*\n\s*default:\s*false/);
+		expect(workflow).toContain(
+			"PLAN_GUARD_FLAGS: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_d1_create) && '--allow-create' || '' }}"
+		);
+		expect(workflow).not.toMatch(/plan-guard\.mjs[^\n]*--allow-create/);
+	});
+
+	it("checks the HCP workspace is Local before every init", () => {
+		for (const name of ["plan", "apply"]) {
+			const j = job(name);
+			expect(j.indexOf("hcp-workspace-check.mjs")).toBeGreaterThan(-1);
+			expect(j.indexOf("hcp-workspace-check.mjs")).toBeLessThan(j.indexOf("init -lock-timeout"));
+		}
+	});
+
+	it("keeps one sticky plan comment per PR, with the head SHA", () => {
+		expect(workflow).toMatch(/gh pr comment[^\n]*--edit-last --create-if-none/);
+		expect(workflow).toContain("<!-- terraform-search-d1-plan -->");
+		expect(workflow).toContain("github.event.pull_request.head.sha");
+	});
+
+	it("builds the migrations config from Terraform outputs, not a hand-written copy", () => {
+		expect(workflow).toContain("sync-wrangler-ids.mjs \"$RUNNER_TEMP/tf-outputs.json\" --migrations-config");
+		expect(workflow).not.toContain("bae3f835f19899c6eee1ec48f2d658cf");
+	});
+
+	it("fails on real wrangler ids that differ from Terraform, warns only on placeholders", () => {
+		expect(job("apply")).toMatch(/PLACEHOLDER-[\s\S]*::warning[\s\S]*::error title=wrangler\.search\.jsonc[\s\S]*exit 1/);
+	});
+
+	it("pins every third-party action to a commit SHA", () => {
+		const uses = [...workflow.matchAll(/uses:\s*(\S+)/g)].map((m) => m[1]);
+		expect(uses.length).toBeGreaterThan(0);
+		for (const u of uses) expect(u, u).toMatch(/@[0-9a-f]{40}$/);
 	});
 });
 
@@ -177,5 +273,69 @@ describe("sync-wrangler-ids", () => {
 	it("rejects missing or malformed outputs", () => {
 		expect(() => idsFromOutputs({ ...outputs, search_database_id: { value: "nope" } })).toThrow(/malformed/);
 		expect(() => idsFromOutputs({})).toThrow();
+	});
+
+	it("builds the CI migrations config from outputs only, preview first", () => {
+		const config = buildMigrationsConfig({ ...outputs, account_id: { value: "0123456789abcdef0123456789abcdef" } });
+		expect(config.account_id).toBe("0123456789abcdef0123456789abcdef");
+		expect(config.d1_databases).toEqual([
+			{
+				binding: "SEARCH_PREVIEW_DB",
+				database_name: "cultpodcasts-search-preview",
+				database_id: "66666666-7777-8888-9999-000000000000",
+				migrations_dir: "workers/search/migrations"
+			},
+			{
+				binding: "SEARCH_DB",
+				database_name: "cultpodcasts-search",
+				database_id: "11111111-2222-3333-4444-555555555555",
+				migrations_dir: "workers/search/migrations"
+			}
+		]);
+	});
+
+	it("refuses a migrations config without a valid account id output", () => {
+		expect(() => buildMigrationsConfig(outputs)).toThrow(/account_id/);
+		expect(() => buildMigrationsConfig({ ...outputs, account_id: { value: "x" } })).toThrow(/account_id/);
+	});
+
+	it("Terraform outputs the account id for the migrations config", () => {
+		expect(tf).toMatch(/output "account_id"\s*\{\s*value\s*=\s*var\.cloudflare_account_id/);
+	});
+});
+
+describe("HCP workspace check", () => {
+	it("reads the organisation and workspace from the single cloud block", () => {
+		const versions = readFileSync(resolve(tfDir, "versions.tf"), "utf8");
+		expect(readCloudBlock(versions)).toEqual({ organization: "freedomtimes", workspace: "cultpodcasts-api-search-d1" });
+		expect(versions.match(/organization\s*=/g)).toHaveLength(1);
+	});
+
+	it("follows a changed organisation without other edits", () => {
+		const text = `terraform {\n  cloud {\n    organization = "cultpodcasts"\n\n    workspaces {\n      name = "cultpodcasts-api-search-d1"\n    }\n  }\n}\n`;
+		expect(readCloudBlock(text).organization).toBe("cultpodcasts");
+	});
+
+	it("rejects a file without a cloud block", () => {
+		expect(() => readCloudBlock("terraform {}\n")).toThrow(/cloud/);
+	});
+
+	const target = { organization: "freedomtimes", workspace: "cultpodcasts-api-search-d1" };
+	const ws = (mode: string) => ({ data: { attributes: { "execution-mode": mode } } });
+
+	it("passes only for an existing Local workspace", () => {
+		expect(evaluateWorkspace(target, 200, ws("local")).ok).toBe(true);
+	});
+
+	it.each([
+		[404, undefined, /not found/],
+		[401, undefined, /token rejected/],
+		[200, ws("remote"), /must be "local"/],
+		[200, ws("agent"), /must be "local"/],
+		[500, undefined, /returned 500/]
+	])("fails clearly for status %s", (status, body, message) => {
+		const result = evaluateWorkspace(target, status, body);
+		expect(result.ok).toBe(false);
+		expect(result.message).toMatch(message);
 	});
 });
