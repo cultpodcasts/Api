@@ -42,6 +42,7 @@ import {
 	HomepageSsrRoute,
 	SearchSuggestionsRoute,
 	IndexPodcastByNameRoute,
+	IndexPodcastBacklogByNameRoute,
 	IndexNewsOrganisationRoute,
 	IndexTvShowRoute,
 	PublicGetEpisodeRoute,
@@ -102,18 +103,27 @@ import {
 	MoveEpisodeToFilmRoute,
 	AttachEpisodeAsTrailerRoute,
 	MoveEpisodeToTvShowRoute,
+	MoveEpisodeToNewsRoute,
+	MovePodcastEpisodesToNewsRoute,
+	MoveNewsReportToTvShowRoute,
+	MoveNewsReportToFilmRoute,
 	UpdatePodcastRoute,
 	UpdateSubjectRoute,
 	GetTvShowRoute,
 	UpdateTvShowRoute,
 	GetTvShowEpisodeRoute,
 	UpdateTvShowEpisodeRoute,
+	DeleteTvShowEpisodeRoute,
 	GetNewsOrganisationRoute,
 	UpdateNewsOrganisationRoute,
+	MoveNewsOrganisationReportsRoute,
+	DeleteNewsOrganisationRoute,
 	GetNewsReportRoute,
 	UpdateNewsReportRoute,
+	DeleteNewsReportRoute,
 	GetFilmRoute,
 	UpdateFilmRoute,
+	DeleteFilmRoute,
 	CatalogueIdentityLookupRoute
 } from './openapiRoutes';
 const app = new Hono<{ Bindings: Env }>();
@@ -391,6 +401,7 @@ openapi.delete('/episode/:podcastId/:episodeId', DeletePodcastEpisodeRoute);
 openapi.post('/episode/:podcastId/:episodeId/film', MoveEpisodeToFilmRoute);
 openapi.post('/episode/:podcastId/:episodeId/trailer', AttachEpisodeAsTrailerRoute);
 openapi.post('/episode/:podcastId/:episodeId/tvshow', MoveEpisodeToTvShowRoute);
+openapi.post('/episode/:podcastId/:episodeId/news', MoveEpisodeToNewsRoute);
 // \New Episode Endpoints
 // Old Episode Endpoints
 openapi.get('/episode/:id', GetEpisodeRoute);
@@ -407,11 +418,15 @@ openapi.get('/tvshow/:identifier{.+}', GetTvShowRoute);
 openapi.patch('/tvshow/:id', UpdateTvShowRoute);
 openapi.get('/tvshowepisode/:id', GetTvShowEpisodeRoute);
 openapi.patch('/tvshowepisode/:id', UpdateTvShowEpisodeRoute);
+openapi.delete('/tvshowepisode/:id', DeleteTvShowEpisodeRoute);
 openapi.get('/film/:identifier{.+}', GetFilmRoute);
 openapi.patch('/film/:id', UpdateFilmRoute);
+openapi.delete('/film/:id', DeleteFilmRoute);
 openapi.post('/catalogue/identity/lookup', CatalogueIdentityLookupRoute);
 openapi.get('/newsorganisation/:identifier{.+}', GetNewsOrganisationRoute);
 openapi.patch('/newsorganisation/:id', UpdateNewsOrganisationRoute);
+openapi.delete('/newsorganisation/:id', DeleteNewsOrganisationRoute);
+openapi.post('/newsorganisation/:id/reports/move', MoveNewsOrganisationReportsRoute);
 openapi.post('/newsorganisation/name/:identifier{.+}', RenameNewsOrganisationRoute);
 openapi.post('/tvshow/name/:identifier{.+}', RenameTvShowRoute);
 openapi.post('/film/name/:identifier{.+}', RenameFilmRoute);
@@ -419,6 +434,10 @@ openapi.post('/newsorganisation/index/:identifier{.+}', IndexNewsOrganisationRou
 openapi.post('/tvshow/index/:identifier{.+}', IndexTvShowRoute);
 openapi.get('/newsreport/:id', GetNewsReportRoute);
 openapi.patch('/newsreport/:id', UpdateNewsReportRoute);
+openapi.delete('/newsreport/:id', DeleteNewsReportRoute);
+openapi.post('/newsreport/:id/tvshow', MoveNewsReportToTvShowRoute);
+openapi.post('/newsreport/:id/film', MoveNewsReportToFilmRoute);
+openapi.post('/podcast/index/:name/backlog', IndexPodcastBacklogByNameRoute);
 openapi.post('/podcast/index/:name', IndexPodcastByNameRoute);
 openapi.get('/subject/:name', GetSubjectByNameRoute);
 openapi.patch('/subject/:id', UpdateSubjectRoute);
@@ -462,6 +481,8 @@ openapi.put('/hero-curation', PutHeroCurationRoute);
 openapi.post('/hero-curation/episodes', AppendHeroCurationEpisodesRoute);
 openapi.delete('/hero-curation/episodes', DeleteHeroCurationEpisodesRoute);
 openapi.post('/podcast/name/:name', RenamePodcastRoute);
+// After /podcast/index/:name and /podcast/name/:name so a podcast named "news" still indexes / renames.
+openapi.post('/podcast/:id/news', MovePodcastEpisodesToNewsRoute);
 openapi.post('/pushsubscription', PushSubscriptionRoute);
 openapi.get('/pagedetails/:podcastName/:episodeId', GetPageDetailsRoute);
 openapi.get('/og-image', GetOgShareImageRoute);

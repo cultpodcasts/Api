@@ -40,6 +40,7 @@ import { createSubject } from "./createSubject";
 import { catalogueIdentityLookup } from "./catalogueIdentityLookup";
 import { deleteBookmark } from "./deleteBookmark";
 import { deletePodcastEpisode } from "./deleteEpisode";
+import { deleteFilm, deleteNewsReport, deleteTvShowEpisode } from "./deleteCatalogue";
 import { getBookmarks } from "./getBookmarks";
 import { getDiscoveryInfo } from "./getDiscoveryInfo";
 import { getDiscoveryReports } from "./getDiscoveryReports";
@@ -77,7 +78,7 @@ import { getSubjects } from "./getSubjects";
 import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { searchSuggestions } from "./searchSuggestions";
-import { indexPodcastByName } from "./indexPodcastByName";
+import { indexPodcastBacklogByName, indexPodcastByName } from "./indexPodcastByName";
 import { indexNewsOrganisation, indexTvShow } from "./indexCatalogueParent";
 import {
 	bookmarksListResponseSchema,
@@ -120,6 +121,7 @@ import {
 	preProcessedHomepageResponseSchema,
 	searchSuggestionsResponseSchema,
 	indexPodcastResponseSchema,
+	podcastIndexBusySchema,
 	indexerStateDtoSchema,
 	jsonBody,
 	languagesResponseSchema,
@@ -139,6 +141,9 @@ import {
 	episodeTrailerAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
 	episodeTvShowMoveResponseSchema,
+	episodeNewsMoveRequestSchema,
+	podcastNewsMoveRequestSchema,
+	episodeNewsMoveResponseSchema,
 	podcastRenameRequestSchema,
 	catalogueRenameRequestSchema,
 	catalogueRenameResponseSchema,
@@ -159,8 +164,14 @@ import {
 	filmStaleTrailersConflictSchema,
 	filmDtoSchema,
 	newsOrganisationChangeRequestSchema,
+	newsOrganisationPatchBadRequestSchema,
+	newsOrganisationPatchUnavailableSchema,
 	serviceIdConflictSchema,
 	newsOrganisationDtoSchema,
+	newsOrganisationDeleteConflictSchema,
+	newsOrganisationDeleteQuerySchema,
+	newsReportOrganisationMoveRequestSchema,
+	newsReportOrganisationMoveResponseSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
 	notFoundIdSchema,
@@ -170,7 +181,8 @@ import {
 	catalogueIdentityLookupResponseSchema,
 	catalogueIndexResponseSchema,
 	catalogueIndexRejectionSchema,
-	catalogueIndexTimedOutSchema
+	catalogueIndexTimedOutSchema,
+	catalogueIndexEnrichFailedSchema
 } from "./openapiSchemas";
 import { publicGetEpisode } from "./publicGetEpisode";
 import { publishEpisode, publishPodcastEpisode } from "./publish";
@@ -208,6 +220,8 @@ import { transferPodcastKind } from "./transferPodcastKind";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
 import { moveEpisodeToTvShow } from "./moveEpisodeToTvShow";
+import { moveEpisodeToNews, movePodcastEpisodesToNews } from "./moveToNews";
+import { moveNewsReportToFilm, moveNewsReportToTvShow } from "./moveNewsReport";
 import { updateSubject } from "./updateSubject";
 import { getTvShow } from "./getTvShow";
 import { updateTvShow } from "./updateTvShow";
@@ -217,6 +231,8 @@ import { getFilm } from "./getFilm";
 import { updateFilm } from "./updateFilm";
 import { getNewsOrganisation } from "./getNewsOrganisation";
 import { updateNewsOrganisation } from "./updateNewsOrganisation";
+import { deleteNewsOrganisation } from "./deleteNewsOrganisation";
+import { moveNewsOrganisationReports } from "./moveNewsOrganisationReports";
 import { getNewsReport } from "./getNewsReport";
 import { updateNewsReport } from "./updateNewsReport";
 
@@ -265,7 +281,8 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 			"including `guests` and `services` (per-key link patch; blank url+image removes the key; absolute http(s) only), " +
 			"plus `imdbId` / `tvdbId` / `tmdbId`. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the episode's search document (RPP #1053)." +
-			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+			" When the episode has an IMDb or TheTVDB id, its empty name, overview, air date, runtime and still are filled from TMDB; values already set are never overwritten (RedditPodcastPoster#1430)." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(tvShowEpisodeChangeRequestSchema) },
 		responses: {
 			202: { description: "TV-show episode updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
@@ -281,14 +298,32 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 	}
 });
 
+export const DeleteTvShowEpisodeRoute = createOpenApiRoute(deleteTvShowEpisode, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete TV-show episode by id",
+		description:
+			"`id` is the episode guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when episode is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
 export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 	auth: curateAuth,
 	schema: {
 		tags: ["Catalogue"],
 		summary: "Patch TV show publisher fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
-			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}`, " +
-			"plus `imdbId` / `tvdbId` / `tmdbId`. `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
+			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}` except `additionalYouTubeChannels` / `additionalYouTubeChannelIds` (news organisations only, RPP #1370), " +
+			"plus `imdbId` / `tvdbId` / `tmdbId`. When the show has an IMDb or TMDB id, an empty publisher is filled from TMDB (first named network, else first named production company); a publisher sent or cleared in this PATCH is left alone (RedditPodcastPoster#1436). A change to `imdbId`, `tvdbId` or `tmdbId` is also copied onto every episode of the show as series identity ids (RedditPodcastPoster#1437). `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
 			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). TV shows have no flag defaults. " +
 			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
 			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
@@ -335,14 +370,15 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 		summary: "Patch film publisher and playable fields and IMDb/TMDB identity ids",
 		description:
 			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
-			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `explicit`, `ignored`, " +
-			"`subjects`, `guests`, `imdbId` and `tmdbId`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
-			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+			"(including `publisher`, `description` and `removed`; no propagation), plus `release` (`yyyy` or `yyyy-MM-dd`), `duration`, `image` (absolute http(s) URL, or `\"\"` to clear), `explicit`, `ignored`, " +
+			"`subjects`, `guests`, `imdbId`, `tmdbId` and `alternativeTitles`. The request is validated before anything is applied. `removed: true` also deletes the film's search document (RPP #1053)." +
+			" When the film has an IMDb or TMDB id, its empty description, release, runtime, image, publisher and alternative titles are filled from TMDB; values already set, and fields sent or cleared in this PATCH, are never overwritten (RedditPodcastPoster#1430, #1431, #1436)." +
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(filmChangeRequestSchema) },
 		responses: {
 			202: { description: "Film updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
 			400: {
-				description: "Invalid URL, release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
+				description: "Invalid image (absolute http(s) URL, or blank to clear), release (yyyy or yyyy-MM-dd) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
 			},
 			409: {
@@ -350,6 +386,24 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 					"Stored trailers include an id that was not in expectedTrailerIds. The keep-list was not applied.",
 				...contentJson(filmStaleTrailersConflictSchema)
 			},
+			...notFoundResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const DeleteFilmRoute = createOpenApiRoute(deleteFilm, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete film by id",
+		description:
+			"`id` is the film guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when film is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
 			...notFoundResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -388,19 +442,30 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 		summary: "Patch news organisation fields",
 		description:
 			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
-			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
+			"Editable: `publisher`, `description`, `removed`, the other publisher fields and the service ids (`youTubeChannelId`, `youTubePlaylistId`, `spotifyId`, `appleId` / `nullAppleId`, podcast rules; used by URL submission). Not `name` (rename endpoint only). " +
+			"`additionalYouTubeChannels` (RPP #1370) lists extra YouTube channels the organisation owns and ingests from, as `{ youTubeChannelId, youTubePlaylistId? }`: with a playlist only that playlist's videos belong to the organisation, without one the whole channel does (`youTubePlaylistId` at the top level still scopes only the main channel). " +
+			"A list replaces the stored list, `[]` clears it, omitted or null leaves it. The older ids-only `additionalYouTubeChannelIds` is still accepted: a channel already stored keeps its playlist and flags, new ids are added channel-wide, and only `additionalYouTubeChannels` can set or clear a playlist; sending both is a 400. GET returns both fields. " +
+			"Each new or changed additional playlist is checked with YouTube like the main playlist: 400 `youTubePlaylistIdInvalid`, `youTubePlaylistNotFound`, or `youTubePlaylistChannelMismatch` (the playlist is not on that channel); 503 `youTubePlaylistLookupFailed` when YouTube could not be asked (retry). " +
+			"400 `invalidAdditionalYouTubeChannelId` when an id is not a `UC…` channel id, a playlist has no channel id, both list fields are sent, or one channel is listed with two different playlists; 400 `additionalYouTubeChannelIsMainChannel` when one equals the main `youTubeChannelId`; 400 `channelWideYouTubeConflict` when a channel-wide TV show or podcast already claims a whole additional channel (checked before the 409; a playlist-scoped additional channel makes no channel-wide claim; another news organisation or TV show on the channel, with or without a playlist, is the 409). Changing `searchTerms`, `language` or `removed` is copied to the organisation's reports. " +
 			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). New news organisations are created with `bypassShortEpisodeChecking` and `alwaysPromoteAsHero` saved as `true`; there is no read-time default, so GET returns exactly what is stored. " +
 			"`removed` cascades like a podcast removal: each report's `parentRemoved` is set / cleared (its own `removed` is untouched) and on removal " +
 			"every report's search document is deleted; restored reports are re-added by the next indexer run.",
 		request: { params: idParam, body: jsonBody(newsOrganisationChangeRequestSchema) },
 		responses: {
 			202: { description: "News organisation updated (empty body)" },
-			400: { description: "Invalid request", ...contentJson(errorSchema) },
+			400: {
+				description: "Invalid request; `code` is set for playlist refusals (main or additional channel), channel-wide claim conflicts (main or additional channel) and the additional-channel refusals; absent for other 400s",
+				...contentJson(newsOrganisationPatchBadRequestSchema)
+			},
 			409: {
-				description: "A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast; `ids` names the owner(s). Nothing applied",
+				description: "A `youTubeChannelId`, an additional YouTube channel (with or without a playlist), `spotifyId` or `appleId` is already owned by another news organisation (main or additional channel), a TV show (main channel), or a podcast; `ids` names the owner(s). Nothing applied",
 				...contentJson(serviceIdConflictSchema)
 			},
 			...newsNotFoundIdResponse,
+			503: {
+				description: "`youTubePlaylistLookupFailed`: YouTube could not be asked about the main or an additional channel's playlist. Nothing applied; retry the same PATCH",
+				...contentJson(newsOrganisationPatchUnavailableSchema)
+			},
 			500: {
 				description: "Update failed (e.g. the removal cascade's search delete failed); safe to retry the same PATCH",
 				...contentJson(errorSchema)
@@ -435,7 +500,7 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 			"`removed: true` also deletes the report's search document. `guests` follows the episode rule: it replaces the list, `[]` clears it, " +
 			"blank names are dropped and names trimmed. `services` follows the film / episode link patch: per-key url/image; " +
 			"blank url+image removes the key; absolute http(s) only (RPP #1130)." +
-			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `unBluesky: true` deletes the Bluesky post. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
 		responses: {
 			202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
@@ -444,6 +509,76 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 					"Invalid release (yyyy-MM-dd only), duration (non-negative h:mm:ss), or non-absolute `services.*.url` / `services.*.image`; nothing applied",
 				...contentJson(errorSchema)
 			},
+			...newsNotFoundIdResponse,
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const MoveNewsOrganisationReportsRoute = createOpenApiRoute(moveNewsOrganisationReports, {
+	auth: curateAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Move news reports from this news organisation into another (merge; keeps the guids)",
+		description:
+			"Curator command (RPP #1397). `id` is the source news organisation guid. Every requested id is planned before any write: " +
+			"an id in a third organisation, already a TV episode or film, or whose YouTube video the target already has as another report refuses " +
+			"the request (409), an id found nowhere refuses it (404), " +
+			"and an id already only in the target is reported as alreadyMovedReportIds. Each report takes the target's properties, is saved " +
+			"in the target, its search document is swapped (seriesName becomes the target name) and re-read, then the source row is deleted, " +
+			"latestReleased is raised and its short link is deleted (the shortener falls back to search). reportIds omitted moves the next 500; " +
+			"repeat until remainingReportCount is 0. moveYouTubeChannels also moves the source's YouTube channels into the target's " +
+			"additionalYouTubeChannels; if that fails the source's channels are restored and re-sending with moveYouTubeChannels retries. " +
+			"Both organisations hold the indexing lease for the request, so a 409 can also mean one is being indexed (retry shortly). " +
+			"A failure returns 500: reports not yet moved are kept in the source, movedReportIds lists any that did move, and re-sending resumes. " +
+			"The source is never deleted here: emptiedNewsOrganisationId marks an emptied source for DELETE /newsorganisation/:id (admin).",
+		request: { params: idParam, body: jsonBody(newsReportOrganisationMoveRequestSchema) },
+		responses: {
+			202: { description: "Moved (command outcome; GET /newsorganisation/:id for the organisations)", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			400: { description: "Missing or same target, empty or more than 500 reportIds, or a removed target; nothing written", ...contentJson(errorSchema) },
+			404: { description: "Source or target organisation not found, or requested report ids not found (notFoundReportIds); nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			409: { description: "Requested ids belong to a third organisation, are a TV episode or film, or are a video the target already has (conflictReportIds); or an organisation is being indexed (retryable: true, retry shortly). Nothing written", ...contentJson(newsReportOrganisationMoveResponseSchema) },
+			500: { description: "Move did not finish (failureIndexing on a search swap failure). Reports not yet moved are kept in the source; movedReportIds lists any that did move; re-send resumes", ...contentJson(z.union([newsReportOrganisationMoveResponseSchema, errorSchema])) },
+			...authResponses
+		}
+	}
+});
+
+export const DeleteNewsOrganisationRoute = createOpenApiRoute(deleteNewsOrganisation, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete an empty news organisation by id",
+		description:
+			"`id` is the news organisation guid (RPP #1397). Hard-deletes the organisation and releases its file key, so its name can be reused. " +
+			"Refused with 409 while any report (removed ones included) remains: move them first with POST /newsorganisation/:id/reports/move. " +
+			"Optional redirectToNewsOrganisationId (the organisation the reports went to): when its name differs, the old name route is " +
+			"redirected to it, with the same redirect and loop guard as the admin rename (none while another news organisation still has the " +
+			"old name). The redirect is written before the delete, so a failed delete can be retried.",
+		request: { params: idParam, query: newsOrganisationDeleteQuerySchema },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "redirectToNewsOrganisationId is not a guid, is missing, removed or the organisation itself, or the redirect would loop; nothing deleted", ...contentJson(errorSchema) },
+			404: { description: "News organisation not found, or a non-guid id (empty body)" },
+			409: { description: "The organisation still has reports (remainingReportCount), or is being indexed (retryable: true, retry shortly)", ...contentJson(newsOrganisationDeleteConflictSchema) },
+			...serverErrorResponse,
+			...authResponses
+		}
+	}
+});
+
+export const DeleteNewsReportRoute = createOpenApiRoute(deleteNewsReport, {
+	auth: adminAuth,
+	schema: {
+		tags: ["Catalogue"],
+		summary: "Delete news report by id",
+		description:
+			"`id` is the report guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
+		request: { params: idParam },
+		responses: {
+			200: { description: "Deleted (empty body)" },
+			400: { description: "Delete blocked when report is tweeted", ...contentJson(episodeDeleteBlockedSchema) },
 			...newsNotFoundIdResponse,
 			...serverErrorResponse,
 			...authResponses
@@ -817,16 +952,31 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
     auth: curateAuth,
     schema: {
         tags: ["Catalogue"],
-        summary: "Attach one podcast episode to an existing film as a trailer",
+        summary: "Attach one podcast episode to a film as a trailer (optionally creating the film)",
         description:
             "Curator command. Adds a trailer (id = episode guid; YouTube link first, otherwise a video link, otherwise an audio link) to the film, " +
             "pushes the film's search document (its `trailers` list), deletes the episode's search document, then deletes the episode row. " +
             "The source podcast is kept. The episode's short link is pointed at /film/{name}/{shortId}. " +
-            "A failed search step keeps the episode row; re-sending resumes without adding the trailer twice.",
+            "A failed search step keeps the episode row; re-sending resumes without adding the trailer twice. " +
+            "With `createFilm` and `filmName` instead of `filmId`, the trailer goes to the film with that name (case-insensitive); when no film has it, " +
+            "a film is created first with no release, services or video (an unreleased film), after the same IMDb/TMDB identity check as Move to film. " +
+            "Every episode check runs before the film is created, and a re-send finds the film by its trailer or name, so it is never created twice.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeTrailerAttachRequestSchema) },
         responses: {
-            202: { description: "Attached (command outcome; GET /film/:id for the film)", ...contentJson(episodeTrailerAttachResponseSchema) },
-            400: { description: "Missing filmId, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
+            200: {
+                description:
+                    "createFilm only: the new film's identity is ambiguous (identityDecision) or the prompt was cancelled (cancelled). Nothing was written.",
+                ...contentJson(episodeTrailerAttachResponseSchema)
+            },
+            202: { description: "Attached (command outcome; GET /film/:id for the film). filmCreated is true when createFilm created it.", ...contentJson(episodeTrailerAttachResponseSchema) },
+            400: { description: "Missing filmId (or filmName with createFilm), both filmId and createFilm, an invalid film name, removed episode or film, or the episode has no link", ...contentJson(errorSchema) },
+            409: {
+                description:
+                    "The episode is already a trailer of another film (body filmId is that film; re-send to it to resume an interrupted attach), " +
+                    "or, with createFilm, more than one film has the name or the film first created under that name has since been renamed " +
+                    "(body filmId is one of those films, not a film to resume; attach by id instead).",
+                ...contentJson(episodeTrailerAttachResponseSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -857,6 +1007,109 @@ export const MoveEpisodeToTvShowRoute = createOpenApiRoute(moveEpisodeToTvShow, 
     }
 });
 
+const newsMoveOutcomeOrError = z.union([episodeNewsMoveResponseSchema, errorSchema]);
+const newsMoveDescription =
+    "The target is exactly one of newsOrganisationId or newsOrganisationName (case-insensitive; only news organisations are matched). " +
+    "createOrganisation with newsOrganisationName creates the organisation (fresh id, new news- file key, publisher, news creation indexing " +
+    "defaults, no YouTube / Spotify / Apple ids copied, latestReleased from the moved reports) when none has the name, otherwise joins it without " +
+    "changing its publisher. Each episode is mapped to a news report under the same guid (services, subjects, posted/tweeted/Bluesky state). " +
+    "Length-derived Ignored is cleared, as the kind transfer does; a manual ignore is kept. Unlike the TV and film moves, a removed episode can " +
+    "be moved: its removed flag is kept and its search document is deleted. Every other search document is swapped to contentKind NewsReport, " +
+    "then only the moved episode rows are deleted. After that, an existing organisation's latestReleased is raised and the moved episodes' " +
+    "short links are deleted (both best effort, neither fails the 202; the shortener falls back to search). An id deleted by someone else " +
+    "during the move already has its report and is listed in movedEpisodeIds. " +
+    "Not a kind transfer: the podcast, its other episodes, its Spotify / Apple / YouTube show ids and file key are kept, even when no episodes remain. " +
+    "A 404 or 409 refuses the whole request before anything is written. A failed step returns 500 with the source episodes kept; re-sending resumes.";
+const newsMoveResponses = {
+    202: { description: "Moved (command outcome; GET /newsorganisation/:id for the organisation)", ...contentJson(episodeNewsMoveResponseSchema) },
+    400: { description: "Invalid body (not exactly one of newsOrganisationId / newsOrganisationName, createOrganisation or publisher misused, '/' in the name, more than 500 episodeIds, or an empty guid 00000000-0000-0000-0000-000000000000 in episodeIds) or a removed organisation", ...contentJson(errorSchema) },
+    404: { description: "Podcast or news organisation not found (a name without createOrganisation never creates one), or an id that is not an episode of the podcast (notFoundEpisodeIds)", ...contentJson(newsMoveOutcomeOrError) },
+    409: { description: "Several news organisations have the name, or an id is already a TV episode, a film or a news report of another organisation (conflictEpisodeIds)", ...contentJson(episodeNewsMoveResponseSchema) },
+    500: { description: "Move did not finish (failureIndexing on a search swap failure); source episodes kept, re-send resumes", ...contentJson(newsMoveOutcomeOrError) },
+    ...authResponses
+};
+
+export const MoveEpisodeToNewsRoute = createOpenApiRoute(moveEpisodeToNews, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one podcast episode into a news organisation as a news report (keeps the guid)",
+        description: "Curator command (RPP #1388). " + newsMoveDescription,
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeNewsMoveRequestSchema) },
+        responses: newsMoveResponses
+    }
+});
+
+export const MovePodcastEpisodesToNewsRoute = createOpenApiRoute(movePodcastEpisodesToNews, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Podcasts"],
+        summary: "Move the listed episodes of a podcast into a news organisation as news reports (keeps the guids)",
+        description:
+            "Curator command (RPP #1388). Batch form of POST /episode/:podcastId/:episodeId/news: episodeIds (1-500) plus the same organisation " +
+            "fields; the organisation is created or resolved once and only the listed ids move. episodeId is not set on the outcome. " +
+            newsMoveDescription,
+        request: { params: idParam, body: jsonBody(podcastNewsMoveRequestSchema) },
+        responses: newsMoveResponses
+    }
+});
+
+const newsReportMoveDescription =
+    "The news organisation is never changed or deleted, even when no reports remain; when the move took its last report the outcome carries " +
+    "emptiedNewsOrganisationId so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true, curate). " +
+    "A removed news report is refused (400). The search document is swapped under the same guid before the report row is deleted, and " +
+    "the report's short link is deleted afterwards (best effort; the shortener falls back to search). A failed step returns 500 with the " +
+    "report kept; re-sending resumes (an interrupted move reuses the TV episode or film, a completed one is accepted again, without emptiedNewsOrganisationId, so a client must not rely on the retire prompt on a retry).";
+
+export const MoveNewsReportToTvShowRoute = createOpenApiRoute(moveNewsReportToTvShow, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one news report into a TV show (keeps the guid)",
+        description:
+            "Curator command (RPP #1368). Same body, rules and outcome as POST /episode/:podcastId/:episodeId/tvshow: target is exactly one of " +
+            "tvShowId or tvShowName (case-insensitive); createShow with tvShowName creates the show (fresh id, publisher, no indexing) when no " +
+            "show has the name, otherwise joins it. The report is saved as a TV episode under the report guid (services, subjects, " +
+            "posted/tweeted/Bluesky state), the search document is swapped to contentKind TvShowEpisode, the show and TV episode are re-read, " +
+            "then the report row is deleted and the show's latestReleased is raised. episodeId on the outcome is the report guid. " +
+            newsReportMoveDescription,
+        request: { params: idParam, body: jsonBody(episodeTvShowMoveRequestSchema) },
+        responses: {
+            202: { description: "Moved (command outcome; GET /tvshow/:id for the show)", ...contentJson(episodeTvShowMoveResponseSchema) },
+            400: { description: "Not exactly one of tvShowId / tvShowName, createShow or publisher misused, '/' in the name, or a removed report or show", ...contentJson(errorSchema) },
+            404: { description: "News report or TV show not found (a name without createShow never creates a show)", ...contentJson(errorSchema) },
+            409: { description: "Several shows have the name, or the report id is already a TV episode of another show or a film", ...contentJson(episodeTvShowMoveResponseSchema) },
+            500: { description: "Move did not finish (failureIndexing on a search swap failure); report kept, re-send resumes", ...contentJson(z.union([episodeTvShowMoveResponseSchema, errorSchema])) },
+            ...authResponses
+        }
+    }
+});
+
+export const MoveNewsReportToFilmRoute = createOpenApiRoute(moveNewsReportToFilm, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Move one news report into a new film (keeps the guid)",
+        description:
+            "Curator command (RPP #1368). Same body, rules and outcome as POST /episode/:podcastId/:episodeId/film: the film is named from title " +
+            "(else the report title), takes the report's services, subjects and posted/tweeted/Bluesky state and the news organisation's " +
+            "publisher fields, is saved under the report guid, its search document is swapped to contentKind Film and re-read, then the report " +
+            "row is deleted. Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and " +
+            "selectedIdentityKey (or continue/cancel). " +
+            newsReportMoveDescription,
+        request: { params: idParam, body: jsonBody(episodeFilmMoveRequestSchema) },
+        responses: {
+            202: { description: "Moved (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
+            200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(episodeFilmMoveResponseSchema) },
+            400: { description: "Film name blank or containing '/', or a removed report", ...contentJson(errorSchema) },
+            404: { description: "News report not found", ...contentJson(errorSchema) },
+            409: { description: "Another film already has the name, or the report id is already a TV episode", ...contentJson(episodeFilmMoveResponseSchema) },
+            500: { description: "Move did not finish (failureIndexing on a search swap failure); report kept, re-send resumes", ...contentJson(z.union([episodeFilmMoveResponseSchema, errorSchema])) },
+            ...authResponses
+        }
+    }
+});
+
 export const UpdatePodcastRoute = createOpenApiRoute(updatePodcast, {
     auth: curateAuth,
     schema: {
@@ -877,10 +1130,55 @@ export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
     schema: {
         tags: ["Podcasts"],
         summary: "Reindex podcast by name",
-        request: { params: nameParam },
+        description:
+            "Curate only. Proxies to Azure `POST /api/podcast/index/{name}` with the short hub Index lookback. " +
+            "For curator cold-start / full catalogue walk use `POST /podcast/index/{name}/backlog`. " +
+            "409 means indexing is already running; 504 means the on-demand time budget cut the walk off (TimedOut).",
+        request: {
+            params: nameParam
+        },
         responses: {
             200: { description: "Indexed", ...contentJson(indexPodcastResponseSchema) },
             400: { description: "Bad request", ...contentJson(indexPodcastResponseSchema) },
+            409: {
+                description: "A curator index is already running for this podcast (`indexingInProgress`)",
+                ...contentJson(podcastIndexBusySchema)
+            },
+            504: {
+                description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
+                ...contentJson(catalogueIndexTimedOutSchema)
+            },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const IndexPodcastBacklogByNameRoute = createOpenApiRoute(indexPodcastBacklogByName, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Podcasts"],
+        summary: "Reindex podcast by name (backlog / cold-start)",
+        description:
+            "Curate only. Proxies to Azure `POST /api/podcast/index/{name}/backlog` so Azure clears the two-day hub Index lookback " +
+            "and walks the full catalogue (RPP #1328 / #1310; Api #245). " +
+            "Default short lookback remains `POST /podcast/index/{name}`. " +
+            "409 means indexing is already running; 504 means the on-demand time budget cut the walk off (TimedOut).",
+        request: {
+            params: nameParam
+        },
+        responses: {
+            200: { description: "Indexed", ...contentJson(indexPodcastResponseSchema) },
+            400: { description: "Bad request", ...contentJson(indexPodcastResponseSchema) },
+            409: {
+                description: "A curator index is already running for this podcast (`indexingInProgress`)",
+                ...contentJson(podcastIndexBusySchema)
+            },
+            504: {
+                description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
+                ...contentJson(catalogueIndexTimedOutSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -1576,16 +1874,27 @@ function catalogueIndexSchema(kind: string) {
         description:
             `Curate only, like \`POST /podcast/index/:name\`. \`identifier\` is the ${kind} guid or its route-form name ` +
             `(may contain \`/\`, percent-encoded \`%2F\`; the Worker matches with \`:identifier{.+}\`). No request body. ` +
-            `Runs the hourly indexer's pass for this one ${kind} and pushes what it saved to search. Allowed at any time. ` +
+            `Runs the hourly indexer's pass for this one ${kind} and pushes what it saved to search. A ${kind} that is not ` +
+            `auto-indexed but has a Spotify or Apple id gets an enrich-only pass instead (missing Spotify / Apple links only, ` +
+            `no discovery; 200 with \`enrichOnly: true\`). Allowed at any time. ` +
             `Command outcome, not the read model: re-read the hub page after.`,
         request: { params: identifierParam },
         responses: {
             200: { description: `${kind[0].toUpperCase()}${kind.slice(1)} indexed`, ...contentJson(catalogueIndexResponseSchema) },
             400: {
-                description: "Not indexable: removed or not auto-indexed (`NotAutoIndexed`), or the podcast it was migrated from still exists (`SourcePodcastStillExists`)",
+                description:
+                    "Not indexed: removed (`Removed`); not auto-indexed with no Spotify / Apple id (`NotAutoIndexed`); " +
+                    "not auto-indexed, so an enrich-only pass looked up Spotify / Apple links and none was filled (`NothingToEnrich`); " +
+                    "or the podcast it was migrated from still exists (`SourcePodcastStillExists`). `message` says why",
                 ...contentJson(catalogueIndexRejectionSchema)
             },
             409: { description: "The identifier name is ambiguous (JSON array of guids)", ...contentJson(z.array(z.string().uuid())) },
+            503: {
+                description:
+                    "Not auto-indexed, and the enrich-only pass's Spotify / Apple lookups failed or were rate-limited before " +
+                    "finishing, so nothing was saved (`EnrichFailed`). Retryable: try again later",
+                ...contentJson(catalogueIndexEnrichFailedSchema)
+            },
             504: {
                 description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
                 ...contentJson(catalogueIndexTimedOutSchema)

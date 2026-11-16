@@ -9,8 +9,8 @@ export const OG_TITLE_ELLIPSIS = "...";
 /** Wide-card episode titles always use this px so hyphenated and wrapped titles match. */
 export const OG_WIDE_TITLE_PX = 72;
 
-/** Square-card title: wide 72px scaled by canvas width (800/1200). */
-export const OG_SQUARE_TITLE_PX = 48;
+/** Square-card title: same 1200×630 canvas as wide, so the same 72px (Api#244). */
+export const OG_SQUARE_TITLE_PX = OG_WIDE_TITLE_PX;
 
 /**
  * Same Figtree width as titles. A tighter factor (0.42) filled the leftover

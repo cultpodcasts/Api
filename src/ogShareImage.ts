@@ -20,11 +20,13 @@ import {
 	OG_STYLE_FACES,
 	OG_WIDE_STYLE,
 	ogTitleFontSize,
+	ogTitleMaxLinesForArt,
 	ogTitlePadTop,
 	OG_SQUARE_FOOTER_GUTTER,
-	squareArtMaxHeight,
-	squareCanvasHeight,
-	squareShowNameContentWidth
+	ogCardArtMaxBox,
+	ogCardCanvasSize,
+	squareShowNameContentWidth,
+	squareTitleContentWidth
 } from "./ogShareImageStyle";
 import { brandLogoDataUrl } from "./ogBrandLogo";
 import { formatOgDuration, formatOgReleaseDate } from "./ogShareImageMeta";
@@ -53,16 +55,16 @@ type CardAspect = "wide" | "square";
 /** Flush-left art (no frame) + packed text column — same layout for both aspects. */
 const CARD_SCALE = {
 	wide: {
-		width: OG_WIDE_STYLE.canvasWidth,
-		height: OG_WIDE_STYLE.canvasHeight,
+		width: ogCardCanvasSize("wide").width,
+		height: ogCardCanvasSize("wide").height,
 		/** Outer pad around the text column only; art bleeds to the left edge. */
 		textPaddingX: OG_WIDE_STYLE.textPaddingX,
 		textPaddingY: OG_WIDE_STYLE.textPaddingY,
 		artPad: OG_WIDE_STYLE.artPad,
 		gap: OG_WIDE_STYLE.gap,
 		/** Max box for episode art; displayed size keeps the source aspect ratio. */
-		artMaxWidth: OG_WIDE_STYLE.artMaxWidth,
-		artMaxHeight: OG_WIDE_STYLE.artMaxHeight,
+		artMaxWidth: ogCardArtMaxBox("wide").width,
+		artMaxHeight: ogCardArtMaxBox("wide").height,
 		artRadius: OG_WIDE_STYLE.artRadius,
 		iconGap: OG_WIDE_STYLE.iconGap,
 		iconRadius: OG_WIDE_STYLE.iconRadius,
@@ -95,19 +97,20 @@ const CARD_SCALE = {
 		podcastMax: 80 // pragma: allowlist secret
 	},
 	/**
-	 * Square canvas (Spotify / Apple art). Chrome is the wide columns style guide
-	 * scaled by 800/1200 (see docs/og-share-image-cards.md). Episode art height is
-	 * the wide standard (440); canvas height grows to fit. Do not change `wide`.
+	 * Square-art card (Spotify / Apple / BBC Sounds). Same 1200×630 canvas and type
+	 * scale as wide so summary_large_image consumers (X crops to 1.91:1) show the
+	 * whole card (Api#244). Art box is sized to fit that fixed canvas; the canvas
+	 * never grows. See docs/og-share-image-cards.md. Do not change `wide`.
 	 */
 	square: {
-		width: OG_SQUARE_STYLE.canvasWidth,
-		height: squareCanvasHeight(),
+		width: ogCardCanvasSize("square").width,
+		height: ogCardCanvasSize("square").height,
 		textPaddingX: OG_SQUARE_STYLE.textPaddingX,
 		textPaddingY: OG_SQUARE_STYLE.textPaddingY,
 		artPad: OG_SQUARE_STYLE.artPad,
 		gap: OG_SQUARE_STYLE.gap,
-		artMaxWidth: OG_SQUARE_STYLE.artMaxWidth,
-		artMaxHeight: squareArtMaxHeight(),
+		artMaxWidth: ogCardArtMaxBox("square").width,
+		artMaxHeight: ogCardArtMaxBox("square").height,
 		artRadius: OG_SQUARE_STYLE.artRadius,
 		iconGap: OG_SQUARE_STYLE.iconGap,
 		iconRadius: OG_SQUARE_STYLE.iconRadius,
@@ -164,11 +167,9 @@ function columnsTitleContentWidth(artWidth: number): number {
 	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
 }
 
-/** Title column on the square card (wide columns chrome, scaled). */
+/** Title column on the square card — shared with style tokens / Api#244 lock. */
 function squareColumnsTitleContentWidth(artWidth: number): number {
-	const s = CARD_SCALE.square;
-	const textPadLeft = s.gap + OG_SQUARE_STYLE.titleColumnPadLeftExtra;
-	return s.width - s.chromePadX - s.artPad - artWidth - textPadLeft - s.textPaddingX;
+	return squareTitleContentWidth(artWidth);
 }
 
 function formattedDuration(raw?: string): string {
@@ -278,30 +279,35 @@ function cardHtml(input: {
 			: input.aspect === "square"
 				? squareColumnsTitleContentWidth(input.artWidth)
 				: textColumnContentWidth(input.aspect, input.artWidth);
+	const titleLineBox = Math.ceil(titleSize * s.titleLineHeight);
+	const titleMaxLines =
+		input.aspect === "square"
+			? ogTitleMaxLinesForArt(input.artHeight, titleLineBox, s.titleMaxLines)
+			: s.titleMaxLines;
 	const titleLayout = layoutOgTitle({
 		text: input.title,
 		columnWidth: titleColumnWidth,
 		fontSize: titleSize,
-		maxLines: s.titleMaxLines
+		maxLines: titleMaxLines
 	});
 	const chips = platformChipsHtml(input.platforms, s.icon, s.iconGap, s.iconRadius);
 	const logo = brandLogoDataUrl();
-	const titleLineBox = Math.ceil(titleSize * s.titleLineHeight);
 	const titleHtml = titleBlockHtml(titleLayout.lines, titleSize, s.titleLineHeight, `margin-bottom:${s.titleMarginBottom}px;`);
-	const showNameFit = fitOgWrappedText({
-		text: input.podcast, // pragma: allowlist secret
-		columnWidth:
-			input.aspect === "wide"
-				? input.artWidth
-				: textColumnContentWidth(input.aspect, input.artWidth),
-		sizes: [s.podcastSize], // pragma: allowlist secret
-		maxLines: s.podcastMaxLines // pragma: allowlist secret
-	});
-	const showNameLineHeight = OG_WIDE_STYLE.podcastLineHeight;
-	const showNameMaxHeight = Math.ceil(showNameFit.fontSize * showNameLineHeight * s.podcastMaxLines);
-	const podcastHtml = showNameFit.text // pragma: allowlist secret
-		? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:${OG_STYLE_FACES.ui};font-weight:${OG_STYLE_FACES.titleWeight};font-size:${showNameFit.fontSize}px;line-height:${showNameLineHeight};margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${showNameMaxHeight}px;overflow:hidden;">${escapeHtml(showNameFit.text)}</div>` // pragma: allowlist secret
-		: "";
+	// Wide layouts use fitOgWrappedText for the show name; square rebuilds via layoutOgShowName.
+	let podcastHtml = "";
+	if (input.aspect === "wide") {
+		const showNameFit = fitOgWrappedText({
+			text: input.podcast, // pragma: allowlist secret
+			columnWidth: input.artWidth,
+			sizes: [s.podcastSize], // pragma: allowlist secret
+			maxLines: s.podcastMaxLines // pragma: allowlist secret
+		});
+		const showNameLineHeight = OG_WIDE_STYLE.podcastLineHeight;
+		const showNameMaxHeight = Math.ceil(showNameFit.fontSize * showNameLineHeight * s.podcastMaxLines);
+		podcastHtml = showNameFit.text // pragma: allowlist secret
+			? `<div style="display:flex;color:${TEXT_SECONDARY};font-family:${OG_STYLE_FACES.ui};font-weight:${OG_STYLE_FACES.titleWeight};font-size:${showNameFit.fontSize}px;line-height:${showNameLineHeight};margin-bottom:${s.podcastMarginBottom}px;word-break:break-word;overflow-wrap:anywhere;max-height:${showNameMaxHeight}px;overflow:hidden;">${escapeHtml(showNameFit.text)}</div>` // pragma: allowlist secret
+			: "";
+	}
 
 	if (input.aspect === "wide") {
 		const padX = s.chromePadX;
@@ -446,7 +452,7 @@ function cardHtml(input: {
   ${squareBrand}
   <div style="display:flex;flex-direction:row;flex-grow:1;align-items:flex-start;min-height:0;padding:0 ${padX}px ${OG_SQUARE_STYLE.bodyPadBottom}px ${sq.artPad}px;">
     ${artImg}
-    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;padding:0 ${sq.textPaddingX}px 0 ${textPadLeft}px;">
+    <div style="display:flex;flex-direction:column;height:${input.artHeight}px;flex-grow:1;min-width:0;overflow:hidden;padding:0 ${sq.textPaddingX}px 0 ${textPadLeft}px;">
       ${columnsTitleHtml}
     </div>
   </div>
