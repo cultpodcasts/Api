@@ -144,9 +144,13 @@ one-time `moved`, `removed { destroy = false }` and `import` blocks, run by CI w
 `terraform state` command: production kept `f3d9b5b2-…` and forgot the preview database, and the
 preview workspace adopted `83ae1e81-…`. Both applies ran on 16 Nov 2026, so
 [#275](https://github.com/cultpodcasts/Api/issues/275) deleted the blocks: an `import` of a fixed
-id fails once that database is gone, which would break *Rebuild from scratch*. The roots now hold
-no `import`, `moved` or `removed` blocks (tested); add one only for a new, reviewed state change,
-and remove it in a follow-up once it has applied.
+id fails once that database is gone, so a torn-down preview stack could not even be planned. The
+roots now hold no `import`, `moved` or `removed` blocks (tested); add one only for a new, reviewed
+state change, and remove it in a follow-up once it has applied.
+
+That unblocks the **Terraform** half of a rebuild only. A rebuilt database has a new id, so the
+job still stops at the id check until a PR syncs the id into `wrangler.search.jsonc` (see
+*Rebuild from scratch*).
 
 Keep the module's `ignore_changes = [primary_location_hint]`: the D1 API does not return the
 hint, so the imported preview database has none in state and would otherwise plan a forced
