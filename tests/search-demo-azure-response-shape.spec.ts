@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+	LIVE_AZURE_RETRIEVABLE_KEYS,
 	formatAzureRelease,
 	toAzureSearchDocument,
 	toAzureSearchEnvelope,
@@ -45,11 +46,19 @@ describe("search-demo Azure response shape (SP-0.2)", () => {
 		expect(formatAzureRelease(0)).not.toMatch(/\.\d{3}Z$/);
 	});
 
-	it("maps a D1 row onto the Azure document fixture, with no extra podcastName", () => {
+	it("maps a D1 row onto the live Azure document keys, including identity ids as null, with no extra podcastName", () => {
 		const mapped = toAzureSearchDocument(rowFromFixture(), expectedDoc["@search.score"] as number, expectedDoc.subjects as string[]);
+		expect(LIVE_AZURE_RETRIEVABLE_KEYS).toHaveLength(25);
+		expect(Object.keys(mapped)).toEqual(["@search.score", ...LIVE_AZURE_RETRIEVABLE_KEYS]);
 		expect(mapped).toEqual(expectedDoc);
 		expect(mapped).not.toHaveProperty("podcastName");
-		expect(Object.keys(mapped).sort()).toEqual(Object.keys(expectedDoc).sort());
+		expect(mapped.alternativeTitles).toBeNull();
+		expect(mapped.imdbId).toBeNull();
+		expect(mapped.tmdbId).toBeNull();
+		expect(mapped.tvdbId).toBeNull();
+		expect(mapped.seriesImdbId).toBeNull();
+		expect(mapped.seriesTmdbId).toBeNull();
+		expect(mapped.seriesTvdbId).toBeNull();
 	});
 
 	it("keeps @odata.context null on the envelope, matching the api Worker", () => {

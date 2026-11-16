@@ -11,17 +11,24 @@
       "description": "A short description used only as a shape fixture.",
       "release": "2026-10-01T10:00:00Z",
       "duration": "01:00:00",
-      "lang": null,
       "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
       "appleId": "1234567890",
       "podcastAppleId": "123456789",
       "youtubeId": "abcdefghijk",
-      "image": "https://example.invalid/cover.jpg",
-      "svc": "",
       "bbc": "",
       "internetArchive": null,
+      "svc": "",
+      "subjects": ["Scientology"],
+      "image": "https://example.invalid/cover.jpg",
       "trailers": null,
-      "subjects": ["Scientology"]
+      "alternativeTitles": null,
+      "imdbId": null,
+      "tmdbId": null,
+      "tvdbId": null,
+      "seriesImdbId": null,
+      "seriesTmdbId": null,
+      "seriesTvdbId": null,
+      "lang": null
     }
   ]
 }

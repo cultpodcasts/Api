@@ -22,6 +22,40 @@ export interface AzureSearchDocRow {
   bbc: string;
 }
 
+/**
+ * Retrievable keys on the live Azure index, in `EpisodeSearchRecord` / FieldBuilder order
+ * (main, after RPP #1431 and #1437). `publisherSearchTerms` and `episodeSearchTerms` are
+ * hidden and are not returned. Legacy `podcastName` / `episodeTitle` / `episodeDescription`
+ * are FieldBuilderIgnore and are not on the live index.
+ */
+export const LIVE_AZURE_RETRIEVABLE_KEYS = [
+  "id",
+  "contentKind",
+  "title",
+  "seriesName",
+  "description",
+  "release",
+  "duration",
+  "spotifyId",
+  "appleId",
+  "podcastAppleId",
+  "youtubeId",
+  "bbc",
+  "internetArchive",
+  "svc",
+  "subjects",
+  "image",
+  "trailers",
+  "alternativeTitles",
+  "imdbId",
+  "tmdbId",
+  "tvdbId",
+  "seriesImdbId",
+  "seriesTmdbId",
+  "seriesTvdbId",
+  "lang"
+] as const;
+
 /** Format a unix-seconds release the way Azure AI Search (and the api Worker) return it. */
 export function formatAzureRelease(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toISOString().replace(/\.000Z$/, "Z");
@@ -42,18 +76,28 @@ export function toAzureSearchDocument(
     description: d.description,
     release: formatAzureRelease(d.release),
     duration: d.duration,
-    lang: d.lang,
     spotifyId: d.spotify_id,
     appleId: d.apple_id,
     podcastAppleId: d.podcast_apple_id,
     youtubeId: d.youtube_id,
-    image: d.image,
-    svc: d.svc,
     bbc: d.bbc,
-    // Not carried in the demo corpus; present for shape parity with the Azure index.
+    // TODO(G1 / Api #225, identity-ids): the demo D1 schema has no columns yet for
+    // internetArchive, trailers, alternativeTitles (RPP #1431), or the six identity
+    // ids (RPP #1437). Azure returns these retrievable fields as null when unset;
+    // emit null until the corpus carries them.
     internetArchive: null,
-    trailers: null,
+    svc: d.svc,
     subjects, // pragma: allowlist secret
+    image: d.image,
+    trailers: null,
+    alternativeTitles: null,
+    imdbId: null,
+    tmdbId: null,
+    tvdbId: null,
+    seriesImdbId: null,
+    seriesTmdbId: null,
+    seriesTvdbId: null,
+    lang: d.lang
   };
 }
 
@@ -64,7 +108,7 @@ export function toAzureSearchEnvelope(
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
     "@odata.context": null,
-    value: documents,
+    value: documents
   };
   if (options.count !== undefined) body["@odata.count"] = options.count;
   if (options.facets) body["@search.facets"] = options.facets;
