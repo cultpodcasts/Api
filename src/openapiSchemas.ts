@@ -1581,6 +1581,30 @@ export const searchResponseSchema = z.object({
 });
 
 /**
+ * `POST /search` 502: the upstream search service could not be reached, answered with an
+ * unexpected status, or sent an unreadable 200 body. Retryable.
+ */
+export const searchUpstreamErrorSchema = z.object({
+	error: z.object({
+		code: z.literal("UpstreamSearchError"),
+		message: z.string()
+	})
+});
+
+/**
+ * `POST /search` forwarded upstream error: Azure AI Search's JSON envelope
+ * (`{ error: { code, message } }`, message names the bad field), or
+ * `{ error: "Upstream search error" }` when the upstream body was not JSON.
+ * Also the legacy 400 `{ error: "Bad request" }` for a body the Worker cannot read.
+ */
+export const searchForwardedErrorSchema = z.object({
+	error: z.union([
+		z.string(),
+		z.object({ code: z.string().optional(), message: z.string().optional() })
+	])
+});
+
+/**
  * R2 `homepage` — RedditPodcastPoster.Models.HomePage.HomePageModel /
  * RecentEpisode (camelCase; TimeSpan as string).
  */

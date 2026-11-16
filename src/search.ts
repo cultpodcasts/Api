@@ -15,16 +15,78 @@ export function upstreamSearchErrorStatus(status: number): ContentfulStatusCode 
 	return 502;
 }
 
-export async function parseUpstreamSearchErrorBody(response: Response): Promise<object> {
-	const raw = await response.text();
+/** Most of a non-JSON upstream error body kept in the search log (never sent to the client). */
+export const UPSTREAM_ERROR_LOG_LIMIT = 500;
+
+const GENERIC_UPSTREAM_ERROR = { error: "Upstream search error" } as const;
+
+/**
+ * Body to forward for an upstream (Azure AI Search) error. A JSON envelope is forwarded
+ * unchanged, because the website reads field names from Azure's messages. Anything else (an
+ * HTML gateway page, plaintext) is replaced by a generic body so it never reaches the browser;
+ * `onUnparsed` receives the raw text, cut to {@link UPSTREAM_ERROR_LOG_LIMIT}, for the log.
+ */
+export async function parseUpstreamSearchErrorBody(
+	response: Response,
+	onUnparsed?: (raw: string) => void
+): Promise<object> {
+	let raw: string;
+	try {
+		raw = await response.text();
+	} catch {
+		return GENERIC_UPSTREAM_ERROR;
+	}
 	if (!raw) {
-		return { error: "Upstream search error" };
+		return GENERIC_UPSTREAM_ERROR;
 	}
 	try {
-		return JSON.parse(raw) as object;
+		const parsed: unknown = JSON.parse(raw);
+		if (parsed !== null && typeof parsed === "object") {
+			return parsed as object;
+		}
 	} catch {
-		return { error: raw };
+		// fall through: not JSON
 	}
+	onUnparsed?.(raw.slice(0, UPSTREAM_ERROR_LOG_LIMIT));
+	return GENERIC_UPSTREAM_ERROR;
+}
+
+/** Upstream headers worth forwarding on an error: how long a retryable 429/503 should wait. */
+const FORWARDED_UPSTREAM_ERROR_HEADERS = ["retry-after"] as const;
+
+function forwardUpstreamErrorHeaders(c: ActionContext, response: Response): void {
+	for (const name of FORWARDED_UPSTREAM_ERROR_HEADERS) {
+		const value = response.headers.get(name);
+		if (value) {
+			c.header(name, value);
+		}
+	}
+}
+
+/**
+ * Every non-200 `POST /search` response goes through here, so each one carries the CORS headers
+ * the cross-origin website needs to read it. The envelopes (also in the OpenAPI spec,
+ * `SearchRoute` in openapiRoutes.ts):
+ *
+ * | Status | Body | When |
+ * | --- | --- | --- |
+ * | 400 | `{ error: "Bad request" }` | Request body is not JSON the Worker can rewrite. Legacy shape kept for the website. |
+ * | 4xx/5xx (incl. 429, 503) | Azure's JSON envelope, else `{ error: "Upstream search error" }` | Upstream error, status forwarded with `Retry-After`. |
+ * | 502 | `{ error: { code: "UpstreamSearchError", message } }` | Upstream unreachable, unexpected status or unreadable 200 body. |
+ */
+function searchError(c: ActionContext, status: ContentfulStatusCode, body: object): Response {
+	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+	return c.json(body, status);
+}
+
+/**
+ * Upstream unreachable (fetch threw) or returned an unreadable success body. Bad gateway, not
+ * the client's fault: never a 400, which the website treats as a request/field error.
+ */
+function badGateway(c: ActionContext, searchLog: searchLogCollector, message: string): Response {
+	searchLog.addMessage("upstream_error");
+	searchLog.emitError({ message: `search upstream error: ${message}` });
+	return searchError(c, 502, { error: { code: "UpstreamSearchError", message: "Upstream search unavailable" } });
 }
 
 export async function search(c: ActionContext): Promise<Response> {
@@ -32,65 +94,85 @@ export async function search(c: ActionContext): Promise<Response> {
 	let searchLog = new searchLogCollector();
 	searchLog.collectRequest(c);
 	let isLeech: boolean = await evalIsLeech(leechHandlingActive, c.env.Data, c.req.header('cf-connecting-ip'));
-	if (!isLeech) {
-		return c.req
-			.json()
-			.then(async (data: oDataSearchModel) => {
-				// Collect inbound body first so logs still see legacy podcastName
-				// (stale-client signal + podcast-mode filter detection).
-				searchLog.collectSearchRequest(data);
-				rewriteLegacyPodcastNameInSearchRequest(data);
-				boostUnquotedPhraseInSearchRequest(data);
-				let requestBody = JSON.stringify(data);
-				const response = await fetch(c.env.apihost, {
-					cf: {
-						// JSON search responses need cacheEverything; TTL by status so 429/5xx are not sticky for 600s
-						cacheEverything: true,
-						cacheTtlByStatus: {
-							"200-299": 600,
-							"400-599": 0
-						}
-					},
-					headers: {
-						"api-key": c.env.apikey,
-						"content-type": "application/json;charset=UTF-8",
-					},
-					body: requestBody,
-					method: "POST"
-				});
-				searchLog.add({ searchStatus: response.status });
-				AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-				if (response.status != 200) {
-					searchLog.emitError();
-					const errorBody = await parseUpstreamSearchErrorBody(response);
-					return c.json(errorBody, upstreamSearchErrorStatus(response.status));
-				}
-				let body: any = await response.json();
-				body["@odata.context"] = null;
-				if (searchLog.error) {
-					searchLog.emitError();
-				} else {
-					if ((searchLog.mode == searchMode.shortnerFallback ||
-						searchLog.mode == searchMode.episode) &&
-						body.value?.length == 1) {
-						searchLog.add({ searchResult: body.value[0] });
-					} else {
-						searchLog.add({ results: body.value?.length });
-					}
-					searchLog.emit();
-				}
-				return c.json(body, 200);
-			})
-			.catch(() => {
-				if (!searchLog.hasFlushed()) {
-					searchLog.addMessage("bad_json");
-					searchLog.emitError({ message: "search bad_json error" });
-				}
-				return c.json({ error: "Bad request" }, 400);
-			});
-	} else {
+	if (isLeech) {
 		return createLeachResponse(c, searchLog);
 	}
+
+	// Only a bad request body is the client's fault (400): invalid JSON, or JSON the request
+	// rewriters cannot handle. Upstream failures below keep their own status and are never
+	// reported as 400 (SP-1.5, cultpodcasts/Api#223).
+	let requestBody: string;
+	try {
+		const data: oDataSearchModel = await c.req.json();
+		// Collect inbound body first so logs still see legacy podcastName
+		// (stale-client signal + podcast-mode filter detection).
+		searchLog.collectSearchRequest(data);
+		rewriteLegacyPodcastNameInSearchRequest(data);
+		boostUnquotedPhraseInSearchRequest(data);
+		requestBody = JSON.stringify(data);
+	} catch {
+		searchLog.addMessage("bad_json");
+		searchLog.emitError({ message: "search bad_json error" });
+		return searchError(c, 400, { error: "Bad request" });
+	}
+
+	let response: Response;
+	try {
+		response = await fetch(c.env.apihost, {
+			cf: {
+				// JSON search responses need cacheEverything; TTL by status so 429/5xx are not sticky for 600s
+				cacheEverything: true,
+				cacheTtlByStatus: {
+					"200-299": 600,
+					"400-599": 0
+				}
+			},
+			headers: {
+				"api-key": c.env.apikey,
+				"content-type": "application/json;charset=UTF-8",
+			},
+			body: requestBody,
+			method: "POST"
+		});
+	} catch (e) {
+		return badGateway(c, searchLog, e instanceof Error ? e.message : String(e));
+	}
+
+	searchLog.add({ searchStatus: response.status });
+	if (response.status != 200) {
+		let unparsed: string | undefined;
+		const errorBody = await parseUpstreamSearchErrorBody(response, (raw) => { unparsed = raw; });
+		searchLog.emitError(
+			unparsed === undefined ? undefined : { message: `search upstream non-JSON error body: ${unparsed}` }
+		);
+		forwardUpstreamErrorHeaders(c, response);
+		return searchError(c, upstreamSearchErrorStatus(response.status), errorBody);
+	}
+
+	let body: any;
+	try {
+		body = await response.json();
+	} catch (e) {
+		return badGateway(c, searchLog, `unreadable 200 body: ${e instanceof Error ? e.message : String(e)}`);
+	}
+	if (body === null || typeof body !== "object" || Array.isArray(body)) {
+		return badGateway(c, searchLog, "non-object 200 body");
+	}
+	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+	body["@odata.context"] = null;
+	if (searchLog.error) {
+		searchLog.emitError();
+	} else {
+		if ((searchLog.mode == searchMode.shortnerFallback ||
+			searchLog.mode == searchMode.episode) &&
+			body.value?.length == 1) {
+			searchLog.add({ searchResult: body.value[0] });
+		} else {
+			searchLog.add({ results: body.value?.length });
+		}
+		searchLog.emit();
+	}
+	return c.json(body, 200);
 }
 
 async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string | undefined): Promise<boolean> {
