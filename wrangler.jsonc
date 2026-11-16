@@ -51,6 +51,13 @@
       // Top-level Worker `api` (live production) — never streaming-scrape-us-preview.
       "binding": "SCRAPE_US",
       "service": "streaming-scrape-us"
+    },
+    {
+      // Search platform Worker (SP-1.3, cultpodcasts/Api#221). Service-binding only: zone Bot
+      // Fight Mode challenges server POSTs to public hostnames. Azure AI Search stays the
+      // default; nothing routes search here until an opt-in flag (soak) or cutover (SP-4.x).
+      "binding": "SEARCH",
+      "service": "search"
     }
   ],
   "analytics_engine_datasets": [
@@ -193,6 +200,11 @@
           // Preview Api must not call production scrape (quota / logs / unreleased code).
           "binding": "SCRAPE_US",
           "service": "streaming-scrape-us-preview"
+        },
+        {
+          // Preview api must never read the production search index (Jon, 16 Nov 2026).
+          "binding": "SEARCH",
+          "service": "search-preview"
         }
       ],
       "analytics_engine_datasets": [
@@ -309,6 +321,10 @@
         {
           "binding": "SCRAPE_US",
           "service": "streaming-scrape-us"
+        },
+        {
+          "binding": "SEARCH",
+          "service": "search"
         }
       ],
       "analytics_engine_datasets": [
@@ -414,6 +430,11 @@
         {
           "binding": "SCRAPE_US",
           "service": "streaming-scrape-us-preview"
+        },
+        {
+          // `npm run search:dev` (wrangler.search.jsonc --env local) registers as `search` locally.
+          "binding": "SEARCH",
+          "service": "search"
         }
       ],
       "analytics_engine_datasets": [
