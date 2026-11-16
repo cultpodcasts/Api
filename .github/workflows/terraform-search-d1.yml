@@ -129,10 +129,12 @@ jobs:
     needs: [validate, readiness]
     if: needs.readiness.outputs.configured == 'true'
     runs-on: ubuntu-latest
-    # A newer push to the same PR (or ref) supersedes an older plan.
+    # A newer push to the same PR supersedes an older PR plan. Main pushes and manual runs are
+    # never cancelled (a cancel mid-plan could leave the HCP lock held, or drop the first-apply
+    # dispatch), and the event name keeps a push and a dispatch on main in separate groups.
     concurrency:
-      group: terraform-search-d1-plan-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: true
+      group: terraform-search-d1-plan-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: read
       pull-requests: write
@@ -181,13 +183,14 @@ jobs:
           } > "$RUNNER_TEMP/plan.md"
           cat "$RUNNER_TEMP/plan.md" >> "$GITHUB_STEP_SUMMARY"
 
-      # One sticky comment per PR (edited on each push), so there is never a stale plan to approve against.
+      # One sticky comment per PR: edits the github-actions[bot] comment carrying the plan
+      # marker (never another bot comment), or creates it. No stale plan to approve against.
       - name: Post plan to PR
         if: always() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-        run: gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body-file "$RUNNER_TEMP/plan.md"
+        run: node infra/terraform/scripts/sticky-plan-comment.mjs "$PR" "$RUNNER_TEMP/plan.md"
 
   apply:
     name: apply + migrations (approval required)

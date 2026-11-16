@@ -93,17 +93,18 @@ organisation's default mode and `plan -out` would fail with a cryptic error.
 
 **Concurrency:** HCP locks state during every run, and every Terraform command waits up to five
 minutes for the lock (`-lock-timeout=5m`). There is no workflow-level concurrency group (GitHub
-cancels a *pending* run when another queues, which could drop a main apply). Instead, PR plans
-use `terraform-search-d1-plan-<PR>` with cancel-in-progress (a newer push supersedes the older
-plan), and apply uses `terraform-search-d1-apply` without cancel-in-progress (a running apply is
-never cancelled; a newer main run may supersede a pending one, re-plan, and apply all pending
-migrations).
+cancels a *pending* run when another queues, which could drop a main apply). Instead, plans use `terraform-search-d1-plan-<event>-<PR or ref>`, and only **PR** plans cancel
+in progress (a newer push supersedes the older plan). Plans on `main` and manual runs are never
+cancelled, so a cancel can't leave the HCP lock held or drop the first-apply dispatch, and the
+event name keeps a push and a dispatch on `main` in separate groups. Apply uses
+`terraform-search-d1-apply` without cancel-in-progress (a running apply is never cancelled; a
+newer main run may supersede a pending one, re-plan, and apply all pending migrations).
 
 ## CI ([`.github/workflows/terraform-search-d1.yml`](../../.github/workflows/terraform-search-d1.yml))
 
 | Event | Runs |
 |-------|------|
-| PR touching `infra/terraform/**`, `workers/search/migrations/**` or the workflow | `fmt -check`, `validate` (no secrets); with secrets: HCP pre-flight, `plan` (D1 Read token), plan guard, one sticky plan comment per PR showing the head SHA |
+| PR touching `infra/terraform/**`, `workers/search/migrations/**` or the workflow | `fmt -check`, `validate` (no secrets); with secrets: HCP pre-flight, `plan` (D1 Read token), plan guard, one sticky plan comment per PR showing the head SHA (`scripts/sticky-plan-comment.mjs` edits only the `github-actions[bot]` comment carrying the plan marker) |
 | Push to `main` (same paths), or manual run on `main` | `plan` + guard, then **apply** after environment approval: re-plan, guard, `apply` of that saved plan (D1 Edit token), then D1 migrations (preview, then production) from a wrangler config generated from Terraform outputs |
 | Manual run with `allow_d1_create` | As above, but the guard allows creating D1 databases. **First apply only.** |
 

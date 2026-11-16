@@ -8,6 +8,8 @@ import { findForbiddenChanges, summarisePlan } from "../infra/terraform/scripts/
 // @ts-ignore - plain .mjs CLI helpers
 import { applyIds, buildMigrationsConfig, idsFromOutputs } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
 // @ts-ignore - plain .mjs CLI helpers
+import { findPlanCommentId, PLAN_MARKER } from "../infra/terraform/scripts/sticky-plan-comment.mjs";
+// @ts-ignore - plain .mjs CLI helpers
 import { evaluateWorkspace, readCloudBlock } from "../infra/terraform/scripts/hcp-workspace-check.mjs";
 
 /** SP-1.10 (cultpodcasts/Api#270): Terraform for the search D1 databases. */
@@ -179,9 +181,12 @@ describe("Terraform workflow", () => {
 
 	it("has no workflow-level concurrency; plans cancel per PR and applies queue without cancelling", () => {
 		expect(workflow).not.toMatch(/^concurrency:/m);
-		expect(job("plan")).toMatch(
-			/concurrency:\s*\n\s*group:\s*terraform-search-d1-plan-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}\s*\n\s*cancel-in-progress:\s*true/
+		expect(job("plan")).toContain(
+			"group: terraform-search-d1-plan-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}"
 		);
+		// Only PR plans cancel; main pushes and the first-apply dispatch never do.
+		expect(job("plan")).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
+		expect(job("plan")).not.toMatch(/cancel-in-progress:\s*true/);
 		expect(job("apply")).toMatch(
 			/concurrency:\s*\n\s*group:\s*terraform-search-d1-apply\s*\n\s*cancel-in-progress:\s*false/
 		);
@@ -204,9 +209,10 @@ describe("Terraform workflow", () => {
 		}
 	});
 
-	it("keeps one sticky plan comment per PR, with the head SHA", () => {
-		expect(workflow).toMatch(/gh pr comment[^\n]*--edit-last --create-if-none/);
-		expect(workflow).toContain("<!-- terraform-search-d1-plan -->");
+	it("keeps one sticky plan comment per PR by marker, with the head SHA", () => {
+		expect(workflow).toContain('sticky-plan-comment.mjs "$PR" "$RUNNER_TEMP/plan.md"');
+		expect(workflow).not.toContain("--edit-last");
+		expect(workflow).toContain(PLAN_MARKER);
 		expect(workflow).toContain("github.event.pull_request.head.sha");
 	});
 
@@ -301,6 +307,33 @@ describe("sync-wrangler-ids", () => {
 
 	it("Terraform outputs the account id for the migrations config", () => {
 		expect(tf).toMatch(/output "account_id"\s*\{\s*value\s*=\s*var\.cloudflare_account_id/);
+	});
+});
+
+describe("sticky plan comment", () => {
+	const bot = { login: "github-actions[bot]" };
+	const plan = (id: number, sha: string) => ({ id, user: bot, body: `${PLAN_MARKER}\n### Terraform plan for \`${sha}\`` });
+
+	it("edits the bot comment with the plan marker, not an unrelated later bot comment", () => {
+		const comments = [
+			plan(10, "aaa"),
+			{ id: 11, user: bot, body: "Coverage report: 91%" },
+			{ id: 12, user: { login: "jon" }, body: "LGTM" }
+		];
+		expect(findPlanCommentId(comments)).toBe(10);
+	});
+
+	it("ignores a human comment that quotes the marker", () => {
+		expect(findPlanCommentId([{ id: 20, user: { login: "jon" }, body: `> ${PLAN_MARKER}` }])).toBeUndefined();
+	});
+
+	it("returns nothing when there is no plan comment yet (create one)", () => {
+		expect(findPlanCommentId([{ id: 30, user: bot, body: "other bot output" }])).toBeUndefined();
+		expect(findPlanCommentId([])).toBeUndefined();
+	});
+
+	it("picks the newest plan comment if an older run left a duplicate", () => {
+		expect(findPlanCommentId([plan(40, "old"), plan(41, "new")])).toBe(41);
 	});
 });
 
