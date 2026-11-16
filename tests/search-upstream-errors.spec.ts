@@ -169,4 +169,87 @@ describe("POST /search upstream errors", () => {
 		expect(resp.status).toBe(502);
 		expect(await resp.json()).toEqual({ error: "Upstream search error" });
 	});
+
+	it("forwards Retry-After on a retryable upstream 429", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				new Response(JSON.stringify({ error: { message: "Too many requests" } }), {
+					status: 429,
+					headers: { "content-type": "application/json", "retry-after": "7" }
+				})
+			)
+		);
+		const resp = await post({ search: "*" });
+		expect(resp.status).toBe(429);
+		expect(resp.headers.get("retry-after")).toBe("7");
+	});
+
+	it("does not invent Retry-After when upstream sends none", async () => {
+		stubUpstream(503, JSON.stringify({ error: { message: "Service unavailable" } }));
+		const resp = await post({ search: "*" });
+		expect(resp.status).toBe(503);
+		expect(resp.headers.get("retry-after")).toBeNull();
+	});
+
+	it("returns 502, not 400, when the upstream cannot be reached", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				throw new TypeError("Network connection lost.");
+			})
+		);
+		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await post({ search: "*" });
+		expect(resp.status).toBe(502);
+		expect(await resp.json()).toEqual({
+			error: { code: "UpstreamSearchError", message: "Upstream search unavailable" }
+		});
+		expect(errorLog).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns 502, not 400, when upstream 200 has an unreadable body", async () => {
+		stubUpstream(200, "<html>gateway page</html>", "text/html");
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await post({ search: "*" });
+		expect(resp.status).toBe(502);
+		expect(await resp.json()).toMatchObject({ error: { code: "UpstreamSearchError" } });
+	});
+
+	it("still returns 400 for an invalid JSON request body without calling upstream", async () => {
+		const fetchMock = stubUpstream(200, JSON.stringify({ value: [] }));
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await app().request(
+			"/search",
+			{ method: "POST", headers: { "content-type": "application/json" }, body: "{not json" },
+			env()
+		);
+		expect(resp.status).toBe(400);
+		expect(await resp.json()).toEqual({ error: "Bad request" });
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("still returns 400 for a JSON null request body without calling upstream", async () => {
+		const fetchMock = stubUpstream(200, JSON.stringify({ value: [] }));
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await app().request(
+			"/search",
+			{ method: "POST", headers: { "content-type": "application/json" }, body: "null" },
+			env()
+		);
+		expect(resp.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
 });
+
+function post(body: unknown) {
+	return app().request(
+		"/search",
+		{
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(body)
+		},
+		env()
+	);
+}
