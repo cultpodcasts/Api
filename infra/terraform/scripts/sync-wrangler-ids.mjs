@@ -67,14 +67,21 @@ export function buildMigrationsConfig(outputs) {
 	};
 }
 
+/** Local Miniflare bindings use a fixed `local-…` id (wrangler.search.jsonc env.local); never synced. */
+export const LOCAL_DATABASE_ID_PREFIX = "local-";
+
 /**
  * Set `database_id` on every d1 binding object whose `database_name` is in `ids`.
+ * Bindings whose current id starts with `LOCAL_DATABASE_ID_PREFIX` (Miniflare `env.local`) are left
+ * unchanged and not counted in `found`.
  * Returns the new text and which names were found.
  */
 export function applyIds(text, ids) {
 	const found = new Set();
 	const out = text.replace(/\{[^{}]*?"database_name"\s*:\s*"([^"]+)"[^{}]*?\}/g, (block, name) => {
 		if (!(name in ids)) return block;
+		const current = /"database_id"\s*:\s*"([^"]*)"/.exec(block)?.[1] ?? "";
+		if (current.startsWith(LOCAL_DATABASE_ID_PREFIX)) return block;
 		found.add(name);
 		return block.replace(/("database_id"\s*:\s*")[^"]*(")/, `$1${ids[name]}$2`);
 	});
