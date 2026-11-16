@@ -1,8 +1,9 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import searchWorker from "../workers/search/src/index";
+import { d1, migratedSearchDb, searchMigrationFiles, searchMigrationsDir } from "./support/searchD1";
 import { SEARCH_SCHEMA_VERSION } from "../workers/search/src/health";
 import type { SearchEnv } from "../workers/search/src/env";
 // @ts-ignore - plain .mjs CLI helper (SP-1.10)
@@ -11,7 +12,7 @@ import { applyIds } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
 /** SP-1.1 (cultpodcasts/Api#219): dedicated search D1 database, bindings and schema. */
 
 const root = process.cwd();
-const migrationsDir = resolve(root, "workers/search/migrations");
+const migrationsDir = searchMigrationsDir;
 
 /** Strip // and /* *\/ comments from JSONC without touching string contents. */
 function parseJsonc(text: string): any {
@@ -52,33 +53,7 @@ function parseJsonc(text: string): any {
 	return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
 }
 
-function migratedDb(): DatabaseSync {
-	const db = new DatabaseSync(":memory:");
-	db.exec("PRAGMA foreign_keys = ON;");
-	for (const file of migrationFiles()) {
-		db.exec(readFileSync(resolve(migrationsDir, file), "utf8"));
-	}
-	return db;
-}
-
-/** Minimal D1Database over node:sqlite: enough for prepare().bind().first(). */
-function d1(db: DatabaseSync): D1Database {
-	return {
-		prepare(sql: string) {
-			let params: unknown[] = [];
-			const stmt = {
-				bind(...values: unknown[]) {
-					params = values;
-					return stmt;
-				},
-				async first<T>() {
-					return (db.prepare(sql).get(...(params as never[])) ?? null) as T | null;
-				}
-			};
-			return stmt;
-		}
-	} as unknown as D1Database;
-}
+const migratedDb = migratedSearchDb;
 
 const failingD1 = {
 	prepare() {
@@ -94,10 +69,7 @@ function insertDoc(db: DatabaseSync, doc: Record<string, unknown>) {
 	);
 }
 
-/** Migration files in apply order (wrangler applies them by name). */
-function migrationFiles(): string[] {
-	return readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
-}
+const migrationFiles = searchMigrationFiles;
 
 /**
  * Content-aware FTS5 integrity check (rank = 1): compares search_fts with search_docs, so it
@@ -371,9 +343,11 @@ describe("search Worker", () => {
 		expect(await resp.json()).toMatchObject({ ok: false, schemaVersion: null, error: expect.stringMatching(/search_meta/) });
 	});
 
-	it("rejects non-GET /health and unknown paths", async () => {
+	it("rejects wrong methods and unknown paths", async () => {
 		const env = { SEARCH_DB: d1(migratedDb()) };
 		expect((await call(env, "/health", "POST")).status).toBe(405);
-		expect((await call(env, "/indexes/x/docs/search", "POST")).status).toBe(404);
+		expect((await call(env, "/indexes/x/docs/search", "GET")).status).toBe(405);
+		expect((await call(env, "/indexes/x/docs", "POST")).status).toBe(404);
+		expect((await call(env, "/search", "POST")).status).toBe(404);
 	});
 });

@@ -100,6 +100,63 @@ npm run search:dev            # http://127.0.0.1:8789/health
 | Route | Purpose |
 |-------|---------|
 | `GET /health` | 200 when D1 answers and the schema version matches; 503 otherwise (retryable) |
+| `POST /indexes/{index}/docs/search` | Azure AI Search docs/search over D1 FTS5 (SP-1.9) |
 
-The query engine (ported from `search-demo/`), Sessions API reads (SP-1.2) and the admin
-upsert/delete route (SP-1.4) land here in their own tickets.
+Sessions API reads (SP-1.2) and the admin upsert/delete route (SP-1.4) land here in their own
+tickets.
+
+## Query engine (SP-1.9)
+
+Moved from the `search-demo/` prototype ([Api#269](https://github.com/cultpodcasts/Api/issues/269)),
+read-only, against the SP-1.1 schema:
+
+| File | Role |
+|------|------|
+| `src/query.ts` | Azure "simple" syntax → FTS5 `MATCH`, mirroring `en.lucene` (stopwords, hyphen split, possessives). Every atom is quoted, so user text cannot inject FTS5 syntax. |
+| `src/odata.ts` | The OData subset the website sends: `eq` / `ne` / `null`, `search.in`, `subjects/any`, `and` / `or` / parentheses; facet specs. `lang` NULL means English. |
+| `src/azure-response.ts` | The live Azure document (25 retrievable keys, Azure order) and envelope (`@odata.context: null`). |
+| `src/docs-search.ts` | The route: body parsing, SQL, facets, `select`, errors. |
+
+Contract (same as `search-demo`): `search`, `searchMode` (`any` default, `all`), `filter`,
+`orderby` (`release desc` / `release asc`; relevance when searching, newest first when browsing),
+`top` (default 50, max 1000) / `skip` / `count`, `facets` (`subjects`, `contentKind`, `lang`,
+`seriesName`; `count:n` up to 1000) and `select`. The `{index}` segment and `api-version` are
+accepted and ignored (one database per Worker), and so is `api-key`: the Worker is reachable only
+over a service binding.
+
+- **Indexed, not returned:** full descriptions are indexed uncapped and returned in full. `guests`
+  and the hidden curator terms are searchable but, as in Azure, never returned.
+- **Errors:** a bad body, filter or facet is **400** `{ error: { code: "", message } }` like Azure;
+  a D1 failure, overload or missing schema is **503** with the fixed body
+  `{ error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." } }`,
+  which is retryable and never a 400. The D1 detail goes only to Workers logs
+  (`console.error("search: D1 failure", …)`, 500 characters), because the api Worker forwards
+  upstream error bodies to the browser.
+- **Limits (400 past them):** `top` / `skip` are non-negative integers (`top` clamps to 1000;
+  `skip` at most 100,000, as in Azure); `search` at most 8 KB, 256 terms and 32 operator changes;
+  `filter` at most 32 KB and 32 levels of parentheses; body at most 256 KB.
+- **D1's 100 bound parameters per statement:** lists (`search.in`, the page's subject lookup)
+  bind as one JSON parameter through `json_each(?)`; a filter with more than 98 separate
+  comparisons is a 400. The test adapter (`tests/support/searchD1.ts`) enforces the limit.
+- **FTS5 nesting:** the translator keeps runs of one operator flat and parenthesises only operator
+  changes, so long queries stay well inside the FTS5 parser's ~96-level stack.
+- **Not yet:** bm25 column weights and title/AKA phrase-first ranking (SP-1.8), the `id`
+  tie-break (SP-1.7), Sessions API (SP-1.2).
+
+Tests: `tests/search-query-engine.spec.ts` (translator, OData, response shape, and the route over
+the migrated schema in `node:sqlite`).
+
+### Running the parity harness locally
+
+The `search-demo/harness` cases (on the prototype branch, [Api#214](https://github.com/cultpodcasts/Api/pull/214))
+post Azure-shaped bodies to `/indexes/d1/docs/search`, which this route accepts unchanged:
+
+```sh
+npm run search:migrate:local   # local Miniflare D1 only
+npm run search:dev             # http://127.0.0.1:8789
+SEARCH_DEMO_URL=http://127.0.0.1:8789 SEARCH_API_KEY=unused node search-demo/harness/run.mjs
+```
+
+The harness still needs the other env names its README lists: production Azure (read-only) for
+the comparison side, and a D1 token for its difference explanations. The local database starts
+empty: load documents with the admin route once SP-1.4 lands.
