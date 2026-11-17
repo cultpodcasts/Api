@@ -167,6 +167,9 @@ const ROW_COLUMNS = [
  * Upsert a chunk of documents bound as one JSON array (D1 allows 100 bound parameters, so rows
  * cannot bind column by column). `WHERE true` resolves SQLite's INSERT…SELECT…ON CONFLICT parse
  * ambiguity. The DO UPDATE `WHERE` is the stale-replay guard; RETURNING lists the rows written.
+ * The SET list names all eight FTS columns, so `search_docs_au` (AFTER UPDATE OF) rewrites the FTS
+ * row on every applied upsert, even when the text is unchanged: callers should push only new or
+ * changed documents.
  */
 const UPSERT_SQL =
 	`INSERT INTO search_docs (${ROW_COLUMNS.join(", ")}) ` +

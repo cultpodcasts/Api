@@ -138,6 +138,12 @@ sequenceDiagram
   `INSERT … ON CONFLICT(id) DO UPDATE … WHERE excluded.modified_at >= search_docs.modified_at`. An
   older `modifiedAt` is dropped and listed in `stale`; an equal one applies (a retry). Subjects are
   rewritten only for upserts the guard let through.
+- **Every applied upsert rewrites its FTS row.** `search_docs_au` is `AFTER UPDATE OF` the FTS
+  columns, which fires when the SET list names a column, not when its value changes, and the upsert
+  sets all of them. So re-pushing an unchanged document still costs an FTS delete and insert (rows
+  written). Push only new or changed documents; the weekly reconcile (SP-2.2) should send only
+  missing or stale ones, not the whole corpus. (Targeted `UPDATE`s of non-FTS columns, as in the
+  write contract above, still leave the index alone.)
 - **Deletes** are by id; `doc_subjects` cascades and `search_docs_ad` removes the FTS row. Ids the
   index does not have are listed in `notFound`, not an error. A delete has no tombstone: a stale
   upsert replayed after a delete re-inserts the document until the weekly reconcile (SP-2.2)

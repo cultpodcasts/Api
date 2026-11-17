@@ -54,9 +54,10 @@ export async function searchAdminDocs(c: Auth0ActionContext): Promise<Response> 
 
 	const body = await upstream.text();
 	if (upstream.ok) {
-		log.addMessage(body.slice(0, 500));
+		// The search Worker logs the counts (`search: admin write`); the outcome's id lists stay out of this line.
 		log.emit({ event: "search_admin.ok", outcome: "success", status: upstream.status });
 	} else {
+		// A 400 message names the bad field.
 		log.addMessage(body.slice(0, 500));
 		log.emitError({ event: "search_admin.rejected", outcome: "error", status: upstream.status });
 	}

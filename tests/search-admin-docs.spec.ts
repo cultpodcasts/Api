@@ -7,8 +7,10 @@ import {
 	MAX_DOC_BYTES,
 	MAX_UPSERTS,
 	parseAdminDocsRequest,
+	toDocRow,
 	type SearchDocUpsert
 } from "../workers/search/src/admin-docs";
+import { searchIndexDocSchema } from "../src/openapiSchemas";
 import type { SearchEnv } from "../workers/search/src/env";
 import { SERVICE_UNAVAILABLE } from "../workers/search/src/errors";
 import { d1, d1Spy, migratedSearchDb } from "./support/searchD1";
@@ -238,6 +240,25 @@ describe("search Worker POST /admin/docs (SP-1.4)", () => {
 			expect(resp.body).toEqual({ error: { code: "", message: expect.stringMatching(message) } });
 			expect(db.prepare("SELECT COUNT(*) AS n FROM search_docs").get()).toEqual({ n: 0 });
 		});
+	});
+
+	it("accepts and stores every field the OpenAPI document schema advertises, and nothing else", () => {
+		const sample = (key: string): unknown => {
+			if (key === "id") return "doc-1";
+			if (key === "contentKind") return "Film";
+			if (key === "release") return "2026-11-01T10:00:00Z";
+			if (key === "modifiedAt") return T0;
+			if (["subjects", "trailers", "alternativeTitles", "guests"].includes(key)) return [`${key}-value`];
+			if (/TmdbId$|TvdbId$|^tmdbId$|^tvdbId$/.test(key)) return 42;
+			return `${key}-value`;
+		};
+		const keys = Object.keys(searchIndexDocSchema.shape);
+		const full = Object.fromEntries(keys.map((k) => [k, sample(k)]));
+		const [parsed] = parseAdminDocsRequest(JSON.stringify({ upserts: [full] })).upserts;
+		expect(Object.keys(parsed).sort()).toEqual([...keys].sort());
+		const stored = Object.values(toDocRow(parsed)).map(String).join("\n");
+		for (const k of keys) expect(stored, k).toContain(String(sample(k)).replace(/^\[|\]$/g, ""));
+		expect(() => parseAdminDocsRequest(JSON.stringify({ upserts: [{ ...full, notInSchema: 1 }] }))).toThrow(/unknown field 'notInSchema'/);
 	});
 
 	it("accepts and drops the legacy EpisodeSearchRecord fields that are not on the live index", () => {
