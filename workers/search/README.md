@@ -195,6 +195,8 @@ over a service binding.
   `release desc` (and browsing) is `release DESC, id ASC`, the order of `idx_search_docs_release`;
   `release asc` is its exact reverse (`release ASC, id DESC`); relevance is `rank, id ASC`. Azure
   breaks these ties arbitrarily, so a tie group can still be ordered differently there (same rows).
+  Facet buckets end the same way: `count DESC, value ASC`, so a `count:` cut that lands inside a
+  tie returns the same buckets every time.
 - **Not yet:** bm25 column weights and title/AKA phrase-first ranking (SP-1.8).
 
 Tests: `tests/search-query-engine.spec.ts` (translator, OData, response shape, and the route over

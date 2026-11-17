@@ -200,13 +200,14 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1Database
 		statements.push(db.prepare(`SELECT COUNT(*) AS n FROM ${from} ${whereSql}`).bind(...binds));
 	}
 	for (const f of facetSpecs) {
-		// f.count is a parsed integer (parseFacet), safe to inline.
+		// f.count is a parsed integer (parseFacet), safe to inline. Ties on count end in `value`, so
+		// a LIMIT that cuts a tie returns the same buckets every time (SP-1.7).
 		const facetSql =
 			f.field === "subjects" // pragma: allowlist secret
-				? `SELECT s.subject AS value, COUNT(*) AS count FROM ${from} JOIN doc_subjects s ON s.rowid_ref = d.rowid ${whereSql} GROUP BY s.subject ORDER BY count DESC LIMIT ${f.count}` // pragma: allowlist secret
+				? `SELECT s.subject AS value, COUNT(*) AS count FROM ${from} JOIN doc_subjects s ON s.rowid_ref = d.rowid ${whereSql} GROUP BY s.subject ORDER BY count DESC, value ASC LIMIT ${f.count}` // pragma: allowlist secret
 				: f.field === "lang"
-					? `SELECT COALESCE(d.lang, 'en') AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY COALESCE(d.lang, 'en') ORDER BY count DESC LIMIT ${f.count}`
-					: `SELECT ${f.field === "contentKind" ? "d.kind" : "d.series_name"} AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY 1 ORDER BY count DESC LIMIT ${f.count}`;
+					? `SELECT COALESCE(d.lang, 'en') AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY COALESCE(d.lang, 'en') ORDER BY count DESC, value ASC LIMIT ${f.count}`
+					: `SELECT ${f.field === "contentKind" ? "d.kind" : "d.series_name"} AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY 1 ORDER BY count DESC, value ASC LIMIT ${f.count}`;
 		statements.push(db.prepare(facetSql).bind(...binds));
 	}
 

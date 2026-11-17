@@ -99,6 +99,29 @@ describe("deterministic secondary sort by id (SP-1.7)", () => {
 		}
 	});
 
+	it("facets: buckets tied on count come back by value, so a count: cut inside a tie is stable", async () => {
+		const db = migratedSearchDb();
+		// Inserted out of value order: four series and four subjects, each on exactly one doc.
+		for (const [i, name] of ["Delta", "Bravo", "Charlie", "Alpha"].entries()) {
+			upsertSearchDoc(db, { id: `f${i}`, title: "Facet tie", series_name: name }, [name]);
+		}
+		const resp = await searchWorker.fetch(
+			new Request("https://search.internal/indexes/cultpodcasts/docs/search", {
+				method: "POST",
+				body: JSON.stringify({ facets: ["seriesName,count:2", "subjects,count:3"] })
+			}),
+			{ SEARCH_DB: d1(db) }
+		);
+		const facets = ((await resp.json()) as { "@search.facets": Record<string, { value: string; count: number }[]> })[
+			"@search.facets"
+		];
+		expect(facets.seriesName).toEqual([
+			{ value: "Alpha", count: 1 },
+			{ value: "Bravo", count: 1 }
+		]);
+		expect(facets.subjects.map((b) => b.value)).toEqual(["Alpha", "Bravo", "Charlie"]);
+	});
+
 	it("orderBy: every order ends in id, and an unknown orderby falls back to relevance or newest first", () => {
 		expect(orderBy("release desc", true)).toBe("ORDER BY d.release DESC, d.id ASC");
 		expect(orderBy(" Release ASC ", true)).toBe("ORDER BY d.release ASC, d.id DESC");
