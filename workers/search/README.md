@@ -163,26 +163,19 @@ sequenceDiagram
 
 ### Auth0 setup for the write path
 
-Done once in the Auth0 dashboard, before the indexer (SP-2.1) calls the route. Nothing in this
-repo or in Terraform creates these; the Worker only checks the permission.
+Terraform, not the dashboard ([Api#284](https://github.com/cultpodcasts/Api/issues/284)):
+[`infra/terraform/auth0/`](../../infra/terraform/auth0/README.md) creates, in the staging and the
+prod tenant, the `write:search-index` permission on the Api (`https://api.cultpodcasts.com/`), the
+**Search Indexer** role holding it (assigned to nobody), a dedicated `search-index-writer` M2M app,
+and its client grant with only `write:search-index`. The grant is what puts the permission in the
+writer's client_credentials token; the route never reads roles. The one-time bootstrap (the
+Terraform management app per tenant, its environment secrets, two HCP workspaces) is in that README.
 
-1. **Permission:** Applications → APIs → the Api (identifier `https://api.cultpodcasts.com/`) →
-   **Permissions** → add `write:search-index` (description: "Write the D1 search index").
-   If the preview api Worker's `auth0Audience` secret names a different API, repeat steps 1–3
-   there too.
-2. **Role:** User Management → Roles → create **Search Indexer** and give it `write:search-index`
-   (Permissions tab → Add Permissions → the Api). The role is the named grouping for the
-   permission; it does not put the permission in the M2M token (step 3 does) and the route never
-   reads roles. Do not assign it to people: the route refuses non-M2M tokens anyway.
-3. **Grant to the M2M application:** Applications → APIs → the Api → **Machine to Machine
-   Applications** → the indexer's application (a new one, or the one SP-2.1 will use) →
-   authorise it if needed and tick **only** `write:search-index`. Auth0 issues client_credentials
-   tokens from this client grant, so this tick is what puts `write:search-index` in the token's
-   `scope`; roles are not assigned to applications.
-4. **Check:** request a token with `client_credentials` for the Api audience and confirm `scope`
-   contains `write:search-index` and `gty` is `client_credentials`. A token without it gets 403;
-   the api Worker's `search_admin.forbidden` log line says `reason=missing_permission` (grant not
-   ticked) or `reason=not_m2m` (not a client_credentials token), with the token's `azp`.
+**Check** after an apply: request a token with `client_credentials` for the Api audience using the
+writer's client id (output `client_id`) and secret, and confirm `scope` contains
+`write:search-index` and `gty` is `client_credentials`. A token without it gets 403; the api
+Worker's `search_admin.forbidden` log line says `reason=missing_permission` (no grant) or
+`reason=not_m2m` (not a client_credentials token), with the token's `azp`.
 
 ## Read replication and the Sessions API (SP-1.2)
 

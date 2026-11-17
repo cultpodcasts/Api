@@ -11,6 +11,7 @@ deployed into (SP-1.11, [Api#273](https://github.com/cultpodcasts/Api/issues/273
 | [`modules/search-stack/`](./modules/search-stack) | One stack: D1 database (primary `weur`, read replication `auto`) + **empty** Worker shell (no workers.dev, no preview URLs). Both `prevent_destroy`. |
 | [`search/production/`](./search/production) | Production: Worker `search`, D1 `cultpodcasts-search`. HCP workspace `cultpodcasts-api-search-d1`. |
 | [`search/preview/`](./search/preview) | Preview (staging): Worker `search-preview`, D1 `cultpodcasts-search-preview`. HCP workspace `cultpodcasts-api-search-d1-preview`. |
+| [`auth0/`](./auth0) | **Auth0**, not Cloudflare: the `write:search-index` permission, Search Indexer role, writer M2M app and grant for `POST /search/admin/docs`, one root per tenant (HCP `cultpodcasts-auth0`, `cultpodcasts-auth0-preview`). Own workflow `auth0-stack.yml` and bootstrap: [`auth0/README.md`](./auth0/README.md) ([Api#284](https://github.com/cultpodcasts/Api/issues/284)). |
 
 ## Terraform first, then the code
 

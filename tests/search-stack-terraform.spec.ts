@@ -121,7 +121,7 @@ describe("plan guard", () => {
 		expect(spawnSync(process.execPath, [script, file, "--allow-d1-create"]).status).toBe(0);
 		// The pre-#273 flag must not silently turn into "no create allowed".
 		expect(spawnSync(process.execPath, [script, file, "--allow-create"]).status).toBe(2);
-		expect(parseGuardArgs(["p.json", "--allow-d1-create"])).toEqual({ file: "p.json", allowD1Create: true, unknown: [] });
+		expect(parseGuardArgs(["p.json", "--allow-d1-create"])).toEqual({ file: "p.json", stack: "search", allowD1Create: true, unknown: [] });
 	});
 
 	it("rejects input that is not a plan", () => {
