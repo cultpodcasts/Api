@@ -22,6 +22,18 @@ import { isAuth0M2mPayload } from "./verifyAuth0M2mBearer";
  */
 export const SEARCH_ADMIN_DOCS_URL = "https://search/admin/docs";
 
+/** Why a valid token is refused: `not_m2m` (a person's token) or `missing_permission`; null when allowed. */
+export function forbiddenReason(payload: Auth0JwtPayload): "not_m2m" | "missing_permission" | null {
+	if (!isAuth0M2mPayload(payload)) return "not_m2m";
+	if (!hasPermission(payload, SEARCH_INDEX_WRITE_PERMISSION)) return "missing_permission";
+	return null;
+}
+
+function clientId(payload: Auth0JwtPayload): string {
+	const p = payload as Auth0JwtPayload & { client_id?: unknown };
+	return (typeof p.azp === "string" && p.azp) || (typeof p.client_id === "string" && p.client_id) || "(none)";
+}
+
 export async function searchAdminDocs(c: Auth0ActionContext): Promise<Response> {
 	const log = new LogCollector();
 	log.collectRequest(c);
@@ -32,7 +44,10 @@ export async function searchAdminDocs(c: Auth0ActionContext): Promise<Response> 
 		log.emitError({ event: "search_admin.unauthorised", outcome: "unauthorised", status: 401 });
 		return c.json({ error: "Unauthorised" }, 401);
 	}
-	if (!isAuth0M2mPayload(payload) || !hasPermission(payload, SEARCH_INDEX_WRITE_PERMISSION)) {
+	const refusal = forbiddenReason(payload);
+	if (refusal) {
+		// The reason and client id say which half of the Auth0 setup is wrong; never the token or its scope.
+		log.addMessage(`reason=${refusal} azp=${clientId(payload)}`);
 		log.emitError({ event: "search_admin.forbidden", outcome: "forbidden", status: 403 });
 		return c.json(
 			{ error: `Forbidden: an M2M (client_credentials) token with ${SEARCH_INDEX_WRITE_PERMISSION} is required` },

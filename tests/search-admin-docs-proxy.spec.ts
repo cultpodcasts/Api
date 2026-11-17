@@ -95,6 +95,19 @@ describe("api Worker POST /search/admin/docs (SP-1.4)", () => {
 		expect(calls).toEqual([]);
 	});
 
+	it.each([
+		["missing_permission", { gty: "client_credentials", sub: "abc@clients", azp: "indexer-client", scope: "submit" }],
+		["not_m2m", { sub: "auth0|person", azp: "website-client", permissions: ["write:search-index"] }]
+	] as const)("logs reason=%s and the client id (not the token or scope) on a 403", async (reason, payload) => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const resp = await post(payload as unknown as Auth0JwtPayload, binding(() => Response.json({})).fetcher);
+		expect(resp.status).toBe(403);
+		const logged = JSON.stringify(error.mock.calls);
+		expect(logged).toContain("search_admin.forbidden");
+		expect(logged).toContain(`reason=${reason} azp=${payload.azp}`);
+		expect(logged).not.toContain("test-token");
+	});
+
 	it("passes the search Worker's 400 and 503 through unchanged", async () => {
 		for (const [status, error] of [
 			[400, { error: { code: "", message: "upserts[0].modifiedAt must be a non-negative integer (epoch milliseconds)" } }],
