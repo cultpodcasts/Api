@@ -5,6 +5,7 @@ import { SearchRequestError } from "./errors";
 import { json } from "./health";
 import { parseFacet, parseODataFilter } from "./odata";
 import { toMatch, type SearchMode } from "./query";
+import { DEFAULT_RANKING, rankingSql, relevanceScore, unwrapAzurePhraseBoost, type RankingConfig } from "./ranking";
 
 /**
  * `POST /indexes/{index}/docs/search`: Azure AI Search docs/search over the search D1 database
@@ -51,7 +52,7 @@ export const MAX_SEARCH_LENGTH = 8 * 1024;
 export const MAX_FILTER_LENGTH = 32 * 1024;
 export const MAX_BODY_LENGTH = 256 * 1024;
 
-export async function docsSearch(request: Request, env: SearchEnv): Promise<Response> {
+export async function docsSearch(request: Request, env: SearchEnv, ranking: RankingConfig = DEFAULT_RANKING): Promise<Response> {
 	let req: ODataSearchRequest;
 	try {
 		req = parseRequest(await request.text());
@@ -59,7 +60,7 @@ export async function docsSearch(request: Request, env: SearchEnv): Promise<Resp
 		return badRequest(e);
 	}
 	try {
-		return await runSearch(req, env, readSession(env));
+		return await runSearch(req, env, readSession(env), ranking);
 	} catch (e) {
 		if (e instanceof SearchRequestError) return badRequest(e);
 		// D1 runtime failure (overload, timeout, reset, missing schema): retryable, never a 4xx.
@@ -128,9 +129,16 @@ export function parseRequest(raw: string): ODataSearchRequest {
 }
 
 /** `db` is the request's read session: every statement below must use it, never `env.SEARCH_DB`. */
-async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1DatabaseSession): Promise<Response> {
+async function runSearch(
+	req: ODataSearchRequest,
+	env: SearchEnv,
+	db: D1DatabaseSession,
+	ranking: RankingConfig
+): Promise<Response> {
 	const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
-	const matched = toMatch(req.search ?? "", mode);
+	// The api Worker rewrites unquoted queries for Azure (`"q"^10 OR (q)`); D1 ranks the original natively.
+	const search = unwrapAzurePhraseBoost(req.search, req.queryType) ?? "";
+	const matched = toMatch(search, mode);
 	const match = matched.kind === "match" ? matched.expr : null;
 	// parseRequest has already checked these are integers in range.
 	const top = Number(req.top ?? DEFAULT_TOP);
@@ -139,12 +147,10 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1Database
 	const where: string[] = [];
 	const binds: unknown[] = [];
 	let from: string;
-	let scoreSql = "1.0";
+	// Relevance: title/AKA phrase-first tiers, then weighted bm25 (SP-1.8, ranking.ts). Browse: no score.
+	const rank = match ? rankingSql(search, ranking) : null;
 	if (match) {
 		from = "search_fts JOIN search_docs d ON d.rowid = search_fts.rowid";
-		// FTS5 rank (bm25): smaller is better; negate so higher = better like @search.score.
-		// Column weights and title/AKA phrase-first ranking are SP-1.8.
-		scoreSql = "-rank";
 		where.push("search_fts MATCH ?");
 		binds.push(match);
 	} else {
@@ -158,8 +164,12 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1Database
 	}
 	// Lists bind as one JSON parameter, so only a filter with ~100 separate comparisons gets here.
 	// The main statement adds LIMIT and OFFSET.
-	if (binds.length + 2 > D1_MAX_BOUND_PARAMETERS) {
-		throw new SearchRequestError(`filter has too many values (at most ${D1_MAX_BOUND_PARAMETERS - 2} comparisons)`);
+	// Besides the filter's values the page statement binds the MATCH, the ranking values (at most 5),
+	// LIMIT and OFFSET.
+	const reserved = (match ? 1 : 0) + (rank?.binds.length ?? 0) + 2;
+	const filterValues = binds.length - (match ? 1 : 0);
+	if (filterValues + reserved > D1_MAX_BOUND_PARAMETERS) {
+		throw new SearchRequestError(`filter has too many values (at most ${D1_MAX_BOUND_PARAMETERS - reserved} comparisons)`);
 	}
 	const facetSpecs = (req.facets ?? []).map(parseFacet);
 	const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -172,11 +182,12 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1Database
 			? "ORDER BY d.release ASC"
 			: ob === "release desc" || !match
 				? "ORDER BY d.release DESC"
-				: "ORDER BY rank";
+				: rank!.order;
 
-	const select = `${scoreSql} AS score, ${DOC_COLUMNS.map((c) => `d.${c}`).join(", ")}`;
+	const select = `${rank ? rank.select : "3 AS tier, 0 AS bm"}, ${DOC_COLUMNS.map((c) => `d.${c}`).join(", ")}`;
 	const statements = [
 		db.prepare(`SELECT ${select} FROM ${from} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`).bind(
+			...(rank?.binds ?? []),
 			...binds,
 			top,
 			skip
@@ -198,7 +209,7 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1Database
 
 	const results = await db.batch(statements);
 	const reads: { meta?: D1Meta }[] = [...results];
-	const docs = results[0].results as unknown as (AzureSearchDocRow & { score: number })[];
+	const docs = results[0].results as unknown as (AzureSearchDocRow & { tier: number; bm: number })[];
 	const total = req.count ? (results[1].results[0] as { n: number }).n : undefined;
 	const facetOffset = req.count ? 2 : 1;
 
@@ -237,7 +248,7 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1Database
 		facets[f.field] = results[facetOffset + idx].results;
 	});
 	const body = toAzureSearchEnvelope(
-		docs.map((d) => project(toAzureSearchDocument(d, d.score, subjectsByDoc.get(d.rowid) ?? []))), // pragma: allowlist secret
+		docs.map((d) => project(toAzureSearchDocument(d, rank ? relevanceScore(d.tier, d.bm) : 1, subjectsByDoc.get(d.rowid) ?? []))), // pragma: allowlist secret
 		{
 			...(total !== undefined ? { count: total } : {}),
 			...(facetSpecs.length ? { facets } : {})

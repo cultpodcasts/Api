@@ -23,3 +23,5 @@ scripts/streaming-scrape-survey/out/
 scripts/streaming-scrape-survey/.wrangler/
 packages/streaming-submit-contract/.publish/
 .wrangler.search.deploy.jsonc
+workers/search/harness/.cache/
+workers/search/harness/out/
