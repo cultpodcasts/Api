@@ -127,6 +127,28 @@ export function parseRequest(raw: string): ODataSearchRequest {
 	return req;
 }
 
+/**
+ * ORDER BY for a page (SP-1.7, cultpodcasts/Api#224). Every order ends in `d.id`, so rows that tie
+ * (same `release` second, same bm25 score) always come back in the same order and `skip` paging
+ * never repeats or drops one. Azure breaks those ties arbitrarily, which is why same-second groups
+ * shuffled between the two engines.
+ *
+ * - `release desc` (and browsing with no search text): newest first, ties by `id` ascending:
+ *   exactly the order of `idx_search_docs_release (release DESC, id)`, so browse pages read the index
+ *   without a sort.
+ * - `release asc`: the exact reverse (`id` descending inside a tie), so the oldest-first list is the
+ *   newest-first list read backwards, and the same index serves it scanned in reverse.
+ * - Relevance (search text, no orderby): bm25 `rank`, ties by `id` ascending.
+ *
+ * `release` is ISO-8601 UTC text in one fixed format, so text order is time order.
+ */
+export function orderBy(orderby: string | undefined, searching: boolean): string {
+	const ob = (orderby ?? "").trim().toLowerCase();
+	if (ob === "release asc") return "ORDER BY d.release ASC, d.id DESC";
+	if (ob === "release desc" || !searching) return "ORDER BY d.release DESC, d.id ASC";
+	return "ORDER BY rank, d.id ASC";
+}
+
 /** `db` is the request's read session: every statement below must use it, never `env.SEARCH_DB`. */
 async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1DatabaseSession): Promise<Response> {
 	const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
@@ -164,15 +186,7 @@ async function runSearch(req: ODataSearchRequest, env: SearchEnv, db: D1Database
 	const facetSpecs = (req.facets ?? []).map(parseFacet);
 	const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-	// release is ISO-8601 UTC text in one fixed format, so text order is time order.
-	// The `id` tie-break is SP-1.7.
-	const ob = (req.orderby ?? "").trim().toLowerCase();
-	const orderSql =
-		ob === "release asc"
-			? "ORDER BY d.release ASC"
-			: ob === "release desc" || !match
-				? "ORDER BY d.release DESC"
-				: "ORDER BY rank";
+	const orderSql = orderBy(req.orderby, match !== null);
 
 	const select = `${scoreSql} AS score, ${DOC_COLUMNS.map((c) => `d.${c}`).join(", ")}`;
 	const statements = [

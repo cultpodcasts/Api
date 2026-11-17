@@ -190,8 +190,12 @@ over a service binding.
   comparisons is a 400. The test adapter (`tests/support/searchD1.ts`) enforces the limit.
 - **FTS5 nesting:** the translator keeps runs of one operator flat and parenthesises only operator
   changes, so long queries stay well inside the FTS5 parser's ~96-level stack.
-- **Not yet:** bm25 column weights and title/AKA phrase-first ranking (SP-1.8), the `id`
-  tie-break (SP-1.7).
+- **Deterministic order (SP-1.7):** every page order ends in `id`, so same-second (or same-score)
+  ties never shuffle between requests and `skip` paging never repeats or drops a row.
+  `release desc` (and browsing) is `release DESC, id ASC`, the order of `idx_search_docs_release`;
+  `release asc` is its exact reverse (`release ASC, id DESC`); relevance is `rank, id ASC`. Azure
+  breaks these ties arbitrarily, so a tie group can still be ordered differently there (same rows).
+- **Not yet:** bm25 column weights and title/AKA phrase-first ranking (SP-1.8).
 
 Tests: `tests/search-query-engine.spec.ts` (translator, OData, response shape, and the route over
 the migrated schema in `node:sqlite`); `tests/search-d1-session.spec.ts` (Sessions API read path,
