@@ -11,10 +11,8 @@
  *     `database_name` output. Text edit only: comments and formatting are kept.
  *     Exit 0 = updated or in sync, 1 = error.
  *
- *   node infra/terraform/scripts/sync-wrangler-ids.mjs <tf-output.json> --migrations-config <out.json>
- *     Writes the throwaway wrangler config CI uses for `wrangler d1 migrations apply` on that
- *     ONE stack, built only from its Terraform outputs (account id, name, id), so it cannot
- *     drift from Terraform.
+ * CI (#279) runs it with `--config` on a temporary copy before the migrations and deploy
+ * (check-wrangler-ids.sh), and on the id sync PR branch (open-id-sync-pr.sh).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -27,33 +25,6 @@ export function idsFromOutputs(outputs) {
 		throw new Error(`missing or malformed terraform output database_name / database_id for ${name ?? "(unknown database)"}`);
 	}
 	return { [name]: id };
-}
-
-/** Folder holding the search D1 schema migrations (SP-1.1). */
-export const SEARCH_MIGRATIONS_DIR = "workers/search/migrations";
-
-/**
- * Wrangler only needs the account and the D1 bindings to apply migrations; the date is just a
- * required field for the throwaway config and does not affect `d1 migrations apply`.
- */
-export const MIGRATIONS_CONFIG_COMPATIBILITY_DATE = "2026-10-01";
-
-/**
- * Wrangler config for `wrangler d1 migrations apply <name> --remote -c <file>`, from one
- * stack's `terraform output -json` only.
- */
-export function buildMigrationsConfig(outputs) {
-	const accountId = outputs?.account_id?.value;
-	if (typeof accountId !== "string" || !/^[0-9a-f]{32}$/i.test(accountId)) {
-		throw new Error("missing or malformed terraform output account_id");
-	}
-	const [[name, id]] = Object.entries(idsFromOutputs(outputs));
-	return {
-		name: "search-migrations",
-		compatibility_date: MIGRATIONS_CONFIG_COMPATIBILITY_DATE,
-		account_id: accountId,
-		d1_databases: [{ binding: "SEARCH_DB", database_name: name, database_id: id, migrations_dir: SEARCH_MIGRATIONS_DIR }]
-	};
 }
 
 /** Local Miniflare bindings use a fixed `local-…` id (wrangler.search.jsonc env.local); never synced. */
@@ -77,25 +48,20 @@ export function applyIds(text, ids) {
 	return { text: out, found: [...found] };
 }
 
-/** @returns {{ outputs: string[], config: string, migrationsConfig?: string }} */
+/** @returns {{ outputs: string[], config: string }} */
 export function parseArgs(args) {
 	const outputs = [];
 	let config = "wrangler.search.jsonc";
-	let migrationsConfig;
 	for (let i = 0; i < args.length; i++) {
 		const a = args[i];
 		if (a === "--config") config = args[++i];
-		else if (a === "--migrations-config") migrationsConfig = args[++i];
 		else if (a.startsWith("--")) throw new Error(`unknown flag ${a}`);
 		else outputs.push(a);
 	}
-	if (!outputs.length || !config || (migrationsConfig !== undefined && (!migrationsConfig || outputs.length !== 1))) {
-		throw new Error(
-			"usage: sync-wrangler-ids.mjs <tf-output.json> [<tf-output.json> …] [--config wrangler.search.jsonc]\n" +
-				"       sync-wrangler-ids.mjs <tf-output.json> --migrations-config <out.json>"
-		);
+	if (!outputs.length || !config) {
+		throw new Error("usage: sync-wrangler-ids.mjs <tf-output.json> [<tf-output.json> …] [--config wrangler.search.jsonc]");
 	}
-	return { outputs, config, migrationsConfig };
+	return { outputs, config };
 }
 
 function main(argv) {
@@ -107,12 +73,6 @@ function main(argv) {
 		return 1;
 	}
 	const readOutputs = (f) => JSON.parse(readFileSync(f, "utf8"));
-	if (args.migrationsConfig) {
-		const config = buildMigrationsConfig(readOutputs(args.outputs[0]));
-		writeFileSync(args.migrationsConfig, JSON.stringify(config, null, 2) + "\n");
-		console.log(`${args.migrationsConfig} written for ${config.d1_databases.map((d) => d.database_name).join(", ")}.`);
-		return 0;
-	}
 	const configFile = args.config;
 	if (!existsSync(configFile)) {
 		console.error(`${configFile} not found.`);

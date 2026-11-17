@@ -1,4 +1,4 @@
-# For the CI migrations config and wrangler id check (scripts/sync-wrangler-ids.mjs).
+# For the CI deploy config and id sync (scripts/check-wrangler-ids.sh, scripts/sync-wrangler-ids.mjs).
 # D1 database ids are not secrets.
 
 output "database_name" {

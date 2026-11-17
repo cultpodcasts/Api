@@ -19,6 +19,12 @@
 # and the database; wrangler owns the code, bindings and settings (wrangler.search.jsonc).
 # There is deliberately no destroy path anywhere in this workflow.
 #
+# Rebuilt stacks (#279, option 3): a torn-down stack comes back with a NEW D1 id. The stack job
+# writes the Terraform-output id into a temporary copy of wrangler.search.jsonc ($DEPLOY_CONFIG)
+# and runs the migrations and the deploy against that copy, so a rebuild deploys from CI alone.
+# A committed id that differs only warns; the *-id-sync job then opens (or updates) one PR per
+# stack syncing the committed file (branch ci/sync-search-d1-id-<stack>, base main).
+#
 # Safe before setup: with the repo secrets missing, the secret-dependent jobs are skipped; the
 # preview job is skipped until the cloudflare-preview environment exists (a job naming a missing
 # environment would CREATE it, unprotected), and the production apply until cloudflare-production
@@ -79,6 +85,10 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   NODE_VERSION: "22"
+  # Throwaway copy of wrangler.search.jsonc with this stack's Terraform database id (#279); the
+  # migrations and the deploy run against it, never the committed file. Gitignored. Must sit in the
+  # repo root, next to wrangler.search.jsonc, because wrangler resolves paths relative to it.
+  DEPLOY_CONFIG: .wrangler.search.deploy.jsonc
   # Production: "--allow-d1-create" only from the manual allow_d1_create input; empty otherwise.
   PLAN_GUARD_FLAGS: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_d1_create) && '--allow-d1-create' || '' }}
 
@@ -251,6 +261,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    # For the id sync job (#279). Database names and ids are not secrets.
+    outputs:
+      ids_match: ${{ steps.ids.outputs.ids_match }}
+      database_name: ${{ steps.ids.outputs.database_name }}
+      database_id: ${{ steps.ids.outputs.database_id }}
     env:
       TF_DIR: infra/terraform/search/preview
       TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
@@ -320,8 +335,11 @@ jobs:
       - name: Terraform outputs
         run: terraform -chdir="$TF_DIR" output -json > "$RUNNER_TEMP/tf-outputs.json"
 
-      - name: Check wrangler.search.jsonc ids match Terraform
-        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json"
+      # Option 3 (#279): a rebuilt stack has a new D1 id. Deploy with the Terraform id from a
+      # temporary copy; a differing committed id only warns, and the id sync job opens the PR.
+      - id: ids
+        name: Deploy config with the Terraform database id (committed wrangler.search.jsonc untouched)
+        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"
 
       # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
       # token out of this step (step env overrides job env). Later steps get them back.
@@ -331,19 +349,17 @@ jobs:
           TF_TOKEN_app_terraform_io: ""
         run: npm ci
 
-      # Schema before code: the migrations config is generated from this stack's Terraform
-      # outputs only (account id, name, id).
+      # Schema before code, both against the deploy config carrying the Terraform id.
       - name: D1 migrations (preview database)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.TF_PREVIEW_CLOUDFLARE_API_TOKEN }}
-        run: |
-          node infra/terraform/scripts/sync-wrangler-ids.mjs "$RUNNER_TEMP/tf-outputs.json" --migrations-config .wrangler.search-migrations.json
-          npx wrangler d1 migrations apply cultpodcasts-search-preview --remote -c .wrangler.search-migrations.json
+        run: npx wrangler d1 migrations apply cultpodcasts-search-preview --remote -c "$DEPLOY_CONFIG" --env preview
 
+      # Same as `npm run deploy:search:preview`, but from the deploy config.
       - name: Deploy search-preview (after a successful apply + migrations in this job)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.TF_PREVIEW_CLOUDFLARE_API_TOKEN }}
-        run: npm run deploy:search:preview
+        run: npx wrangler deploy -c "$DEPLOY_CONFIG" --env preview
 
   apply:
     name: "production: apply -> migrations -> deploy (approval required)"
@@ -361,6 +377,11 @@ jobs:
     concurrency:
       group: search-stack-production
       cancel-in-progress: false
+    # For the id sync job (#279). Database names and ids are not secrets.
+    outputs:
+      ids_match: ${{ steps.ids.outputs.ids_match }}
+      database_name: ${{ steps.ids.outputs.database_name }}
+      database_id: ${{ steps.ids.outputs.database_id }}
     env:
       TF_DIR: infra/terraform/search/production
       TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
@@ -409,8 +430,11 @@ jobs:
       - name: Terraform outputs
         run: terraform -chdir="$TF_DIR" output -json > "$RUNNER_TEMP/tf-outputs.json"
 
-      - name: Check wrangler.search.jsonc ids match Terraform
-        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json"
+      # Option 3 (#279): a rebuilt stack has a new D1 id. Deploy with the Terraform id from a
+      # temporary copy; a differing committed id only warns, and the id sync job opens the PR.
+      - id: ids
+        name: Deploy config with the Terraform database id (committed wrangler.search.jsonc untouched)
+        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"
 
       # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
       # token out of this step (step env overrides job env). Later steps get them back.
@@ -420,17 +444,87 @@ jobs:
           TF_TOKEN_app_terraform_io: ""
         run: npm ci
 
+      # Schema before code, both against the deploy config carrying the Terraform id.
       - name: D1 migrations (production database)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}
-        run: |
-          node infra/terraform/scripts/sync-wrangler-ids.mjs "$RUNNER_TEMP/tf-outputs.json" --migrations-config .wrangler.search-migrations.json
-          npx wrangler d1 migrations apply cultpodcasts-search --remote -c .wrangler.search-migrations.json
+        run: npx wrangler d1 migrations apply cultpodcasts-search --remote -c "$DEPLOY_CONFIG" --env=""
 
+      # Same as `npm run deploy:search`, but from the deploy config.
       - name: Deploy search (after a successful apply + migrations in this job)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.TF_APPLY_CLOUDFLARE_API_TOKEN }}
-        run: npm run deploy:search
+        run: npx wrangler deploy -c "$DEPLOY_CONFIG" --env=""
+
+  # Option 3 (#279): after a rebuild deployed with a NEW Terraform id, open (or update) the PR that
+  # syncs it into the committed wrangler.search.jsonc. Own jobs, so the write token is never in a
+  # job holding a Cloudflare or HCP token or running npm install scripts. They run only after the
+  # stack job fully succeeded (deploy included) and only when the committed id differed. The PR
+  # targets main and is opened with GITHUB_TOKEN, so CI does not start on it by itself: close and
+  # reopen it (infra/terraform/README.md, Rebuild from scratch). Scripts come from main.
+  preview-id-sync:
+    name: "preview: open the D1 id sync PR (committed id differed)"
+    needs: [preview]
+    if: needs.preview.outputs.ids_match == 'false'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: search-stack-id-sync-preview
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Open or update the id sync PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATABASE_NAME: ${{ needs.preview.outputs.database_name }}
+          DATABASE_ID: ${{ needs.preview.outputs.database_id }}
+        run: |
+          # Copies: the script switches branches, which may rewrite the checked-out files.
+          cp infra/terraform/scripts/open-id-sync-pr.sh infra/terraform/scripts/sync-wrangler-ids.mjs "$RUNNER_TEMP/"
+          jq -n --arg n "$DATABASE_NAME" --arg i "$DATABASE_ID" '{database_name: {value: $n}, database_id: {value: $i}}' > "$RUNNER_TEMP/tf-ids.json"
+          bash "$RUNNER_TEMP/open-id-sync-pr.sh" preview "$RUNNER_TEMP/tf-ids.json" "$RUNNER_TEMP/sync-wrangler-ids.mjs"
+
+  production-id-sync:
+    name: "production: open the D1 id sync PR (committed id differed)"
+    needs: [apply]
+    if: needs.apply.outputs.ids_match == 'false'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: search-stack-id-sync-production
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Open or update the id sync PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATABASE_NAME: ${{ needs.apply.outputs.database_name }}
+          DATABASE_ID: ${{ needs.apply.outputs.database_id }}
+        run: |
+          # Copies: the script switches branches, which may rewrite the checked-out files.
+          cp infra/terraform/scripts/open-id-sync-pr.sh infra/terraform/scripts/sync-wrangler-ids.mjs "$RUNNER_TEMP/"
+          jq -n --arg n "$DATABASE_NAME" --arg i "$DATABASE_ID" '{database_name: {value: $n}, database_id: {value: $i}}' > "$RUNNER_TEMP/tf-ids.json"
+          bash "$RUNNER_TEMP/open-id-sync-pr.sh" production "$RUNNER_TEMP/tf-ids.json" "$RUNNER_TEMP/sync-wrangler-ids.mjs"
 
   apply-skipped:
     name: production apply skipped (approval gate not set up)
