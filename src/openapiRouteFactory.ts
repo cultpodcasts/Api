@@ -2,6 +2,7 @@ import { OpenAPIRoute, OpenAPIRouteSchema, contentJson } from "chanfana";
 import { z } from "zod";
 import { Auth0Middleware } from "./Auth0Middleware";
 import { ambiguousIdsSchema, errorSchema } from "./openapiSchemas";
+import { SEARCH_INDEX_WRITE_PERMISSION } from "./searchIndexWritePermission";
 
 type RouteHandler = (c: any) => Promise<Response>;
 
@@ -38,6 +39,8 @@ export const discoverySubmissionViewAuth: OpenApiAuth = { anyOf: ["supervise", "
 export const discoverySuperviseAuth: OpenApiAuth = { anyOf: ["supervise", "admin"] };
 /** Admin-only stuck-report release (RPP DiscoveryReportReleasePost). Same as adminAuth; named for intent. */
 export const discoveryReportReleaseAuth: OpenApiAuth = adminAuth;
+/** `POST /search/admin/docs`: the search-index writer's own permission, nothing else. */
+export const searchIndexWriteAuth: OpenApiAuth = { anyOf: [SEARCH_INDEX_WRITE_PERMISSION] };
 export const signedInAuth: OpenApiAuth = {};
 export const bookmarkAuth: OpenApiAuth = { unauthenticatedStatus: 403 };
 export const optionalSubmitAuth: OpenApiAuth = { optional: true };

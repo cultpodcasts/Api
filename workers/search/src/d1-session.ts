@@ -23,6 +23,15 @@ export function readSession(env: SearchEnv): D1DatabaseSession {
 	return env.SEARCH_DB.withSession(READ_SESSION_CONSTRAINT);
 }
 
+/**
+ * The search database for writes (SP-1.4 admin route, `admin-docs.ts`). D1 always runs writes on
+ * the primary, so there is no session: `batch()` on the database itself is one transaction.
+ * Reads never use this; they go through {@link readSession}.
+ */
+export function writeDb(env: SearchEnv): D1Database {
+	return env.SEARCH_DB;
+}
+
 /** Where a request's D1 queries ran, from each result's `meta` (logged for the SP-3 soak). */
 export type ServedBy = {
 	/** Distinct `served_by_region` values in query order, e.g. "EEUR" or "ENAM,WEUR"; null when D1 did not say. */

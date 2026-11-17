@@ -1592,6 +1592,64 @@ export const searchUpstreamErrorSchema = z.object({
 });
 
 /**
+ * `POST /search/admin/docs` (SP-1.4): one document to write to the D1 search index. The Azure
+ * document (`EpisodeSearchRecord`, the keys `POST /search` returns) plus the searchable-only
+ * fields and `modifiedAt`. The search Worker validates it (`workers/search/src/admin-docs.ts`).
+ */
+export const searchIndexDocSchema = z.object({
+	id: z.string().min(1).max(1024),
+	contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"]).nullable().optional()
+		.describe("Absent or null means a podcast Episode"),
+	title: z.string().nullable().optional(),
+	seriesName: z.string().nullable().optional(),
+	description: z.string().nullable().optional().describe("Full description, never truncated"),
+	release: z.string().describe("ISO-8601 date-time with a zone (Z or ±hh:mm); stored as UTC yyyy-MM-ddTHH:mm:ssZ"),
+	duration: z.string().describe(".NET TimeSpan string"),
+	spotifyId: z.string().nullable().optional(),
+	appleId: z.string().nullable().optional(),
+	podcastAppleId: z.string().nullable().optional(),
+	youtubeId: z.string().nullable().optional(),
+	bbc: z.string().nullable().optional(),
+	internetArchive: z.string().nullable().optional(),
+	svc: z.string().nullable().optional(),
+	subjects: z.array(z.string()).nullable().optional(),
+	image: z.string().nullable().optional(),
+	trailers: z.array(z.string()).nullable().optional(),
+	alternativeTitles: z.array(z.string()).nullable().optional().describe("Film AKAs: searchable and returned"),
+	imdbId: z.string().nullable().optional(),
+	tmdbId: z.number().int().nullable().optional(),
+	tvdbId: z.number().int().nullable().optional(),
+	seriesImdbId: z.string().nullable().optional(),
+	seriesTmdbId: z.number().int().nullable().optional(),
+	seriesTvdbId: z.number().int().nullable().optional(),
+	lang: z.string().nullable().optional().describe("Null means English"),
+	guests: z.array(z.string()).nullable().optional().describe("Searchable, never returned"),
+	publisherSearchTerms: z.string().nullable().optional().describe("Searchable, never returned"),
+	episodeSearchTerms: z.string().nullable().optional().describe("Searchable, never returned"),
+	modifiedAt: z.number().int().nonnegative()
+		.describe("Source modification time, epoch milliseconds. An upsert older than the stored document is dropped (stale)")
+});
+
+/** `POST /search/admin/docs` body: at most 100 upserts and 1000 deletes; an id at most once. */
+export const searchAdminDocsRequestSchema = z.object({
+	upserts: z.array(searchIndexDocSchema).max(100).optional(),
+	deletes: z.array(z.string().min(1)).max(1000).optional().describe("Document ids to remove")
+});
+
+/** `POST /search/admin/docs` 200: the command outcome. */
+export const searchAdminDocsOutcomeSchema = z.object({
+	upserted: z.number().int().describe("Upserts written (inserted or updated)"),
+	deleted: z.number().int().describe("Deletes that removed a document"),
+	stale: z.array(z.string()).describe("Upserts dropped because the stored document has a newer modifiedAt"),
+	notFound: z.array(z.string()).describe("Deletes for ids the index did not have")
+});
+
+/** Search Worker error envelope (`{ error: { code, message } }`): 400 has an empty code, 503 `ServiceUnavailable`. */
+export const searchWorkerErrorSchema = z.object({
+	error: z.object({ code: z.string(), message: z.string() })
+});
+
+/**
  * `POST /search` forwarded upstream error: Azure AI Search's JSON envelope
  * (`{ error: { code, message } }`, message names the bad field), or
  * `{ error: "Upstream search error" }` when the upstream body was not JSON.

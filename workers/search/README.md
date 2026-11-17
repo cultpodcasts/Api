@@ -101,9 +101,88 @@ npm run search:dev            # http://127.0.0.1:8789/health
 |-------|---------|
 | `GET /health` | 200 when D1 answers and the schema version matches; 503 otherwise (retryable) |
 | `POST /indexes/{index}/docs/search` | Azure AI Search docs/search over D1 FTS5 (SP-1.9) |
+| `POST /admin/docs` | Index write path: upserts and deletes in one transaction (SP-1.4, below) |
 
-`GET /health` also returns `servedByRegion` / `servedByPrimary` (SP-1.2). The admin upsert/delete
-route (SP-1.4) lands here in its own ticket.
+`GET /health` also returns `servedByRegion` / `servedByPrimary` (SP-1.2).
+
+## Write path: `POST /admin/docs` (SP-1.4)
+
+[Api#222](https://github.com/cultpodcasts/Api/issues/222). `src/admin-docs.ts`.
+
+```mermaid
+sequenceDiagram
+  participant I as RPP indexer (SP-2.1)
+  participant A as api Worker
+  participant S as search Worker
+  participant D as D1 primary (WEUR)
+  I->>A: POST /search/admin/docs (Auth0 M2M, write:search-index)
+  A->>S: POST /admin/docs (SEARCH service binding)
+  S->>D: one batch(): deletes, upserts (modified_at guard), subjects
+  D-->>S: RETURNING ids written / deleted
+  S-->>A: 200 { upserted, deleted, stale, notFound }
+  A-->>I: same status and body
+```
+
+- **Body:** `{ "upserts": [doc…], "deletes": ["id"…] }`, at most 100 upserts and 1000 deletes, each
+  id at most once. A doc is the Azure document (`EpisodeSearchRecord` keys, as docs/search
+  returns them) plus `guests`, `publisherSearchTerms`, `episodeSearchTerms` and **`modifiedAt`**
+  (epoch ms of the source change). `contentKind` absent or null means `Episode`. `release` is any
+  ISO-8601 date-time with a zone and is stored as UTC `yyyy-MM-ddTHH:mm:ssZ`. Unknown fields are a
+  400 (a typo such as `guest` would otherwise silently index nothing); the three
+  `[FieldBuilderIgnore]` legacy fields (`podcastName`, `episodeTitle`, `episodeDescription`) are
+  accepted and dropped.
+- **One transaction:** the whole request is one D1 `batch()` on the primary (`writeDb`, never a
+  read session), so a failure writes nothing and returns the fixed retryable **503**. A bad body is
+  **400** before anything is written.
+- **Stale-replay guard:** the upsert is
+  `INSERT … ON CONFLICT(id) DO UPDATE … WHERE excluded.modified_at >= search_docs.modified_at`. An
+  older `modifiedAt` is dropped and listed in `stale`; an equal one applies (a retry). Subjects are
+  rewritten only for upserts the guard let through.
+- **Every applied upsert rewrites its FTS row.** `search_docs_au` is `AFTER UPDATE OF` the FTS
+  columns, which fires when the SET list names a column, not when its value changes, and the upsert
+  sets all of them. So re-pushing an unchanged document still costs an FTS delete and insert (rows
+  written). Push only new or changed documents; the weekly reconcile (SP-2.2) should send only
+  missing or stale ones, not the whole corpus. (Targeted `UPDATE`s of non-FTS columns, as in the
+  write contract above, still leave the index alone.)
+- **Deletes** are by id; `doc_subjects` cascades and `search_docs_ad` removes the FTS row. Ids the
+  index does not have are listed in `notFound`, not an error. A delete has no tombstone: a stale
+  upsert replayed after a delete re-inserts the document until the weekly reconcile (SP-2.2)
+  removes the orphan.
+- **Batching:** documents bind as one JSON parameter per chunk (D1 allows 100 bound parameters per
+  statement, and a document has 29 columns). Chunks stay under 1 MB of JSON (D1 caps a bound value
+  at 2 MB), so a request is `1 + 3 × chunks` statements.
+- **Auth:** this Worker has no public ingress, so only service-binding holders can call it. The api
+  Worker's `POST /search/admin/docs` (`src/searchAdminDocs.ts`) is the door: it requires an Auth0
+  **M2M** (client_credentials) token carrying the dedicated **`write:search-index`** permission
+  (`src/searchIndexWritePermission.ts`, read from `scope` or `permissions`), and forwards the body
+  and the answer unchanged. That permission is the only one that opens the route; no other
+  permission is checked. A missing or invalid token is 401; a token without the permission, or a
+  person's (non-client_credentials) token even with it, is 403. No new secret on either Worker:
+  the api Worker already verifies Auth0 tokens with `auth0Issuer` / `auth0Audience`.
+- **Log:** each applied request logs `search: admin write` with the four counts.
+
+### Auth0 setup for the write path
+
+Done once in the Auth0 dashboard, before the indexer (SP-2.1) calls the route. Nothing in this
+repo or in Terraform creates these; the Worker only checks the permission.
+
+1. **Permission:** Applications → APIs → the Api (identifier `https://api.cultpodcasts.com/`) →
+   **Permissions** → add `write:search-index` (description: "Write the D1 search index").
+   If the preview api Worker's `auth0Audience` secret names a different API, repeat steps 1–3
+   there too.
+2. **Role:** User Management → Roles → create **Search Indexer** and give it `write:search-index`
+   (Permissions tab → Add Permissions → the Api). The role is the named grouping for the
+   permission; it does not put the permission in the M2M token (step 3 does) and the route never
+   reads roles. Do not assign it to people: the route refuses non-M2M tokens anyway.
+3. **Grant to the M2M application:** Applications → APIs → the Api → **Machine to Machine
+   Applications** → the indexer's application (a new one, or the one SP-2.1 will use) →
+   authorise it if needed and tick **only** `write:search-index`. Auth0 issues client_credentials
+   tokens from this client grant, so this tick is what puts `write:search-index` in the token's
+   `scope`; roles are not assigned to applications.
+4. **Check:** request a token with `client_credentials` for the Api audience and confirm `scope`
+   contains `write:search-index` and `gty` is `client_credentials`. A token without it gets 403;
+   the api Worker's `search_admin.forbidden` log line says `reason=missing_permission` (grant not
+   ticked) or `reason=not_m2m` (not a client_credentials token), with the token's `azp`.
 
 ## Read replication and the Sessions API (SP-1.2)
 
@@ -120,7 +199,7 @@ EEUR, APAC, OC). D1 only routes a query to a replica when it runs through a **se
 - **No bookmarks from callers.** Search readers never write, and a result a few seconds behind the
   primary is fine for search (Azure indexing is not instant either).
 - **Writes stay on the primary.** D1 always sends writes to the primary; the SP-1.4 admin route
-  should use plain `env.SEARCH_DB` (or a `first-primary` session), not `readSession`.
+  uses `writeDb(env)` (the database itself, no session), never `readSession`.
 - **`GET /health` uses the same path**, so it reports the schema version search actually sees: right
   after a migration a replica can briefly answer with the old version (503). It returns
   `servedByRegion` / `servedByPrimary` in its body and does not write the log line below.
@@ -233,4 +312,4 @@ SEARCH_DEMO_URL=http://127.0.0.1:8789 SEARCH_API_KEY=unused node search-demo/har
 
 The harness still needs the other env names its README lists: production Azure (read-only) for
 the comparison side, and a D1 token for its difference explanations. The local database starts
-empty: load documents with the admin route once SP-1.4 lands.
+empty: load documents with `POST /admin/docs` (SP-1.4, above).

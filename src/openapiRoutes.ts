@@ -9,6 +9,7 @@ import {
 	bookmarkAuth,
 	createOpenApiRoute,
 	curateAuth,
+	searchIndexWriteAuth,
 	curateOrAdminAuth,
 	curatePermissionsClaimAuth,
 	discoverySubmissionViewAuth,
@@ -34,6 +35,7 @@ import {
 	SubmitRoute
 } from "./openapiSubmitPodcastRoutes";
 import { streamingScrapeSurvey } from "./streamingScrapeSurvey";
+import { searchAdminDocs } from "./searchAdminDocs";
 import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
@@ -155,6 +157,9 @@ import {
 	searchForwardedErrorSchema,
 	searchResponseSchema,
 	searchUpstreamErrorSchema,
+	searchAdminDocsOutcomeSchema,
+	searchAdminDocsRequestSchema,
+	searchWorkerErrorSchema,
 	subjectChangeRequestSchema,
 	subjectDtoSchema,
 	subjectsNameListResponseSchema,
@@ -733,6 +738,27 @@ export const SearchRoute = createOpenApiRoute(search, {
             429: { description: "Upstream search throttled. Azure's error body and its Retry-After header are forwarded; retry after that many seconds", ...contentJson(searchForwardedErrorSchema) },
             502: { description: "Upstream search unreachable, unexpected status or unreadable response. Retryable", ...contentJson(searchUpstreamErrorSchema) },
             503: { description: "Upstream search unavailable. Azure's error body and any Retry-After header are forwarded; retryable", ...contentJson(searchForwardedErrorSchema) }
+        }
+    }
+});
+
+export const SearchAdminDocsRoute = createOpenApiRoute(searchAdminDocs, {
+    auth: searchIndexWriteAuth,
+    schema: {
+        tags: ["Search"],
+        summary: "Write documents to the D1 search index",
+        description:
+            "SP-1.4. Server-to-server only: an Auth0 M2M (client_credentials) token with `write:search-index`, the search-index writer's own permission; a person's token is 403 even with it. " +
+            "Upserts and deletes are applied in one D1 transaction by the search Worker (service binding). " +
+            "An upsert whose `modifiedAt` is older than the stored document is dropped and listed in `stale`; an equal one applies (safe replay). " +
+            "Not the live search index yet: Azure AI Search stays the default until cutover (SP-4.x).",
+        request: { body: jsonBody(searchAdminDocsRequestSchema) },
+        responses: {
+            200: { description: "Command outcome", ...contentJson(searchAdminDocsOutcomeSchema) },
+            400: { description: "Bad body (field named in message); nothing written", ...contentJson(searchWorkerErrorSchema) },
+            502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
+            503: { description: "D1 unavailable or no search binding; nothing written. Retryable", ...contentJson(searchWorkerErrorSchema) },
+            ...authResponses
         }
     }
 });

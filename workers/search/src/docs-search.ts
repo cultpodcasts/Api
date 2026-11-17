@@ -1,7 +1,7 @@
 import { DOC_COLUMNS, toAzureSearchDocument, toAzureSearchEnvelope, type AzureSearchDocRow } from "./azure-response";
 import { logServedBy, readSession } from "./d1-session";
 import type { SearchEnv } from "./env";
-import { SearchRequestError } from "./errors";
+import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
 import { json } from "./health";
 import { parseFacet, parseODataFilter } from "./odata";
 import { toMatch, type SearchMode } from "./query";
@@ -63,25 +63,8 @@ export async function docsSearch(request: Request, env: SearchEnv, ranking: Rank
 		return await runSearch(req, env, readSession(env), ranking);
 	} catch (e) {
 		if (e instanceof SearchRequestError) return badRequest(e);
-		// D1 runtime failure (overload, timeout, reset, missing schema): retryable, never a 4xx.
-		// The detail (SQL, schema names) goes to Workers logs only: since SP-1.5 the api Worker
-		// forwards an upstream JSON error body to the browser.
-		const message = (e instanceof Error ? e.message : String(e)).slice(0, ERROR_LOG_LIMIT);
-		console.error("search: D1 failure", { message, name: e instanceof Error ? e.name : typeof e });
-		return json(SERVICE_UNAVAILABLE, 503);
+		return d1Unavailable(e);
 	}
-}
-
-/** Same cap as the api Worker's upstream error logging (UPSTREAM_ERROR_LOG_LIMIT, #268). */
-const ERROR_LOG_LIMIT = 500;
-
-export const SERVICE_UNAVAILABLE = {
-	error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." }
-} as const;
-
-function badRequest(e: unknown): Response {
-	// Azure's own 400 envelope leaves `code` empty and puts the reason in `message`.
-	return json({ error: { code: "", message: e instanceof Error ? e.message : "bad request" } }, 400);
 }
 
 /** A non-negative integer (or integer string, as the demo accepted), else a 400. */
