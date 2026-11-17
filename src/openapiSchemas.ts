@@ -1644,6 +1644,21 @@ export const searchAdminDocsOutcomeSchema = z.object({
 	notFound: z.array(z.string()).describe("Deletes for ids the index did not have")
 });
 
+/** `GET /search/admin/docs/inventory` query (SP-2.2): keyset paging by id. */
+export const searchAdminInventoryQuerySchema = z.object({
+	after: z.string().max(1024).optional().describe("Exclusive id to start after: the previous page's `next`. Omit for the first page"),
+	limit: z.string().regex(/^\d+$/).optional().describe("Page size, 1 to 10000 (default 5000)")
+});
+
+/** `GET /search/admin/docs/inventory` 200: one page of `{ id, modifiedAt }`, ordered by id. */
+export const searchAdminInventoryPageSchema = z.object({
+	items: z.array(z.object({
+		id: z.string(),
+		modifiedAt: z.number().int().describe("Stored modifiedAt, epoch milliseconds")
+	})),
+	next: z.string().nullable().describe("Pass as `after` for the next page; null on the last page")
+});
+
 /** Search Worker error envelope (`{ error: { code, message } }`): 400 has an empty code, 503 `ServiceUnavailable`. */
 export const searchWorkerErrorSchema = z.object({
 	error: z.object({ code: z.string(), message: z.string() })

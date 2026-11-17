@@ -17,7 +17,8 @@ import {
 	HomepageRoute,
 	PublicGetEpisodeRoute,
 	PutHeroCurationRoute,
-	SearchAdminDocsRoute
+	SearchAdminDocsRoute,
+	SearchAdminInventoryRoute
 } from "../src/openapiRoutes";
 import { registerBearerAuthScheme } from "../src/openapiRouteFactory";
 import { SubmitLookupRoute, SubmitRoute } from "../src/openapiSubmitPodcastRoutes";
@@ -51,6 +52,7 @@ describe("OpenAPI auth and response contracts", () => {
 	api.get("/submit/lookup", SubmitLookupRoute);
 	api.post("/episode/:podcastId/:episodeId/trailer", AttachEpisodeAsTrailerRoute);
 	api.post("/search/admin/docs", SearchAdminDocsRoute);
+	api.get("/search/admin/docs/inventory", SearchAdminInventoryRoute);
 	const doc = (api as unknown as { schema: {
 		components?: { securitySchemes?: Record<string, { type?: string; scheme?: string }> };
 		paths?: Record<string, Record<string, unknown>>;
@@ -80,6 +82,18 @@ describe("OpenAPI auth and response contracts", () => {
 			expect(schema(status)).toMatch(/"message"/);
 		}
 		expect(schema("502")).toMatch(/UpstreamSearchError/);
+	});
+
+	it("documents GET /search/admin/docs/inventory with the writer's auth, keyset paging and the search Worker's envelopes (SP-2.2)", () => {
+		const inventory = operation(doc, "/search/admin/docs/inventory", "get") as ReturnType<typeof operation> & {
+			parameters?: { name: string; in: string }[];
+		};
+		expect(inventory.security).toEqual([{ bearerAuth: [] }]);
+		expect(inventory.description).toMatch(/`write:search-index`/);
+		expect(inventory.responses?.["403"]?.description).toBe("Forbidden — authenticated without `write:search-index`");
+		expect(inventory.parameters?.filter((p) => p.in === "query").map((p) => p.name).sort()).toEqual(["after", "limit"]);
+		const page = JSON.stringify(inventory.responses?.["200"]?.content?.["application/json"]);
+		for (const key of ["items", "id", "modifiedAt", "next"]) expect(page).toContain(`"${key}"`);
 	});
 
 	it("publishes a bearer scheme and does not treat ID-token roles as the check", () => {

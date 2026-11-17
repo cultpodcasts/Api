@@ -102,6 +102,7 @@ npm run search:dev            # http://127.0.0.1:8789/health
 | `GET /health` | 200 when D1 answers and the schema version matches; 503 otherwise (retryable) |
 | `POST /indexes/{index}/docs/search` | Azure AI Search docs/search over D1 FTS5 (SP-1.9) |
 | `POST /admin/docs` | Index write path: upserts and deletes in one transaction (SP-1.4, below) |
+| `GET /admin/docs/inventory` | `{ id, modifiedAt }` pages for the weekly reconcile (SP-2.2, below) |
 
 `GET /health` also returns `servedByRegion` / `servedByPrimary` (SP-1.2).
 
@@ -160,6 +161,24 @@ sequenceDiagram
   person's (non-client_credentials) token even with it, is 403. No new secret on either Worker:
   the api Worker already verifies Auth0 tokens with `auth0Issuer` / `auth0Audience`.
 - **Log:** each applied request logs `search: admin write` with the four counts.
+
+## Inventory: `GET /admin/docs/inventory` (SP-2.2)
+
+[RPP #1322](https://github.com/cultpodcasts/RedditPodcastPoster/issues/1322). `src/admin-inventory.ts`.
+The RPP weekly reconcile pages through it, compares it with Cosmos, and sends only missing or stale
+upserts and orphan deletes through `POST /admin/docs`.
+
+- **Query:** `after` (exclusive id; omit for the first page) and `limit` (1 to 10000, default
+  5000). A bad value is **400** and names the parameter.
+- **Answer:** `200 { "items": [{ "id", "modifiedAt" }…], "next": "id" | null }`, ordered by `id`.
+  Pass `next` back as `after` until it is null. Keyset paging on the UNIQUE `id` index: each page
+  reads `limit + 1` rows (the extra row says whether there's a next page), with no COUNT and no
+  OFFSET. About 90k documents is about 18 requests a week.
+- **Primary, not a replica:** the reconcile writes right after it reads, so the inventory is read
+  on the primary (`writeDb`). A replica could be behind the reconcile's own last write.
+- **Auth:** the api Worker's `GET /search/admin/docs/inventory` uses the same gate as the write
+  path (Auth0 M2M `write:search-index`), because only the writer reconciles. It forwards `after`
+  and `limit` only. D1 failure is **503** (retryable).
 
 ### Auth0 setup for the write path
 

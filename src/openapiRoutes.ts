@@ -35,7 +35,7 @@ import {
 	SubmitRoute
 } from "./openapiSubmitPodcastRoutes";
 import { streamingScrapeSurvey } from "./streamingScrapeSurvey";
-import { searchAdminDocs } from "./searchAdminDocs";
+import { searchAdminDocs, searchAdminInventory } from "./searchAdminDocs";
 import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
@@ -158,6 +158,8 @@ import {
 	searchResponseSchema,
 	searchUpstreamErrorSchema,
 	searchAdminDocsOutcomeSchema,
+	searchAdminInventoryPageSchema,
+	searchAdminInventoryQuerySchema,
 	searchAdminDocsRequestSchema,
 	searchWorkerErrorSchema,
 	subjectChangeRequestSchema,
@@ -758,6 +760,26 @@ export const SearchAdminDocsRoute = createOpenApiRoute(searchAdminDocs, {
             400: { description: "Bad body (field named in message); nothing written", ...contentJson(searchWorkerErrorSchema) },
             502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
             503: { description: "D1 unavailable or no search binding; nothing written. Retryable", ...contentJson(searchWorkerErrorSchema) },
+            ...authResponses
+        }
+    }
+});
+
+export const SearchAdminInventoryRoute = createOpenApiRoute(searchAdminInventory, {
+    auth: searchIndexWriteAuth,
+    schema: {
+        tags: ["Search"],
+        summary: "Page through the D1 search index's id inventory",
+        description:
+            "SP-2.2. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
+            "Returns `{ id, modifiedAt }` for every document, ordered by id; pass `next` as `after` until it is null. " +
+            "The RPP weekly reconcile diffs it against Cosmos to upsert missing or stale documents and delete orphans.",
+        request: { query: searchAdminInventoryQuerySchema },
+        responses: {
+            200: { description: "One inventory page", ...contentJson(searchAdminInventoryPageSchema) },
+            400: { description: "Bad `after` or `limit` (named in message)", ...contentJson(searchWorkerErrorSchema) },
+            502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
+            503: { description: "D1 unavailable or no search binding. Retryable", ...contentJson(searchWorkerErrorSchema) },
             ...authResponses
         }
     }

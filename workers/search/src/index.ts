@@ -1,4 +1,5 @@
 import { adminDocs, ADMIN_DOCS_PATH } from "./admin-docs";
+import { adminInventory, ADMIN_INVENTORY_PATH } from "./admin-inventory";
 import { docsSearch, DOCS_SEARCH_PATH } from "./docs-search";
 import type { SearchEnv } from "./env";
 import { health, json } from "./health";
@@ -13,6 +14,8 @@ import { health, json } from "./health";
  * Sessions API read session so read replicas can serve it (SP-1.2, #220, `d1-session.ts`).
  * `POST /admin/docs` is the index write path (SP-1.4, #222, `admin-docs.ts`): upserts and deletes in
  * one D1 transaction on the primary, with a `modifiedAt` stale-replay guard.
+ * `GET /admin/docs/inventory` pages through every `{ id, modifiedAt }` for the weekly reconcile
+ * (SP-2.2, RPP #1322, `admin-inventory.ts`).
  *
  * The entry module exports only the handler: workerd rejects any other named export.
  */
@@ -31,6 +34,12 @@ export default {
 				return json({ error: { code: "MethodNotAllowed", message: "POST only" } }, 405);
 			}
 			return docsSearch(request, env);
+		}
+		if (url.pathname === ADMIN_INVENTORY_PATH) {
+			if (request.method !== "GET") {
+				return json({ error: { code: "MethodNotAllowed", message: "GET only" } }, 405);
+			}
+			return adminInventory(request, env);
 		}
 		if (url.pathname === ADMIN_DOCS_PATH) {
 			if (request.method !== "POST") {
