@@ -14,8 +14,10 @@ export type Env = {
 	/**
 	 * Search platform Worker (service binding, SP-1.3): `search` on api, `search-preview` on
 	 * api-preview, `search-local` locally (`npm run search:dev`; wrangler.search.jsonc env.local has
-	 * no name, so wrangler registers `search-local`). Serves `POST /indexes/{index}/docs/search` over D1. Not used for live search
-	 * yet: Azure AI Search stays the default until an opt-in soak flag or cutover (SP-4.x).
+	 * no name, so wrangler registers `search-local`). Serves `POST /indexes/{index}/docs/search` over D1.
+	 * Azure AI Search remains the served `/search` result until cutover (SP-4.x). When
+	 * `searchShadowEnabled` is on, a sampled fraction of those requests also query this binding
+	 * on `waitUntil` and log a `search shadow` comparison (SP-3.1).
 	 */
 	SEARCH?: Fetcher;
 	auth0Issuer: string;
@@ -34,6 +36,15 @@ export type Env = {
 	browserRenderingServices?: string;
 	/** Non-secret: production | preview | local — drives OpenAPI docs title. */
 	apiEnvironment?: string;
+	/**
+	 * SP-3.1 shadow-query kill switch (`"true"` / `"false"`). Default off (safe) until
+	 * explicitly enabled. Sample rate and top-N stay in the other `searchShadow*` vars.
+	 */
+	searchShadowEnabled?: string;
+	/** Fraction of `/search` requests to also send to the D1 search Worker (0–1). Default `0.01`. */
+	searchShadowSampleRate?: string;
+	/** Leading hit ids compared between Azure and D1. Default `10`. */
+	searchShadowTopN?: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
 	HERO_CURATION_DURABLE_OBJECT: DurableObjectNamespace<import("./HeroCurationDurableObject").HeroCurationDurableObject>;
 	DISCOVERY_CURATION_DURABLE_OBJECT: DurableObjectNamespace<
