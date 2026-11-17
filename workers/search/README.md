@@ -269,6 +269,14 @@ over a service binding.
   comparisons is a 400. The test adapter (`tests/support/searchD1.ts`) enforces the limit.
 - **FTS5 nesting:** the translator keeps runs of one operator flat and parenthesises only operator
   changes, so long queries stay well inside the FTS5 parser's ~96-level stack.
+- **Deterministic order (SP-1.7):** every page order ends in `id`, so same-second (or same-score)
+  ties never shuffle between requests and `skip` paging never repeats or drops a row.
+  `release desc` (and browsing) is `release DESC, id ASC`, the order of `idx_search_docs_release`;
+  `release asc` is its exact reverse (`release ASC, id DESC`); relevance is the SP-1.8 tier, then
+  weighted bm25, then `id ASC`. Azure breaks these ties arbitrarily, so a tie group can still be
+  ordered differently there (same rows).
+  Facet buckets end the same way: `count DESC, value ASC`, so a `count:` cut that lands inside a
+  tie returns the same buckets every time.
 - **Relevance ranking (SP-1.8, `src/ranking.ts`):** a relevance page is ordered by a title/AKA
   tier, then weighted bm25, then `id`. For an **unquoted** query (no `"`, `+`/`-` prefix, `|`, `*`
   or parentheses): tier 0 is a document whose title, or one of its `alternativeTitles` lines, *is*
@@ -293,7 +301,6 @@ over a service binding.
   then reports top-10 overlap with Azure and whether each exact title/AKA case ranks first, for
   the baseline, `DEFAULT_RANKING` and a weight grid. Output: `harness/out/ranking-report.md`
   (gitignored with the `harness/.cache/` corpus). Cases: `harness/cases.ts`.
-- **Not yet:** the `id` tie-break (SP-1.7).
 
 Tests: `tests/search-query-engine.spec.ts` (translator, OData, response shape, and the route over
 the migrated schema in `node:sqlite`); `tests/search-d1-session.spec.ts` (Sessions API read path,

@@ -151,7 +151,7 @@ export function rankingSql(search: string, config: RankingConfig = DEFAULT_RANKI
 		return String(w);
 	});
 	const bm = `bm25(search_fts, ${weights.join(", ")})`;
-	const order = "ORDER BY tier, bm, d.id";
+	const order = "ORDER BY tier, bm, d.id ASC";
 	const text = search.trim().replace(/\s+/g, " ");
 	const q = isUnquoted(text) ? normalizeTitle(text) : "";
 	if (!q) return { select: `3 AS tier, ${bm} AS bm`, binds: [], order };

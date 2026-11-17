@@ -111,6 +111,30 @@ export function parseRequest(raw: string): ODataSearchRequest {
 	return req;
 }
 
+/**
+ * ORDER BY for a page (SP-1.7, cultpodcasts/Api#224). Every order ends in `d.id`, so rows that tie
+ * (same `release` second, same bm25 score) always come back in the same order and `skip` paging
+ * never repeats or drops one. Azure breaks those ties arbitrarily, which is why same-second groups
+ * shuffled between the two engines.
+ *
+ * - `release desc` (and browsing with no search text): newest first, ties by `id` ascending:
+ *   exactly the order of `idx_search_docs_release (release DESC, id)`, so browse pages read the index
+ *   without a sort.
+ * - `release asc`: the exact reverse (`id` descending inside a tie), so the oldest-first list is the
+ *   newest-first list read backwards, and the same index serves it scanned in reverse.
+ * - Relevance (search text, no orderby): `relevance`, the ranking's own order from
+ *   `rankingSql()` (SP-1.8: title/AKA tier, weighted bm25, then `d.id` ascending). `null` when there
+ *   is no search text, which browses newest first.
+ *
+ * `release` is ISO-8601 UTC text in one fixed format, so text order is time order.
+ */
+export function orderBy(orderby: string | undefined, relevance: string | null): string {
+	const ob = (orderby ?? "").trim().toLowerCase();
+	if (ob === "release asc") return "ORDER BY d.release ASC, d.id DESC";
+	if (ob === "release desc" || relevance === null) return "ORDER BY d.release DESC, d.id ASC";
+	return relevance;
+}
+
 /** `db` is the request's read session: every statement below must use it, never `env.SEARCH_DB`. */
 async function runSearch(
 	req: ODataSearchRequest,
@@ -157,15 +181,7 @@ async function runSearch(
 	const facetSpecs = (req.facets ?? []).map(parseFacet);
 	const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-	// release is ISO-8601 UTC text in one fixed format, so text order is time order.
-	// The `id` tie-break is SP-1.7.
-	const ob = (req.orderby ?? "").trim().toLowerCase();
-	const orderSql =
-		ob === "release asc"
-			? "ORDER BY d.release ASC"
-			: ob === "release desc" || !match
-				? "ORDER BY d.release DESC"
-				: rank!.order;
+	const orderSql = orderBy(req.orderby, rank?.order ?? null);
 
 	const select = `${rank ? rank.select : "3 AS tier, 0 AS bm"}, ${DOC_COLUMNS.map((c) => `d.${c}`).join(", ")}`;
 	const statements = [
@@ -180,13 +196,14 @@ async function runSearch(
 		statements.push(db.prepare(`SELECT COUNT(*) AS n FROM ${from} ${whereSql}`).bind(...binds));
 	}
 	for (const f of facetSpecs) {
-		// f.count is a parsed integer (parseFacet), safe to inline.
+		// f.count is a parsed integer (parseFacet), safe to inline. Ties on count end in `value`, so
+		// a LIMIT that cuts a tie returns the same buckets every time (SP-1.7).
 		const facetSql =
 			f.field === "subjects" // pragma: allowlist secret
-				? `SELECT s.subject AS value, COUNT(*) AS count FROM ${from} JOIN doc_subjects s ON s.rowid_ref = d.rowid ${whereSql} GROUP BY s.subject ORDER BY count DESC LIMIT ${f.count}` // pragma: allowlist secret
+				? `SELECT s.subject AS value, COUNT(*) AS count FROM ${from} JOIN doc_subjects s ON s.rowid_ref = d.rowid ${whereSql} GROUP BY s.subject ORDER BY count DESC, value ASC LIMIT ${f.count}` // pragma: allowlist secret
 				: f.field === "lang"
-					? `SELECT COALESCE(d.lang, 'en') AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY COALESCE(d.lang, 'en') ORDER BY count DESC LIMIT ${f.count}`
-					: `SELECT ${f.field === "contentKind" ? "d.kind" : "d.series_name"} AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY 1 ORDER BY count DESC LIMIT ${f.count}`;
+					? `SELECT COALESCE(d.lang, 'en') AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY COALESCE(d.lang, 'en') ORDER BY count DESC, value ASC LIMIT ${f.count}`
+					: `SELECT ${f.field === "contentKind" ? "d.kind" : "d.series_name"} AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY 1 ORDER BY count DESC, value ASC LIMIT ${f.count}`;
 		statements.push(db.prepare(facetSql).bind(...binds));
 	}
 
