@@ -22,6 +22,8 @@ export const ADMIN_INVENTORY_PATH = "/admin/docs/inventory";
 export const DEFAULT_INVENTORY_LIMIT = 5000;
 export const MAX_INVENTORY_LIMIT = 10000;
 
+const LIMIT_MESSAGE = `limit must be an integer from 1 to ${MAX_INVENTORY_LIMIT}`;
+
 export type InventoryItem = { id: string; modifiedAt: number };
 export type InventoryPage = { items: InventoryItem[]; next: string | null };
 
@@ -31,9 +33,9 @@ export function parseInventoryQuery(url: URL): { after: string; limit: number } 
 	const rawLimit = url.searchParams.get("limit");
 	let limit = DEFAULT_INVENTORY_LIMIT;
 	if (rawLimit !== null) {
-		if (!/^\d+$/.test(rawLimit)) throw new Error("limit must be an integer from 1 to 10000");
+		if (!/^\d+$/.test(rawLimit)) throw new Error(LIMIT_MESSAGE);
 		limit = Number(rawLimit);
-		if (limit < 1 || limit > MAX_INVENTORY_LIMIT) throw new Error("limit must be an integer from 1 to 10000");
+		if (limit < 1 || limit > MAX_INVENTORY_LIMIT) throw new Error(LIMIT_MESSAGE);
 	}
 	if (after.length > 1024) throw new Error("after must be at most 1024 characters");
 	return { after, limit };
