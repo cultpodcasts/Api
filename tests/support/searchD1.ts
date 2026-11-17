@@ -45,7 +45,7 @@ export function d1Spy(): D1Spy {
 }
 
 /**
- * Minimal D1Database over node:sqlite: prepare().bind() with first(), all(), batch() and
+ * Minimal D1Database over node:sqlite: prepare().bind() with first(), all(), batch() (one transaction) and
  * withSession() (a session runs on the same database; `getBookmark` returns a fixed token).
  * Enforces D1's 100-bound-parameter limit, which node:sqlite would otherwise allow.
  */
@@ -70,7 +70,19 @@ export function d1(db: DatabaseSync, options: D1AdapterOptions = {}): D1Database
 		};
 		return stmt;
 	};
-	const batch = async (statements: { all(): Promise<unknown> }[]) => Promise.all(statements.map((s) => s.all()));
+	// D1 runs a batch as one transaction: every statement lands or none does.
+	const batch = async (statements: { all(): Promise<unknown> }[]) => {
+		db.exec("BEGIN");
+		try {
+			const results: unknown[] = [];
+			for (const s of statements) results.push(await s.all());
+			db.exec("COMMIT");
+			return results;
+		} catch (e) {
+			db.exec("ROLLBACK");
+			throw e;
+		}
+	};
 	return {
 		prepare(sql: string) {
 			options.spy?.directPrepares.push(sql);

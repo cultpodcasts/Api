@@ -76,6 +76,7 @@ import {
 	RenameFilmRoute,
 	RunSearchIndexerRoute,
 	SearchRoute,
+	SearchAdminDocsRoute,
 	SubmitDiscoveryRoute,
 	SubmitDiscoveryOutcomeRoute,
 	GetDiscoveryCurationSessionRoute,
@@ -385,6 +386,7 @@ openapi.patch('/person/:id', UpdatePersonRoute);
 openapi.post('/person', CreatePersonRoute);
 openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
+openapi.post('/search/admin/docs', SearchAdminDocsRoute);
 openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit/prepare', SubmitPrepareRoute);
 openapi.post('/submit', SubmitRoute);

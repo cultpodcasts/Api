@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import searchWorker from "../workers/search/src/index";
 import { orderBy } from "../workers/search/src/docs-search";
+import { rankingSql } from "../workers/search/src/ranking";
 import { d1, migratedSearchDb, upsertSearchDoc } from "./support/searchD1";
 
 /** SP-1.7 (cultpodcasts/Api#224): deterministic secondary sort by id on release and rank pages. */
@@ -90,7 +91,7 @@ describe("deterministic secondary sort by id (SP-1.7)", () => {
 
 	it("serves the newest-first browse page straight from idx_search_docs_release, with no sort step", () => {
 		const { db } = fixture();
-		for (const order of [orderBy(undefined, false), orderBy("release asc", false)]) {
+		for (const order of [orderBy(undefined, null), orderBy("release asc", null)]) {
 			const plan = (db.prepare(`EXPLAIN QUERY PLAN SELECT d.id FROM search_docs d ${order} LIMIT 10`).all() as { detail: string }[])
 				.map((r) => r.detail)
 				.join("\n");
@@ -123,10 +124,35 @@ describe("deterministic secondary sort by id (SP-1.7)", () => {
 	});
 
 	it("orderBy: every order ends in id, and an unknown orderby falls back to relevance or newest first", () => {
-		expect(orderBy("release desc", true)).toBe("ORDER BY d.release DESC, d.id ASC");
-		expect(orderBy(" Release ASC ", true)).toBe("ORDER BY d.release ASC, d.id DESC");
-		expect(orderBy(undefined, true)).toBe("ORDER BY rank, d.id ASC");
-		expect(orderBy("title asc", true)).toBe("ORDER BY rank, d.id ASC");
-		expect(orderBy("title asc", false)).toBe("ORDER BY d.release DESC, d.id ASC");
+		const relevance = rankingSql("cult tapes").order;
+		expect(orderBy("release desc", relevance)).toBe("ORDER BY d.release DESC, d.id ASC");
+		expect(orderBy(" Release ASC ", relevance)).toBe("ORDER BY d.release ASC, d.id DESC");
+		expect(orderBy(undefined, relevance)).toBe("ORDER BY tier, bm, d.id ASC");
+		expect(orderBy("title asc", relevance)).toBe("ORDER BY tier, bm, d.id ASC");
+		expect(orderBy("title asc", null)).toBe("ORDER BY d.release DESC, d.id ASC");
+	});
+
+	it.each(["cult", "cult tapes", '"cult tapes"', "cult -tapes", "tapes*", "cult | tapes"])(
+		"the SP-1.8 relevance order for %s keeps id as the last key, after the tier and bm25",
+		(q) => {
+			expect(rankingSql(q).order).toBe("ORDER BY tier, bm, d.id ASC");
+		}
+	);
+
+	it.each([
+		["tier 0 (exact title)", "cult tapes", "Cult tapes"],
+		["tier 1 (title contains the phrase)", "cult tapes", "The cult tapes vol"],
+		["tier 2 (phrase only in the description)", "cult tapes", null],
+		["tier 3 (scattered words)", "cult tapes", null],
+		["a quoted phrase (not tiered)", '"cult tapes"', "Cult tapes"],
+		["a single word", "cult", "Cult tapes"]
+	] as const)("ranked ties inside %s come back by id ascending, on every page size", async (_name, search, title) => {
+		const db = migratedSearchDb();
+		const description = _name.startsWith("tier 3") ? "tapes of a cult" : "the cult tapes";
+		for (const id of TIED) upsertSearchDoc(db, { id, title: title ?? "Episode", description, release: SAME_SECOND });
+		const env = { SEARCH_DB: d1(db) };
+		const whole = await page(env, { search });
+		expect(whole).toEqual(sorted);
+		for (const size of [1, 2, 4]) expect(await allPages(env, { search }, size)).toEqual(whole);
 	});
 });

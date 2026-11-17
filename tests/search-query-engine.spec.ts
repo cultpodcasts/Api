@@ -9,7 +9,8 @@ import {
 	toAzureSearchEnvelope,
 	type AzureSearchDocRow
 } from "../workers/search/src/azure-response";
-import { parseRequest, SERVICE_UNAVAILABLE } from "../workers/search/src/docs-search";
+import { parseRequest } from "../workers/search/src/docs-search";
+import { SERVICE_UNAVAILABLE } from "../workers/search/src/errors";
 import { SearchRequestError } from "../workers/search/src/errors";
 import { parseFacet, parseODataFilter } from "../workers/search/src/odata";
 import { MAX_OPERATOR_CHANGES, MAX_QUERY_ATOMS, toMatch } from "../workers/search/src/query";

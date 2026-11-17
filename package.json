@@ -1,6 +1,6 @@
 {
   "name": "cultpodcasts-api",
-  "version": "2.23.15",
+  "version": "2.23.16",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
@@ -10,6 +10,7 @@
     "deploy:search:preview": "wrangler deploy -c ./wrangler.search.jsonc --env preview",
     "search:migrate:local": "wrangler d1 migrations apply SEARCH_DB --local -c ./wrangler.search.jsonc --env local",
     "search:dev": "wrangler dev -c ./wrangler.search.jsonc --env local --ip 127.0.0.1 --port 8789",
+    "search:ranking": "vitest run --config workers/search/harness/vitest.config.ts",
     "publish:contract:production": "node ./scripts/publish-streaming-submit-contract.mjs production",
     "publish:contract:staging": "node ./scripts/publish-streaming-submit-contract.mjs staging",
     "start": "wrangler dev --env local --ip 127.0.0.1 --port 8787 --local-protocol https --https-cert-path ./.cert/dev-cert.pem --https-key-path ./.cert/dev-key.pem",

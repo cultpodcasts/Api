@@ -16,7 +16,8 @@ import {
 	GetPeopleRoute,
 	HomepageRoute,
 	PublicGetEpisodeRoute,
-	PutHeroCurationRoute
+	PutHeroCurationRoute,
+	SearchAdminDocsRoute
 } from "../src/openapiRoutes";
 import { registerBearerAuthScheme } from "../src/openapiRouteFactory";
 import { SubmitLookupRoute, SubmitRoute } from "../src/openapiSubmitPodcastRoutes";
@@ -49,6 +50,7 @@ describe("OpenAPI auth and response contracts", () => {
 	api.post("/submit", SubmitRoute);
 	api.get("/submit/lookup", SubmitLookupRoute);
 	api.post("/episode/:podcastId/:episodeId/trailer", AttachEpisodeAsTrailerRoute);
+	api.post("/search/admin/docs", SearchAdminDocsRoute);
 	const doc = (api as unknown as { schema: {
 		components?: { securitySchemes?: Record<string, { type?: string; scheme?: string }> };
 		paths?: Record<string, Record<string, unknown>>;
@@ -64,6 +66,20 @@ describe("OpenAPI auth and response contracts", () => {
 		expect(body).toMatch(/"selectedIdentityKey"/);
 		expect(JSON.stringify(attach.responses?.["200"]?.content?.["application/json"])).toMatch(/"identityDecision"/);
 		expect(JSON.stringify(attach.responses?.["202"]?.content?.["application/json"])).toMatch(/"filmCreated"/);
+	});
+
+	it("documents POST /search/admin/docs as an M2M write:search-index command with the search Worker's envelopes (SP-1.4)", () => {
+		const admin = operation(doc, "/search/admin/docs", "post");
+		expect(admin.security).toEqual([{ bearerAuth: [] }]);
+		expect(admin.description).toMatch(/M2M \(client_credentials\) token with `write:search-index`/);
+		expect(admin.responses?.["403"]?.description).toBe("Forbidden — authenticated without `write:search-index`");
+		const schema = (status: string) => JSON.stringify(admin.responses?.[status]?.content?.["application/json"]);
+		for (const key of ["upserted", "deleted", "stale", "notFound"]) expect(schema("200")).toContain(`"${key}"`);
+		for (const status of ["400", "503"]) {
+			expect(schema(status)).toMatch(/"code"/);
+			expect(schema(status)).toMatch(/"message"/);
+		}
+		expect(schema("502")).toMatch(/UpstreamSearchError/);
 	});
 
 	it("publishes a bearer scheme and does not treat ID-token roles as the check", () => {
