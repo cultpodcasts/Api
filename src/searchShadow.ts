@@ -15,6 +15,9 @@ export const DEFAULT_SEARCH_SHADOW_SAMPLE_RATE = 0.01;
 /** How many leading hit ids to compare. */
 export const DEFAULT_SEARCH_SHADOW_TOP_N = 10;
 
+/** Most of an engine error code/message kept in the shadow log (never the raw body). */
+export const SEARCH_SHADOW_ERROR_LIMIT = 200;
+
 export type SearchShadowConfig = {
 	enabled: boolean;
 	sampleRate: number;
@@ -116,7 +119,36 @@ function resultCount(body: Record<string, unknown>, topIdsLength: number): numbe
 	return topIdsLength > 0 ? topIdsLength : null;
 }
 
-/** Compact snapshot of one engine's answer. Ignores anything that is not a JSON object. */
+function truncateError(value: string): string {
+	return value.length <= SEARCH_SHADOW_ERROR_LIMIT ? value : value.slice(0, SEARCH_SHADOW_ERROR_LIMIT);
+}
+
+/**
+ * Compact code/message from an Azure-shaped `{ error: { code, message } }` (or a string
+ * `error`), else `status_N` when the caller only has a non-200 status.
+ */
+export function compactSearchError(body: unknown, status?: number): string | undefined {
+	if (isRecord(body) && "error" in body) {
+		const err = body.error;
+		if (typeof err === "string" && err.trim()) {
+			return truncateError(err.trim());
+		}
+		if (isRecord(err)) {
+			const code = typeof err.code === "string" ? err.code.trim() : "";
+			const message = typeof err.message === "string" ? err.message.trim() : "";
+			const parts = [code, message].filter(Boolean);
+			if (parts.length) return truncateError(parts.join(": "));
+		}
+	}
+	if (status !== undefined && status !== 200) return `status_${status}`;
+	return undefined;
+}
+
+function hasErrorEnvelope(body: unknown, topIds: string[]): boolean {
+	return isRecord(body) && "error" in body && topIds.length === 0 && !Array.isArray(body.value);
+}
+
+/** Compact snapshot of one engine's answer, including a short error when the envelope has no hits. */
 export function snapshotSearchResponse(status: number | undefined, latencyMs: number, body: unknown, topN: number, error?: string): SearchEngineSnapshot {
 	const snap: SearchEngineSnapshot = {
 		latencyMs: Math.max(0, Math.round(latencyMs)),
@@ -124,12 +156,15 @@ export function snapshotSearchResponse(status: number | undefined, latencyMs: nu
 		topIds: []
 	};
 	if (status !== undefined) snap.status = status;
-	if (error) snap.error = error;
 	if (isRecord(body)) {
 		snap.topIds = hitIds(body.value, topN);
 		snap.count = resultCount(body, snap.topIds.length);
-	} else if (!error && status !== undefined && status !== 200) {
-		snap.error = `status_${status}`;
+	}
+	if (error) {
+		snap.error = truncateError(error);
+	} else if ((status !== undefined && status !== 200) || hasErrorEnvelope(body, snap.topIds)) {
+		const compact = compactSearchError(body, status);
+		if (compact) snap.error = compact;
 	}
 	return snap;
 }

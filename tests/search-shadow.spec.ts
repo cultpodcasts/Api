@@ -8,10 +8,12 @@ import type { ActionContext } from "../src/ActionContext";
 import { search } from "../src/search";
 import {
 	compareSearchSnapshots,
+	compactSearchError,
 	DEFAULT_SEARCH_SHADOW_SAMPLE_RATE,
 	DEFAULT_SEARCH_SHADOW_TOP_N,
 	parseSearchShadowConfig,
 	runSearchShadow,
+	SEARCH_SHADOW_ERROR_LIMIT,
 	searchShadowUrl,
 	shouldSampleShadow,
 	snapshotSearchResponse,
@@ -131,6 +133,23 @@ describe("snapshot and overlap", () => {
 		expect(compareSearchSnapshots(["a", "b", "c"], ["c", "b", "a"], 10)).toEqual({ topN: 10, matched: 3, sameOrder: false });
 		expect(compareSearchSnapshots(["a", "b"], ["a", "x"], 10)).toEqual({ topN: 10, matched: 1, sameOrder: false });
 		expect(compareSearchSnapshots([], [], 10)).toEqual({ topN: 10, matched: 0, sameOrder: true });
+	});
+
+	it("records a compact error from D1 400/503 JSON envelopes without the raw body", () => {
+		const unavailable = { error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." } };
+		const snap503 = snapshotSearchResponse(503, 8, unavailable, 10);
+		expect(snap503.error).toBe("ServiceUnavailable: Search is temporarily unavailable.");
+		expect(snap503.count).toBeNull();
+		expect(snap503.topIds).toEqual([]);
+
+		const bad = { error: { code: "", message: "filter is invalid" } };
+		expect(snapshotSearchResponse(400, 4, bad, 10).error).toBe("filter is invalid");
+		expect(snapshotSearchResponse(500, 4, "not-json", 10).error).toBe("status_500");
+		expect(compactSearchError({ error: "Bad request" }, 400)).toBe("Bad request");
+		expect(snapshotSearchResponse(200, 3, azureDoc(["a"]), 10).error).toBeUndefined();
+
+		const long = "x".repeat(SEARCH_SHADOW_ERROR_LIMIT + 20);
+		expect(snapshotSearchResponse(400, 1, { error: { message: long } }, 10).error).toHaveLength(SEARCH_SHADOW_ERROR_LIMIT);
 	});
 });
 
@@ -314,5 +333,45 @@ describe("POST /search shadow sampler", () => {
 		expect(logs).toHaveLength(1);
 		expect(logs[0].d1.error).toBe("D1 down");
 		expect(logs[0].azure.status).toBe(400);
+	});
+
+	it("returns the Azure 200 and logs d1.error when D1 replies with a JSON error envelope", async () => {
+		const azure = azureDoc(["azure-1"], 1);
+		stubAzure(azure);
+		const { ctx, flush } = executionCtx();
+		const logs: SearchShadowLog[] = [];
+		vi.spyOn(console, "info").mockImplementation((row: unknown) => {
+			if (row && typeof row === "object" && "message" in row && (row as { message: string }).message === "search shadow") {
+				logs.push(row as SearchShadowLog);
+			}
+		});
+		vi.spyOn(console, "error").mockImplementation(() => { });
+		const resp = await app().request(
+			"/search",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ search: "x" })
+			},
+			shadowEnv({
+				SEARCH: {
+					fetch: vi.fn(async () =>
+						new Response(
+							JSON.stringify({ error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." } }),
+							{ status: 503, headers: { "content-type": "application/json" } }
+						)
+					)
+				} as unknown as Fetcher
+			}),
+			ctx
+		);
+		expect(resp.status).toBe(200);
+		expect((await resp.json() as { value: { id: string }[] }).value[0].id).toBe("azure-1");
+		await flush();
+		expect(logs).toHaveLength(1);
+		expect(logs[0].azure.count).toBe(1);
+		expect(logs[0].d1.status).toBe(503);
+		expect(logs[0].d1.error).toBe("ServiceUnavailable: Search is temporarily unavailable.");
+		expect(logs[0].d1.topIds).toEqual([]);
 	});
 });

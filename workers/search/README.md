@@ -227,6 +227,27 @@ grouped by `servedByRegion`; the SP-3.2 soak dashboard charts it. The line is un
 ever matters, set `observability.head_sampling_rate` in `wrangler.search.jsonc`. Whether to keep it
 after cutover is for SP-3.2 to decide.
 
+### `search shadow` log (SP-3.1)
+
+The api Worker can also sample a fraction of `POST /search` traffic and send the same rewritten
+body to this Worker over the `SEARCH` binding, on `ctx.waitUntil` so user latency is unchanged.
+Azure remains the served result. Each sampled request logs one line, `search shadow`, with Azure
+vs D1 latency, `@odata.count`, top-N id overlap, and a compact error (code/message, not the raw
+body). The query text is the same inbound string searchLog already records; `requestId` is the
+`cf-ray` so the two lines can be joined.
+
+Kill switch and rate are non-secret wrangler vars on the api Worker (`wrangler.jsonc`, top-level
+`api`, `env.preview`, and `env.local`):
+
+| Var | Meaning | Default |
+|-----|---------|---------|
+| `searchShadowEnabled` | `"true"` / `"false"` kill switch | `"false"` (off until the soak is switched on) |
+| `searchShadowSampleRate` | Fraction of `/search` requests to sample (0–1) | `"0.01"` |
+| `searchShadowTopN` | Leading hit ids compared | `"10"` |
+
+Query in Workers Observability with `message = "search shadow"`. Set `searchShadowEnabled` to
+`"false"` or the rate to `"0"` to stop sampling without a code change.
+
 ## Query engine (SP-1.9)
 
 Moved from the `search-demo/` prototype ([Api#269](https://github.com/cultpodcasts/Api/issues/269)),
