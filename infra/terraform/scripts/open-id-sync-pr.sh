@@ -50,6 +50,11 @@ node "$sync" "$outputs" --config "$config"
 
 if git diff --quiet "origin/$base" -- "$config"; then
   echo "$base already binds $name to the Terraform id $id: no sync PR needed."
+  stale="$(gh pr list --repo "$repo" --head "$branch" --base "$base" --state open --json url --jq '.[0].url // empty')"
+  if [ -n "$stale" ]; then
+    # Closing is a human call; CI only says so.
+    echo "::notice title=Search D1 id sync::$base already has the $stack id; the open sync PR $stale is no longer needed."
+  fi
   exit 0
 fi
 

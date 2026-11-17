@@ -83,7 +83,7 @@ Jon, 16 Nov 2026: the database must be managed properly and must never be delete
    workflow could use it against production resources too. Only people with write access can push
    same-repo branches, fork PRs never get it, and the D1 Time Travel restore below still applies.
 6. **The deploy binds the database Terraform manages.** Before migrations and deploy,
-   [`scripts/check-wrangler-ids.sh`](./scripts/check-wrangler-ids.sh) copies `wrangler.search.jsonc`
+   [`scripts/prepare-deploy-config.sh`](./scripts/prepare-deploy-config.sh) copies `wrangler.search.jsonc`
    to `.wrangler.search.deploy.jsonc` (gitignored) and writes this stack's Terraform `database_id`
    into the copy; migrations and `wrangler deploy` use only the copy, so the Worker can never be
    bound to a database outside Terraform. A committed id that differs is a **warning**, not a
@@ -245,12 +245,12 @@ Agents create no Cloudflare, HCP or GitHub environment resources and never see s
    Do **not** also create either Edit token as a repo secret: the workflow fails if it can see one
    outside its environment.
 4. **GitHub repo secrets:** `TF_TOKEN_APP_TERRAFORM_IO` and `TF_PLAN_CLOUDFLARE_API_TOKEN`.
+5. **Repo setting:** Settings → Actions → General → Workflow permissions → **Allow GitHub Actions
+   to create and approve pull requests**, for the id sync PR (*Rebuild from scratch*).
 
 The account id is not a secret; it defaults in each root's `variables.tf`, and the deploy job
 checks it against `wrangler.search.jsonc` through the `account_id` output.
 
-5. **Repo setting:** Settings → Actions → General → Workflow permissions → **Allow GitHub Actions
-   to create and approve pull requests**, for the id sync PR (*Rebuild from scratch*).
 
 ## Local checks (no credentials)
 

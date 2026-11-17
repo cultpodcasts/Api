@@ -15,9 +15,9 @@
 # Writes to $GITHUB_OUTPUT (when set): ids_match=true|false, database_name, database_id.
 # Exit 0 = deploy config written (ids match or not), 1 = error (bad outputs, missing binding).
 #
-# Usage: check-wrangler-ids.sh <terraform-output.json> <deploy-config> [wrangler.search.jsonc]
+# Usage: prepare-deploy-config.sh <terraform-output.json> <deploy-config> [wrangler.search.jsonc]
 set -euo pipefail
-usage="usage: check-wrangler-ids.sh <terraform-output.json> <deploy-config> [wrangler.search.jsonc]"
+usage="usage: prepare-deploy-config.sh <terraform-output.json> <deploy-config> [wrangler.search.jsonc]"
 outputs="${1:?$usage}"
 deploy_config="${2:?$usage}"
 config="${3:-wrangler.search.jsonc}"

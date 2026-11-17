@@ -12,7 +12,7 @@
  *     Exit 0 = updated or in sync, 1 = error.
  *
  * CI (#279) runs it with `--config` on a temporary copy before the migrations and deploy
- * (check-wrangler-ids.sh), and on the id sync PR branch (open-id-sync-pr.sh).
+ * (prepare-deploy-config.sh), and on the id sync PR branch (open-id-sync-pr.sh).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

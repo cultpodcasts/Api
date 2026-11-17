@@ -339,7 +339,7 @@ jobs:
       # temporary copy; a differing committed id only warns, and the id sync job opens the PR.
       - id: ids
         name: Deploy config with the Terraform database id (committed wrangler.search.jsonc untouched)
-        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"
+        run: bash infra/terraform/scripts/prepare-deploy-config.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"
 
       # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
       # token out of this step (step env overrides job env). Later steps get them back.
@@ -434,7 +434,7 @@ jobs:
       # temporary copy; a differing committed id only warns, and the id sync job opens the PR.
       - id: ids
         name: Deploy config with the Terraform database id (committed wrangler.search.jsonc untouched)
-        run: bash infra/terraform/scripts/check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"
+        run: bash infra/terraform/scripts/prepare-deploy-config.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"
 
       # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
       # token out of this step (step env overrides job env). Later steps get them back.

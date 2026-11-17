@@ -267,7 +267,7 @@ describe("search stack workflow", () => {
 		const plan = j.indexOf("plan -lock-timeout=5m -out=tfplan");
 		const guard = j.indexOf("plan-guard.mjs");
 		const apply = j.indexOf("apply -lock-timeout=5m -input=false tfplan");
-		const ids = j.indexOf("check-wrangler-ids.sh");
+		const ids = j.indexOf("prepare-deploy-config.sh");
 		const migrate = j.indexOf(migration);
 		const deploy = j.indexOf(`npx wrangler deploy -c "$DEPLOY_CONFIG" ${env}`);
 		for (const [label, i] of Object.entries({ plan, guard, apply, ids, migrate, deploy })) expect(i, label).toBeGreaterThan(-1);
@@ -306,7 +306,7 @@ describe("search stack workflow", () => {
 		"%s: migrations and deploy use the temporary deploy config with the Terraform id; the committed file is never written (#279)",
 		(name) => {
 			const j = job(name);
-			const ids = j.indexOf('check-wrangler-ids.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"');
+			const ids = j.indexOf('prepare-deploy-config.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"');
 			expect(ids).toBeGreaterThan(j.indexOf('output -json > "$RUNNER_TEMP/tf-outputs.json"'));
 			const wranglerRuns = [...j.matchAll(/npx wrangler [^\n]*/g)].map((m) => m[0]);
 			expect(wranglerRuns).toHaveLength(2);
@@ -474,8 +474,8 @@ describe("search stack workflow", () => {
 	});
 });
 
-describe("check-wrangler-ids.sh (deploy config with the Terraform id, #279)", () => {
-	const script = resolve(root, "infra/terraform/scripts/check-wrangler-ids.sh");
+describe("prepare-deploy-config.sh (deploy config with the Terraform id, #279)", () => {
+	const script = resolve(root, "infra/terraform/scripts/prepare-deploy-config.sh");
 	const committedPreviewId = "83ae1e81-bf07-4be8-aabf-2d4138959f74";
 	const rebuiltId = "00000000-bf07-4be8-aabf-2d4138959f74";
 
@@ -570,7 +570,7 @@ describe("open-id-sync-pr.sh (#279)", () => {
 		mkdirSync(bin);
 		writeFileSync(
 			join(bin, "gh"),
-			`#!/usr/bin/env bash\necho "$*" >> "${join(dir, "gh.log")}"\nif [ "$1 $2" = "pr list" ]; then cat "${join(dir, "open-pr")}" 2>/dev/null; fi\nif [ "$1 $2" = "pr create" ]; then echo https://github.com/o/r/pull/9; fi\n`
+			`#!/usr/bin/env bash\necho "$*" >> "${join(dir, "gh.log")}"\nif [ "$1 $2" = "pr list" ]; then cat "${join(dir, "open-pr")}" 2>/dev/null; fi\nif [ "$1 $2" = "pr create" ]; then [ -f "${join(dir, "refuse-create")}" ] && { echo "GitHub Actions is not permitted to create or approve pull requests" >&2; exit 1; }; echo https://github.com/o/r/pull/9; fi\n`
 		);
 		chmodSync(join(bin, "gh"), 0o755);
 		const run = (id: string) => {
@@ -599,7 +599,9 @@ describe("open-id-sync-pr.sh (#279)", () => {
 		expect(r.status, r.stderr.toString()).toBe(0);
 		expect(r.stdout.toString()).toContain("no sync PR needed");
 		expect(s.remoteBranch()).toBe("");
-		expect(s.ghLog()).toBe("");
+		// Only the read-only lookup for a stale open sync PR.
+		expect(s.ghLog()).not.toMatch(/pr (create|close|edit)/);
+		expect(r.stdout.toString()).not.toContain("::notice");
 	});
 
 	it("opens one PR to main from the fixed branch with only the new id, then never a duplicate", () => {
@@ -640,6 +642,28 @@ describe("open-id-sync-pr.sh (#279)", () => {
 		expect(spawnSync("git", ["merge-base", "--is-ancestor", first, second], { cwd: s.origin }).status).toBe(0);
 		expect(spawnSync("git", ["merge-base", "--is-ancestor", "main", second], { cwd: s.origin }).status).toBe(0);
 		expect(s.fileOn(branch)).toContain(secondId);
+	});
+
+	it("flags (never closes) an open sync PR that main no longer needs", () => {
+		const s = setup();
+		writeFileSync(join(s.dir, "open-pr"), "https://github.com/o/r/pull/9\n");
+		const r = s.run(committedPreviewId);
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(r.stdout.toString()).toContain("::notice title=Search D1 id sync::main already has the preview id; the open sync PR https://github.com/o/r/pull/9 is no longer needed.");
+		expect(s.ghLog()).not.toMatch(/pr (close|create|edit)/);
+		expect(s.remoteBranch()).toBe("");
+	});
+
+	it("when GitHub refuses the PR (Actions may not create PRs), still pushes the branch and warns with a compare link, exit 0", () => {
+		const s = setup();
+		writeFileSync(join(s.dir, "refuse-create"), "");
+		const newId = "33333333-bf07-4be8-aabf-2d4138959f74";
+		const r = s.run(newId);
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(r.stdout.toString()).toContain("::warning title=Search D1 id sync::Pushed ci/sync-search-d1-id-preview but could not open the PR");
+		expect(r.stdout.toString()).toContain("https://github.com/o/r/compare/main...ci/sync-search-d1-id-preview?expand=1");
+		expect(s.ghLog().match(/^pr create /gm)).toHaveLength(1);
+		expect(s.fileOn(branch)).toContain(newId);
 	});
 
 	it("rejects an unknown stack", () => {
