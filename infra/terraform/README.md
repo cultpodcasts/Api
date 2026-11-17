@@ -21,10 +21,12 @@ Jon, 16 Nov 2026: *"terraform is infra. it would always come before pure code de
   wrangler owns the script, bindings, vars and settings (`wrangler.search.jsonc`). The module
   ignores the settings wrangler writes (observability, logpush, tags, tail consumers) so the two
   never fight. Worker and database names here must match `wrangler.search.jsonc` (tested).
-- **One job per stack runs, in order:** plan → plan guard → apply → check `wrangler.search.jsonc`
-  ids against the Terraform outputs → D1 schema migrations (`workers/search/migrations`) →
-  `wrangler deploy`. The deploy is the last step of the same job as the apply, so it only runs
-  after a successful apply and migrations in that run.
+- **One job per stack runs, in order:** plan → plan guard → apply → write the Terraform database
+  id into a temporary copy of `wrangler.search.jsonc` (and compare with the committed id) → D1
+  schema migrations (`workers/search/migrations`) → `wrangler deploy`, both against that copy. The
+  deploy is the last step of the same job as the apply, so it only runs after a successful apply
+  and migrations in that run. If the committed id differed (a rebuilt stack), a separate job then
+  opens the id sync PR (see *Rebuild from scratch*).
 - **No one-off manual infra.** Nothing is created by hand or by a local script. Tearing a stack
   down and re-running CI rebuilds it (see *Rebuild from scratch*).
 
@@ -80,8 +82,13 @@ Jon, 16 Nov 2026: the database must be managed properly and must never be delete
    **Accepted risk:** the preview token is account-scoped, so a same-repo PR branch that edits the
    workflow could use it against production resources too. Only people with write access can push
    same-repo branches, fork PRs never get it, and the D1 Time Travel restore below still applies.
-6. **Bound ids must match.** Before migrations and deploy, [`scripts/check-wrangler-ids.sh`](./scripts/check-wrangler-ids.sh)
-   fails the job if `wrangler.search.jsonc` binds a different database id than Terraform manages.
+6. **The deploy binds the database Terraform manages.** Before migrations and deploy,
+   [`scripts/prepare-deploy-config.sh`](./scripts/prepare-deploy-config.sh) copies `wrangler.search.jsonc`
+   to `.wrangler.search.deploy.jsonc` (gitignored) and writes this stack's Terraform `database_id`
+   into the copy; migrations and `wrangler deploy` use only the copy, so the Worker can never be
+   bound to a database outside Terraform. A committed id that differs is a **warning**, not a
+   failure ([#279](https://github.com/cultpodcasts/Api/issues/279)); the job fails if the
+   committed `account_id` is not Terraform's.
 
 Deliberately deleting or replacing a database or Worker is a manual, reviewed operation outside
 CI: remove `prevent_destroy` in a PR that says why, take a Time Travel bookmark and an export first,
@@ -170,9 +177,36 @@ everything else is rebuilt by CI:
 - **Production:** run the workflow on `main` with **`allow_d1_create`** ticked and approve: it
   creates the database and Worker shell, applies the migrations and deploys `search`.
 
-New databases get new ids: the job fails at the id check, before any migration or deploy, until a
-PR syncs them into `wrangler.search.jsonc` (below). That PR's own preview run then deploys preview;
-merge it and re-run on `main` for production.
+New databases get new ids. Jon chose **option 3** on
+[#279](https://github.com/cultpodcasts/Api/issues/279), so a rebuild needs no hand-made PR:
+
+1. **Deploy with the Terraform id.** The stack job writes the Terraform-output `database_id` into
+   the temporary `.wrangler.search.deploy.jsonc` and runs the migrations and `wrangler deploy`
+   against it. The committed `wrangler.search.jsonc` is never written in that job. A differing
+   committed id shows as a warning on the run; the rebuilt stack is up either way.
+2. **Sync PR, opened by CI.** Only after that job fully succeeded, and only when the ids differed,
+   `preview-id-sync` / `production-id-sync` runs
+   [`scripts/open-id-sync-pr.sh`](./scripts/open-id-sync-pr.sh): from `main`, it writes the new
+   id into `wrangler.search.jsonc` with `sync-wrangler-ids.mjs` (the `local-` binding is never
+   touched) on the fixed branch **`ci/sync-search-d1-id-<stack>`** and opens a PR to **`main`**.
+   - Idempotent: nothing happens when `main` already has the id; an open PR from that branch is
+     updated, never duplicated; an existing branch gets `main` merged in (merge commit) and the
+     new id on top, never a force-push.
+   - Least privilege: only these two jobs get `contents: write` + `pull-requests: write`, and they
+     hold no Cloudflare or HCP token and run no `npm` install scripts. The scripts come from `main`.
+3. **CI on the sync PR.** It is opened with the workflow's `GITHUB_TOKEN`, and GitHub does not
+   start workflows for events made with that token, so Test and the Search stack do **not** run
+   on it by themselves. **Close and reopen the PR** (or push to it) to run them. The repo secret
+   `PROJECT_TOKEN` is deliberately not used: it is a classic PAT scoped for the project board,
+   not for pushing branches or opening PRs.
+4. **Merging it.** The PR changes `wrangler.search.jsonc`, so the merge to `main` starts the
+   production Search stack run and waits for approval in `cloudflare-production`; with the ids
+   in sync it is a no-op apply that redeploys the same code. The sync PR does not bump
+   `package.json` (CI-made; it would conflict with every open Api PR).
+
+**Repo setting needed for step 2:** Settings → Actions → General → Workflow permissions →
+**Allow GitHub Actions to create and approve pull requests**. Without it the job still pushes the
+branch and warns with a compare link to open the PR by hand; the deploy is unaffected.
 
 ## Database ids into `wrangler.search.jsonc`
 
@@ -211,9 +245,11 @@ Agents create no Cloudflare, HCP or GitHub environment resources and never see s
    Do **not** also create either Edit token as a repo secret: the workflow fails if it can see one
    outside its environment.
 4. **GitHub repo secrets:** `TF_TOKEN_APP_TERRAFORM_IO` and `TF_PLAN_CLOUDFLARE_API_TOKEN`.
+5. **Repo setting:** Settings → Actions → General → Workflow permissions → **Allow GitHub Actions
+   to create and approve pull requests**, for the id sync PR (*Rebuild from scratch*).
 
-The account id is not a secret; it defaults in each root's `variables.tf` and reaches the
-migrations config through the `account_id` output.
+The account id is not a secret; it defaults in each root's `variables.tf`, and the deploy job
+checks it against `wrangler.search.jsonc` through the `account_id` output.
 
 ## Local checks (no credentials)
 

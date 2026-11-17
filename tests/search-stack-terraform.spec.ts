@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-ignore - plain .mjs CLI helpers
 import { findForbiddenChanges, findForgets, parseArgs as parseGuardArgs, summarisePlan } from "../infra/terraform/scripts/plan-guard.mjs";
 // @ts-ignore - plain .mjs CLI helpers
-import { applyIds, buildMigrationsConfig, idsFromOutputs, parseArgs as parseSyncArgs } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
+import { applyIds, idsFromOutputs, parseArgs as parseSyncArgs } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
 // @ts-ignore - plain .mjs CLI helpers
 import { findPlanCommentId, PLAN_MARKER, PREVIEW_PLAN_MARKER } from "../infra/terraform/scripts/sticky-plan-comment.mjs";
 // @ts-ignore - plain .mjs CLI helpers
@@ -259,16 +259,16 @@ describe("search stack workflow", () => {
 	});
 
 	it.each([
-		["preview", "deploy:search:preview", "cultpodcasts-search-preview --remote"],
-		["apply", "deploy:search", "cultpodcasts-search --remote"]
-	])("%s: Terraform apply, then migrations, then the code deploy, in ONE job", (name, script, migration) => {
+		["preview", "--env preview", "cultpodcasts-search-preview --remote"],
+		["apply", '--env=""', "cultpodcasts-search --remote"]
+	])("%s: Terraform apply, then migrations, then the code deploy, in ONE job", (name, env, migration) => {
 		const j = job(name);
 		const plan = j.indexOf("plan -lock-timeout=5m -out=tfplan");
 		const guard = j.indexOf("plan-guard.mjs");
 		const apply = j.indexOf("apply -lock-timeout=5m -input=false tfplan");
-		const ids = j.indexOf("check-wrangler-ids.sh");
+		const ids = j.indexOf("prepare-deploy-config.sh");
 		const migrate = j.indexOf(migration);
-		const deploy = j.indexOf(`npm run ${script}`);
+		const deploy = j.indexOf(`npx wrangler deploy -c "$DEPLOY_CONFIG" ${env}`);
 		for (const [label, i] of Object.entries({ plan, guard, apply, ids, migrate, deploy })) expect(i, label).toBeGreaterThan(-1);
 		expect(plan).toBeLessThan(guard);
 		expect(guard).toBeLessThan(apply);
@@ -291,13 +291,61 @@ describe("search stack workflow", () => {
 		expect(j.match(/run: npm ci/g)).toHaveLength(1);
 	});
 
-	it("deploys nowhere else: no other job runs wrangler deploy or an apply", () => {
-		expect(workflow.match(/npm run deploy:search:preview/g)).toHaveLength(1);
-		expect(workflow.match(/npm run deploy:search\b(?!:)/g)).toHaveLength(1);
-		expect(workflow).not.toMatch(/wrangler deploy/);
-		for (const name of ["validate", "readiness", "plan", "apply-skipped"]) {
-			expect(job(name)).not.toMatch(/apply -lock-timeout|npm run deploy/);
+	it("deploys nowhere else: no other job runs wrangler deploy, migrations or an apply", () => {
+		expect(workflow.match(/wrangler deploy/g)).toHaveLength(2);
+		expect(job("preview").match(/wrangler deploy/g)).toHaveLength(1);
+		expect(job("apply").match(/wrangler deploy/g)).toHaveLength(1);
+		expect(workflow).not.toMatch(/run: npm run deploy/);
+		for (const name of ["validate", "readiness", "plan", "apply-skipped", "preview-id-sync", "production-id-sync"]) {
+			expect(job(name)).not.toMatch(/apply -lock-timeout|wrangler (deploy|d1)/);
 		}
+	});
+
+	it.each([["preview"], ["apply"]])(
+		"%s: migrations and deploy use the temporary deploy config with the Terraform id; the committed file is never written (#279)",
+		(name) => {
+			const j = job(name);
+			const ids = j.indexOf('prepare-deploy-config.sh "$RUNNER_TEMP/tf-outputs.json" "$DEPLOY_CONFIG"');
+			expect(ids).toBeGreaterThan(j.indexOf('output -json > "$RUNNER_TEMP/tf-outputs.json"'));
+			const wranglerRuns = [...j.matchAll(/npx wrangler [^\n]*/g)].map((m) => m[0]);
+			expect(wranglerRuns).toHaveLength(2);
+			for (const run of wranglerRuns) expect(run, run).toContain('-c "$DEPLOY_CONFIG"');
+			expect(j).not.toMatch(/wrangler\.search\.jsonc"?\s*$|-c \.?\/?wrangler\.search\.jsonc/m);
+			// Only the id check touches ids here, and it writes the copy: no direct sync, commit or push.
+			expect(j).not.toContain("sync-wrangler-ids.mjs");
+			expect(j).not.toMatch(/git (add|commit|push)|open-id-sync-pr|gh pr/);
+			expect(j).not.toContain("contents: write");
+			expect(j).toMatch(/- id: ids\n\s*name: Deploy config with the Terraform database id/);
+			expect(j).toContain("ids_match: ${{ steps.ids.outputs.ids_match }}");
+		}
+	);
+
+	it("the deploy config is a gitignored copy next to wrangler.search.jsonc", () => {
+		expect(workflow).toContain("  DEPLOY_CONFIG: .wrangler.search.deploy.jsonc\n");
+		expect(readFileSync(resolve(root, ".gitignore"), "utf8").split(/\r?\n/)).toContain(".wrangler.search.deploy.jsonc");
+	});
+
+	it.each([
+		["preview-id-sync", "preview", "needs.preview.outputs"],
+		["production-id-sync", "production", "needs.apply.outputs"]
+	])("%s: opens the %s id sync PR only after the stack job succeeded with a differing committed id (#279)", (name, stack, outputs) => {
+		const j = job(name);
+		expect(j).toContain(`needs: [${stack === "preview" ? "preview" : "apply"}]`);
+		// No status function, so GitHub adds success(): it never runs after a failed apply/deploy.
+		expect(j).toContain(`if: ${outputs}.ids_match == 'false'`);
+		expect(j).not.toMatch(/always\(\)|failure\(\)|continue-on-error/);
+		expect(j).toMatch(/permissions:\s*\n\s*contents: write\s*\n\s*pull-requests: write/);
+		expect(j).toMatch(new RegExp(`concurrency:\\s*\\n\\s*group: search-stack-id-sync-${stack}\\s*\\n\\s*cancel-in-progress: false`));
+		expect(j).toMatch(/ref: main\s*\n\s*fetch-depth: 0/);
+		expect(j).toContain(`open-id-sync-pr.sh" ${stack} "$RUNNER_TEMP/tf-ids.json"`);
+		// No Cloudflare/HCP secrets, no environment, no npm install scripts next to the write token.
+		expect(j).not.toMatch(/secrets\.|environment:|npm (ci|install)/);
+		expect(j).toContain("GH_TOKEN: ${{ github.token }}");
+	});
+
+	it("grants contents: write only to the id sync jobs", () => {
+		expect(workflow.match(/contents: write/g)).toHaveLength(2);
+		expect(workflow).toMatch(/^permissions:\n  contents: read\n/m);
 	});
 
 	it("preview runs on same-repo PRs only, in cloudflare-preview, with its own token", () => {
@@ -402,8 +450,7 @@ describe("search stack workflow", () => {
 		expect(job("preview")).not.toMatch(/applied and deployed by this PR run/);
 	});
 
-	it("builds the migrations config from Terraform outputs, not a hand-written copy", () => {
-		expect(workflow.match(/sync-wrangler-ids\.mjs "\$RUNNER_TEMP\/tf-outputs\.json" --migrations-config/g)).toHaveLength(2);
+	it("hard-codes no account id (the deploy config takes it from wrangler.search.jsonc, checked against Terraform)", () => {
 		expect(workflow).not.toContain("bae3f835f19899c6eee1ec48f2d658cf");
 	});
 
@@ -420,31 +467,209 @@ describe("search stack workflow", () => {
 		for (const u of uses) expect(u, u).toMatch(/@[0-9a-f]{40}$/);
 	});
 
-	it("the deploy scripts it runs exist and target the right wrangler env", () => {
+	it("the npm deploy scripts target the same wrangler envs as the CI deploy steps", () => {
 		expect(packageJson.scripts["deploy:search"]).toBe('wrangler deploy -c ./wrangler.search.jsonc --env=""');
 		expect(packageJson.scripts["deploy:search:preview"]).toBe("wrangler deploy -c ./wrangler.search.jsonc --env preview");
 	});
 });
 
-describe("check-wrangler-ids.sh", () => {
-	const script = resolve(root, "infra/terraform/scripts/check-wrangler-ids.sh");
-	const outputsFile = (id: string) => {
-		const dir = mkdtempSync(join(tmpdir(), "check-ids-"));
-		const file = join(dir, "out.json");
-		writeFileSync(
-			file,
-			JSON.stringify({ database_name: { value: "cultpodcasts-search-preview" }, database_id: { value: id } })
-		);
-		return file;
-	};
+describe("prepare-deploy-config.sh (deploy config with the Terraform id, #279)", () => {
+	const script = resolve(root, "infra/terraform/scripts/prepare-deploy-config.sh");
+	const committedPreviewId = "83ae1e81-bf07-4be8-aabf-2d4138959f74";
+	const rebuiltId = "00000000-bf07-4be8-aabf-2d4138959f74";
 
-	it("passes when wrangler.search.jsonc has the Terraform id and fails (without editing it) when it differs", () => {
-		const before = readFileSync(resolve(root, "wrangler.search.jsonc"), "utf8");
-		expect(spawnSync("bash", [script, outputsFile("83ae1e81-bf07-4be8-aabf-2d4138959f74")], { env: { ...process.env, GITHUB_STEP_SUMMARY: "" } }).status).toBe(0);
-		const bad = spawnSync("bash", [script, outputsFile("00000000-bf07-4be8-aabf-2d4138959f74")], { env: { ...process.env, GITHUB_STEP_SUMMARY: "" } });
-		expect(bad.status).toBe(1);
-		expect(bad.stdout.toString()).toContain("::error title=wrangler.search.jsonc::");
-		expect(readFileSync(resolve(root, "wrangler.search.jsonc"), "utf8")).toBe(before);
+	/** A scratch repo root holding a copy of the committed wrangler.search.jsonc. */
+	function scratch(outputs: object) {
+		const dir = mkdtempSync(join(tmpdir(), "check-ids-"));
+		writeFileSync(join(dir, "wrangler.search.jsonc"), wranglerSearch);
+		writeFileSync(join(dir, "out.json"), JSON.stringify(outputs));
+		writeFileSync(join(dir, "gh-output"), "");
+		const run = (deployConfig = ".wrangler.search.deploy.jsonc") =>
+			spawnSync("bash", [script, "out.json", deployConfig], {
+				cwd: dir,
+				env: { ...process.env, GITHUB_STEP_SUMMARY: "", GITHUB_OUTPUT: join(dir, "gh-output") }
+			});
+		const read = (f: string) => readFileSync(join(dir, f), "utf8");
+		return { dir, run, read };
+	}
+	const previewOutputs = (id: string, account = "bae3f835f19899c6eee1ec48f2d658cf") => ({
+		database_name: { value: "cultpodcasts-search-preview" },
+		database_id: { value: id },
+		account_id: { value: account }
+	});
+
+	it("ids match: the deploy config is an exact copy, ids_match=true, no warning", () => {
+		const s = scratch(previewOutputs(committedPreviewId));
+		const r = s.run();
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(r.stdout.toString()).not.toContain("::warning");
+		expect(s.read(".wrangler.search.deploy.jsonc")).toBe(wranglerSearch);
+		expect(s.read("gh-output")).toBe(`ids_match=true\ndatabase_name=cultpodcasts-search-preview\ndatabase_id=${committedPreviewId}\n`);
+	});
+
+	it("rebuilt stack: warns (exit 0), the deploy config gets the new id, the committed file is untouched", () => {
+		const s = scratch(previewOutputs(rebuiltId));
+		const r = s.run();
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(r.stdout.toString()).toContain("::warning title=wrangler.search.jsonc::");
+		expect(r.stdout.toString()).not.toContain("::error");
+		expect(s.read("wrangler.search.jsonc")).toBe(wranglerSearch);
+		const deployConfig = s.read(".wrangler.search.deploy.jsonc");
+		expect(deployConfig).toContain(`"database_id": "${rebuiltId}"`);
+		expect(deployConfig).not.toContain(committedPreviewId);
+		// Only the preview binding changes: production and the `local-` binding keep their ids.
+		expect(deployConfig).toBe(wranglerSearch.replace(committedPreviewId, rebuiltId));
+		expect(deployConfig).toContain('"database_id": "local-cultpodcasts-search"');
+		expect(s.read("gh-output")).toContain("ids_match=false\n");
+		expect(s.read("gh-output")).toContain(`database_id=${rebuiltId}\n`);
+	});
+
+	it("refuses a deploy config outside the config's folder (wrangler paths are relative) or the committed file itself", () => {
+		const s = scratch(previewOutputs(rebuiltId));
+		mkdirSync(join(s.dir, "sub"));
+		expect(s.run("sub/deploy.jsonc").status).toBe(1);
+		expect(s.run("wrangler.search.jsonc").status).toBe(1);
+		expect(s.run("./wrangler.search.jsonc").status).toBe(1);
+		expect(s.read("wrangler.search.jsonc")).toBe(wranglerSearch);
+	});
+
+	it("fails on a Terraform account other than the committed one, or malformed outputs", () => {
+		expect(scratch(previewOutputs(committedPreviewId, "0123456789abcdef0123456789abcdef")).run().status).toBe(1);
+		expect(scratch(previewOutputs("nope")).run().status).toBe(1);
+		expect(scratch({ database_name: { value: "unknown-db" }, database_id: { value: rebuiltId } }).run().status).toBe(1);
+	});
+});
+
+describe("open-id-sync-pr.sh (#279)", () => {
+	const script = resolve(root, "infra/terraform/scripts/open-id-sync-pr.sh");
+	const syncScript = resolve(root, "infra/terraform/scripts/sync-wrangler-ids.mjs");
+	const committedPreviewId = "83ae1e81-bf07-4be8-aabf-2d4138959f74";
+	const branch = "ci/sync-search-d1-id-preview";
+
+	function git(cwd: string, ...args: string[]) {
+		const r = spawnSync("git", args, { cwd });
+		expect(r.status, `git ${args.join(" ")}: ${r.stderr}`).toBe(0);
+		return r.stdout.toString().trim();
+	}
+
+	/** A bare "origin" with main holding wrangler.search.jsonc, a clone, and a fake gh logging its calls. */
+	function setup() {
+		const dir = mkdtempSync(join(tmpdir(), "id-sync-"));
+		const origin = join(dir, "origin.git");
+		const clone = join(dir, "clone");
+		git(dir, "init", "--quiet", "--bare", "-b", "main", origin);
+		git(dir, "clone", "--quiet", origin, clone);
+		for (const [k, v] of [["user.name", "t"], ["user.email", "t@example.com"]]) git(clone, "config", k, v);
+		writeFileSync(join(clone, "wrangler.search.jsonc"), wranglerSearch);
+		writeFileSync(join(clone, "README.md"), "x\n");
+		git(clone, "add", ".");
+		git(clone, "commit", "--quiet", "-m", "init");
+		git(clone, "push", "--quiet", "origin", "HEAD:main");
+		const bin = join(dir, "bin");
+		mkdirSync(bin);
+		writeFileSync(
+			join(bin, "gh"),
+			`#!/usr/bin/env bash\necho "$*" >> "${join(dir, "gh.log")}"\nif [ "$1 $2" = "pr list" ]; then cat "${join(dir, "open-pr")}" 2>/dev/null; fi\nif [ "$1 $2" = "pr create" ]; then [ -f "${join(dir, "refuse-create")}" ] && { echo "GitHub Actions is not permitted to create or approve pull requests" >&2; exit 1; }; echo https://github.com/o/r/pull/9; fi\n`
+		);
+		chmodSync(join(bin, "gh"), 0o755);
+		const run = (id: string) => {
+			const outputs = join(dir, "ids.json");
+			writeFileSync(outputs, JSON.stringify({ database_name: { value: "cultpodcasts-search-preview" }, database_id: { value: id } }));
+			return spawnSync("bash", [script, "preview", outputs, syncScript], {
+				cwd: clone,
+				env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", GITHUB_STEP_SUMMARY: "", GH_TOKEN: "x" }
+			});
+		};
+		const ghLog = () => {
+			try {
+				return readFileSync(join(dir, "gh.log"), "utf8");
+			} catch {
+				return "";
+			}
+		};
+		const remoteBranch = () => spawnSync("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], { cwd: origin }).stdout.toString().trim();
+		const fileOn = (ref: string) => git(origin, "show", `${ref}:wrangler.search.jsonc`);
+		return { dir, origin, clone, run, ghLog, remoteBranch, fileOn };
+	}
+
+	it("does nothing when main already binds the Terraform id: no branch, no PR", () => {
+		const s = setup();
+		const r = s.run(committedPreviewId);
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(r.stdout.toString()).toContain("no sync PR needed");
+		expect(s.remoteBranch()).toBe("");
+		// Only the read-only lookup for a stale open sync PR.
+		expect(s.ghLog()).not.toMatch(/pr (create|close|edit)/);
+		expect(r.stdout.toString()).not.toContain("::notice");
+	});
+
+	it("opens one PR to main from the fixed branch with only the new id, then never a duplicate", () => {
+		const s = setup();
+		const newId = "11111111-bf07-4be8-aabf-2d4138959f74";
+		const r = s.run(newId);
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(s.fileOn(branch)).toBe(wranglerSearch.replace(committedPreviewId, newId).trim());
+		expect(s.fileOn("main")).toBe(wranglerSearch.trim());
+		expect(s.ghLog().match(/^pr create /gm)).toHaveLength(1);
+		expect(s.ghLog()).toMatch(/pr create --repo o\/r --base main --head ci\/sync-search-d1-id-preview /);
+		const head = s.remoteBranch();
+
+		// Second run while that PR is open: same id, so no new commit and no second PR.
+		writeFileSync(join(s.dir, "open-pr"), "https://github.com/o/r/pull/9\n");
+		const again = s.run(newId);
+		expect(again.status, again.stderr.toString()).toBe(0);
+		expect(again.stdout.toString()).toContain("Updated the open id sync PR");
+		expect(s.remoteBranch()).toBe(head);
+		expect(s.ghLog().match(/^pr create /gm)).toHaveLength(1);
+	});
+
+	it("a later rebuild updates the existing branch fast-forward (merge commit, never a force-push)", () => {
+		const s = setup();
+		s.run("11111111-bf07-4be8-aabf-2d4138959f74");
+		const first = s.remoteBranch();
+		// main moves on meanwhile
+		git(s.clone, "switch", "--quiet", "-C", "main", "origin/main");
+		writeFileSync(join(s.clone, "README.md"), "y\n");
+		git(s.clone, "commit", "--quiet", "-am", "main moves");
+		git(s.clone, "push", "--quiet", "origin", "HEAD:main");
+		const secondId = "22222222-bf07-4be8-aabf-2d4138959f74";
+		const r = s.run(secondId);
+		expect(r.status, r.stderr.toString()).toBe(0);
+		const second = s.remoteBranch();
+		expect(second).not.toBe(first);
+		// The old head is an ancestor of the new one: nothing was rewritten.
+		expect(spawnSync("git", ["merge-base", "--is-ancestor", first, second], { cwd: s.origin }).status).toBe(0);
+		expect(spawnSync("git", ["merge-base", "--is-ancestor", "main", second], { cwd: s.origin }).status).toBe(0);
+		expect(s.fileOn(branch)).toContain(secondId);
+	});
+
+	it("flags (never closes) an open sync PR that main no longer needs", () => {
+		const s = setup();
+		writeFileSync(join(s.dir, "open-pr"), "https://github.com/o/r/pull/9\n");
+		const r = s.run(committedPreviewId);
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(r.stdout.toString()).toContain("::notice title=Search D1 id sync::main already has the preview id; the open sync PR https://github.com/o/r/pull/9 is no longer needed.");
+		expect(s.ghLog()).not.toMatch(/pr (close|create|edit)/);
+		expect(s.remoteBranch()).toBe("");
+	});
+
+	it("when GitHub refuses the PR (Actions may not create PRs), still pushes the branch and warns with a compare link, exit 0", () => {
+		const s = setup();
+		writeFileSync(join(s.dir, "refuse-create"), "");
+		const newId = "33333333-bf07-4be8-aabf-2d4138959f74";
+		const r = s.run(newId);
+		expect(r.status, r.stderr.toString()).toBe(0);
+		expect(r.stdout.toString()).toContain("::warning title=Search D1 id sync::Pushed ci/sync-search-d1-id-preview but could not open the PR");
+		expect(r.stdout.toString()).toContain("https://github.com/o/r/compare/main...ci/sync-search-d1-id-preview?expand=1");
+		expect(s.ghLog().match(/^pr create /gm)).toHaveLength(1);
+		expect(s.fileOn(branch)).toContain(newId);
+	});
+
+	it("rejects an unknown stack", () => {
+		const s = setup();
+		const outputs = join(s.dir, "x.json");
+		writeFileSync(outputs, "{}");
+		expect(spawnSync("bash", [script, "staging", outputs], { cwd: s.clone }).status).toBe(2);
 	});
 });
 
@@ -505,29 +730,10 @@ describe("sync-wrangler-ids", () => {
 		expect(() => idsFromOutputs({})).toThrow();
 	});
 
-	it("builds the CI migrations config for one stack from its outputs only", () => {
-		const cfg = buildMigrationsConfig({ ...preview, account_id: { value: "0123456789abcdef0123456789abcdef" } });
-		expect(cfg.account_id).toBe("0123456789abcdef0123456789abcdef");
-		expect(cfg.d1_databases).toEqual([
-			{
-				binding: "SEARCH_DB",
-				database_name: "cultpodcasts-search-preview",
-				database_id: "66666666-7777-8888-9999-000000000000",
-				migrations_dir: "workers/search/migrations"
-			}
-		]);
-	});
-
-	it("refuses a migrations config without a valid account id output", () => {
-		expect(() => buildMigrationsConfig(production)).toThrow(/account_id/);
-		expect(() => buildMigrationsConfig({ ...production, account_id: { value: "x" } })).toThrow(/account_id/);
-	});
-
-	it("parses one or more outputs files, --config, and --migrations-config for exactly one stack", () => {
-		expect(parseSyncArgs(["a.json", "b.json"])).toEqual({ outputs: ["a.json", "b.json"], config: "wrangler.search.jsonc", migrationsConfig: undefined });
+	it("parses one or more outputs files and --config", () => {
+		expect(parseSyncArgs(["a.json", "b.json"])).toEqual({ outputs: ["a.json", "b.json"], config: "wrangler.search.jsonc" });
 		expect(parseSyncArgs(["a.json", "--config", "w.jsonc"]).config).toBe("w.jsonc");
-		expect(parseSyncArgs(["a.json", "--migrations-config", "m.json"]).migrationsConfig).toBe("m.json");
-		expect(() => parseSyncArgs(["a.json", "b.json", "--migrations-config", "m.json"])).toThrow(/usage/);
+		expect(() => parseSyncArgs(["a.json", "--migrations-config", "m.json"])).toThrow(/unknown flag/);
 		expect(() => parseSyncArgs([])).toThrow(/usage/);
 		expect(() => parseSyncArgs(["a.json", "--bogus"])).toThrow(/unknown flag/);
 	});
