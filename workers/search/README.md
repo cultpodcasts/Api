@@ -190,8 +190,25 @@ over a service binding.
   comparisons is a 400. The test adapter (`tests/support/searchD1.ts`) enforces the limit.
 - **FTS5 nesting:** the translator keeps runs of one operator flat and parenthesises only operator
   changes, so long queries stay well inside the FTS5 parser's ~96-level stack.
-- **Not yet:** bm25 column weights and title/AKA phrase-first ranking (SP-1.8), the `id`
-  tie-break (SP-1.7).
+- **Relevance ranking (SP-1.8, `src/ranking.ts`):** a relevance page is ordered by a title/AKA
+  tier, then weighted bm25, then `id`. For an **unquoted** query (no `"`, `+`/`-` prefix, `|`, `*`
+  or parentheses): tier 0 is a document whose title, or one of its `alternativeTitles` lines, *is*
+  the query (case, apostrophes, punctuation and spacing ignored, so `fathers house` finds
+  *Father's House*); tier 1 (two or more words) is a title or AKA containing the query as whole
+  words; tier 2 (two or more words) is the exact phrase in any searchable field, like the api
+  Worker's Azure rewrite `"q"^10 OR (q)`; everything else is tier 3. Quoted and operator searches
+  are not tiered and keep their phrase semantics (`"hannah w."`). Inside a tier, bm25 weights
+  follow the FTS column order: title = AKA 1.5, series name 1.25, subjects 1.25, description 1,
+  guests 0.75, curator search terms 0.5. `@search.score` is `(3 − tier) × 1000 − bm25`, so it is
+  tier-first and only comparable within one result list (as in Azure). When the api Worker's Azure
+  boost reaches D1 (`queryType: full`, `"q"^N OR (q)`), it is unwrapped first so D1 ranks the
+  user's own text.
+- **Ranking harness:** `npm run search:ranking` (`harness/`, never part of `npm test`: it reads the
+  public Azure search API) builds a local corpus from Azure's top 50 for each case plus every film,
+  then reports top-10 overlap with Azure and whether each exact title/AKA case ranks first, for
+  the baseline, `DEFAULT_RANKING` and a weight grid. Output: `harness/out/ranking-report.md`
+  (gitignored with the `harness/.cache/` corpus). Cases: `harness/cases.ts`.
+- **Not yet:** the `id` tie-break (SP-1.7).
 
 Tests: `tests/search-query-engine.spec.ts` (translator, OData, response shape, and the route over
 the migrated schema in `node:sqlite`); `tests/search-d1-session.spec.ts` (Sessions API read path,
