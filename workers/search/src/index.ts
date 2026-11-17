@@ -1,3 +1,4 @@
+import { adminDocs, ADMIN_DOCS_PATH } from "./admin-docs";
 import { docsSearch, DOCS_SEARCH_PATH } from "./docs-search";
 import type { SearchEnv } from "./env";
 import { health, json } from "./health";
@@ -10,7 +11,8 @@ import { health, json } from "./health";
  * Routes: `GET /health`, and `POST /indexes/{index}/docs/search`, the Azure-shaped query engine
  * ported from `search-demo/` (SP-1.9, cultpodcasts/Api#269). Every read goes through a D1
  * Sessions API read session so read replicas can serve it (SP-1.2, #220, `d1-session.ts`).
- * The admin upsert/delete route (SP-1.4) lands here in its own ticket.
+ * `POST /admin/docs` is the index write path (SP-1.4, #222, `admin-docs.ts`): upserts and deletes in
+ * one D1 transaction on the primary, with a `modifiedAt` stale-replay guard.
  *
  * The entry module exports only the handler: workerd rejects any other named export.
  */
@@ -29,6 +31,12 @@ export default {
 				return json({ error: { code: "MethodNotAllowed", message: "POST only" } }, 405);
 			}
 			return docsSearch(request, env);
+		}
+		if (url.pathname === ADMIN_DOCS_PATH) {
+			if (request.method !== "POST") {
+				return json({ error: { code: "MethodNotAllowed", message: "POST only" } }, 405);
+			}
+			return adminDocs(request, env);
 		}
 		return json({ error: { code: "NotFound", message: "Not found" } }, 404);
 	}

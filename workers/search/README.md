@@ -101,9 +101,56 @@ npm run search:dev            # http://127.0.0.1:8789/health
 |-------|---------|
 | `GET /health` | 200 when D1 answers and the schema version matches; 503 otherwise (retryable) |
 | `POST /indexes/{index}/docs/search` | Azure AI Search docs/search over D1 FTS5 (SP-1.9) |
+| `POST /admin/docs` | Index write path: upserts and deletes in one transaction (SP-1.4, below) |
 
-`GET /health` also returns `servedByRegion` / `servedByPrimary` (SP-1.2). The admin upsert/delete
-route (SP-1.4) lands here in its own ticket.
+`GET /health` also returns `servedByRegion` / `servedByPrimary` (SP-1.2).
+
+## Write path: `POST /admin/docs` (SP-1.4)
+
+[Api#222](https://github.com/cultpodcasts/Api/issues/222). `src/admin-docs.ts`.
+
+```mermaid
+sequenceDiagram
+  participant I as RPP indexer (SP-2.1)
+  participant A as api Worker
+  participant S as search Worker
+  participant D as D1 primary (WEUR)
+  I->>A: POST /search/admin/docs (Auth0 M2M, curate)
+  A->>S: POST /admin/docs (SEARCH service binding)
+  S->>D: one batch(): deletes, upserts (modified_at guard), subjects
+  D-->>S: RETURNING ids written / deleted
+  S-->>A: 200 { upserted, deleted, stale, notFound }
+  A-->>I: same status and body
+```
+
+- **Body:** `{ "upserts": [doc…], "deletes": ["id"…] }`, at most 100 upserts and 1000 deletes, each
+  id at most once. A doc is the Azure document (`EpisodeSearchRecord` keys, as docs/search
+  returns them) plus `guests`, `publisherSearchTerms`, `episodeSearchTerms` and **`modifiedAt`**
+  (epoch ms of the source change). `contentKind` absent or null means `Episode`. `release` is any
+  ISO-8601 date-time with a zone and is stored as UTC `yyyy-MM-ddTHH:mm:ssZ`. Unknown fields are a
+  400 (a typo such as `guest` would otherwise silently index nothing); the three
+  `[FieldBuilderIgnore]` legacy fields (`podcastName`, `episodeTitle`, `episodeDescription`) are
+  accepted and dropped.
+- **One transaction:** the whole request is one D1 `batch()` on the primary (`writeDb`, never a
+  read session), so a failure writes nothing and returns the fixed retryable **503**. A bad body is
+  **400** before anything is written.
+- **Stale-replay guard:** the upsert is
+  `INSERT … ON CONFLICT(id) DO UPDATE … WHERE excluded.modified_at >= search_docs.modified_at`. An
+  older `modifiedAt` is dropped and listed in `stale`; an equal one applies (a retry). Subjects are
+  rewritten only for upserts the guard let through.
+- **Deletes** are by id; `doc_subjects` cascades and `search_docs_ad` removes the FTS row. Ids the
+  index does not have are listed in `notFound`, not an error. A delete has no tombstone: a stale
+  upsert replayed after a delete re-inserts the document until the weekly reconcile (SP-2.2)
+  removes the orphan.
+- **Batching:** documents bind as one JSON parameter per chunk (D1 allows 100 bound parameters per
+  statement, and a document has 29 columns). Chunks stay under 1 MB of JSON (D1 caps a bound value
+  at 2 MB), so a request is `1 + 3 × chunks` statements.
+- **Auth:** this Worker has no public ingress, so only service-binding holders can call it. The api
+  Worker's `POST /search/admin/docs` (`src/searchAdminDocs.ts`) is the door: it requires an Auth0
+  **M2M** (client_credentials) token with `curate`, the credential the Azure Functions already use
+  for hero curation, and forwards the body and the answer unchanged. No new secret on either
+  Worker.
+- **Log:** each applied request logs `search: admin write` with the four counts.
 
 ## Read replication and the Sessions API (SP-1.2)
 
@@ -120,7 +167,7 @@ EEUR, APAC, OC). D1 only routes a query to a replica when it runs through a **se
 - **No bookmarks from callers.** Search readers never write, and a result a few seconds behind the
   primary is fine for search (Azure indexing is not instant either).
 - **Writes stay on the primary.** D1 always sends writes to the primary; the SP-1.4 admin route
-  should use plain `env.SEARCH_DB` (or a `first-primary` session), not `readSession`.
+  uses `writeDb(env)` (the database itself, no session), never `readSession`.
 - **`GET /health` uses the same path**, so it reports the schema version search actually sees: right
   after a migration a replica can briefly answer with the old version (503). It returns
   `servedByRegion` / `servedByPrimary` in its body and does not write the log line below.
@@ -210,4 +257,4 @@ SEARCH_DEMO_URL=http://127.0.0.1:8789 SEARCH_API_KEY=unused node search-demo/har
 
 The harness still needs the other env names its README lists: production Azure (read-only) for
 the comparison side, and a D1 token for its difference explanations. The local database starts
-empty: load documents with the admin route once SP-1.4 lands.
+empty: load documents with `POST /admin/docs` (SP-1.4, above).
