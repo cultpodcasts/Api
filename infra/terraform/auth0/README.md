@@ -84,9 +84,24 @@ Every resource is `prevent_destroy`, and the plan guard (`scripts/plan-guard.mjs
 refuses any delete or replace of `auth0_*` permission, role, client, credentials or grant
 resources (prevent_destroy cannot help once a block is deleted). Replacing the client would issue
 a new client id and secret and break the writer. Creates are allowed: that is the first apply and
-a rebuild from scratch. There is no destroy path in the workflow. Retiring something is a reviewed
-change with a `removed { lifecycle { destroy = false } }` block (forget, then delete in the
-dashboard), removed again after use, as #275 did for the search stack.
+a rebuild from scratch. There is no destroy path in the workflow.
+
+A routine retire is a reviewed PR with a `removed { lifecycle { destroy = false } }` block (the
+resource leaves state; nothing in Auth0 changes), removed again after use, as #275 did for the
+search stack. Destroying a protected resource is an exceptional, reviewed operation outside CI,
+as for the search stack (see [`../README.md`](../README.md), Deletion protection).
+
+### Drift: a client or grant that left state
+
+The guard prints a `::warning` for every create of `auth0_client` or `auth0_client_grant`. On the
+first apply or a rebuild that is expected. On an established tenant it means the resource left
+this workspace's state (a state restore, a wrong workspace). If the client left, the apply makes
+a **second** `search-index-writer` app and grant. Nothing breaks: the original app, its grant and
+the writer's credentials keep working, and the new app is unused. If only the grant left, its
+create fails loudly at apply (Auth0 allows one grant per client and API) and nothing changes. To clean up, a reviewed PR either
+adopts the original with a one-off `import` block (removed after use, as in #275) before the
+apply, or, if the duplicate was already made, forgets it with a `removed` block and retires it as
+above.
 
 ### Rebuild from scratch
 

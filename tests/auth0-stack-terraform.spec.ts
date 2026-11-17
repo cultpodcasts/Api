@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-ignore - plain .mjs CLI helpers
-import { AUTH0_PROTECTED_RESOURCE_TYPES, findForbiddenChanges, findForgets, parseArgs, STACKS } from "../infra/terraform/scripts/plan-guard.mjs";
+import { AUTH0_PROTECTED_RESOURCE_TYPES, findCreates, findForbiddenChanges, findForgets, parseArgs, STACKS } from "../infra/terraform/scripts/plan-guard.mjs";
 // @ts-ignore - plain .mjs CLI helpers
 import { AUTH0_PREVIEW_PLAN_MARKER, PLAN_MARKER, PREVIEW_PLAN_MARKER } from "../infra/terraform/scripts/sticky-plan-comment.mjs";
 // @ts-ignore - plain .mjs CLI helpers
@@ -89,6 +89,16 @@ describe("plan guard, --stack=auth0", () => {
 		expect(findForgets(p, auth0.protectedTypes)).toEqual(["auth0_role.old"]);
 	});
 
+	it("lists creates of the warned types only", () => {
+		const p = plan(
+			{ type: "auth0_client", actions: ["create"] },
+			{ type: "auth0_role", actions: ["create"] },
+			{ type: "auth0_client_grant", actions: ["update"] }
+		);
+		expect(findCreates(p, auth0.createWarnedTypes)).toEqual(["module.search_index_writer.auth0_client.this"]);
+		expect(STACKS.search.createWarnedTypes).toBeUndefined();
+	});
+
 	it("the search profile is unchanged: Auth0 types are not its concern, D1 create still guarded", () => {
 		expect(findForbiddenChanges(plan({ type: "auth0_client", actions: ["delete"] }))).toEqual([]);
 		expect(findForbiddenChanges(plan({ type: "cloudflare_d1_database", actions: ["create"] }))).toHaveLength(1);
@@ -112,7 +122,12 @@ describe("plan guard, --stack=auth0", () => {
 		const refused = run(replace, "--stack=auth0");
 		expect(refused.status).toBe(1);
 		expect(refused.stderr).toMatch(/REPLACED[\s\S]*Auth0/);
-		expect(run(create, "--stack=auth0").status).toBe(0);
+		const created = run(create, "--stack=auth0");
+		expect(created.status).toBe(0);
+		// A client or grant create is allowed but annotated: on an established tenant it means drift.
+		const warnings = created.stdout.split("\n").filter((l) => l.startsWith("::warning") && l.includes("will be CREATED"));
+		expect(warnings).toHaveLength(2);
+		expect(warnings.join("\n")).toMatch(/auth0_client\.this[\s\S]*auth0_client_grant\.this/);
 		// Without --stack the search profile runs, which does not protect Auth0 types.
 		expect(run(replace).status).toBe(0);
 		expect(run(create, "--stack=bogus").status).toBe(2);

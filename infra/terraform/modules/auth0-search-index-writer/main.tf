@@ -57,10 +57,6 @@ resource "auth0_client" "search_index_writer" {
   is_first_party  = true
   oidc_conformant = true
 
-  jwt_configuration {
-    alg = "RS256"
-  }
-
   lifecycle {
     prevent_destroy = true
   }

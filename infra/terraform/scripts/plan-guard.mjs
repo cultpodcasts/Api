@@ -2,7 +2,8 @@
 /**
  * Terraform plan guard (SP-1.10 cultpodcasts/Api#270, Worker shells SP-1.11 #273).
  *
- * Reads `terraform show -json <planfile>` for one search stack and fails when the plan would:
+ * Reads `terraform show -json <planfile>` for one stack (search by default, or `--stack=auth0`) and
+ * fails when the plan would (search profile):
  *
  * - DELETE or REPLACE a protected resource (`cloudflare_d1_database`, `cloudflare_worker`).
  *   Backs up `prevent_destroy`, which cannot help once the resource block is removed from the
@@ -28,7 +29,10 @@
  * permission, the Search Indexer role and its permission, the writer's M2M client, its credentials
  * and its client grant are never deleted or replaced (replacing the client issues a new client id
  * and secret and breaks the writer). Creating them is allowed: that is the first apply and a
- * rebuild from scratch, and nothing holding data is lost. `--allow-d1-create` is search-only.
+ * rebuild from scratch, and nothing holding data is lost. A create of the client or its grant is
+ * still reported as a warning: on an established tenant it means the client left state, and the
+ * apply makes a second, unused app (the old one and its credentials keep working).
+ * `--allow-d1-create` is search-only.
  *
  * Usage: node plan-guard.mjs <plan.json> [--stack=search|auth0] [--allow-d1-create]
  * Exit 0 = safe, 1 = forbidden change found, 2 = unreadable plan or bad arguments.
@@ -58,7 +62,11 @@ export const AUTH0_PROTECTED_RESOURCE_TYPES = Object.freeze([
 /** What each stack's guard protects, selected with `--stack=<name>` (default `search`). */
 export const STACKS = Object.freeze({
 	search: Object.freeze({ protectedTypes: PROTECTED_RESOURCE_TYPES, createGuardedTypes: CREATE_GUARDED_TYPES }),
-	auth0: Object.freeze({ protectedTypes: AUTH0_PROTECTED_RESOURCE_TYPES, createGuardedTypes: Object.freeze([]) })
+	auth0: Object.freeze({
+		protectedTypes: AUTH0_PROTECTED_RESOURCE_TYPES,
+		createGuardedTypes: Object.freeze([]),
+		createWarnedTypes: Object.freeze(["auth0_client", "auth0_client_grant"])
+	})
 });
 
 /** CLI flag that allows creating D1 databases. */
@@ -119,6 +127,14 @@ export function findForgets(plan, protectedTypes = PROTECTED_RESOURCE_TYPES) {
 		.map((rc) => rc.address);
 }
 
+/** Addresses of resources of the given types the plan CREATES (allowed, but shown). */
+export function findCreates(plan, types) {
+	assertPlan(plan);
+	return resourceChanges(plan)
+		.filter((rc) => types.includes(rc.type) && (rc?.change?.actions ?? []).includes("create"))
+		.map((rc) => rc.address);
+}
+
 /** Plain-text summary of every planned action, for logs and the PR comment. */
 export function summarisePlan(plan) {
 	const lines = resourceChanges(plan)
@@ -173,7 +189,7 @@ function main(argv) {
 		console.error(`usage: plan-guard.mjs <plan.json> [${STACK_FLAG}${Object.keys(STACKS).join("|")}] [${ALLOW_D1_CREATE_FLAG}]`);
 		return 2;
 	}
-	const { protectedTypes, createGuardedTypes } = STACKS[stack];
+	const { protectedTypes, createGuardedTypes, createWarnedTypes = [] } = STACKS[stack];
 	let plan;
 	try {
 		plan = JSON.parse(readFileSync(file, "utf8"));
@@ -183,6 +199,12 @@ function main(argv) {
 			console.log(
 				`::warning title=Plan guard::${address} will be FORGOTTEN from this state only (removed block, destroy = false). ` +
 					"Nothing in Cloudflare or Auth0 changes; another workspace must adopt it."
+			);
+		}
+		for (const address of findCreates(plan, createWarnedTypes)) {
+			console.log(
+				`::warning title=Plan guard::${address} will be CREATED. Expected on a first apply or a rebuild; on an established ` +
+					"tenant it means it left state, and the apply makes a second app or grant (see infra/terraform/auth0/README.md, Drift)."
 			);
 		}
 		if (forbidden.length) {
