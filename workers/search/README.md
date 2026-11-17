@@ -21,8 +21,8 @@ Design docs: RedditPodcastPoster `docs/search-platform/` (start at `README.md`).
 - **Service-binding only:** `workers_dev: false`, `preview_urls: false`, no routes.
 - **Preview and production have separate databases** (Jon, 16 Nov 2026), so preview code and
   preview sync never touch the production index. The G2 sync path must therefore feed both.
-- Region: primary in **WEUR** (near Azure Functions / Cosmos). Read replication
-  (`mode: auto`) and Sessions API reads are SP-1.2.
+- Region: primary in **WEUR** (near Azure Functions / Cosmos), read replicas everywhere else
+  through the Sessions API (SP-1.2, below).
 - Not part of Api Workers Builds (one Builds project = one Worker name).
 
 ## Schema
@@ -102,8 +102,58 @@ npm run search:dev            # http://127.0.0.1:8789/health
 | `GET /health` | 200 when D1 answers and the schema version matches; 503 otherwise (retryable) |
 | `POST /indexes/{index}/docs/search` | Azure AI Search docs/search over D1 FTS5 (SP-1.9) |
 
-Sessions API reads (SP-1.2) and the admin upsert/delete route (SP-1.4) land here in their own
-tickets.
+`GET /health` also returns `servedByRegion` / `servedByPrimary` (SP-1.2). The admin upsert/delete
+route (SP-1.4) lands here in its own ticket.
+
+## Read replication and the Sessions API (SP-1.2)
+
+[Api#220](https://github.com/cultpodcasts/Api/issues/220). Both databases have
+`read_replication = { mode = "auto" }` (Terraform module `infra/terraform/modules/search-stack`,
+applied since SP-1.10), so Cloudflare keeps a read replica in each D1 region (ENAM, WNAM, WEUR,
+EEUR, APAC, OC). D1 only routes a query to a replica when it runs through a **session**, so:
+
+- **Every read goes through `readSession(env)`** (`src/d1-session.ts`):
+  `env.SEARCH_DB.withSession("first-unconstrained")`, one session per request. The first query
+  may go to the nearest replica; the rest of the request (the page/count/facet batch and then the
+  page's subject lookup) sees a database at least as new as the first query (never older, as two
+  independent reads on different replicas could). A test fails if any Worker source calls `SEARCH_DB.prepare` / `batch` directly.
+- **No bookmarks from callers.** Search readers never write, and a result a few seconds behind the
+  primary is fine for search (Azure indexing is not instant either).
+- **Writes stay on the primary.** D1 always sends writes to the primary; the SP-1.4 admin route
+  should use plain `env.SEARCH_DB` (or a `first-primary` session), not `readSession`.
+- **`GET /health` uses the same path**, so it reports the schema version search actually sees: right
+  after a migration a replica can briefly answer with the old version (503). It returns
+  `servedByRegion` / `servedByPrimary` in its body and does not write the log line below.
+
+```mermaid
+flowchart LR
+  api[api Worker] -- SEARCH service binding --> s[search Worker]
+  s -- "withSession('first-unconstrained')" --> r{nearest D1 instance}
+  r --> rep[(replica: ENAM / WNAM / EEUR / APAC / OC)]
+  r --> pri[(primary: WEUR)]
+  w[SP-1.4 admin writes] --> pri
+  pri -. async replication .-> rep
+```
+
+### `served_by_region` log (soak)
+
+Each successful `docs/search` request logs one line, `search: d1 read`, from the D1 result `meta`:
+
+| Field | Meaning |
+|-------|---------|
+| `route` | `docs/search` |
+| `environment` | `production` / `preview` / `local` |
+| `servedByRegion` | Distinct `served_by_region` values in query order (`"ENAM"`, or `"ENAM,WEUR"` if a request spanned two) |
+| `servedByPrimary` | `true` only when every query ran on the primary |
+| `servedByColo` | Distinct `served_by_colo` values |
+| `sqlDurationMs` | Sum of `timings.sql_duration_ms` (execution only, no network) |
+| `queries` | D1 results read |
+
+Fields D1 does not return (local Miniflare) are `null`. Failed requests log only the existing
+`search: D1 failure` line. Query in Workers Observability with `message = "search: d1 read"`,
+grouped by `servedByRegion`; the SP-3.2 soak dashboard charts it. The line is unsampled; if volume
+ever matters, set `observability.head_sampling_rate` in `wrangler.search.jsonc`. Whether to keep it
+after cutover is for SP-3.2 to decide.
 
 ## Query engine (SP-1.9)
 
@@ -141,10 +191,11 @@ over a service binding.
 - **FTS5 nesting:** the translator keeps runs of one operator flat and parenthesises only operator
   changes, so long queries stay well inside the FTS5 parser's ~96-level stack.
 - **Not yet:** bm25 column weights and title/AKA phrase-first ranking (SP-1.8), the `id`
-  tie-break (SP-1.7), Sessions API (SP-1.2).
+  tie-break (SP-1.7).
 
 Tests: `tests/search-query-engine.spec.ts` (translator, OData, response shape, and the route over
-the migrated schema in `node:sqlite`).
+the migrated schema in `node:sqlite`); `tests/search-d1-session.spec.ts` (Sessions API read path,
+`served_by_region` log, read replication on in Terraform).
 
 ### Running the parity harness locally
 

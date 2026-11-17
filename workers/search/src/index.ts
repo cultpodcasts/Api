@@ -8,8 +8,9 @@ import { health, json } from "./health";
  * Owns the dedicated search D1 database. Reachable only over a service binding from the
  * api Worker (SP-1.3): `workers_dev` and preview URLs are off and there are no routes.
  * Routes: `GET /health`, and `POST /indexes/{index}/docs/search`, the Azure-shaped query engine
- * ported from `search-demo/` (SP-1.9, cultpodcasts/Api#269). Sessions API reads (SP-1.2) and
- * the admin upsert/delete route (SP-1.4) land here in their own tickets.
+ * ported from `search-demo/` (SP-1.9, cultpodcasts/Api#269). Every read goes through a D1
+ * Sessions API read session so read replicas can serve it (SP-1.2, #220, `d1-session.ts`).
+ * The admin upsert/delete route (SP-1.4) lands here in its own ticket.
  *
  * The entry module exports only the handler: workerd rejects any other named export.
  */

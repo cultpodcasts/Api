@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import searchWorker from "../workers/search/src/index";
 import { d1, migratedSearchDb, searchMigrationFiles, searchMigrationsDir } from "./support/searchD1";
 import { SEARCH_SCHEMA_VERSION } from "../workers/search/src/health";
@@ -58,6 +58,9 @@ const migratedDb = migratedSearchDb;
 const failingD1 = {
 	prepare() {
 		throw new Error("D1_ERROR: no such table: search_meta");
+	},
+	withSession() {
+		return this;
 	}
 } as unknown as D1Database;
 
@@ -335,6 +338,13 @@ describe("search D1 schema (workers/search/migrations)", () => {
 });
 
 describe("search Worker", () => {
+	// Silence the per-request "search: d1 read" line (SP-1.2); search-d1-session.spec.ts asserts it.
+	let quiet: MockInstance;
+	beforeEach(() => {
+		quiet = vi.spyOn(console, "log").mockImplementation(() => {});
+	});
+	afterEach(() => quiet.mockRestore());
+
 	const call = (env: SearchEnv, path: string, method = "GET") =>
 		searchWorker.fetch(new Request(`https://search.internal${path}`, { method }), env);
 
@@ -347,7 +357,10 @@ describe("search Worker", () => {
 			worker: "search",
 			environment: "preview",
 			schemaVersion: SEARCH_SCHEMA_VERSION,
-			expectedSchemaVersion: SEARCH_SCHEMA_VERSION
+			expectedSchemaVersion: SEARCH_SCHEMA_VERSION,
+			// The test adapter's results carry no D1 meta; see search-d1-session.spec.ts.
+			servedByRegion: null,
+			servedByPrimary: null
 		});
 	});
 
