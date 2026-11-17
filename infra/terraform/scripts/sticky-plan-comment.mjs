@@ -17,6 +17,8 @@ import { fileURLToPath } from "node:url";
 
 export const PLAN_MARKER = "<!-- terraform-search-d1-plan -->";
 export const PREVIEW_PLAN_MARKER = "<!-- terraform-search-preview-plan -->";
+/** Auth0 staging-tenant plan (auth0-stack.yml, cultpodcasts/Api#284). */
+export const AUTH0_PREVIEW_PLAN_MARKER = "<!-- terraform-auth0-preview-plan -->";
 export const WORKFLOW_AUTHOR = "github-actions[bot]";
 
 /**

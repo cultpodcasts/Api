@@ -24,7 +24,13 @@
  * seen in review (the SP-1.11 state split, #273, used one to move the preview database out of
  * production state; those one-time blocks were removed in #275).
  *
- * Usage: node plan-guard.mjs <plan.json> [--allow-d1-create]
+ * `--stack=auth0` (cultpodcasts/Api#284) guards the Auth0 stacks instead: the `write:search-index`
+ * permission, the Search Indexer role and its permission, the writer's M2M client, its credentials
+ * and its client grant are never deleted or replaced (replacing the client issues a new client id
+ * and secret and breaks the writer). Creating them is allowed: that is the first apply and a
+ * rebuild from scratch, and nothing holding data is lost. `--allow-d1-create` is search-only.
+ *
+ * Usage: node plan-guard.mjs <plan.json> [--stack=search|auth0] [--allow-d1-create]
  * Exit 0 = safe, 1 = forbidden change found, 2 = unreadable plan or bad arguments.
  */
 import { readFileSync } from "node:fs";
@@ -36,8 +42,30 @@ export const PROTECTED_RESOURCE_TYPES = Object.freeze(["cloudflare_d1_database",
 /** Protected types whose CREATE needs `allowD1Create` (data lives in them). */
 export const CREATE_GUARDED_TYPES = Object.freeze(["cloudflare_d1_database"]);
 
+/** Auth0 stack resources that must never be deleted or replaced by an automated apply (#284). */
+export const AUTH0_PROTECTED_RESOURCE_TYPES = Object.freeze([
+	"auth0_resource_server",
+	"auth0_resource_server_scope",
+	"auth0_resource_server_scopes",
+	"auth0_role",
+	"auth0_role_permission",
+	"auth0_role_permissions",
+	"auth0_client",
+	"auth0_client_credentials",
+	"auth0_client_grant"
+]);
+
+/** What each stack's guard protects, selected with `--stack=<name>` (default `search`). */
+export const STACKS = Object.freeze({
+	search: Object.freeze({ protectedTypes: PROTECTED_RESOURCE_TYPES, createGuardedTypes: CREATE_GUARDED_TYPES }),
+	auth0: Object.freeze({ protectedTypes: AUTH0_PROTECTED_RESOURCE_TYPES, createGuardedTypes: Object.freeze([]) })
+});
+
 /** CLI flag that allows creating D1 databases. */
 export const ALLOW_D1_CREATE_FLAG = "--allow-d1-create";
+
+/** CLI flag prefix that selects the stack profile. */
+export const STACK_FLAG = "--stack=";
 
 /**
  * @param {any} plan Parsed `terraform show -json` output.
@@ -115,49 +143,65 @@ function resourceChanges(plan) {
 }
 
 function describe(type) {
-	return type === "cloudflare_d1_database" ? "a D1 database (its data)" : "the Worker shell (its deployed code)";
+	if (type === "cloudflare_d1_database") return "a D1 database (its data)";
+	if (type === "cloudflare_worker") return "the Worker shell (its deployed code)";
+	if (type === "auth0_client" || type === "auth0_client_credentials") {
+		return "the M2M client (a new client id/secret breaks its caller)";
+	}
+	return "the Auth0 permission, role or grant (access drops until it is recreated)";
 }
 
-/** @returns {{ file?: string, allowD1Create: boolean, unknown: string[] }} */
+/** @returns {{ file?: string, stack: string, allowD1Create: boolean, unknown: string[] }} */
 export function parseArgs(args) {
 	const flags = args.filter((a) => a.startsWith("--"));
-	return {
-		file: args.find((a) => !a.startsWith("--")),
-		allowD1Create: flags.includes(ALLOW_D1_CREATE_FLAG),
-		unknown: flags.filter((f) => f !== ALLOW_D1_CREATE_FLAG)
-	};
+	const stackFlags = flags.filter((f) => f.startsWith(STACK_FLAG));
+	const stack = stackFlags.length === 1 ? stackFlags[0].slice(STACK_FLAG.length) : "search";
+	const allowD1Create = flags.includes(ALLOW_D1_CREATE_FLAG);
+	const unknown = flags.filter((f) => f !== ALLOW_D1_CREATE_FLAG && !f.startsWith(STACK_FLAG));
+	if (stackFlags.length > 1) unknown.push(...stackFlags);
+	else if (!Object.hasOwn(STACKS, stack)) unknown.push(stackFlags[0]);
+	// D1 creates only mean something for the search stack; never let the flag look like it widened another guard.
+	if (allowD1Create && stack !== "search") unknown.push(ALLOW_D1_CREATE_FLAG);
+	return { file: args.find((a) => !a.startsWith("--")), stack, allowD1Create, unknown };
 }
 
 function main(argv) {
-	const { file, allowD1Create, unknown } = parseArgs(argv.slice(2));
+	const { file, stack, allowD1Create, unknown } = parseArgs(argv.slice(2));
 	if (!file || unknown.length) {
 		// An unknown flag (e.g. the old --allow-create) must not silently mean "no create allowed".
-		if (unknown.length) console.error(`::error::plan guard: unknown flag(s) ${unknown.join(" ")}`);
-		console.error(`usage: plan-guard.mjs <plan.json> [${ALLOW_D1_CREATE_FLAG}]`);
+		if (unknown.length) console.error(`::error::plan guard: unknown or invalid flag(s) ${unknown.join(" ")}`);
+		console.error(`usage: plan-guard.mjs <plan.json> [${STACK_FLAG}${Object.keys(STACKS).join("|")}] [${ALLOW_D1_CREATE_FLAG}]`);
 		return 2;
 	}
+	const { protectedTypes, createGuardedTypes } = STACKS[stack];
 	let plan;
 	try {
 		plan = JSON.parse(readFileSync(file, "utf8"));
-		const forbidden = findForbiddenChanges(plan, { allowD1Create });
+		const forbidden = findForbiddenChanges(plan, { allowD1Create, protectedTypes, createGuardedTypes });
 		console.log("Planned changes:\n" + summarisePlan(plan));
-		for (const address of findForgets(plan)) {
+		for (const address of findForgets(plan, protectedTypes)) {
 			console.log(
 				`::warning title=Plan guard::${address} will be FORGOTTEN from this state only (removed block, destroy = false). ` +
-					"Nothing in Cloudflare changes; another workspace must adopt it."
+					"Nothing in Cloudflare or Auth0 changes; another workspace must adopt it."
 			);
 		}
 		if (forbidden.length) {
 			for (const f of forbidden) console.error(`::error::${f.address} ${f.reason}`);
 			console.error(
-				"Plan guard: refusing. Search D1 databases and Worker shells are never destroyed or replaced by Terraform, " +
-					"and a production D1 database is created only by an explicit allow_d1_create run. " +
-					"If this is truly intended, it is a manual, reviewed operation outside CI (see infra/terraform/README.md)."
+				stack === "auth0"
+					? "Plan guard: refusing. The Auth0 search-index permission, role, M2M client, credentials and grant are " +
+							"never destroyed or replaced by Terraform. If this is truly intended, it is a manual, reviewed operation " +
+							"outside CI (see infra/terraform/README.md)."
+					: "Plan guard: refusing. Search D1 databases and Worker shells are never destroyed or replaced by Terraform, " +
+							"and a production D1 database is created only by an explicit allow_d1_create run. " +
+							"If this is truly intended, it is a manual, reviewed operation outside CI (see infra/terraform/README.md)."
 			);
 			return 1;
 		}
 		console.log(
-			`Plan guard: no destroy or replace of protected resources${allowD1Create ? " (D1 create allowed for this run)" : ", and no D1 create"}.`
+			stack === "auth0"
+				? "Plan guard (auth0): no destroy or replace of protected Auth0 resources."
+				: `Plan guard: no destroy or replace of protected resources${allowD1Create ? " (D1 create allowed for this run)" : ", and no D1 create"}.`
 		);
 		return 0;
 	} catch (e) {

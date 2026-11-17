@@ -44,6 +44,10 @@ on:
   pull_request:
     paths:
       - "infra/terraform/**"
+      # The Auth0 stacks have their own workflow (auth0-stack.yml, #284): an Auth0-only change must
+      # not redeploy search-preview or queue a cloudflare-production search approval.
+      - "!infra/terraform/auth0/**"
+      - "!infra/terraform/modules/auth0-search-index-writer/**"
       - "workers/search/**"
       - "wrangler.search.jsonc"
       - ".github/workflows/search-stack.yml"
@@ -59,6 +63,10 @@ on:
       - main
     paths:
       - "infra/terraform/**"
+      # The Auth0 stacks have their own workflow (auth0-stack.yml, #284): an Auth0-only change must
+      # not redeploy search-preview or queue a cloudflare-production search approval.
+      - "!infra/terraform/auth0/**"
+      - "!infra/terraform/modules/auth0-search-index-writer/**"
       - "workers/search/**"
       - "wrangler.search.jsonc"
       - ".github/workflows/search-stack.yml"
