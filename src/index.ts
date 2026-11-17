@@ -77,6 +77,7 @@ import {
 	RunSearchIndexerRoute,
 	SearchRoute,
 	SearchAdminDocsRoute,
+	SearchAdminInventoryRoute,
 	SubmitDiscoveryRoute,
 	SubmitDiscoveryOutcomeRoute,
 	GetDiscoveryCurationSessionRoute,
@@ -387,6 +388,7 @@ openapi.post('/person', CreatePersonRoute);
 openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
 openapi.post('/search/admin/docs', SearchAdminDocsRoute);
+openapi.get('/search/admin/docs/inventory', SearchAdminInventoryRoute);
 openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit/prepare', SubmitPrepareRoute);
 openapi.post('/submit', SubmitRoute);
