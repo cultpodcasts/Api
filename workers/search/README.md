@@ -272,8 +272,9 @@ over a service binding.
 - **Deterministic order (SP-1.7):** every page order ends in `id`, so same-second (or same-score)
   ties never shuffle between requests and `skip` paging never repeats or drops a row.
   `release desc` (and browsing) is `release DESC, id ASC`, the order of `idx_search_docs_release`;
-  `release asc` is its exact reverse (`release ASC, id DESC`); relevance is the SP-1.8 tier, then weighted bm25, then `id ASC`. Azure
-  breaks these ties arbitrarily, so a tie group can still be ordered differently there (same rows).
+  `release asc` is its exact reverse (`release ASC, id DESC`); relevance is the SP-1.8 tier, then
+  weighted bm25, then `id ASC`. Azure breaks these ties arbitrarily, so a tie group can still be
+  ordered differently there (same rows).
   Facet buckets end the same way: `count DESC, value ASC`, so a `count:` cut that lands inside a
   tie returns the same buckets every time.
 - **Relevance ranking (SP-1.8, `src/ranking.ts`):** a relevance page is ordered by a title/AKA

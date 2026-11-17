@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import searchWorker from "../workers/search/src/index";
 import { orderBy } from "../workers/search/src/docs-search";
-import { rankingSql } from "../workers/search/src/ranking";
+import { rankingSql, TIER_SCORE_STEP } from "../workers/search/src/ranking";
 import { d1, migratedSearchDb, upsertSearchDoc } from "./support/searchD1";
 
 /** SP-1.7 (cultpodcasts/Api#224): deterministic secondary sort by id on release and rank pages. */
@@ -140,18 +140,24 @@ describe("deterministic secondary sort by id (SP-1.7)", () => {
 	);
 
 	it.each([
-		["tier 0 (exact title)", "cult tapes", "Cult tapes"],
-		["tier 1 (title contains the phrase)", "cult tapes", "The cult tapes vol"],
-		["tier 2 (phrase only in the description)", "cult tapes", null],
-		["tier 3 (scattered words)", "cult tapes", null],
-		["a quoted phrase (not tiered)", '"cult tapes"', "Cult tapes"],
-		["a single word", "cult", "Cult tapes"]
-	] as const)("ranked ties inside %s come back by id ascending, on every page size", async (_name, search, title) => {
+		["tier 0 (exact title)", "cult tapes", "Cult tapes", "the cult tapes", 0],
+		["tier 1 (title contains the phrase)", "cult tapes", "The cult tapes vol", "the cult tapes", 1],
+		["tier 2 (phrase only in the description)", "cult tapes", "Episode", "the cult tapes", 2],
+		["tier 3 (scattered words)", "cult tapes", "Episode", "tapes of a cult", 3],
+		["a quoted phrase (not tiered, so tier 3)", '"cult tapes"', "Cult tapes", "the cult tapes", 3],
+		["a single word (tier 0: exact title)", "cult", "Cult", "the cult tapes", 0]
+	] as const)("ranked ties inside %s come back by id ascending, on every page size", async (_name, search, title, description, tier) => {
 		const db = migratedSearchDb();
-		const description = _name.startsWith("tier 3") ? "tapes of a cult" : "the cult tapes";
-		for (const id of TIED) upsertSearchDoc(db, { id, title: title ?? "Episode", description, release: SAME_SECOND });
+		for (const id of TIED) upsertSearchDoc(db, { id, title, description, release: SAME_SECOND });
 		const env = { SEARCH_DB: d1(db) };
-		const whole = await page(env, { search });
+		const resp = await searchWorker.fetch(
+			new Request("https://search.internal/indexes/cultpodcasts/docs/search", { method: "POST", body: JSON.stringify({ search }) }),
+			env
+		);
+		const hits = ((await resp.json()) as { value: { id: string; "@search.score": number }[] }).value;
+		// @search.score is (3 - tier) * TIER_SCORE_STEP - bm25, so the tier is its thousands band.
+		expect(hits.map((h) => 3 - Math.floor(h["@search.score"] / TIER_SCORE_STEP))).toEqual(TIED.map(() => tier));
+		const whole = hits.map((h) => h.id);
 		expect(whole).toEqual(sorted);
 		for (const size of [1, 2, 4]) expect(await allPages(env, { search }, size)).toEqual(whole);
 	});
