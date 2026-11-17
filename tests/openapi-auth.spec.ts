@@ -68,11 +68,11 @@ describe("OpenAPI auth and response contracts", () => {
 		expect(JSON.stringify(attach.responses?.["202"]?.content?.["application/json"])).toMatch(/"filmCreated"/);
 	});
 
-	it("documents POST /search/admin/docs as an M2M curate command with the search Worker's envelopes (SP-1.4)", () => {
+	it("documents POST /search/admin/docs as an M2M write:search-index command with the search Worker's envelopes (SP-1.4)", () => {
 		const admin = operation(doc, "/search/admin/docs", "post");
 		expect(admin.security).toEqual([{ bearerAuth: [] }]);
-		expect(admin.description).toMatch(/M2M \(client_credentials\) token with `curate`/);
-		expect(admin.responses?.["403"]?.description).toMatch(/`curate`/);
+		expect(admin.description).toMatch(/M2M \(client_credentials\) token with `write:search-index`/);
+		expect(admin.responses?.["403"]?.description).toBe("Forbidden — authenticated without `write:search-index`");
 		const schema = (status: string) => JSON.stringify(admin.responses?.[status]?.content?.["application/json"]);
 		for (const key of ["upserted", "deleted", "stale", "notFound"]) expect(schema("200")).toContain(`"${key}"`);
 		for (const status of ["400", "503"]) {

@@ -18,7 +18,7 @@ import { json } from "./health";
  * **Auth.** The search Worker has no public ingress (`workers_dev` and preview URLs off, no
  * routes; wrangler.search.jsonc), so only Workers holding its service binding can call this route.
  * The api Worker's `POST /search/admin/docs` is the only caller: it requires an Auth0 M2M token
- * with `curate` and forwards the body here (`src/searchAdminDocs.ts`).
+ * with `write:search-index` and forwards the body here (`src/searchAdminDocs.ts`).
  *
  * Response (a command outcome, CQRS): `200 { upserted, deleted, stale: [id], notFound: [id] }`.
  * A bad body is 400 (nothing written); a D1 failure is 503 (nothing written, safe to retry).

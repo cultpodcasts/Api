@@ -115,7 +115,7 @@ sequenceDiagram
   participant A as api Worker
   participant S as search Worker
   participant D as D1 primary (WEUR)
-  I->>A: POST /search/admin/docs (Auth0 M2M, curate)
+  I->>A: POST /search/admin/docs (Auth0 M2M, write:search-index)
   A->>S: POST /admin/docs (SEARCH service binding)
   S->>D: one batch(): deletes, upserts (modified_at guard), subjects
   D-->>S: RETURNING ids written / deleted
@@ -153,10 +153,33 @@ sequenceDiagram
   at 2 MB), so a request is `1 + 3 × chunks` statements.
 - **Auth:** this Worker has no public ingress, so only service-binding holders can call it. The api
   Worker's `POST /search/admin/docs` (`src/searchAdminDocs.ts`) is the door: it requires an Auth0
-  **M2M** (client_credentials) token with `curate`, the credential the Azure Functions already use
-  for hero curation, and forwards the body and the answer unchanged. No new secret on either
-  Worker.
+  **M2M** (client_credentials) token carrying the dedicated **`write:search-index`** permission
+  (`src/searchIndexWritePermission.ts`, read from `scope` or `permissions`), and forwards the body
+  and the answer unchanged. That permission is the only one that opens the route; no other
+  permission is checked. A missing or invalid token is 401; a token without the permission, or a
+  person's (non-client_credentials) token even with it, is 403. No new secret on either Worker:
+  the api Worker already verifies Auth0 tokens with `auth0Issuer` / `auth0Audience`.
 - **Log:** each applied request logs `search: admin write` with the four counts.
+
+### Auth0 setup for the write path
+
+Done once in the Auth0 dashboard, before the indexer (SP-2.1) calls the route. Nothing in this
+repo or in Terraform creates these; the Worker only checks the permission.
+
+1. **Permission:** Applications → APIs → the Api (identifier `https://api.cultpodcasts.com/`) →
+   **Permissions** → add `write:search-index` (description: "Write the D1 search index").
+   If the preview api Worker's `auth0Audience` secret names a different API, repeat steps 1–3
+   there too.
+2. **Role:** User Management → Roles → create **Search Indexer** and give it `write:search-index`
+   (Permissions tab → Add Permissions → the Api). This keeps the permission named in one
+   place. Do not assign the role to people: the route refuses non-M2M tokens anyway.
+3. **Grant to the M2M application:** Applications → APIs → the Api → **Machine to Machine
+   Applications** → the indexer's application (a new one, or the one SP-2.1 will use) →
+   authorise it if needed and tick **only** `write:search-index`. Auth0 issues client_credentials
+   tokens from this client grant, so this tick is what puts `write:search-index` in the token's
+   `scope`; roles are not assigned to applications.
+4. **Check:** request a token with `client_credentials` for the Api audience and confirm `scope`
+   contains `write:search-index` and `gty` is `client_credentials`. A token without it gets 403.
 
 ## Read replication and the Sessions API (SP-1.2)
 

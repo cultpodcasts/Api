@@ -9,6 +9,7 @@ import {
 	bookmarkAuth,
 	createOpenApiRoute,
 	curateAuth,
+	searchIndexWriteAuth,
 	curateOrAdminAuth,
 	curatePermissionsClaimAuth,
 	discoverySubmissionViewAuth,
@@ -742,12 +743,12 @@ export const SearchRoute = createOpenApiRoute(search, {
 });
 
 export const SearchAdminDocsRoute = createOpenApiRoute(searchAdminDocs, {
-    auth: curateAuth,
+    auth: searchIndexWriteAuth,
     schema: {
         tags: ["Search"],
         summary: "Write documents to the D1 search index",
         description:
-            "SP-1.4. Server-to-server only: an Auth0 M2M (client_credentials) token with `curate`; a person's token is 403. " +
+            "SP-1.4. Server-to-server only: an Auth0 M2M (client_credentials) token with `write:search-index`, the search-index writer's own permission; a person's token is 403 even with it. " +
             "Upserts and deletes are applied in one D1 transaction by the search Worker (service binding). " +
             "An upsert whose `modifiedAt` is older than the stored document is dropped and listed in `stale`; an equal one applies (safe replay). " +
             "Not the live search index yet: Azure AI Search stays the default until cutover (SP-4.x).",
