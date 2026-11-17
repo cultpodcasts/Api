@@ -97,13 +97,21 @@ export function normalizeTitle(text: string): string {
 		.join("\n");
 }
 
-const sqlString = (s: string) => `'${s.replaceAll("'", "''")}'`;
+/**
+ * One character as `char(code)`: no quoting, and no `;` inside a string literal in migration 0002
+ * (wrangler splits migration files into statements).
+ */
+const sqlChar = (c: string) => `char(${c.codePointAt(0)})`;
 
-/** SQL twin of {@link normalizeTitle} over a column (newlines kept: AKAs are one per line). */
+/**
+ * SQL twin of {@link normalizeTitle} over a column (newlines kept: AKAs are one per line). Used only
+ * by migration 0002, which stores `title_norm` / `alternative_titles_norm` on write; reads compare
+ * those columns. Changing it (or {@link normalizeTitle}) needs a new migration.
+ */
 export function normalizedSql(column: string): string {
 	let e = `lower(coalesce(${column}, ''))`;
-	for (const a of APOSTROPHES) e = `replace(${e}, ${sqlString(a)}, '')`;
-	for (const p of SEPARATORS) e = `replace(${e}, ${sqlString(p)}, ' ')`;
+	for (const a of APOSTROPHES) e = `replace(${e}, ${sqlChar(a)}, '')`;
+	for (const p of SEPARATORS) e = `replace(${e}, ${sqlChar(p)}, ' ')`;
 	// Collapse up to 2^5 = 32 spaces in a row, then trim each line.
 	for (let i = 0; i < 5; i++) e = `replace(${e}, '  ', ' ')`;
 	e = `replace(replace(${e}, ' ' || char(10), char(10)), char(10) || ' ', char(10))`;
@@ -149,8 +157,9 @@ export function rankingSql(search: string, config: RankingConfig = DEFAULT_RANKI
 	if (!q) return { select: `3 AS tier, ${bm} AS bm`, binds: [], order };
 
 	const multiWord = q.includes(" ");
-	const title = normalizedSql("d.title");
-	const akas = normalizedSql("d.alternative_titles");
+	// Precomputed by migration 0002's triggers from normalizedSql(), so no per-row normalisation here.
+	const title = "d.title_norm";
+	const akas = "d.alternative_titles_norm";
 	const nl = "char(10)";
 	const whens: string[] = [];
 	const binds: unknown[] = [];

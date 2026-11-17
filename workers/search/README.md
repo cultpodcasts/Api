@@ -203,6 +203,12 @@ over a service binding.
   tier-first and only comparable within one result list (as in Azure). When the api Worker's Azure
   boost reaches D1 (`queryType: full`, `"q"^N OR (q)`), it is unwrapped first so D1 ranks the
   user's own text.
+  The normalised title and AKA forms are stored, not computed per read: migration 0002 adds
+  `title_norm` / `alternative_titles_norm`, backfills them and keeps them in step with insert and
+  update triggers (writers need no change), using `normalizedSql()` verbatim. Normalising per
+  matching row made broad searches 7–14× slower over 60k matches; stored, they cost about the same
+  as plain bm25. Changing `normalizeTitle` needs a new migration that rewrites the triggers and
+  re-runs the backfill.
 - **Ranking harness:** `npm run search:ranking` (`harness/`, never part of `npm test`: it reads the
   public Azure search API) builds a local corpus from Azure's top 50 for each case plus every film,
   then reports top-10 overlap with Azure and whether each exact title/AKA case ranks first, for

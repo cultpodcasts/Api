@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import searchWorker from "../workers/search/src/index";
@@ -11,7 +13,7 @@ import {
 	unwrapAzurePhraseBoost
 } from "../workers/search/src/ranking";
 import { boostUnquotedPhrase } from "../src/boostUnquotedPhrase";
-import { d1, migratedSearchDb, upsertSearchDoc } from "./support/searchD1";
+import { d1, migratedSearchDb, searchMigrationsDir, upsertSearchDoc } from "./support/searchD1";
 
 /** SP-1.8 (cultpodcasts/Api#225): bm25 column weights and unquoted exact title / AKA phrase-first ranking. */
 
@@ -164,6 +166,44 @@ describe("SP-1.8 ranking", () => {
 			expect(normalizeTitle("Father's House")).toBe("fathers house");
 			expect(normalizeTitle("Going Clear: The Prison")).toBe("going clear the prison");
 			expect(normalizeTitle("A\n B ")).toBe("a\nb");
+		});
+	});
+
+	describe("stored title / AKA forms (migration 0002)", () => {
+		const migration = readFileSync(resolve(searchMigrationsDir, "0002_title_norm.sql"), "utf8");
+		const norms = (db: DatabaseSync, id: string) =>
+			db.prepare("SELECT title_norm, alternative_titles_norm FROM search_docs WHERE id = ?").get(id) as {
+				title_norm: string;
+				alternative_titles_norm: string;
+			};
+
+		it("uses normalizedSql() verbatim for the backfill and both triggers", () => {
+			for (const column of ["title", "alternative_titles", "new.title", "new.alternative_titles"]) {
+				expect(migration, column).toContain(normalizedSql(column));
+			}
+			// No `;` inside a string literal: wrangler splits migration files into statements.
+			const literals = migration.replace(/--.*$/gm, "").match(/'(?:[^']|'')*'/g) ?? [];
+			expect(literals.filter((l) => l.includes(";"))).toEqual([]);
+		});
+
+		it("are written on insert, rewritten when the title or AKAs change, and left alone otherwise", () => {
+			const db = migratedSearchDb();
+			upsertSearchDoc(db, { id: "f", title: "Father's House", alternative_titles: "Faderhuset\nThe  House: of the Holy Father" });
+			expect(norms(db, "f")).toEqual({ title_norm: "fathers house", alternative_titles_norm: "faderhuset\nthe house of the holy father" });
+			upsertSearchDoc(db, { id: "f", title: "Fader-huset", alternative_titles: null });
+			expect(norms(db, "f")).toEqual({ title_norm: "fader huset", alternative_titles_norm: "" });
+			db.prepare("UPDATE search_docs SET title_norm = 'kept' WHERE id = 'f'").run();
+			db.prepare("UPDATE search_docs SET description = 'changed', modified_at = 9 WHERE id = 'f'").run();
+			expect(norms(db, "f").title_norm).toBe("kept");
+			expect(() => db.exec("INSERT INTO search_fts(search_fts, rank) VALUES ('integrity-check', 1)")).not.toThrow();
+		});
+
+		it("backfill: rows that existed before 0002 get their forms", () => {
+			const db = new (migratedSearchDb().constructor as typeof DatabaseSync)(":memory:");
+			db.exec(readFileSync(resolve(searchMigrationsDir, "0001_search_schema.sql"), "utf8"));
+			upsertSearchDoc(db, { id: "old", title: "Going Clear: The Prison", alternative_titles: "Going  Clear" });
+			db.exec(migration);
+			expect(norms(db, "old")).toEqual({ title_norm: "going clear the prison", alternative_titles_norm: "going clear" });
 		});
 	});
 
