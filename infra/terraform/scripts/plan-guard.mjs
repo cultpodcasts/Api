@@ -21,7 +21,8 @@
  *
  * `forget` (a `removed { lifecycle { destroy = false } }` block) only drops the resource from
  * this state and never touches Cloudflare; it is allowed and reported as a warning so it is
- * seen in review (the SP-1.11 state split forgets the preview database from production state).
+ * seen in review (the SP-1.11 state split, #273, used one to move the preview database out of
+ * production state; those one-time blocks were removed in #275).
  *
  * Usage: node plan-guard.mjs <plan.json> [--allow-d1-create]
  * Exit 0 = safe, 1 = forbidden change found, 2 = unreadable plan or bad arguments.

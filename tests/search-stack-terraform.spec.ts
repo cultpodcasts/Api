@@ -201,28 +201,27 @@ describe("Terraform config: one module, two stacks", () => {
 	});
 });
 
-describe("state split (#273): the live databases are never destroyed or recreated", () => {
-	it("production moves its database into the module (same object, f3d9b5b2…)", () => {
-		expect(productionTf).toMatch(
-			/moved\s*\{\s*from\s*=\s*cloudflare_d1_database\.search\s*to\s*=\s*module\.search\.cloudflare_d1_database\.this\s*\}/
-		);
+describe("state split (#273) is finished (#275): the roots rebuild from scratch", () => {
+	/** Strip `#` and `//` line comments so prose mentioning a block does not count. */
+	const code = (tf: string) => tf.replace(/^\s*(#|\/\/).*$/gm, "");
+
+	it.each([
+		["production", productionTf],
+		["preview", previewTf]
+	])("%s has no one-time import, moved or removed blocks", (_name, tf) => {
+		// An import of a fixed id fails once that database is gone, so a torn-down stack would not
+		// rebuild; moved/removed blocks only belong in the PR that changes state, then come out.
+		expect(code(tf)).not.toMatch(/^\s*(import|moved|removed)\s*\{/m);
 	});
 
-	it("production forgets (never destroys) the preview database", () => {
-		expect(productionTf).toMatch(
-			/removed\s*\{\s*from\s*=\s*cloudflare_d1_database\.search_preview\s*lifecycle\s*\{\s*destroy\s*=\s*false\s*\}\s*\}/
-		);
+	it("neither root pins the adopted preview database id", () => {
+		expect(allTf).not.toContain("83ae1e81-bf07-4be8-aabf-2d4138959f74");
 	});
 
-	it("preview imports the existing preview database (83ae1e81…) instead of creating one", () => {
-		expect(previewTf).toMatch(
-			/import\s*\{\s*to\s*=\s*module\.search\.cloudflare_d1_database\.this\s*id\s*=\s*"\$\{var\.cloudflare_account_id\}\/83ae1e81-bf07-4be8-aabf-2d4138959f74"/
-		);
-		expect(productionTf).not.toMatch(/import\s*\{/);
-		// One-time blocks: removal is tracked on its own ticket, not the (closing) feature ticket.
-		expect(previewTf).toContain("cultpodcasts/Api#275");
-		expect(productionTf).toContain("cultpodcasts/Api#275");
-		expect(previewTf).not.toMatch(/moved\s*\{|removed\s*\{/);
+	it("both roots still declare the database and Worker shell through the shared module", () => {
+		for (const tf of [productionTf, previewTf]) {
+			expect(tf).toMatch(/module\s+"search"\s*\{[^}]*source\s*=\s*"\.\.\/\.\.\/modules\/search-stack"/);
+		}
 	});
 });
 
