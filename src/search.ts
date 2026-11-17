@@ -6,6 +6,16 @@ import { oDataSearchModel } from "./oDataSearchModel";
 import { boostUnquotedPhraseInSearchRequest } from "./boostUnquotedPhrase";
 import { rewriteLegacyPodcastNameInSearchRequest } from "./rewriteLegacyPodcastNameInSearchRequest";
 import { searchMode } from "./searchMode";
+import {
+	executionCtxOf,
+	parseSearchShadowConfig,
+	runSearchShadow,
+	scheduleSearchShadow,
+	searchShadowUrl,
+	shouldSampleShadow,
+	snapshotSearchResponse,
+	type SearchEngineSnapshot
+} from "./searchShadow";
 
 /** Forward Azure AI Search error statuses: keep 4xx/5xx (incl. 429); other non-200 → 502. */
 export function upstreamSearchErrorStatus(status: number): ContentfulStatusCode {
@@ -89,6 +99,51 @@ function badGateway(c: ActionContext, searchLog: searchLogCollector, message: st
 	return searchError(c, 502, { error: { code: "UpstreamSearchError", message: "Upstream search unavailable" } });
 }
 
+type ShadowRequest = {
+	requestBody: string;
+	query?: string;
+	filter?: string;
+	requestId?: string;
+};
+
+/**
+ * If the soak sampler is on and this request is in the sample, query the D1 search Worker
+ * via the SEARCH binding after the Azure response is already on its way. `waitUntil` keeps
+ * that work off the user-visible path; Azure stays the served result (SP-3.1, #228).
+ */
+function maybeScheduleSearchShadow(
+	c: ActionContext,
+	request: ShadowRequest,
+	azureStarted: number,
+	azureStatus: number | undefined,
+	azureBody: unknown,
+	azureError?: string
+): void {
+	if (!c.env.SEARCH) return;
+	const config = parseSearchShadowConfig(c.env);
+	if (!shouldSampleShadow(config)) return;
+	const azure: SearchEngineSnapshot = snapshotSearchResponse(
+		azureStatus,
+		Date.now() - azureStarted,
+		azureBody,
+		config.topN,
+		azureError
+	);
+	scheduleSearchShadow(
+		executionCtxOf(c),
+		runSearchShadow({
+			fetcher: c.env.SEARCH,
+			url: searchShadowUrl(c.env.apihost),
+			requestBody: request.requestBody,
+			azure,
+			topN: config.topN,
+			requestId: request.requestId,
+			query: request.query,
+			filter: request.filter
+		})
+	);
+}
+
 export async function search(c: ActionContext): Promise<Response> {
 	const leechHandlingActive: boolean = false;
 	let searchLog = new searchLogCollector();
@@ -102,11 +157,16 @@ export async function search(c: ActionContext): Promise<Response> {
 	// rewriters cannot handle. Upstream failures below keep their own status and are never
 	// reported as 400 (SP-1.5, cultpodcasts/Api#223).
 	let requestBody: string;
+	let shadowQuery: string | undefined;
+	let shadowFilter: string | undefined;
 	try {
 		const data: oDataSearchModel = await c.req.json();
 		// Collect inbound body first so logs still see legacy podcastName
 		// (stale-client signal + podcast-mode filter detection).
 		searchLog.collectSearchRequest(data);
+		// Log the inbound query (same text searchLog already records), not the rewritten body.
+		shadowQuery = data.search;
+		shadowFilter = data.filter;
 		rewriteLegacyPodcastNameInSearchRequest(data);
 		boostUnquotedPhraseInSearchRequest(data);
 		requestBody = JSON.stringify(data);
@@ -116,6 +176,13 @@ export async function search(c: ActionContext): Promise<Response> {
 		return searchError(c, 400, { error: "Bad request" });
 	}
 
+	const shadowRequest: ShadowRequest = {
+		requestBody,
+		query: shadowQuery,
+		filter: shadowFilter,
+		requestId: searchLog.requestId
+	};
+	const azureStarted = Date.now();
 	let response: Response;
 	try {
 		response = await fetch(c.env.apihost, {
@@ -135,7 +202,9 @@ export async function search(c: ActionContext): Promise<Response> {
 			method: "POST"
 		});
 	} catch (e) {
-		return badGateway(c, searchLog, e instanceof Error ? e.message : String(e));
+		const message = e instanceof Error ? e.message : String(e);
+		maybeScheduleSearchShadow(c, shadowRequest, azureStarted, undefined, undefined, message);
+		return badGateway(c, searchLog, message);
 	}
 
 	searchLog.add({ searchStatus: response.status });
@@ -146,6 +215,7 @@ export async function search(c: ActionContext): Promise<Response> {
 			unparsed === undefined ? undefined : { message: `search upstream non-JSON error body: ${unparsed}` }
 		);
 		forwardUpstreamErrorHeaders(c, response);
+		maybeScheduleSearchShadow(c, shadowRequest, azureStarted, response.status, errorBody);
 		return searchError(c, upstreamSearchErrorStatus(response.status), errorBody);
 	}
 
@@ -153,13 +223,17 @@ export async function search(c: ActionContext): Promise<Response> {
 	try {
 		body = await response.json();
 	} catch (e) {
-		return badGateway(c, searchLog, `unreadable 200 body: ${e instanceof Error ? e.message : String(e)}`);
+		const message = `unreadable 200 body: ${e instanceof Error ? e.message : String(e)}`;
+		maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, undefined, message);
+		return badGateway(c, searchLog, message);
 	}
 	if (body === null || typeof body !== "object" || Array.isArray(body)) {
+		maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body, "non-object 200 body");
 		return badGateway(c, searchLog, "non-object 200 body");
 	}
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	body["@odata.context"] = null;
+	maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body);
 	if (searchLog.error) {
 		searchLog.emitError();
 	} else {

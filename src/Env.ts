@@ -34,6 +34,15 @@ export type Env = {
 	browserRenderingServices?: string;
 	/** Non-secret: production | preview | local — drives OpenAPI docs title. */
 	apiEnvironment?: string;
+	/**
+	 * SP-3.1 shadow-query kill switch (`"true"` / `"false"`). Default off (safe) until
+	 * explicitly enabled. Sample rate and top-N stay in the other `searchShadow*` vars.
+	 */
+	searchShadowEnabled?: string;
+	/** Fraction of `/search` requests to also send to the D1 search Worker (0–1). Default `0.01`. */
+	searchShadowSampleRate?: string;
+	/** Leading hit ids compared between Azure and D1. Default `10`. */
+	searchShadowTopN?: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
 	HERO_CURATION_DURABLE_OBJECT: DurableObjectNamespace<import("./HeroCurationDurableObject").HeroCurationDurableObject>;
 	DISCOVERY_CURATION_DURABLE_OBJECT: DurableObjectNamespace<
