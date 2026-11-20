@@ -26,7 +26,8 @@ import {
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
-	splitOffStatusSchema,
+	approvalStatusSchema,
+	approvalDecisionSchema,
 	episodeListResponseSchema,
 	episodePublishRequestSchema,
 	episodeUpdateResponseSchema,
@@ -1062,20 +1063,21 @@ describe("openapi Zod schemas", () => {
 		expect((stripped as { posted?: boolean }).posted).toBeUndefined();
 	});
 
-	it("accepts a split-off approve or reject on EpisodeChangeRequest and refuses pending (RPP #1484)", () => {
-		expect(episodeChangeRequestSchema.parse({ splitOffStatus: "approved" }).splitOffStatus).toBe("approved");
-		expect(episodeChangeRequestSchema.parse({ splitOffStatus: "rejected" }).splitOffStatus).toBe("rejected");
-		expect(episodeChangeRequestSchema.parse({ splitOffStatus: null }).splitOffStatus).toBeNull();
-		expect(episodeChangeRequestSchema.parse({}).splitOffStatus).toBeUndefined();
-		expect(() => episodeChangeRequestSchema.parse({ splitOffStatus: "pending" })).toThrow();
-		expect(() => episodeChangeRequestSchema.parse({ splitOffStatus: "Approved" })).toThrow();
+	it("accepts an approvalDecision Approve or Reject on EpisodeChangeRequest and refuses other values (RPP #1484)", () => {
+		expect(episodeChangeRequestSchema.parse({ approvalDecision: "Approve" }).approvalDecision).toBe("Approve");
+		expect(episodeChangeRequestSchema.parse({ approvalDecision: "Reject" }).approvalDecision).toBe("Reject");
+		expect(episodeChangeRequestSchema.parse({ approvalDecision: null }).approvalDecision).toBeNull();
+		expect(episodeChangeRequestSchema.parse({}).approvalDecision).toBeUndefined();
+		expect(() => episodeChangeRequestSchema.parse({ approvalDecision: "approve" })).toThrow();
+		expect(() => episodeChangeRequestSchema.parse({ approvalDecision: "AwaitingApproval" })).toThrow();
 	});
 
-	it("EpisodeDto carries the split-off review state, omitted on ordinary episodes (RPP #1484)", () => {
-		expect(splitOffStatusSchema.options).toEqual(["pending", "approved", "rejected"]);
-		expect(episodeDtoSchema.shape.splitOffStatus.safeParse(undefined).success).toBe(true);
-		expect(episodeDtoSchema.shape.splitOffStatus.parse("pending")).toBe("pending");
-		expect(episodeDtoSchema.shape.splitOffStatus.safeParse(1).success).toBe(false);
+	it("EpisodeDto carries a two-value approvalStatus, absent meaning approved (RPP #1484)", () => {
+		expect(approvalStatusSchema.options).toEqual(["AwaitingApproval", "Rejected"]);
+		expect(approvalDecisionSchema.options).toEqual(["Approve", "Reject"]);
+		expect(episodeDtoSchema.shape.approvalStatus.safeParse(undefined).success).toBe(true);
+		expect(episodeDtoSchema.shape.approvalStatus.parse("AwaitingApproval")).toBe("AwaitingApproval");
+		expect(episodeDtoSchema.shape.approvalStatus.safeParse("Approved").success).toBe(false);
 	});
 
 	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {

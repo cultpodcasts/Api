@@ -823,7 +823,7 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
         tags: ["Episodes"],
         summary: "Patch podcast episode by podcast id and episode id",
         description:
-            "Omitted or null fields are unchanged. `splitOffStatus` approves or rejects a split-off episode (RPP #1484); a pending or rejected split-off is made public only by approving it.",
+            "Omitted or null fields are unchanged. `approvalDecision` approves or rejects an episode held for approval, e.g. a split-off (RPP #1484); a held episode is made public only by approving it.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: {
             202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
