@@ -870,6 +870,47 @@ describe("openapi Zod schemas", () => {
 		expect(parsed.success?.episodeDetails?.guestSuggestions?.[0].matchResults[0].term).toBe("Guest");
 	});
 
+	it("documents the service-link conflict request answer (RPP #1416, #1484)", () => {
+		const episodeId = "550e8400-e29b-41d4-a716-446655440000";
+		for (const decision of ["overwrite", "create-new", "cancel"] as const) {
+			expect(submitUrlRequestSchema.parse({
+				url: "https://example.com/ep",
+				serviceLinkConflictDecision: decision,
+				serviceLinkConflictEpisodeId: episodeId
+			}).serviceLinkConflictDecision).toBe(decision);
+		}
+		expect(() => submitUrlRequestSchema.parse({ url: "https://example.com/ep", serviceLinkConflictDecision: "merge" })).toThrow();
+		expect(() => submitUrlRequestSchema.parse({ url: "https://example.com/ep", serviceLinkConflictEpisodeId: "not-a-guid" })).toThrow();
+	});
+
+	it("accepts a SubmitUrlResponse service-link conflict hold, a cancel, and an overwrite with a split-off (RPP #1484)", () => {
+		const held = submitUrlResponseSchema.parse({
+			serviceLinkConflict: {
+				episodeId: "550e8400-e29b-41d4-a716-446655440000",
+				podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				episodeTitle: "Synthetic Episode",
+				episodeRelease: "2026-01-02T03:04:05",
+				links: [{ service: "spotify", storedUrl: "https://example.com/stored", submittedUrl: "https://example.com/submitted" }]
+			}
+		});
+		expect(held.serviceLinkConflict?.podcastId).toBe("6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+		expect(held.serviceLinkConflict?.links[0].service).toBe("spotify");
+		expect(submitUrlResponseSchema.parse({ cancelled: true }).cancelled).toBe(true);
+		const overwritten = submitUrlResponseSchema.parse({
+			success: {
+				episode: "Enriched",
+				podcast: "None",
+				episodeId: "550e8400-e29b-41d4-a716-446655440000",
+				podcastId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				splitOffEpisodeId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+			}
+		});
+		expect(overwritten.success?.splitOffEpisodeId).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+		expect(() => submitUrlResponseSchema.parse({
+			success: { episode: "Enriched", podcast: "None", splitOffEpisodeId: "not-a-guid" }
+		})).toThrow();
+	});
+
 	it("accepts SubmitUrlResponse catalogue contentKind and playableId without podcast ids", () => {
 		const playableId = "550e8400-e29b-41d4-a716-446655440000";
 		for (const contentKind of ["Episode", "TvShowEpisode", "Film", "NewsReport"] as const) {
