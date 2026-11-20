@@ -26,6 +26,7 @@ import {
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
+	splitOffStatusSchema,
 	episodeListResponseSchema,
 	episodePublishRequestSchema,
 	episodeUpdateResponseSchema,
@@ -1059,6 +1060,22 @@ describe("openapi Zod schemas", () => {
 		const stripped = episodeDeleteBlockedSchema.parse({ posted: true, tweeted: true });
 		expect(stripped.tweeted).toBe(true);
 		expect((stripped as { posted?: boolean }).posted).toBeUndefined();
+	});
+
+	it("accepts a split-off approve or reject on EpisodeChangeRequest and refuses pending (RPP #1484)", () => {
+		expect(episodeChangeRequestSchema.parse({ splitOffStatus: "approved" }).splitOffStatus).toBe("approved");
+		expect(episodeChangeRequestSchema.parse({ splitOffStatus: "rejected" }).splitOffStatus).toBe("rejected");
+		expect(episodeChangeRequestSchema.parse({ splitOffStatus: null }).splitOffStatus).toBeNull();
+		expect(episodeChangeRequestSchema.parse({}).splitOffStatus).toBeUndefined();
+		expect(() => episodeChangeRequestSchema.parse({ splitOffStatus: "pending" })).toThrow();
+		expect(() => episodeChangeRequestSchema.parse({ splitOffStatus: "Approved" })).toThrow();
+	});
+
+	it("EpisodeDto carries the split-off review state, omitted on ordinary episodes (RPP #1484)", () => {
+		expect(splitOffStatusSchema.options).toEqual(["pending", "approved", "rejected"]);
+		expect(episodeDtoSchema.shape.splitOffStatus.safeParse(undefined).success).toBe(true);
+		expect(episodeDtoSchema.shape.splitOffStatus.parse("pending")).toBe("pending");
+		expect(episodeDtoSchema.shape.splitOffStatus.safeParse(1).success).toBe(false);
 	});
 
 	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {

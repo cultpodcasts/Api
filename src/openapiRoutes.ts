@@ -822,9 +822,15 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
     schema: {
         tags: ["Episodes"],
         summary: "Patch podcast episode by podcast id and episode id",
+        description:
+            "Omitted or null fields are unchanged. `splitOffStatus` approves or rejects a split-off episode (RPP #1484); a pending or rejected split-off is made public only by approving it.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: {
             202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
+            400: {
+                description: "Invalid request, e.g. an invalid split-off review (`message` says why, RPP #1484); nothing applied",
+                ...contentJson(errorSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses

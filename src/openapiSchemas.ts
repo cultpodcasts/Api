@@ -80,7 +80,7 @@ export const submitUrlRequestSchema = z.object({
 		.optional()
 		.nullable()
 		.describe(
-			"Answer to a `serviceLinkConflict` hold (RPP #1416). Absent on the first submit. `overwrite` moves the stored episode's old links to a new episode that stays hidden until a curator approves it (RPP #1484); `create-new` adds a separate episode; `cancel` writes nothing."
+			"Answer to a `serviceLinkConflict` hold (RPP #1416). Absent on the first submit. `overwrite` moves the stored episode's old links to a new episode with `splitOffStatus: pending`, hidden until a curator approves it via the episode edit API (RPP #1484); `create-new` adds a separate episode; `cancel` writes nothing."
 		),
 	serviceLinkConflictEpisodeId: z.string().uuid()
 		.optional()
@@ -662,6 +662,13 @@ export const serviceEnumSchema = z.enum(["Spotify", "Apple", "YouTube", "Other"]
 /** JsonStringEnumConverter — RedditPodcastPoster.Models.Subjects.SubjectType */
 export const subjectTypeSchema = z.enum(["Unset", "Canonical", "Meta"]);
 
+/**
+ * RedditPodcastPoster.Models.Episodes.SplitOffStatus (camelCase strings, RPP #1484). Only on a split-off episode
+ * (the stored episode's old links after a `serviceLinkConflictDecision: "overwrite"`): `pending` and `rejected` are
+ * hidden from the public; `approved` is public like any other episode.
+ */
+export const splitOffStatusSchema = z.enum(["pending", "approved", "rejected"]);
+
 /** Api.Models.EpisodeChangeRequest */
 export const episodeChangeRequestSchema = z.object({
 	title: z.string().optional().nullable(),
@@ -684,7 +691,12 @@ export const episodeChangeRequestSchema = z.object({
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
 	lang: z.string().optional().nullable(),
-	guests: z.array(z.string()).optional().nullable()
+	guests: z.array(z.string()).optional().nullable(),
+	splitOffStatus: z.enum(["approved", "rejected"]).optional().nullable()
+		.describe(
+			"Curator review of a split-off episode (RPP #1484). `approved` makes it public and, the first time, clears its split-off posting block so it is posted under the usual rules (an old release falls outside the posting window and is not posted); `rejected` keeps it hidden and removes its search entry. " +
+			"400 when sent for an episode that is not a split-off, when `pending` is sent, or when it contradicts `removed` (approved with `removed: true`, rejected with `removed: false`). A pending or rejected split-off cannot be made public with `removed: false`: approve it instead (400)."
+		)
 });
 
 /** Api.Models.PersonChangeRequest */
@@ -838,6 +850,8 @@ export const episodeDtoSchema = z.object({
 	bluesky: z.boolean().optional().nullable(),
 	ignored: z.boolean(),
 	removed: z.boolean(),
+	splitOffStatus: splitOffStatusSchema.optional()
+		.describe("Only on a split-off episode (RPP #1484): `pending` (awaiting curator review, hidden), `approved` (public) or `rejected` (hidden). Omitted on other episodes."),
 	lang: z.string().optional().nullable(),
 	spotifyId: z.string().optional(),
 	appleId: z.number().optional().nullable(),
@@ -1529,7 +1543,7 @@ export const submitUrlResponseSchema = z.object({
 			.optional()
 			.nullable()
 			.describe(
-				"After `overwrite` (RPP #1484): the new episode holding the stored episode's old links. Same podcast as `podcastId`; hidden from the public until a curator reviews and approves it."
+				"After `overwrite` (RPP #1484): the new episode holding the stored episode's old links. Same podcast as `podcastId`; `splitOffStatus: pending`, hidden from the public until a curator approves it (`PATCH` the episode with `splitOffStatus: approved`) or rejects it."
 			)
 	}).optional().nullable(),
 	error: z.string().optional().nullable(),
