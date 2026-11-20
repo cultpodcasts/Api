@@ -26,6 +26,7 @@ import {
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
+	episodePublishResponseSchema,
 	approvalStatusSchema,
 	approvalDecisionSchema,
 	episodeListResponseSchema,
@@ -1061,6 +1062,12 @@ describe("openapi Zod schemas", () => {
 		const stripped = episodeDeleteBlockedSchema.parse({ posted: true, tweeted: true });
 		expect(stripped.tweeted).toBe(true);
 		expect((stripped as { posted?: boolean }).posted).toBeUndefined();
+	});
+
+	it("EpisodePublishResponse carries an optional refusal message (RPP #1484)", () => {
+		const refused = episodePublishResponseSchema.parse({ podcastId: "3c1d2e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f", message: "approve it first" });
+		expect(refused.message).toBe("approve it first");
+		expect(episodePublishResponseSchema.parse({ tweeted: true }).message).toBeUndefined();
 	});
 
 	it("accepts an approvalDecision Approve or Reject on EpisodeChangeRequest and refuses other values (RPP #1484)", () => {

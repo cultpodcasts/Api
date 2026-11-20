@@ -915,7 +915,9 @@ export const episodePublishResponseSchema = z.object({
 	tweeted: z.boolean().optional().nullable(),
 	blueskyPosted: z.boolean().optional().nullable(),
 	failedTweetContent: z.string().optional().nullable(),
-	podcastId: z.string().uuid().optional().nullable()
+	podcastId: z.string().uuid().optional().nullable(),
+	message: z.string().optional()
+		.describe("Why nothing was published, on a refused 400. For example, an episode awaiting approval or rejected (RPP #1484) must be approved before it can be posted.")
 });
 
 /** Api.Dtos.SubjectDto */

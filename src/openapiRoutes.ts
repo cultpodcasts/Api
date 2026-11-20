@@ -863,7 +863,7 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodePublishRequestSchema) },
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
-            400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+            400: { description: "Publish outcome with failure details; `message` says why when the publish was refused (e.g. held for approval, RPP #1484)", ...contentJson(episodePublishResponseSchema) },
             ...serverErrorResponse,
             ...authResponses
         }
@@ -882,7 +882,7 @@ export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
         request: { params: episodeIdParam, body: jsonBody(episodePublishRequestSchema) },
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
-            400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+            400: { description: "Publish outcome with failure details; `message` says why when the publish was refused (e.g. held for approval, RPP #1484)", ...contentJson(episodePublishResponseSchema) },
             ...serverErrorResponse,
             ...authResponses
         }
@@ -891,7 +891,7 @@ export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
 
 const kindPublishResponses = {
     200: { description: "Published (command outcome; GET the kind resource after)", ...contentJson(episodePublishResponseSchema) },
-    400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+    400: { description: "Publish outcome with failure details; `message` says why when the publish was refused (e.g. held for approval, RPP #1484)", ...contentJson(episodePublishResponseSchema) },
     ...serverErrorResponse,
     ...authResponses
 } as const;
