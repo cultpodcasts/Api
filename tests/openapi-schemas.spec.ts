@@ -26,6 +26,9 @@ import {
 	episodeChangeRequestSchema,
 	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
+	episodePublishResponseSchema,
+	approvalStatusSchema,
+	approvalDecisionSchema,
 	episodeListResponseSchema,
 	episodePublishRequestSchema,
 	episodeUpdateResponseSchema,
@@ -1059,6 +1062,29 @@ describe("openapi Zod schemas", () => {
 		const stripped = episodeDeleteBlockedSchema.parse({ posted: true, tweeted: true });
 		expect(stripped.tweeted).toBe(true);
 		expect((stripped as { posted?: boolean }).posted).toBeUndefined();
+	});
+
+	it("EpisodePublishResponse carries an optional refusal message (RPP #1484)", () => {
+		const refused = episodePublishResponseSchema.parse({ podcastId: "3c1d2e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f", message: "approve it first" });
+		expect(refused.message).toBe("approve it first");
+		expect(episodePublishResponseSchema.parse({ tweeted: true }).message).toBeUndefined();
+	});
+
+	it("accepts an approvalDecision Approve or Reject on EpisodeChangeRequest and refuses other values (RPP #1484)", () => {
+		expect(episodeChangeRequestSchema.parse({ approvalDecision: "Approve" }).approvalDecision).toBe("Approve");
+		expect(episodeChangeRequestSchema.parse({ approvalDecision: "Reject" }).approvalDecision).toBe("Reject");
+		expect(episodeChangeRequestSchema.parse({ approvalDecision: null }).approvalDecision).toBeNull();
+		expect(episodeChangeRequestSchema.parse({}).approvalDecision).toBeUndefined();
+		expect(() => episodeChangeRequestSchema.parse({ approvalDecision: "approve" })).toThrow();
+		expect(() => episodeChangeRequestSchema.parse({ approvalDecision: "AwaitingApproval" })).toThrow();
+	});
+
+	it("EpisodeDto carries a two-value approvalStatus, absent meaning approved (RPP #1484)", () => {
+		expect(approvalStatusSchema.options).toEqual(["AwaitingApproval", "Rejected"]);
+		expect(approvalDecisionSchema.options).toEqual(["Approve", "Reject"]);
+		expect(episodeDtoSchema.shape.approvalStatus.safeParse(undefined).success).toBe(true);
+		expect(episodeDtoSchema.shape.approvalStatus.parse("AwaitingApproval")).toBe("AwaitingApproval");
+		expect(episodeDtoSchema.shape.approvalStatus.safeParse("Approved").success).toBe(false);
 	});
 
 	it("accepts EpisodeChangeRequest including empty URL clears matching Angular", () => {

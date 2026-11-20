@@ -822,9 +822,15 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
     schema: {
         tags: ["Episodes"],
         summary: "Patch podcast episode by podcast id and episode id",
+        description:
+            "Omitted or null fields are unchanged. `approvalDecision` approves or rejects an episode held for approval, e.g. a split-off (RPP #1484); a held episode is made public only by approving it.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: {
             202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
+            400: {
+                description: "Invalid request, e.g. an invalid split-off review (`message` says why, RPP #1484); nothing applied",
+                ...contentJson(errorSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -857,7 +863,7 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodePublishRequestSchema) },
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
-            400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+            400: { description: "Publish outcome with failure details; `message` says why when the publish was refused (e.g. held for approval, RPP #1484)", ...contentJson(episodePublishResponseSchema) },
             ...serverErrorResponse,
             ...authResponses
         }
@@ -876,7 +882,7 @@ export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
         request: { params: episodeIdParam, body: jsonBody(episodePublishRequestSchema) },
         responses: {
             200: { description: "Published", ...contentJson(episodePublishResponseSchema) },
-            400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+            400: { description: "Publish outcome with failure details; `message` says why when the publish was refused (e.g. held for approval, RPP #1484)", ...contentJson(episodePublishResponseSchema) },
             ...serverErrorResponse,
             ...authResponses
         }
@@ -885,7 +891,7 @@ export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
 
 const kindPublishResponses = {
     200: { description: "Published (command outcome; GET the kind resource after)", ...contentJson(episodePublishResponseSchema) },
-    400: { description: "Publish outcome with failure details", ...contentJson(episodePublishResponseSchema) },
+    400: { description: "Publish outcome with failure details; `message` says why when the publish was refused (e.g. held for approval, RPP #1484)", ...contentJson(episodePublishResponseSchema) },
     ...serverErrorResponse,
     ...authResponses
 } as const;

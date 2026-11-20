@@ -80,7 +80,7 @@ export const submitUrlRequestSchema = z.object({
 		.optional()
 		.nullable()
 		.describe(
-			"Answer to a `serviceLinkConflict` hold (RPP #1416). Absent on the first submit. `overwrite` moves the stored episode's old links to a new episode that stays hidden until a curator approves it (RPP #1484); `create-new` adds a separate episode; `cancel` writes nothing."
+			"Answer to a `serviceLinkConflict` hold (RPP #1416). Absent on the first submit. `overwrite` moves the stored episode's old links to a new episode with `approvalStatus: AwaitingApproval`, hidden until a curator approves it via the episode edit API (RPP #1484); `create-new` adds a separate episode; `cancel` writes nothing."
 		),
 	serviceLinkConflictEpisodeId: z.string().uuid()
 		.optional()
@@ -662,6 +662,17 @@ export const serviceEnumSchema = z.enum(["Spotify", "Apple", "YouTube", "Other"]
 /** JsonStringEnumConverter — RedditPodcastPoster.Models.Subjects.SubjectType */
 export const subjectTypeSchema = z.enum(["Unset", "Canonical", "Meta"]);
 
+/**
+ * RedditPodcastPoster.Models.Episodes.ApprovalStatus (enum names, RPP #1484). Set only on an episode held for curator
+ * approval: today a split-off (the stored episode's old links after a `serviceLinkConflictDecision: "overwrite"`).
+ * Both values are hidden from the public and never posted. There is no approved value: absent/null means approved,
+ * so every ordinary episode (and a split-off once approved) has none.
+ */
+export const approvalStatusSchema = z.enum(["AwaitingApproval", "Rejected"]);
+
+/** Api.Models.ApprovalDecision (RPP #1484): a curator's decision on an episode held for approval. */
+export const approvalDecisionSchema = z.enum(["Approve", "Reject"]);
+
 /** Api.Models.EpisodeChangeRequest */
 export const episodeChangeRequestSchema = z.object({
 	title: z.string().optional().nullable(),
@@ -684,7 +695,12 @@ export const episodeChangeRequestSchema = z.object({
 	searchTerms: z.string().optional().nullable(),
 	hashTag: z.string().optional().nullable(),
 	lang: z.string().optional().nullable(),
-	guests: z.array(z.string()).optional().nullable()
+	guests: z.array(z.string()).optional().nullable(),
+	approvalDecision: approvalDecisionSchema.optional().nullable()
+		.describe(
+			"Curator decision on an episode held for approval, e.g. a split-off (RPP #1484). `Approve` clears its `approvalStatus` (absent means approved): it becomes public and the posting jobs may post it under their usual rules (an old release falls outside the posting window and is not posted); approving an episode that is not held changes nothing. `Reject` sets `approvalStatus: Rejected`: it stays hidden, is never posted, and its search entry is removed. " +
+			"400 when rejecting an episode that is not held, or when the decision contradicts `removed` (Approve with `removed: true`, Reject with `removed: false`). An episode held for approval cannot be made public with `removed: false`: approve it instead (400)."
+		)
 });
 
 /** Api.Models.PersonChangeRequest */
@@ -838,6 +854,8 @@ export const episodeDtoSchema = z.object({
 	bluesky: z.boolean().optional().nullable(),
 	ignored: z.boolean(),
 	removed: z.boolean(),
+	approvalStatus: approvalStatusSchema.optional()
+		.describe("Only on an episode held for curator approval (RPP #1484): `AwaitingApproval` or `Rejected`, both hidden and never posted. Omitted means approved (every ordinary episode, and a split-off once approved)."),
 	lang: z.string().optional().nullable(),
 	spotifyId: z.string().optional(),
 	appleId: z.number().optional().nullable(),
@@ -897,7 +915,9 @@ export const episodePublishResponseSchema = z.object({
 	tweeted: z.boolean().optional().nullable(),
 	blueskyPosted: z.boolean().optional().nullable(),
 	failedTweetContent: z.string().optional().nullable(),
-	podcastId: z.string().uuid().optional().nullable()
+	podcastId: z.string().uuid().optional().nullable(),
+	message: z.string().optional()
+		.describe("Why nothing was published, on a refused 400. For example, an episode awaiting approval or rejected (RPP #1484) must be approved before it can be posted.")
 });
 
 /** Api.Dtos.SubjectDto */
@@ -1529,7 +1549,7 @@ export const submitUrlResponseSchema = z.object({
 			.optional()
 			.nullable()
 			.describe(
-				"After `overwrite` (RPP #1484): the new episode holding the stored episode's old links. Same podcast as `podcastId`; hidden from the public until a curator reviews and approves it."
+				"After `overwrite` (RPP #1484): the new episode holding the stored episode's old links. Same podcast as `podcastId`; `approvalStatus: AwaitingApproval`, hidden from the public until a curator approves it (`PATCH` the episode with `approvalDecision: Approve`) or rejects it (`approvalDecision: Reject`)."
 			)
 	}).optional().nullable(),
 	error: z.string().optional().nullable(),
