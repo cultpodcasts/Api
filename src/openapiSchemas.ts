@@ -75,7 +75,17 @@ export const submitUrlRequestSchema = z.object({
 		.nullable()
 		.describe("Attach to a news organisation or TV show instead of a podcast (RPP #1054): `NewsOrganisation` or `TvShow`, case-insensitive. Requires `submit` or `curate`; never combined with `podcastId` / `podcastName` (400)."),
 	parentId: z.string().uuid().optional().nullable().describe("Guid of the `parentKind` row (404 when it is not one)."),
-	parentName: z.string().optional().nullable().describe("Parent name, a check and log aid; `parentId` decides the target.")
+	parentName: z.string().optional().nullable().describe("Parent name, a check and log aid; `parentId` decides the target."),
+	serviceLinkConflictDecision: z.enum(["overwrite", "create-new", "cancel"])
+		.optional()
+		.nullable()
+		.describe(
+			"Answer to a `serviceLinkConflict` hold (RPP #1416). Absent on the first submit. `overwrite` moves the stored episode's old links to a new episode that stays hidden until a curator approves it (RPP #1484); `create-new` adds a separate episode; `cancel` writes nothing."
+		),
+	serviceLinkConflictEpisodeId: z.string().uuid()
+		.optional()
+		.nullable()
+		.describe("With `overwrite`: the `serviceLinkConflict.episodeId` the curator answered for. Azure holds again if it no longer matches.")
 });
 
 export const submitUrlPrepareRequestSchema = z.object({
@@ -1458,6 +1468,24 @@ export const catalogueIdentityLookupResponseSchema = z.object({
 	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
 });
 
+/** Api.Dtos.SubmitUrlResponse.ServiceLinkConflictLinkBody */
+export const submitUrlServiceLinkConflictLinkSchema = z.object({
+	service: z.string().describe("`spotify` or `apple`."),
+	storedUrl: z.string().optional().nullable()
+		.describe("The stored episode's link now; on `overwrite` it moves to the hidden split-off episode."),
+	submittedUrl: z.string().optional().nullable()
+});
+
+/** Api.Dtos.SubmitUrlResponse.ServiceLinkConflictBody (RPP #1416, #1484). */
+export const submitUrlServiceLinkConflictSchema = z.object({
+	episodeId: z.string().uuid().describe("The stored episode; send it back as `serviceLinkConflictEpisodeId` with `overwrite`."),
+	podcastId: z.string().uuid().optional().nullable()
+		.describe("The stored episode's podcast, so the curator can open the stored episode (RPP #1484)."),
+	episodeTitle: z.string(),
+	episodeRelease: z.string().describe("Stored episode release, ISO 8601 date-time as Azure serialises it (may omit the offset)."),
+	links: z.array(submitUrlServiceLinkConflictLinkSchema)
+});
+
 /** Api.Dtos.SubmitUrlResponse */
 export const submitUrlResponseSchema = z.object({
 	success: z.object({
@@ -1496,9 +1524,21 @@ export const submitUrlResponseSchema = z.object({
 					matches: z.number()
 				}))
 			})).optional().nullable()
-		}).optional().nullable()
+		}).optional().nullable(),
+		splitOffEpisodeId: z.string().uuid()
+			.optional()
+			.nullable()
+			.describe(
+				"After `overwrite` (RPP #1484): the new episode holding the stored episode's old links. Same podcast as `podcastId`; hidden from the public until a curator reviews and approves it."
+			)
 	}).optional().nullable(),
-	error: z.string().optional().nullable()
+	error: z.string().optional().nullable(),
+	serviceLinkConflict: submitUrlServiceLinkConflictSchema.optional().nullable()
+		.describe(
+			"Nothing was written: the URL matches a stored episode that already has a different link for that service (RPP #1416). Re-POST with `serviceLinkConflictDecision` and, for `overwrite`, `serviceLinkConflictEpisodeId`."
+		),
+	cancelled: z.boolean().optional()
+		.describe("True when the curator chose `cancel` on a service-link conflict; nothing was written.")
 });
 
 /** Delete episode 400 body when a tweeted episode blocks delete. */
