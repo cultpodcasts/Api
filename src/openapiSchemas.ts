@@ -1359,6 +1359,17 @@ export const episodeFilmMoveRequestSchema = z.object({
 		.describe("Candidate key when identityDecision is select (e.g. tmdb:123).")
 });
 
+/**
+ * Podcast-episode Move to film body: the shared move body plus filmId (RPP #1522, Move to an existing film).
+ * Api.Dtos.EpisodeFilmMoveRequest carries filmId; a news report move with filmId is a 400 from Azure.
+ */
+export const podcastEpisodeFilmMoveRequestSchema = episodeFilmMoveRequestSchema.extend({
+	filmId: z.string().uuid().nullable().optional()
+		.describe("Existing film to merge the episode into (Move to an existing film). The episode's links for services the film has no link for are added to it, " +
+			"the episode leaves search and is deleted, and its short link redirects to the film. A different link for a service the film already has (e.g. a second YouTube upload) is a 409 " +
+			"until multiple YouTube links (RPP #1411). Omit to create a new film; title and the identity fields only apply then.")
+});
+
 /** EpisodeFilmMoveResponse — command outcome (not the film read model). GET /film/:id for the film. */
 export const episodeFilmMoveResponseSchema = z.object({
 	filmId: z.string().uuid().optional().nullable().describe("The new film id (same as the episode id). On 409, the film that already has the name."),
