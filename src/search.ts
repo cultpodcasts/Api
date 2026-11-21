@@ -139,6 +139,7 @@ function maybeScheduleSearchShadow(
 			requestBody: request.requestBody,
 			azure,
 			topN: config.topN,
+			timeoutMs: config.timeoutMs,
 			requestId: request.requestId,
 			query: request.query,
 			filter: request.filter

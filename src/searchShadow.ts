@@ -15,6 +15,9 @@ export const DEFAULT_SEARCH_SHADOW_SAMPLE_RATE = 0.01;
 /** How many leading hit ids to compare. */
 export const DEFAULT_SEARCH_SHADOW_TOP_N = 10;
 
+/** The shadow D1 call is aborted after this long and logged as unavailable (`error: "timeout"`). */
+export const DEFAULT_SEARCH_SHADOW_TIMEOUT_MS = 3000;
+
 /** Most of an engine error code/message kept in the shadow log (never the raw body). */
 export const SEARCH_SHADOW_ERROR_LIMIT = 200;
 
@@ -22,6 +25,7 @@ export type SearchShadowConfig = {
 	enabled: boolean;
 	sampleRate: number;
 	topN: number;
+	timeoutMs: number;
 };
 
 export type SearchEngineSnapshot = {
@@ -53,7 +57,7 @@ export type SearchShadowSlo = {
 	countDelta?: number;
 	/** |countDelta| <= max(2, 0.1% of the Azure count). */
 	countWithin?: boolean;
-	/** Overlap needed: min(topN - 1, Azure's hit ids), i.e. 9 of the top 10 for a full page. */
+	/** Overlap needed: min(topN - 1, Azure's hit ids), i.e. 9 of the top 10 for a full page. Absent when Azure had no hits. */
 	overlapNeeded?: number;
 	/** `overlap.matched >= overlapNeeded`. */
 	overlapOk?: boolean;
@@ -101,6 +105,9 @@ export function shadowSlo(azure: SearchEngineSnapshot, d1: SearchEngineSnapshot,
 		slo.countDelta = d1.count - azure.count;
 		slo.countWithin = Math.abs(slo.countDelta) <= Math.max(SEARCH_SHADOW_COUNT_ABS, SEARCH_SHADOW_COUNT_REL * azure.count);
 	}
+	// An empty Azure page has nothing to overlap with: no verdict, so it stays out of SLO 4's
+	// denominator instead of passing vacuously. Its count verdict above still applies.
+	if (azure.topIds.length === 0) return slo;
 	slo.overlapNeeded = Math.min(Math.max(overlap.topN - 1, 1), azure.topIds.length);
 	slo.overlapOk = overlap.matched >= slo.overlapNeeded;
 	return slo;
@@ -128,12 +135,22 @@ function parseTopNEnv(value: string | undefined, defaultValue: number): number {
 	return n;
 }
 
-/** Sample rate and kill switch from Worker vars. Defaults are safe and low: off, 1%, top 10. */
-export function parseSearchShadowConfig(env: Pick<Env, "searchShadowEnabled" | "searchShadowSampleRate" | "searchShadowTopN">): SearchShadowConfig {
+function parseTimeoutEnv(value: string | undefined, defaultValue: number): number {
+	if (value === undefined || value.trim() === "") return defaultValue;
+	const n = Number(value);
+	if (!Number.isSafeInteger(n) || n < 100 || n > 30000) return defaultValue;
+	return n;
+}
+
+/** Sample rate and kill switch from Worker vars. Defaults are safe and low: off, 1%, top 10, 3 s timeout. */
+export function parseSearchShadowConfig(
+	env: Pick<Env, "searchShadowEnabled" | "searchShadowSampleRate" | "searchShadowTopN" | "searchShadowTimeoutMs">
+): SearchShadowConfig {
 	return {
 		enabled: parseBooleanEnv(env.searchShadowEnabled, DEFAULT_SEARCH_SHADOW_ENABLED),
 		sampleRate: parseRateEnv(env.searchShadowSampleRate, DEFAULT_SEARCH_SHADOW_SAMPLE_RATE),
-		topN: parseTopNEnv(env.searchShadowTopN, DEFAULT_SEARCH_SHADOW_TOP_N)
+		topN: parseTopNEnv(env.searchShadowTopN, DEFAULT_SEARCH_SHADOW_TOP_N),
+		timeoutMs: parseTimeoutEnv(env.searchShadowTimeoutMs, DEFAULT_SEARCH_SHADOW_TIMEOUT_MS)
 	};
 }
 
@@ -246,8 +263,17 @@ export type SearchShadowRun = {
 	requestId?: string;
 	query?: string;
 	filter?: string;
+	/** Abort the D1 call after this long (default {@link DEFAULT_SEARCH_SHADOW_TIMEOUT_MS}). */
+	timeoutMs?: number;
 	log?: (payload: SearchShadowLog) => void;
 };
+
+class ShadowTimeout extends Error {
+	constructor() {
+		super("timeout");
+		this.name = "ShadowTimeout";
+	}
+}
 
 /**
  * Query the D1 search Worker with the same rewritten body Azure just saw, then log a compact
@@ -257,12 +283,23 @@ export type SearchShadowRun = {
 export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShadowLog> {
 	const write = args.log ?? ((payload: SearchShadowLog) => console.info(payload));
 	const started = Date.now();
-	let d1: SearchEngineSnapshot;
-	try {
+	const timeoutMs = args.timeoutMs ?? DEFAULT_SEARCH_SHADOW_TIMEOUT_MS;
+	const controller = new AbortController();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	// Race the whole call (answer and body) against the timeout, and abort it: a hung binding must
+	// still produce a shadow line (as unavailable) rather than sit in waitUntil until the isolate dies.
+	const timedOut = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => {
+			controller.abort();
+			reject(new ShadowTimeout());
+		}, timeoutMs);
+	});
+	const call = async (): Promise<SearchEngineSnapshot> => {
 		const response = await args.fetcher.fetch(args.url, {
 			method: "POST",
 			headers: { "content-type": "application/json;charset=UTF-8" },
-			body: args.requestBody
+			body: args.requestBody,
+			signal: controller.signal
 		});
 		const latencyMs = Date.now() - started;
 		let body: unknown;
@@ -281,14 +318,23 @@ export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShad
 		} catch {
 			error = "unreadable_body";
 		}
-		d1 = snapshotSearchResponse(response.status, latencyMs, body, args.topN, error);
+		return snapshotSearchResponse(response.status, latencyMs, body, args.topN, error);
+	};
+	let d1: SearchEngineSnapshot;
+	try {
+		const pending = call();
+		// If the timeout wins, the aborted call rejects later; that rejection is expected and ignored.
+		pending.catch(() => {});
+		d1 = await Promise.race([pending, timedOut]);
 	} catch (e) {
 		d1 = {
 			latencyMs: Math.max(0, Math.round(Date.now() - started)),
 			count: null,
 			topIds: [],
-			error: e instanceof Error ? e.message : String(e)
+			error: e instanceof ShadowTimeout ? "timeout" : e instanceof Error ? e.message : String(e)
 		};
+	} finally {
+		clearTimeout(timer);
 	}
 	const overlap = compareSearchSnapshots(args.azure.topIds, d1.topIds, args.topN);
 	const payload: SearchShadowLog = {

@@ -263,6 +263,7 @@ Kill switch and rate are non-secret wrangler vars on the api Worker (`wrangler.j
 | `searchShadowEnabled` | `"true"` / `"false"` kill switch | production `"true"` (SP-3.2 soak); preview and local `"false"` |
 | `searchShadowSampleRate` | Fraction of `/search` requests to sample (0–1) | production `"0.1"`; preview and local `"0.01"` |
 | `searchShadowTopN` | Leading hit ids compared | `"10"` |
+| `searchShadowTimeoutMs` | Abort the shadow D1 call after this many ms (100–30000); logged as `d1.error = "timeout"`, `slo.d1Unavailable = true` | `"3000"` |
 
 Query in Workers Observability with `message = "search shadow"`. Set `searchShadowEnabled` to
 `"false"` or the rate to `"0"` to stop sampling without a code change.

@@ -78,7 +78,8 @@
     // SP-3.2 soak (RPP #1323): on in production at 10%; preview and local stay off.
     "searchShadowEnabled": "true",
     "searchShadowSampleRate": "0.1",
-    "searchShadowTopN": "10"
+    "searchShadowTopN": "10",
+    "searchShadowTimeoutMs": "3000"
   },
   "durable_objects": {
     "bindings": [
@@ -165,7 +166,8 @@
         "apiEnvironment": "preview",
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
-        "searchShadowTopN": "10"
+        "searchShadowTopN": "10",
+        "searchShadowTimeoutMs": "3000"
       },
       "r2_buckets": [
         {
@@ -399,7 +401,8 @@
         "apiEnvironment": "local",
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
-        "searchShadowTopN": "10"
+        "searchShadowTopN": "10",
+        "searchShadowTimeoutMs": "3000"
       },
       "r2_buckets": [
         {

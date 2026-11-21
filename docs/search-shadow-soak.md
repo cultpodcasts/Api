@@ -14,6 +14,9 @@ described in `workers/search/README.md` (`search shadow` log, SP-3.1, Api #228).
 - Each sampled request sends the same rewritten body to the D1 search Worker over the `SEARCH`
   binding, on `ctx.waitUntil`. Azure is still the result users get, and their latency is unchanged.
 - Each sample logs one line, `message = "search shadow"`, on the **`api`** Worker.
+- The D1 call is aborted after `searchShadowTimeoutMs` (default **3000** ms; 100–30000). A timed-out
+  call is still logged, with `d1.error = "timeout"`, no `d1.status` and `slo.d1Unavailable = true`.
+  A hung D1 therefore counts against availability instead of disappearing from the log.
 - **Kill switch:** set `searchShadowEnabled` to `"false"`, or the rate to `"0"`, and deploy from main.
 
 ## The soak
@@ -40,7 +43,7 @@ described in `workers/search/README.md` (`search shadow` log, SP-3.1, Api #228).
 | 1 | Latency | `slo.bothOk = true` samples | D1 p95 `d1.latencyMs` ≤ Azure p95 `azure.latencyMs` **and** ≤ 300 ms |
 | 2 | Availability | all samples | `slo.d1Unavailable = true` on ≤ 0.1% of samples |
 | 3 | Result counts | samples with `slo.countWithin` present | `slo.countWithin = true` on ≥ 99% |
-| 4 | Browse overlap | `queryKind = "browse"` samples with `slo.overlapOk` present | `slo.overlapOk = true` on ≥ 95% |
+| 4 | Browse overlap | `queryKind = "browse"` samples with `slo.overlapOk` present (both 200, Azure had at least one hit) | `slo.overlapOk = true` on ≥ 95% |
 | 5 | Drift | the week's full reconcile | drift ≤ 0.5% |
 
 **Per-sample verdicts.** Workers Observability can only compare a field with a constant, never
@@ -57,12 +60,12 @@ two fields with each other. So the sampler computes every Azure-vs-D1 comparison
 | `overlap.matched` | number | How many of Azure's top 10 ids are also in D1's top 10 |
 | `overlap.sameOrder` | boolean | The two top-10 lists are identical, in order |
 | `slo.d1Ok` | boolean | D1 answered 200 with no error |
-| `slo.d1Unavailable` | boolean | D1 answered 429 or 5xx, or not at all (the binding threw). A 4xx is a failure but not "unavailable" |
+| `slo.d1Unavailable` | boolean | D1 answered 429 or 5xx, or not at all (the binding threw, or the call hit `searchShadowTimeoutMs`: `d1.error = "timeout"`). A 4xx is a failure but not "unavailable" |
 | `slo.bothOk` | boolean | Both engines answered 200. Only these samples carry the verdicts below |
 | `slo.countDelta` | number | D1 count minus Azure count |
 | `slo.countWithin` | boolean | \|countDelta\| ≤ max(2, 0.1% of the Azure count) |
-| `slo.overlapNeeded` | number | min(9, number of Azure ids): 9 of the top 10 for a full page, all of a shorter list |
-| `slo.overlapOk` | boolean | `overlap.matched ≥ slo.overlapNeeded` |
+| `slo.overlapNeeded` | number | min(9, number of Azure ids): 9 of the top 10 for a full page, all of a shorter list. **Absent when Azure returned no hits** |
+| `slo.overlapOk` | boolean | `overlap.matched ≥ slo.overlapNeeded`. Absent when Azure returned no hits, so an empty page never passes SLO 4 vacuously (its count verdict still applies) |
 
 Nested fields are flattened with dots. That is how Workers Observability already indexes the
 api Worker's `searchLog` object lines (for example `query.filter` and `errors.searchStatus`).
@@ -161,7 +164,8 @@ or filter difference. A negative delta on new episodes means sync lag.
 }
 ```
 
-**Pass:** `true / (true + false) ≥ 0.95`.
+**Pass:** `true / (true + false) ≥ 0.95`. The `exists` filter leaves out samples where Azure
+returned no hits; those carry no overlap verdict.
 
 **Diagnostic:** list events with `slo.overlapOk = false`, showing `filter` and `overlap.matched`.
 Browse results are ordered by release date, so a miss is usually a missing or stale document
