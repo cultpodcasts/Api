@@ -783,6 +783,18 @@ describe("openapi Zod schemas", () => {
 		expect(publicEpisodeDtoSchema.safeParse(missingImage).success).toBe(false);
 	});
 
+	it("types contentKind as the generated ContentKindDto enum on both episode DTOs (RedditPodcastPoster#1508)", () => {
+		expect(episodeDtoSchema.shape.contentKind.unwrap().unwrap()).toBe(generated.contentKindDtoSchema);
+		expect(publicEpisodeDtoSchema.shape.contentKind.unwrap().unwrap()).toBe(generated.contentKindDtoSchema);
+		for (const contentKind of ["Episode", "TvShowEpisode", "Film", "NewsReport"]) {
+			expect(episodeDtoSchema.parse(wireEpisodeDto({ contentKind })).contentKind).toBe(contentKind);
+			expect(publicEpisodeDtoSchema.parse(wirePublicEpisodeDto({ contentKind })).contentKind).toBe(contentKind);
+		}
+		expect(episodeDtoSchema.safeParse(wireEpisodeDto({ contentKind: "Movie" })).success).toBe(false);
+		expect(publicEpisodeDtoSchema.safeParse(wirePublicEpisodeDto({ contentKind: "Movie" })).success).toBe(false);
+		expect(publicEpisodeDtoSchema.parse(wirePublicEpisodeDto({ contentKind: null })).contentKind).toBeNull();
+	});
+
 	it("accepts EpisodeDto for a news report resolved by id, with additive kind fields", () => {
 		const parsed = episodeDtoSchema.parse(wireEpisodeDto({
 			podcastName: "Synthetic Outlet",
