@@ -240,11 +240,21 @@ sequenceDiagram
 - **Verification gate (409 `VerificationFailed`, nothing changed).** The shadow's total and per-kind
   counts must be within `tolerance` of what the console loaded (`tolerance` covers pushes during the
   load); the FTS index must hold one row per document and pass a structure `integrity-check`; and the
-  shadow may not be smaller than the live index by more than `maxShrink` (default 5%).
+  shadow may not be smaller than the live index by more than `maxShrink` (default 5%; the RPP console
+  sends its own `d1Search:Rebuild:MaxShrink`, because the live index may be the bloated one being
+  replaced, and relies on the Cosmos counts as the real size gate).
 - **Pushes during a load** go to both generations in the same batch (`POST /admin/docs` reads the
   `rebuild` row in `search_meta`), with the same `modifiedAt` guard, so the swap loses none. A delete
   that races the console's Cosmos read can resurrect a document in the shadow; the console's
   post-swap reconcile catches it.
+- **Pushes after the swap**, until `finish` or `swap-back`, also go to the parked `_old` generation:
+  the swap gives it its own `_old` triggers, so its FTS stays in step. A swap-back therefore
+  restores an index that missed nothing written during the console's checks (including its
+  post-swap reconcile). `finish` drops the parked tables and their triggers with them.
+- **Unreadable state fails safe.** A `rebuild` row in `search_meta` that is not a valid state makes
+  `POST /admin/docs` answer 503 `RebuildStateUnreadable` and every rebuild route 409
+  `RebuildStateUnreadable`, instead of treating it as "no rebuild" (which would silently stop the
+  dual-write). Fix or delete the row (and any `_new` / `_old` tables) by hand.
 - **States** (`search_meta` key `rebuild`): `loading` → `swapped` → finished (row removed), or
   `swapped` → `swappedBack` → aborted. `start` refuses (409) while any rebuild is recorded or a
   `_new` / `_old` table is left over; `abort` refuses while the new index is live.
@@ -253,6 +263,13 @@ sequenceDiagram
 - **Verified** on local workerd D1 (`wrangler dev --env local`): two full cycles (finish, then
   swap-back + abort), with updates and deletes reaching the FTS index after each swap. A preview run
   is the remaining check before production.
+- **Preview-proof step: index build time.** The swap batch recreates five secondary indexes over the
+  whole new generation (`idx_search_docs_*` and `idx_doc_subjects_subject`, ~92k documents in
+  production). Each `CREATE INDEX` is its own statement and must stay inside D1's 30 s
+  per-statement limit. Building them during the load instead would leave them with `_new` names
+  (SQLite cannot rename an index), so they stay in the swap. A timeout is safe (503, the batch
+  rolls back, state stays `loading`), but run one full rebuild on a production-sized preview index
+  and note the swap's duration (`search: rebuild` log) before the first production rebuild.
 
 ## Read replication and the Sessions API (SP-1.2)
 

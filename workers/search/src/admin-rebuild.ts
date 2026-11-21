@@ -8,6 +8,7 @@ import {
 	PARKED_TABLES,
 	readRebuildState,
 	REBUILD_META_KEY,
+	RebuildStateUnreadable,
 	SHADOW_TABLES,
 	type IndexTables,
 	type RebuildState
@@ -114,6 +115,10 @@ export async function adminRebuild(request: Request, env: SearchEnv, action: Reb
 		return json(result, 200);
 	} catch (e) {
 		if (e instanceof SearchRequestError) return badRequest(e);
+		if (e instanceof RebuildStateUnreadable) {
+			console.error(REBUILD_LOG, { environment: env.searchEnvironment ?? "unknown", action, unreadable: e.message });
+			return json({ error: { code: "RebuildStateUnreadable", message: e.message } }, 409);
+		}
 		if (e instanceof RebuildConflict) {
 			console.warn(REBUILD_LOG, { environment: env.searchEnvironment ?? "unknown", action, conflict: e.message });
 			return json({ error: { code: "RebuildConflict", message: e.message } }, 409);
@@ -198,7 +203,7 @@ export async function start(db: D1Database, now: () => Date = () => new Date()):
 	const state: RebuildState = { rebuildId: crypto.randomUUID(), state: "loading", startedAt: now().toISOString() };
 	await db.batch([
 		...schema.tables.map((t) => db.prepare(shadowTableSql(t))),
-		...schema.triggers.map((t) => db.prepare(shadowTriggerSql(t.sql))),
+		...schema.triggers.map((t) => db.prepare(generationTriggerSql(t.sql, SHADOW_TABLES))),
 		putState(db, state)
 	]);
 	return state;
@@ -252,7 +257,9 @@ export async function swap(db: D1Database, req: SwapRequest, now: () => Date = (
 	const verification = await verify(db, req);
 	if (!verification.ok) throw new VerificationFailed(verification);
 	const swapped: RebuildState = { ...state, state: "swapped", swappedAt: now().toISOString() };
-	await exchange(db, SHADOW_TABLES, PARKED_TABLES, { dropIncomingTriggers: true }, putState(db, swapped));
+	// The parked generation gets its own triggers so `POST /admin/docs` can keep writing it until finish
+	// or swap-back (its FTS stays in step with its docs).
+	await exchange(db, SHADOW_TABLES, PARKED_TABLES, { parkedTriggers: true }, putState(db, swapped));
 	return { ...swapped, verification };
 }
 
@@ -288,7 +295,7 @@ export async function finish(db: D1Database, rebuildId: string) {
 export async function swapBack(db: D1Database, rebuildId: string) {
 	const state = await requireState(db, rebuildId, "swapped");
 	const back: RebuildState = { ...state, state: "swappedBack" };
-	await exchange(db, PARKED_TABLES, SHADOW_TABLES, { dropIncomingTriggers: false }, putState(db, back));
+	await exchange(db, PARKED_TABLES, SHADOW_TABLES, { parkedTriggers: false }, putState(db, back));
 	return back;
 }
 
@@ -296,9 +303,9 @@ export async function abort(db: D1Database, rebuildId: string) {
 	const state = await readRebuildState(db);
 	if (!state || state.rebuildId !== rebuildId) throw new RebuildConflict(`rebuild ${rebuildId} is not in progress`);
 	if (state.state === "swapped") throw new RebuildConflict(`rebuild ${rebuildId} is live: swap it back or finish it`);
-	const triggers = state.state === "loading" ? (await liveSchema(db)).triggers.map((t) => shadowName(t.name)) : [];
+	const triggers = state.state === "loading" ? (await liveSchema(db)).triggers.map((t) => generationName(t.name, SHADOW_TABLES)) : [];
 	await db.batch([
-		...triggers.map((name) => db.prepare(`DROP TRIGGER IF EXISTS ${name}`)),
+		...triggers.map((name) => db.prepare(`DROP TRIGGER IF EXISTS ${quote(name)}`)),
 		...dropGeneration(db, SHADOW_TABLES),
 		clearState(db)
 	]);
@@ -332,27 +339,35 @@ export async function liveSchema(db: D1Database): Promise<LiveSchema> {
 }
 
 /**
- * One transaction: drop the live generation's triggers and secondary indexes, park it under
- * `park`'s names, rename `incoming` to the live names, then recreate the indexes and triggers from
- * the live schema's own SQL, so the new live tables look exactly as the migrations made them.
+ * One transaction: drop the live generation's triggers and secondary indexes (and any triggers the
+ * incoming generation had under its own suffix), park it under `park`'s names, rename `incoming` to
+ * the live names, then recreate the indexes and triggers from the live schema's own SQL, so the new
+ * live tables look exactly as the migrations made them. With `parkedTriggers`, the parked generation
+ * also gets the live triggers under its suffix, so writes can keep reaching it.
+ *
+ * Recreating the secondary indexes builds them over the whole incoming generation inside this batch
+ * (five `CREATE INDEX` on ~92k rows in production). Each is a separate statement well inside D1's
+ * per-statement limit locally; a timeout rolls the whole batch back (503, state unchanged). Prove the
+ * timing on preview before the first production rebuild (README).
  */
 async function exchange(
 	db: D1Database,
 	incoming: IndexTables,
 	park: IndexTables,
-	options: { dropIncomingTriggers: boolean },
+	options: { parkedTriggers: boolean },
 	stateStatement: D1PreparedStatement
 ): Promise<void> {
 	const schema = await liveSchema(db);
 	const keys = ["docs", "subjects", "fts"] as const;
 	await db.batch([
 		...schema.triggers.map((t) => db.prepare(`DROP TRIGGER ${quote(t.name)}`)),
-		...(options.dropIncomingTriggers ? schema.triggers.map((t) => db.prepare(`DROP TRIGGER IF EXISTS ${shadowName(t.name)}`)) : []),
+		...schema.triggers.map((t) => db.prepare(`DROP TRIGGER IF EXISTS ${quote(generationName(t.name, incoming))}`)),
 		...schema.indexes.map((i) => db.prepare(`DROP INDEX ${quote(i.name)}`)),
 		...keys.map((k) => db.prepare(`ALTER TABLE ${LIVE_TABLES[k]} RENAME TO ${park[k]}`)),
 		...keys.map((k) => db.prepare(`ALTER TABLE ${incoming[k]} RENAME TO ${LIVE_TABLES[k]}`)),
 		...schema.indexes.map((i) => db.prepare(i.sql)),
 		...schema.triggers.map((t) => db.prepare(t.sql)),
+		...(options.parkedTriggers ? schema.triggers.map((t) => db.prepare(generationTriggerSql(t.sql, park))) : []),
 		stateStatement
 	]);
 }
@@ -362,10 +377,13 @@ function dropGeneration(db: D1Database, t: IndexTables): D1PreparedStatement[] {
 	return [t.subjects, t.docs, t.fts].map((name) => db.prepare(`DROP TABLE IF EXISTS ${name}`));
 }
 
-const SHADOW_SUFFIX = SHADOW_TABLES.docs.slice(LIVE_TABLES.docs.length);
+/** A live object's name in another generation (`search_docs_ai` → `search_docs_ai_new`). */
+function generationName(name: string, t: IndexTables): string {
+	return `${name}${t.docs.slice(LIVE_TABLES.docs.length)}`;
+}
 
 function shadowName(name: string): string {
-	return `${name}${SHADOW_SUFFIX}`;
+	return generationName(name, SHADOW_TABLES);
 }
 
 /** An identifier, optionally quoted as SQLite stores it after a rename (`"search_docs"`). */
@@ -391,9 +409,17 @@ export function shadowTableSql(table: SchemaObject): string {
 
 /** The shadow copy of a live trigger: its name, its table and every table it writes, suffixed. */
 export function shadowTriggerSql(sql: string): string {
-	const named = sql.replace(/^(CREATE\s+TRIGGER\s+)("?)(\w+)\2/i, (_m, head: string, _q: string, name: string) => `${head}${shadowName(name)}`);
+	return generationTriggerSql(sql, SHADOW_TABLES);
+}
+
+/** A live trigger for another generation (`_new` while loading, `_old` while parked). */
+export function generationTriggerSql(sql: string, t: IndexTables): string {
+	const named = sql.replace(
+		/^(CREATE\s+TRIGGER\s+)("?)(\w+)\2/i,
+		(_m, head: string, _q: string, name: string) => `${head}${generationName(name, t)}`
+	);
 	return [LIVE_TABLES.docs, LIVE_TABLES.fts].reduce(
-		(s, name) => s.replace(new RegExp(nameRe(name), "g"), shadowName(name)),
+		(s, name) => s.replace(new RegExp(nameRe(name), "g"), generationName(name, t)),
 		named
 	);
 }

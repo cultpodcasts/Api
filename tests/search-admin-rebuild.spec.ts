@@ -2,7 +2,8 @@ import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import searchWorker from "../workers/search/src/index";
 import type { SearchDocUpsert } from "../workers/search/src/admin-docs";
-import { REBUILD_ACTIONS, shadowTableSql, shadowTriggerSql } from "../workers/search/src/admin-rebuild";
+import { generationTriggerSql, REBUILD_ACTIONS, shadowTableSql, shadowTriggerSql } from "../workers/search/src/admin-rebuild";
+import { PARKED_TABLES } from "../workers/search/src/index-generations";
 import type { SearchEnv } from "../workers/search/src/env";
 import { d1, migratedSearchDb } from "./support/searchD1";
 import type { Auth0JwtPayload } from "../src/Auth0JwtPayload";
@@ -77,6 +78,27 @@ function tables(db: DatabaseSync): string[] {
 		.map((r) => r.name);
 }
 
+/** Ids by subject through the doc_subjects → search_docs join (what subject filters and facets use). */
+function bySubject(db: DatabaseSync, subject: string): string[] {
+	return (
+		db
+			.prepare("SELECT d.id FROM doc_subjects s JOIN search_docs d ON d.rowid = s.rowid_ref WHERE s.subject = ? ORDER BY d.id")
+			.all(subject) as { id: string }[]
+	).map((r) => r.id);
+}
+
+function titleNorm(db: DatabaseSync, id: string): string | undefined {
+	return (db.prepare("SELECT title_norm FROM search_docs WHERE id = ?").get(id) as { title_norm: string } | undefined)?.title_norm;
+}
+
+/** The live tables are consistent: subjects' key points at search_docs, no dangling rows, FTS matches its content. */
+function assertLiveConsistent(db: DatabaseSync): void {
+	const fk = db.prepare("PRAGMA foreign_key_list(doc_subjects)").all() as { table: string }[];
+	expect(fk.map((r) => r.table)).toEqual(["search_docs"]);
+	expect(db.prepare("PRAGMA foreign_key_check(doc_subjects)").all()).toEqual([]);
+	expect(() => db.exec("INSERT INTO search_fts (search_fts, rank) VALUES ('integrity-check', 1)")).not.toThrow();
+}
+
 async function loadedRebuild(env: SearchEnv, docs: SearchDocUpsert[]): Promise<string> {
 	const started = await rebuild(env, "start");
 	expect(started.status).toBe(200);
@@ -145,6 +167,72 @@ describe("search Worker index rebuild (SP-2.3)", () => {
 		expect(await ids(f.env, "Latecomer")).toEqual(["pushed"]);
 		expect(await ids(f.env, "Title")).toEqual(["old-2"]);
 		expect(await ids(f.env, "Stale")).toEqual([]);
+	});
+
+	it("keeps subjects joined and title_norm filled through a swap and a swap-back", async () => {
+		// Arrange
+		const rebuildId = await loadedRebuild(f.env, [
+			doc("new-1", { title: "The Sea Org: Inside", subjects: ["Sea Org"] }),
+			doc("new-2", { subjects: ["Scientology", "Sea Org"] })
+		]);
+
+		// Act
+		await rebuild(f.env, "swap", { rebuildId, expectedTotal: 2, maxShrink: 1 });
+		const afterSwap = { sea: bySubject(f.db, "Sea Org"), scientology: bySubject(f.db, "Scientology"), norm: titleNorm(f.db, "new-1") };
+		assertLiveConsistent(f.db);
+		await rebuild(f.env, "swap-back", { rebuildId });
+
+		// Assert
+		expect(afterSwap).toEqual({ sea: ["new-1", "new-2"], scientology: ["new-2"], norm: "the sea org inside" });
+		expect(bySubject(f.db, "Scientology")).toEqual(["old-1", "old-2"]);
+		expect(bySubject(f.db, "Sea Org")).toEqual([]);
+		expect(titleNorm(f.db, "old-1")).toBe("title faderhuset");
+		assertLiveConsistent(f.db);
+	});
+
+	it("keeps writing the parked index after the swap, so a swap-back restores every push", async () => {
+		// Arrange
+		const rebuildId = await loadedRebuild(f.env, [doc("old-1"), doc("old-2")]);
+		await rebuild(f.env, "swap", { rebuildId, expectedTotal: 2, maxShrink: 1 });
+
+		// Act
+		const pushed = await push(f.env, {
+			upserts: [doc("late", { title: "Latecomer", subjects: ["Sea Org"] }), doc("old-1", { title: "Renamed Faderhuset", modifiedAt: T0 + 1 })],
+			deletes: ["old-2"]
+		});
+		const back = await rebuild(f.env, "swap-back", { rebuildId });
+
+		// Assert
+		expect(pushed.status).toBe(200);
+		expect(back.status).toBe(200);
+		expect(await ids(f.env, "Latecomer")).toEqual(["late"]);
+		expect(await ids(f.env, "Renamed")).toEqual(["old-1"]);
+		expect(await ids(f.env, "Title")).toEqual([]);
+		expect(bySubject(f.db, "Sea Org")).toEqual(["late"]);
+		expect(titleNorm(f.db, "old-1")).toBe("renamed faderhuset");
+		assertLiveConsistent(f.db);
+		expect(await status(f.env)).toMatchObject({ state: "swappedBack", live: { total: 2 } });
+	});
+
+	it("refuses writes and rebuild actions when the recorded rebuild state is unreadable, instead of ignoring it", async () => {
+		// Arrange
+		await loadedRebuild(f.env, [doc("new-1")]);
+		f.db.prepare("UPDATE search_meta SET value = ? WHERE key = 'rebuild'").run("{not json");
+
+		// Act
+		const pushed = await push(f.env, { upserts: [doc("x")] });
+		const statusResp = await call(f.env, "/admin/rebuild");
+		const started = await rebuild(f.env, "start");
+
+		// Assert
+		expect(pushed.status).toBe(503);
+		expect(pushed.body.error.code).toBe("RebuildStateUnreadable");
+		for (const r of [statusResp, started]) {
+			expect(r.status).toBe(409);
+			expect(r.body.error.code).toBe("RebuildStateUnreadable");
+			expect(r.body.error.message).toContain("by hand");
+		}
+		expect(await ids(f.env, "Title")).toEqual(["old-1", "old-2"]);
 	});
 
 	it("refuses the swap and changes nothing when the shadow fails verification", async () => {
@@ -348,6 +436,20 @@ describe("shadow schema SQL (SP-2.3)", () => {
 		// Assert
 		expect(shadow).toBe(
 			"CREATE TRIGGER search_docs_ad_new AFTER DELETE ON search_docs_new BEGIN INSERT INTO search_fts_new (search_fts_new, rowid) VALUES ('delete', old.rowid); END"
+		);
+	});
+
+	it("points a trigger at the parked names for the parked generation", () => {
+		// Arrange
+		const trigger =
+			'CREATE TRIGGER "search_docs_ad" AFTER DELETE ON "search_docs" BEGIN INSERT INTO search_fts (search_fts, rowid) VALUES (\'delete\', old.rowid); END';
+
+		// Act
+		const parked = generationTriggerSql(trigger, PARKED_TABLES);
+
+		// Assert
+		expect(parked).toBe(
+			"CREATE TRIGGER search_docs_ad_old AFTER DELETE ON search_docs_old BEGIN INSERT INTO search_fts_old (search_fts_old, rowid) VALUES ('delete', old.rowid); END"
 		);
 	});
 });

@@ -2,7 +2,7 @@ import { writeDb } from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
 import { json } from "./health";
-import { LIVE_TABLES, readRebuildState, SHADOW_TABLES, type IndexTables } from "./index-generations";
+import { alsoWriteTo, LIVE_TABLES, PARKED_TABLES, readRebuildState, RebuildStateUnreadable, SHADOW_TABLES, type IndexTables } from "./index-generations";
 
 /**
  * `POST /admin/docs`: the search index write path (SP-1.4, cultpodcasts/Api#222).
@@ -209,19 +209,26 @@ export async function adminDocs(request: Request, env: SearchEnv): Promise<Respo
 	try {
 		const db = writeDb(env);
 		// SP-2.3: while a rebuild is loading, every write also lands in the shadow tables (same
-		// transaction), so the swap never loses a push made during the load.
-		const rebuilding = (await readRebuildState(db))?.state === "loading";
-		const outcome = await applyAdminDocs(req, db, rebuilding ? [SHADOW_TABLES] : []);
+		// transaction), so the swap never loses a push made during the load. After the swap, until
+		// finish or swap-back, it also lands in the parked previous generation, so a swap-back
+		// restores an index that missed nothing. An unreadable rebuild state refuses the write.
+		const also = alsoWriteTo(await readRebuildState(db));
+		const outcome = await applyAdminDocs(req, db, also);
 		console.log(ADMIN_WRITE_LOG, {
 			environment: env.searchEnvironment ?? "unknown",
 			upserted: outcome.upserted,
 			deleted: outcome.deleted,
 			stale: outcome.stale.length,
 			notFound: outcome.notFound.length,
-			...(rebuilding ? { alsoShadow: true } : {})
+			...(also.includes(SHADOW_TABLES) ? { alsoShadow: true } : {}),
+			...(also.includes(PARKED_TABLES) ? { alsoParked: true } : {})
 		});
 		return json(outcome, 200);
 	} catch (e) {
+		if (e instanceof RebuildStateUnreadable) {
+			console.error(ADMIN_WRITE_LOG, { environment: env.searchEnvironment ?? "unknown", refused: e.message });
+			return json({ error: { code: "RebuildStateUnreadable", message: e.message } }, 503);
+		}
 		return d1Unavailable(e);
 	}
 }

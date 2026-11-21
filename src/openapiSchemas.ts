@@ -1777,7 +1777,7 @@ export const searchRebuildOutcomeSchema = z.object({
 
 /** `POST /search/admin/rebuild/{action}` 409: the rebuild's state does not allow it, or the swap failed verification. */
 export const searchRebuildConflictSchema = z.object({
-	error: z.object({ code: z.enum(["RebuildConflict", "VerificationFailed"]), message: z.string() }),
+	error: z.object({ code: z.enum(["RebuildConflict", "VerificationFailed", "RebuildStateUnreadable"]), message: z.string() }),
 	verification: z.unknown().optional().describe("VerificationFailed: the same shape as a swap's verification")
 });
 
