@@ -62,6 +62,7 @@ Semver patch (or higher) in `package.json` + `package-lock.json` on every shippi
 Multi-repo workspace: this repo is at `/agent/repos/api` alongside `/agent/repos/website` and <!-- pragma: allowlist secret -->
 `/agent/repos/redditpodcastposter`. The startup update script runs `npm ci` + `./build.sh` <!-- pragma: allowlist secret -->
 (`prisma generate`) here. <!-- pragma: allowlist secret -->
+`npm ci` needs `NODE_AUTH_TOKEN` (GitHub PAT with `read:packages`) for the private `@cultpodcasts/contracts` package (`.npmrc`; `docs/openapi-schemas-from-csharp.md`). <!-- pragma: allowlist secret -->
 
 - **HARD**: Never use the `pin-github-identity` skill (or `GH_TOKEN` process-override from `gh auth token --user …`) on Cursor Cloud / Cloud Agent VMs; GitHub identity is whatever Cursor assigned to the run. <!-- pragma: allowlist secret -->
 - **Node**: the app needs Node 22.22.3 (installed via nvm). Login shells (`bash -lc`, tmux) get it <!-- pragma: allowlist secret -->

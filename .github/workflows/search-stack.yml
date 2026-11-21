@@ -351,10 +351,12 @@ jobs:
 
       # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
       # token out of this step (step env overrides job env). Later steps get them back.
+      # NODE_AUTH_TOKEN is the read:packages PAT for @cultpodcasts/contracts (.npmrc); without it npm ci gets a 401.
       - name: Install wrangler
         env:
           TF_VAR_cloudflare_api_token: ""
           TF_TOKEN_app_terraform_io: ""
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
         run: npm ci
 
       # Schema before code, both against the deploy config carrying the Terraform id.
@@ -446,10 +448,12 @@ jobs:
 
       # Install scripts of every dependency run here: keep the Cloudflare Edit token and the HCP
       # token out of this step (step env overrides job env). Later steps get them back.
+      # NODE_AUTH_TOKEN is the read:packages PAT for @cultpodcasts/contracts (.npmrc); without it npm ci gets a 401.
       - name: Install wrangler
         env:
           TF_VAR_cloudflare_api_token: ""
           TF_TOKEN_app_terraform_io: ""
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
         run: npm ci
 
       # Schema before code, both against the deploy config carrying the Terraform id.

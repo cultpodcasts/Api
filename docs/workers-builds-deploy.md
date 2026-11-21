@@ -7,6 +7,10 @@ Api Builds only publishes Api. US scrape Workers are separate local/ops deploys 
 | **api** | `npx wrangler deploy` or `npm run deploy` |
 | **api-preview** | `npx wrangler deploy --env preview` or `npm run deploy -- --env preview` |
 
+## Build variable: `NODE_AUTH_TOKEN` (required)
+
+`npm ci` installs the private `@cultpodcasts/contracts` package from GitHub Packages (`.npmrc`, RedditPodcastPoster#1502). Each Workers Builds project that builds this repo (**api** and **api-preview**) needs a **build** variable (secret) named `NODE_AUTH_TOKEN`: a GitHub PAT with `read:packages`. It is a build-time variable (Settings → Build → Variables and secrets), not a Worker runtime secret. Without it the build fails at `npm ci` with 401/403 and the previous deployment keeps serving.
+
 Do **not** wire `deploy:*:with-contract` into Builds — GitHub Packages publish is deferred ([`contract-publish.md`](./contract-publish.md)).
 
 ## US scrape (product geo prepare)
