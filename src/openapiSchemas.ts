@@ -1,20 +1,26 @@
 // pragma: allowlist secret
 import { z } from "zod";
 import {
-	approvalStatusDtoSchema,
 	episodeDtoPersonMatchSchema,
 	episodeDtoSchema as generatedEpisodeDtoSchema,
-	episodeUpdateResponseSchema as generatedEpisodeUpdateResponseSchema,
-	personDtoSchema as generatedPersonDtoSchema,
+	episodeUpdateResponseSchema,
+	personDtoSchema,
 	publicEpisodeDtoSchema as generatedPublicEpisodeDtoSchema,
-	searchIndexerStateSchema as generatedSearchIndexerStateSchema,
-	serviceDtoSchema,
-	serviceLinkDtoSchema as generatedServiceLinkDtoSchema,
+	searchIndexerStateSchema,
+	serviceLinkDtoSchema,
 	subjectMatchDtoSchema
 } from "@cultpodcasts/contracts/zod";
 import { CatalogueParentKind } from "./catalogueParentKind";
 import { DiscoverySubmitOutcomeState } from "./discoverySubmitOutcomeState";
 import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contract";
+
+/** Generated schemas used elsewhere in the worker, re-exported under the same package names (no rename aliases). */
+export {
+	episodeUpdateResponseSchema,
+	personDtoSchema,
+	searchIndexerStateSchema,
+	serviceLinkDtoSchema
+};
 
 /**
  * OpenAPI/Zod contracts for the Cloudflare Api worker.
@@ -679,14 +685,6 @@ export const serviceEnumSchema = z.enum(["Spotify", "Apple", "YouTube", "Other"]
 /** JsonStringEnumConverter — RedditPodcastPoster.Models.Subjects.SubjectType */
 export const subjectTypeSchema = z.enum(["Unset", "Canonical", "Meta"]);
 
-/**
- * RedditPodcastPoster.Models.Episodes.ApprovalStatus (enum names, RPP #1484). Set only on an episode held for curator
- * approval: today a split-off (the stored episode's old links after a `serviceLinkConflictDecision: "overwrite"`).
- * Both values are hidden from the public and never posted. There is no approved value: absent/null means approved,
- * so every ordinary episode (and a split-off once approved) has none.
- */
-export const approvalStatusSchema = approvalStatusDtoSchema;
-
 /** Api.Models.ApprovalDecision (RPP #1484): a curator's decision on an episode held for approval. */
 export const approvalDecisionSchema = z.enum(["Approve", "Reject"]);
 
@@ -797,19 +795,7 @@ export const episodePublishRequestSchema = z.object({
 
 // --- Azure Functions response DTOs (Cloud/Api/Dtos) ---
 
-/** Api.Dtos.SearchIndexerState (generated). */
-export const searchIndexerStateSchema = generatedSearchIndexerStateSchema;
-
-/** Api.Dtos.ServiceDto (generated): JsonStringEnumConverter Service values on EpisodeDto. */
-export const serviceNameSchema = serviceDtoSchema;
-
-/** Api.Dtos.PersonDto (generated): every key is present; unset values are null. */
-export const personDtoSchema = generatedPersonDtoSchema;
-
 export const peopleListResponseSchema = z.array(personDtoSchema);
-
-/** Api.Dtos.EpisodeDto+PersonMatch (generated). */
-const episodeGuestSuggestionSchema = episodeDtoPersonMatchSchema;
 
 /**
  * Api.Dtos.EpisodeDto (generated). TimeSpan `duration` serialises as a string (e.g. "01:30:00"); `release` is a UTC
@@ -855,9 +841,6 @@ export const publicEpisodeDtoSchema = generatedPublicEpisodeDtoSchema.extend({
 	imageRemoved: generatedPublicEpisodeDtoSchema.shape.imageRemoved
 		.describe("`true` when a curator deliberately removed the episode's image (RPP #1500): show no art, not a YouTube thumbnail fallback. Omitted otherwise.")
 });
-
-/** Api.Dtos.EpisodeUpdateResponse (generated) — POST episode → 202. Every key is present; unset values are null. */
-export const episodeUpdateResponseSchema = generatedEpisodeUpdateResponseSchema;
 
 /** Api.Dtos.EpisodePublishResponse */
 export const episodePublishResponseSchema = z.object({
@@ -1867,9 +1850,6 @@ const publisherFieldsChangeShape = {
 	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable()
 };
 
-/** Api.Dtos.ServiceLinkDto (generated): url, image, lang; nulls omitted. */
-export const serviceLinkDtoSchema = generatedServiceLinkDtoSchema;
-
 /** Shared curator playable fields (Api.Dtos.PlayableFieldsDto): news report and TV-show episode. */
 const playableFieldsDtoShape = {
 	id: z.string().uuid(),
@@ -1889,7 +1869,7 @@ const playableFieldsDtoShape = {
 	language: z.string().optional().nullable(),
 	guests: z.array(z.string()).optional().nullable(),
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
-	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
+	guestSuggestions: z.array(episodeDtoPersonMatchSchema).optional().nullable(),
 	services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable()
 };
 
@@ -2160,7 +2140,7 @@ export const filmDtoSchema = z.object({
 		subjects: z.array(z.string()),
 		guests: z.array(z.string()).optional().nullable(),
 		guestPeople: z.array(personDtoSchema).optional().nullable(),
-		guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
+		guestSuggestions: z.array(episodeDtoPersonMatchSchema).optional().nullable(),
 		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
 		trailers: z.array(filmTrailerDtoSchema).optional().nullable(),
 		image: z.string().url().optional().nullable()

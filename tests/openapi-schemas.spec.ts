@@ -27,7 +27,6 @@ import {
 	episodeDeleteBlockedSchema,
 	episodeDtoSchema,
 	episodePublishResponseSchema,
-	approvalStatusSchema,
 	approvalDecisionSchema,
 	episodeListResponseSchema,
 	episodePublishRequestSchema,
@@ -755,11 +754,10 @@ describe("openapi Zod schemas", () => {
 		expect(episodeUpdateResponseSchema.parse({ tweetDeleted: null, blueskyPostDeleted: null, searchIndexerState: null }).searchIndexerState).toBeNull();
 	});
 
-	it("re-exports the generated @cultpodcasts/contracts schemas instead of hand-written copies (RedditPodcastPoster#1502)", () => {
+	it("re-exports generated @cultpodcasts/contracts schemas under their package names (RedditPodcastPoster#1516)", () => {
 		expect(episodeUpdateResponseSchema).toBe(generated.episodeUpdateResponseSchema);
 		expect(personDtoSchema).toBe(generated.personDtoSchema);
 		expect(searchIndexerStateSchema).toBe(generated.searchIndexerStateSchema);
-		expect(approvalStatusSchema).toBe(generated.approvalStatusDtoSchema);
 		expect(Object.keys(episodeDtoSchema.shape)).toEqual(Object.keys(generated.episodeDtoSchema.shape));
 	});
 
@@ -1123,7 +1121,7 @@ describe("openapi Zod schemas", () => {
 	});
 
 	it("EpisodeDto carries a two-value approvalStatus, absent meaning approved (RPP #1484)", () => {
-		expect(approvalStatusSchema.options).toEqual(["AwaitingApproval", "Rejected"]);
+		expect(generated.approvalStatusDtoSchema.options).toEqual(["AwaitingApproval", "Rejected"]);
 		expect(approvalDecisionSchema.options).toEqual(["Approve", "Reject"]);
 		expect(episodeDtoSchema.shape.approvalStatus.safeParse(undefined).success).toBe(true);
 		expect(episodeDtoSchema.shape.approvalStatus.parse("AwaitingApproval")).toBe("AwaitingApproval");
