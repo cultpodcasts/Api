@@ -1,5 +1,17 @@
 // pragma: allowlist secret
 import { z } from "zod";
+import {
+	approvalStatusDtoSchema,
+	episodeDtoPersonMatchSchema,
+	episodeDtoSchema as generatedEpisodeDtoSchema,
+	episodeUpdateResponseSchema as generatedEpisodeUpdateResponseSchema,
+	personDtoSchema as generatedPersonDtoSchema,
+	publicEpisodeDtoSchema as generatedPublicEpisodeDtoSchema,
+	searchIndexerStateSchema as generatedSearchIndexerStateSchema,
+	serviceDtoSchema,
+	serviceLinkDtoSchema as generatedServiceLinkDtoSchema,
+	subjectMatchDtoSchema
+} from "@cultpodcasts/contracts/zod";
 import { CatalogueParentKind } from "./catalogueParentKind";
 import { DiscoverySubmitOutcomeState } from "./discoverySubmitOutcomeState";
 import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contract";
@@ -8,6 +20,11 @@ import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contrac
  * OpenAPI/Zod contracts for the Cloudflare Api worker.
  * Known Azure/DTO / R2 / Search shapes are strict objects (no `.passthrough()` /
  * open records) so Swagger examples show real fields instead of additionalProp1/2/3.
+ *
+ * Azure Functions DTOs that RPP exports (`[ExportContract]`) come from `@cultpodcasts/contracts/zod`
+ * and are generated from the C# (RedditPodcastPoster#1502). Do not copy them here; add OpenAPI
+ * metadata by extending the generated schema. Everything else below is still hand-written
+ * (docs/openapi-schemas-from-csharp.md).
  */
 
 export const errorSchema = z.object({
@@ -345,12 +362,12 @@ const discoveryMatchingPodcastSchema = z.object({
 	kind: z.string().optional().nullable()
 });
 
-/** Api.Dtos.SubjectMatchDto — why a subject matched; `source` serialises as the enum name. */
-const episodeSubjectMatchSchema = z.object({
-	subject: z.string(),
-	term: z.string(),
-	source: z.enum(["Title", "Description", "PodcastDefault"])
-}).describe("Why a subject matched: the subject, the term (subject name or alias) that matched, and where it matched.");
+/**
+ * Api.Dtos.SubjectMatchDto (generated). `source` is a C# string holding the PlayableSubjectMatch source enum name
+ * (`Title`, `Description`, `PodcastDefault`), so the contract types it as a plain string.
+ */
+const episodeSubjectMatchSchema = subjectMatchDtoSchema
+	.describe("Why a subject matched: the subject, the term (subject name or alias) that matched, and where it matched (`Title`, `Description` or `PodcastDefault`).");
 
 const discoveryCurationItemSchema = z.object({
 	id: z.string().uuid(),
@@ -668,7 +685,7 @@ export const subjectTypeSchema = z.enum(["Unset", "Canonical", "Meta"]);
  * Both values are hidden from the public and never posted. There is no approved value: absent/null means approved,
  * so every ordinary episode (and a split-off once approved) has none.
  */
-export const approvalStatusSchema = z.enum(["AwaitingApproval", "Rejected"]);
+export const approvalStatusSchema = approvalStatusDtoSchema;
 
 /** Api.Models.ApprovalDecision (RPP #1484): a curator's decision on an episode held for approval. */
 export const approvalDecisionSchema = z.enum(["Approve", "Reject"]);
@@ -780,134 +797,67 @@ export const episodePublishRequestSchema = z.object({
 
 // --- Azure Functions response DTOs (Cloud/Api/Dtos) ---
 
-export const searchIndexerStateSchema = z.enum([
-	"EpisodeNotFound",
-	"EpisodeIdConflict",
-	"NoDocuments",
-	"Executed",
-	"Failure",
-	"TooManyRequests",
-	"AlreadyRunning",
-	"Unknown"
-]);
+/** Api.Dtos.SearchIndexerState (generated). */
+export const searchIndexerStateSchema = generatedSearchIndexerStateSchema;
 
-/** JsonStringEnumConverter Service values used on EpisodeDto / PodcastDto. */
-export const serviceNameSchema = serviceEnumSchema;
+/** Api.Dtos.ServiceDto (generated): JsonStringEnumConverter Service values on EpisodeDto. */
+export const serviceNameSchema = serviceDtoSchema;
 
-export const personDtoSchema = z.object({
-	id: z.string().uuid().optional().nullable(),
-	name: z.string().optional().nullable(),
-	sortName: z.string().optional().nullable(),
-	isOrganization: z.boolean().optional().nullable(),
-	aliases: z.array(z.string()).optional().nullable(),
-	twitterHandle: z.string().optional().nullable(),
-	blueskyHandle: z.string().optional().nullable()
-});
+/** Api.Dtos.PersonDto (generated): every key is present; unset values are null. */
+export const personDtoSchema = generatedPersonDtoSchema;
 
 export const peopleListResponseSchema = z.array(personDtoSchema);
 
-const episodeGuestMatchResultSchema = z.object({
-	term: z.string(),
-	matches: z.number()
-});
-
-const episodeGuestSuggestionSchema = z.object({
-	person: personDtoSchema,
-	matchResults: z.array(episodeGuestMatchResultSchema)
-});
+/** Api.Dtos.EpisodeDto+PersonMatch (generated). */
+const episodeGuestSuggestionSchema = episodeDtoPersonMatchSchema;
 
 /**
- * Additive kind fields on the GET-by-id episode read models (RPP `Api.Models.PlayableKind` / `IPlayableKindDto`).
- * Set only by `GET /episode/:id` (and `/episode/:podcastName/:episodeId`) and `GET /public/episode/:id`; omitted
- * elsewhere (outgoing lists). Since the catalogue migration keeps each episode's id, those GETs also resolve a news
- * report, TV episode or film by id: the podcast fields then carry the parent (`podcastName`/`podcastId` = news
- * organisation or TV show; for a film, the film's own name and id).
+ * Api.Dtos.EpisodeDto (generated). TimeSpan `duration` serialises as a string (e.g. "01:30:00"); `release` is a UTC
+ * instant ending in `Z`. Only OpenAPI descriptions are added here.
  */
-const playableKindFields = {
-	contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"]).optional()
-		.describe("Kind of playable. Podcast episodes are `Episode`."),
-	parentId: z.string().uuid().optional()
+export const episodeDtoSchema = generatedEpisodeDtoSchema.extend({
+	contentKind: generatedEpisodeDtoSchema.shape.contentKind
+		.describe("Kind of playable: `Episode`, `TvShowEpisode`, `Film` or `NewsReport`. Podcast episodes are `Episode`. Omitted outside the GET-by-id reads."),
+	parentId: generatedEpisodeDtoSchema.shape.parentId
 		.describe("Podcast, news organisation or TV show id. Absent for a film (no parent)."),
-	parentName: z.string().optional()
+	parentName: generatedEpisodeDtoSchema.shape.parentName
 		.describe("Podcast, news organisation or TV show name. Absent for a film."),
-	slug: z.string().optional()
+	slug: generatedEpisodeDtoSchema.shape.slug
 		.describe("Site route segment: the parent name, or a film's own name (unencoded)."),
-	path: z.string().optional()
-		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`.")
-};
-
-/** Api.Dtos.EpisodeDto — TimeSpan `duration` serialises as string (e.g. "01:30:00"). */
-export const episodeDtoSchema = z.object({
-	...playableKindFields,
-	id: z.string().uuid(),
-	podcastId: z.string().uuid(),
-	podcastName: z.string(),
-	title: z.string(),
-	displayTitle: z.string().optional(),
-	description: z.string(),
-	displayDescription: z.string().optional(),
-	release: isoDateTime,
-	duration: z.string(),
-	explicit: z.boolean(),
-	posted: z.boolean(),
-	tweeted: z.boolean(),
-	bluesky: z.boolean().optional().nullable(),
-	ignored: z.boolean(),
-	removed: z.boolean(),
-	approvalStatus: approvalStatusSchema.optional()
+	path: generatedEpisodeDtoSchema.shape.path
+		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`."),
+	approvalStatus: generatedEpisodeDtoSchema.shape.approvalStatus
 		.describe("Only on an episode held for curator approval (RPP #1484): `AwaitingApproval` or `Rejected`, both hidden and never posted. Omitted means approved (every ordinary episode, and a split-off once approved)."),
-	lang: z.string().optional().nullable(),
-	spotifyId: z.string().optional(),
-	appleId: z.number().optional().nullable(),
-	youTubeId: z.string().optional(),
-	ids: episodeIdsSchema.optional().nullable(),
-	urls: serviceUrlsSchema,
-	subjects: z.array(z.string()),
-	removedSubjects: z.array(z.string()).optional(),
-	matches: z.array(episodeSubjectMatchSchema).optional(),
-	searchTerms: z.string().optional().nullable(),
-	hashTag: z.string().optional().nullable(),
-	images: serviceImageUrlsSchema.optional().nullable(),
-	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	guests: z.array(z.string()).optional().nullable(),
-	youTubePodcast: z.boolean().optional(),
-	spotifyPodcast: z.boolean().optional(),
-	applePodcast: z.boolean().optional(),
-	releaseAuthority: serviceNameSchema.optional().nullable(),
-	primaryPostService: serviceNameSchema.optional().nullable(),
-	image: z.string().url().optional().nullable(),
-	guestPeople: z.array(personDtoSchema).optional().nullable(),
-	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
-	alternativeTitles: z.array(z.string()).optional().nullable()
+	alternativeTitles: generatedEpisodeDtoSchema.shape.alternativeTitles
 		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
 
-/** Api.Dtos.PublicEpisodeDto */
-export const publicEpisodeDtoSchema = z.object({
-	...playableKindFields,
-	id: z.string().uuid(),
-	podcastName: z.string(),
-	title: z.string(),
-	description: z.string(),
-	release: isoDateTime,
-	duration: z.string(),
-	explicit: z.boolean(),
-	subjects: z.array(z.string()),
-	ids: episodeIdsSchema.optional().nullable(),
-	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	image: z.string().url().optional().nullable(),
-	alternativeTitles: z.array(z.string()).optional().nullable()
-		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
+/**
+ * Api.Dtos.PublicEpisodeDto (generated) — `GET /public/episode/:id`. Every non-optional key is present; unset values
+ * are null. `image` is already coalesced across services and is null when a curator removed it, which also sets
+ * `imageRemoved` (RPP #1500). Only OpenAPI descriptions are added here.
+ */
+export const publicEpisodeDtoSchema = generatedPublicEpisodeDtoSchema.extend({
+	contentKind: generatedPublicEpisodeDtoSchema.shape.contentKind
+		.describe("Kind of playable: `Episode`, `TvShowEpisode`, `Film` or `NewsReport`. Podcast episodes are `Episode`."),
+	parentId: generatedPublicEpisodeDtoSchema.shape.parentId
+		.describe("Podcast, news organisation or TV show id. Absent for a film (no parent)."),
+	parentName: generatedPublicEpisodeDtoSchema.shape.parentName
+		.describe("Podcast, news organisation or TV show name. Absent for a film."),
+	slug: generatedPublicEpisodeDtoSchema.shape.slug
+		.describe("Site route segment: the parent name, or a film's own name (unencoded)."),
+	path: generatedPublicEpisodeDtoSchema.shape.path
+		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`."),
+	alternativeTitles: generatedPublicEpisodeDtoSchema.shape.alternativeTitles
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film."),
+	imageRemoved: generatedPublicEpisodeDtoSchema.shape.imageRemoved
+		.describe("`true` when a curator deliberately removed the episode's image (RPP #1500): show no art, not a YouTube thumbnail fallback. Omitted otherwise.")
 });
 
-/** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
-export const episodeUpdateResponseSchema = z.object({
-	tweetDeleted: z.boolean().optional().nullable(),
-	blueskyPostDeleted: z.boolean().optional().nullable(),
-	searchIndexerState: searchIndexerStateSchema.optional().nullable()
-});
+/** Api.Dtos.EpisodeUpdateResponse (generated) — POST episode → 202. Every key is present; unset values are null. */
+export const episodeUpdateResponseSchema = generatedEpisodeUpdateResponseSchema;
 
 /** Api.Dtos.EpisodePublishResponse */
 export const episodePublishResponseSchema = z.object({
@@ -1917,12 +1867,8 @@ const publisherFieldsChangeShape = {
 	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable()
 };
 
-/** Api.Dtos.ServiceLinkDto (url, image, lang; nulls omitted). */
-export const serviceLinkDtoSchema = z.object({
-	url: z.string().url().optional().nullable(),
-	image: z.string().url().optional().nullable(),
-	lang: z.string().optional().nullable()
-});
+/** Api.Dtos.ServiceLinkDto (generated): url, image, lang; nulls omitted. */
+export const serviceLinkDtoSchema = generatedServiceLinkDtoSchema;
 
 /** Shared curator playable fields (Api.Dtos.PlayableFieldsDto): news report and TV-show episode. */
 const playableFieldsDtoShape = {

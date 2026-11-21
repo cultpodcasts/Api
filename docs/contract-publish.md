@@ -1,6 +1,6 @@
 # Streaming-submit contract → GitHub Packages (**deferred**)
 
-GitHub Packages billing is blocked for now. **Do not** wire `deploy:*:with-contract` into Workers Builds until that is fixed. Prefer sibling contract copies (website / RPP PRs).
+Publishing *this repo's* streaming-submit contract to GitHub Packages is deferred (billing was blocked). **Do not** wire `deploy:*:with-contract` into Workers Builds until that is revisited. Prefer sibling contract copies (website / RPP PRs). This is separate from *consuming* `@cultpodcasts/contracts` (published from RedditPodcastPoster), which is live: `npm ci` installs it from GitHub Packages with a `read:packages` PAT ([`workers-builds-deploy.md`](./workers-builds-deploy.md#build-variable-node_auth_token-required)).
 
 When unblocked, see publish scripts below and [`workers-builds-deploy.md`](./workers-builds-deploy.md) for chaining with scrape + Api.
 
