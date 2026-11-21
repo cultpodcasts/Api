@@ -60,16 +60,15 @@ export async function putDiscoverySubmissionReview(c: Auth0ActionContext): Promi
  * Apply and retry answer 202 once the ingest is queued (RPP #1415); a preflight decision, a no-op or release is 200.
  * The submission document is the job status: poll GET /discovery-submissions/{id} until it leaves Applying.
  */
-const commandSuccessStatuses: Record<"apply" | "retry" | "release" | "outputs-reviewed", number[]> = {
+const commandSuccessStatuses: Record<"apply" | "retry" | "release", number[]> = {
 	apply: [200, 202],
 	retry: [200, 202],
-	release: [200],
-	"outputs-reviewed": [200]
+	release: [200]
 };
 
 async function postSubmissionCommand(
 	c: Auth0ActionContext,
-	action: "apply" | "retry" | "release" | "outputs-reviewed"
+	action: "apply" | "retry" | "release"
 ): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });
 	const body = JSON.stringify(await c.req.json());
@@ -88,9 +87,6 @@ async function postSubmissionCommand(
 export const postDiscoverySubmissionApply = (c: Auth0ActionContext) => postSubmissionCommand(c, "apply");
 export const postDiscoverySubmissionRetry = (c: Auth0ActionContext) => postSubmissionCommand(c, "retry");
 export const postDiscoverySubmissionRelease = (c: Auth0ActionContext) => postSubmissionCommand(c, "release");
-/** The supervisor has checked the episodes an apply created or matched: clears the review to-do (RPP #1415). */
-export const postDiscoverySubmissionOutputsReviewed = (c: Auth0ActionContext) =>
-	postSubmissionCommand(c, "outputs-reviewed");
 
 /** Admin only: manually set a submission's status (audited as a StateChanged history entry). */
 export async function postDiscoverySubmissionState(c: Auth0ActionContext): Promise<Response> {
