@@ -14,6 +14,8 @@ import {
 	parseSearchShadowConfig,
 	runSearchShadow,
 	SEARCH_SHADOW_ERROR_LIMIT,
+	searchQueryKind,
+	shadowSlo,
 	searchShadowUrl,
 	shouldSampleShadow,
 	snapshotSearchResponse,
@@ -36,11 +38,11 @@ function azureDoc(ids: string[], count?: number) {
 	};
 }
 
-function stubAzure(body: unknown, status = 200) {
+function stubAzure(body: unknown, status = 200, headers: Record<string, string> = {}) {
 	const fetchMock = vi.fn(async () =>
 		new Response(JSON.stringify(body), {
 			status,
-			headers: { "content-type": "application/json" }
+			headers: { "content-type": "application/json", ...headers }
 		})
 	);
 	vi.stubGlobal("fetch", fetchMock);
@@ -153,6 +155,53 @@ describe("snapshot and overlap", () => {
 	});
 });
 
+describe("soak SLO verdicts (SP-3.2)", () => {
+	const ok = (ids: string[], count: number | null) => ({ status: 200, latencyMs: 10, count, topIds: ids });
+	const ten = (prefix: string) => Array.from({ length: 10 }, (_, i) => `${prefix}${i}`);
+
+	it("classifies a query with no free text as browse", () => {
+		expect([undefined, "", "  ", "*"].map(searchQueryKind)).toEqual(["browse", "browse", "browse", "browse"]);
+		expect(searchQueryKind("scientology")).toBe("text");
+	});
+
+	it("accepts counts within max(2, 0.1%) of Azure and rejects more", () => {
+		const verdict = (azureCount: number, d1Count: number) =>
+			shadowSlo(ok(["a"], azureCount), ok(["a"], d1Count), compareSearchSnapshots(["a"], ["a"], 10));
+		expect(verdict(10, 12)).toMatchObject({ countDelta: 2, countWithin: true });
+		expect(verdict(10, 7)).toMatchObject({ countDelta: -3, countWithin: false });
+		expect(verdict(5000, 5005)).toMatchObject({ countDelta: 5, countWithin: true });
+		expect(verdict(5000, 5006)).toMatchObject({ countWithin: false });
+	});
+
+	it("needs 9 of the top 10, or all of a shorter Azure list", () => {
+		const azure = ten("a");
+		const nine = [...azure.slice(0, 9), "x"];
+		const eight = [...azure.slice(0, 8), "x", "y"];
+		expect(shadowSlo(ok(azure, 10), ok(nine, 10), compareSearchSnapshots(azure, nine, 10))).toMatchObject({ overlapNeeded: 9, overlapOk: true });
+		expect(shadowSlo(ok(azure, 10), ok(eight, 10), compareSearchSnapshots(azure, eight, 10))).toMatchObject({ overlapOk: false });
+		expect(shadowSlo(ok(["a", "b"], 2), ok(["b", "a"], 2), compareSearchSnapshots(["a", "b"], ["b", "a"], 10))).toMatchObject({
+			overlapNeeded: 2,
+			overlapOk: true
+		});
+		expect(shadowSlo(ok([], 0), ok([], 0), compareSearchSnapshots([], [], 10))).toMatchObject({ overlapNeeded: 0, overlapOk: true });
+	});
+
+	it("marks 429, 5xx and no answer as unavailable, a 400 as failed but not unavailable, and skips comparisons", () => {
+		const azure = ok(["a"], 1);
+		const none = compareSearchSnapshots(["a"], [], 10);
+		const d1 = (status: number | undefined) => ({ status, latencyMs: 5, count: null, topIds: [], error: "e" });
+		expect(shadowSlo(azure, d1(503), none)).toEqual({ d1Ok: false, d1Unavailable: true, bothOk: false });
+		expect(shadowSlo(azure, d1(429), none).d1Unavailable).toBe(true);
+		expect(shadowSlo(azure, d1(undefined), none).d1Unavailable).toBe(true);
+		expect(shadowSlo(azure, d1(400), none)).toEqual({ d1Ok: false, d1Unavailable: false, bothOk: false });
+	});
+
+	it("leaves count and overlap verdicts out when Azure itself failed", () => {
+		const azure = { status: 503, latencyMs: 5, count: null, topIds: [], error: "status_503" };
+		expect(shadowSlo(azure, ok(["a"], 1), compareSearchSnapshots([], ["a"], 10))).toEqual({ d1Ok: true, d1Unavailable: false, bothOk: false });
+	});
+});
+
 describe("runSearchShadow", () => {
 	it("logs a compact comparison and records a D1 error without throwing", async () => {
 		const logs: SearchShadowLog[] = [];
@@ -176,6 +225,8 @@ describe("runSearchShadow", () => {
 		expect(payload.query).toBe("Father's House");
 		expect(payload.d1.error).toBe("binding failed");
 		expect(payload.overlap.matched).toBe(0);
+		expect(payload.queryKind).toBe("text");
+		expect(payload.slo).toEqual({ d1Ok: false, d1Unavailable: true, bothOk: false });
 		expect(logs).toHaveLength(1);
 		expect(JSON.stringify(payload)).not.toMatch(/ipAddress|userAgent|cf-connecting-ip/i);
 	});
@@ -190,7 +241,7 @@ describe("POST /search shadow sampler", () => {
 	it("returns the Azure body even when D1 disagrees, and logs overlap off the request path", async () => {
 		const azure = azureDoc(["azure-1", "azure-2"], 2);
 		const d1 = azureDoc(["azure-1", "d1-2"], 5);
-		stubAzure(azure);
+		stubAzure(azure, 200, { "cf-cache-status": "MISS" });
 		const d1Gate = deferred<Response>();
 		let d1Started = false;
 		const env = shadowEnv({
@@ -236,6 +287,18 @@ describe("POST /search shadow sampler", () => {
 		expect(logs[0].azure.count).toBe(2);
 		expect(logs[0].d1.count).toBe(5);
 		expect(logs[0].overlap).toEqual({ topN: 10, matched: 1, sameOrder: false });
+		expect(logs[0].queryKind).toBe("text");
+		expect(logs[0].azure.cacheStatus).toBe("MISS");
+		expect(logs[0].d1.cacheStatus).toBeUndefined();
+		expect(logs[0].slo).toEqual({
+			d1Ok: true,
+			d1Unavailable: false,
+			bothOk: true,
+			countDelta: 3,
+			countWithin: false,
+			overlapNeeded: 2,
+			overlapOk: false
+		});
 		expect(logs[0].azure.topIds).toEqual(["azure-1", "azure-2"]);
 		expect(logs[0].d1.topIds).toEqual(["azure-1", "d1-2"]);
 		expect(typeof logs[0].azure.latencyMs).toBe("number");

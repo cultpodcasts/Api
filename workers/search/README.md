@@ -260,12 +260,17 @@ Kill switch and rate are non-secret wrangler vars on the api Worker (`wrangler.j
 
 | Var | Meaning | Default |
 |-----|---------|---------|
-| `searchShadowEnabled` | `"true"` / `"false"` kill switch | `"false"` (off until the soak is switched on) |
-| `searchShadowSampleRate` | Fraction of `/search` requests to sample (0–1) | `"0.01"` |
+| `searchShadowEnabled` | `"true"` / `"false"` kill switch | production `"true"` (SP-3.2 soak); preview and local `"false"` |
+| `searchShadowSampleRate` | Fraction of `/search` requests to sample (0–1) | production `"0.1"`; preview and local `"0.01"` |
 | `searchShadowTopN` | Leading hit ids compared | `"10"` |
 
 Query in Workers Observability with `message = "search shadow"`. Set `searchShadowEnabled` to
 `"false"` or the rate to `"0"` to stop sampling without a code change.
+
+Each line also carries the SP-3.2 soak verdicts (`queryKind`, `azure.cacheStatus`, and `slo.*`:
+`d1Ok`, `d1Unavailable`, `bothOk`, `countDelta`, `countWithin`, `overlapNeeded`, `overlapOk`),
+because Workers Observability can only compare a field with a constant. The SLOs, the saved
+queries and how to judge a soak day are in [`docs/search-shadow-soak.md`](../../docs/search-shadow-soak.md).
 
 ## Query engine (SP-1.9)
 

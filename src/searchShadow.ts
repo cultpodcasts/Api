@@ -30,7 +30,38 @@ export type SearchEngineSnapshot = {
 	count: number | null;
 	topIds: string[];
 	error?: string;
+	/** Azure only: the edge cache's `cf-cache-status` (HIT/MISS/…); D1 is never edge-cached. */
+	cacheStatus?: string;
 };
+
+/** `browse`: no free text (empty or `*`), only a podcast/subject filter; `text`: a typed search. */
+export type SearchQueryKind = "text" | "browse";
+
+/**
+ * Per-sample SLO verdicts for the SP-3.2 soak (cultpodcasts/RedditPodcastPoster#1323). Workers
+ * Observability can only compare a field with a constant, so anything that compares Azure with D1
+ * is computed here and logged as its own field (docs/search-shadow-soak.md).
+ */
+export type SearchShadowSlo = {
+	/** D1 answered 200 with no error. */
+	d1Ok: boolean;
+	/** D1 was unavailable or overloaded: 429, any 5xx, or no answer at all (binding threw). */
+	d1Unavailable: boolean;
+	/** Both engines answered 200. Count and overlap verdicts exist only then. */
+	bothOk: boolean;
+	/** D1 count minus Azure count (both 200 with counts). */
+	countDelta?: number;
+	/** |countDelta| <= max(2, 0.1% of the Azure count). */
+	countWithin?: boolean;
+	/** Overlap needed: min(topN - 1, Azure's hit ids), i.e. 9 of the top 10 for a full page. */
+	overlapNeeded?: number;
+	/** `overlap.matched >= overlapNeeded`. */
+	overlapOk?: boolean;
+};
+
+/** SLO: counts agree within max(SEARCH_SHADOW_COUNT_ABS, SEARCH_SHADOW_COUNT_REL × Azure count). */
+export const SEARCH_SHADOW_COUNT_ABS = 2;
+export const SEARCH_SHADOW_COUNT_REL = 0.001;
 
 export type SearchShadowOverlap = {
 	topN: number;
@@ -43,10 +74,37 @@ export type SearchShadowLog = {
 	requestId?: string;
 	query?: string;
 	filter?: string;
+	queryKind: SearchQueryKind;
 	azure: SearchEngineSnapshot;
 	d1: SearchEngineSnapshot;
 	overlap: SearchShadowOverlap;
+	slo: SearchShadowSlo;
 };
+
+export function searchQueryKind(query: string | undefined): SearchQueryKind {
+	const q = (query ?? "").trim();
+	return q === "" || q === "*" ? "browse" : "text";
+}
+
+function answered(snap: SearchEngineSnapshot): boolean {
+	return snap.status === 200 && !snap.error;
+}
+
+/** The soak's per-sample verdicts (see {@link SearchShadowSlo}). */
+export function shadowSlo(azure: SearchEngineSnapshot, d1: SearchEngineSnapshot, overlap: SearchShadowOverlap): SearchShadowSlo {
+	const d1Ok = answered(d1);
+	const d1Unavailable = !d1Ok && (d1.status === undefined || d1.status === 429 || d1.status >= 500);
+	const bothOk = d1Ok && answered(azure);
+	const slo: SearchShadowSlo = { d1Ok, d1Unavailable, bothOk };
+	if (!bothOk) return slo;
+	if (azure.count !== null && d1.count !== null) {
+		slo.countDelta = d1.count - azure.count;
+		slo.countWithin = Math.abs(slo.countDelta) <= Math.max(SEARCH_SHADOW_COUNT_ABS, SEARCH_SHADOW_COUNT_REL * azure.count);
+	}
+	slo.overlapNeeded = Math.min(Math.max(overlap.topN - 1, 1), azure.topIds.length);
+	slo.overlapOk = overlap.matched >= slo.overlapNeeded;
+	return slo;
+}
 
 function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
 	if (value === undefined) return defaultValue;
@@ -232,11 +290,14 @@ export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShad
 			error: e instanceof Error ? e.message : String(e)
 		};
 	}
+	const overlap = compareSearchSnapshots(args.azure.topIds, d1.topIds, args.topN);
 	const payload: SearchShadowLog = {
 		message: "search shadow",
+		queryKind: searchQueryKind(args.query),
 		azure: args.azure,
 		d1,
-		overlap: compareSearchSnapshots(args.azure.topIds, d1.topIds, args.topN)
+		overlap,
+		slo: shadowSlo(args.azure, d1, overlap)
 	};
 	if (args.requestId) payload.requestId = args.requestId;
 	if (args.query) payload.query = args.query;

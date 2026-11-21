@@ -117,7 +117,8 @@ function maybeScheduleSearchShadow(
 	azureStarted: number,
 	azureStatus: number | undefined,
 	azureBody: unknown,
-	azureError?: string
+	azureError?: string,
+	azureCacheStatus?: string | null
 ): void {
 	if (!c.env.SEARCH) return;
 	const config = parseSearchShadowConfig(c.env);
@@ -129,6 +130,7 @@ function maybeScheduleSearchShadow(
 		config.topN,
 		azureError
 	);
+	if (azureCacheStatus) azure.cacheStatus = azureCacheStatus;
 	scheduleSearchShadow(
 		executionCtxOf(c),
 		runSearchShadow({
@@ -233,7 +235,7 @@ export async function search(c: ActionContext): Promise<Response> {
 	}
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	body["@odata.context"] = null;
-	maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body);
+	maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body, undefined, response.headers.get("cf-cache-status"));
 	if (searchLog.error) {
 		searchLog.emitError();
 	} else {
