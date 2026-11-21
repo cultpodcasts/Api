@@ -3,6 +3,7 @@ import {
 	getDiscoverySubmission,
 	getDiscoverySubmissions,
 	postDiscoverySubmissionApply,
+	postDiscoverySubmissionOutputsReviewed,
 	postDiscoverySubmissionRelease,
 	postDiscoverySubmissionRetry,
 	postDiscoverySubmissionState,
@@ -90,6 +91,39 @@ describe("discovery-submissions proxy", () => {
 		expect(JSON.parse(String(init?.body))).toEqual(request);
 	});
 
+	it("passes a queued retry's 202 through, so the page polls instead of treating it as an error (RPP #1415)", async () => {
+		const outcome = { submissionId: id, status: "Applying", etag: "\"claimed\"" };
+		stubAzure(202, outcome);
+		const app = appWithPermissions("/discovery-submissions/:id/retry", "post", postDiscoverySubmissionRetry, ["supervise"]);
+
+		const resp = await app.request(
+			`/discovery-submissions/${id}/retry`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "\"abc\"" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(202);
+		expect(await resp.json()).toEqual(outcome);
+	});
+
+	it("posts outputs-reviewed to Azure for a supervisor, forwarding the etag (RPP #1415)", async () => {
+		const outcome = { submissionId: id, status: "Applied", etag: "\"def\"" };
+		const fetchMock = stubAzure(200, outcome);
+		const app = appWithPermissions("/discovery-submissions/:id/outputs-reviewed", "post", postDiscoverySubmissionOutputsReviewed, ["supervise"]);
+
+		const resp = await app.request(
+			`/discovery-submissions/${id}/outputs-reviewed`,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ etag: "\"abc\"" }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(200);
+		expect(await resp.json()).toEqual(outcome);
+		const [url, init] = fetchMock.mock.calls[0];
+		expect(String(url)).toBe(`https://functions.example/api/DiscoverySubmissions/${id}/outputs-reviewed`);
+		expect(JSON.parse(String(init?.body))).toEqual({ etag: "\"abc\"" });
+	});
+
 	it("denies review to curate:supervised without calling Azure", async () => {
 		const fetchMock = stubAzure(202, {});
 		const app = appWithPermissions("/discovery-submissions/:id/review", "put", putDiscoverySubmissionReview, ["curate:supervised", "curate"]);
@@ -106,6 +140,7 @@ describe("discovery-submissions proxy", () => {
 
 	it.each([
 		[200, { submissionId: id, status: "Applied", outcome: { message: "ok", errorsOccurred: false, results: [] } }],
+		[202, { submissionId: id, status: "Applying", etag: "\"claimed\"", message: "Queued" }],
 		[400, { message: "ids outside held reports" }],
 		[409, { message: "stale etag" }],
 		[500, { submissionId: id, status: "ApplyFailed", message: "ingest failed" }]
@@ -238,6 +273,7 @@ describe("discovery-submissions proxy", () => {
 			{ name: "review", method: "put", route: "/discovery-submissions/:id/review", url: `/discovery-submissions/${id}/review`, handler: putDiscoverySubmissionReview, allowed: ["supervise", "admin"], success: 202 },
 			{ name: "apply", method: "post", route: "/discovery-submissions/:id/apply", url: `/discovery-submissions/${id}/apply`, handler: postDiscoverySubmissionApply, allowed: ["supervise", "admin"] },
 			{ name: "retry", method: "post", route: "/discovery-submissions/:id/retry", url: `/discovery-submissions/${id}/retry`, handler: postDiscoverySubmissionRetry, allowed: ["supervise", "admin"] },
+			{ name: "outputs reviewed", method: "post", route: "/discovery-submissions/:id/outputs-reviewed", url: `/discovery-submissions/${id}/outputs-reviewed`, handler: postDiscoverySubmissionOutputsReviewed, allowed: ["supervise", "admin"] },
 			{ name: "release", method: "post", route: "/discovery-submissions/:id/release", url: `/discovery-submissions/${id}/release`, handler: postDiscoverySubmissionRelease, allowed: ["supervise", "admin"] },
 			{ name: "state", method: "post", route: "/discovery-submissions/:id/state", url: `/discovery-submissions/${id}/state`, handler: postDiscoverySubmissionState, allowed: ["admin"] },
 			{ name: "report release", method: "post", route: "/discovery-reports/:id/release", url: `/discovery-reports/${id}/release`, handler: postDiscoveryReportRelease, allowed: ["admin"] }

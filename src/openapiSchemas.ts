@@ -1141,7 +1141,8 @@ export const discoverySubmissionSummarySchema = z.object({
 	releasedAt: isoDateTime.nullable().optional(),
 	releaseReason: z.string().nullable().optional(),
 	inProgressOperation: z.enum(["Apply", "Retry", "Release"]).nullable().optional().describe("While status is Applying: the operation holding the submission. null otherwise."),
-	inProgressSince: isoDateTime.nullable().optional()
+	inProgressSince: isoDateTime.nullable().optional(),
+	outputsReviewPending: z.boolean().optional().describe("The apply created or matched episodes the supervisor has not marked reviewed yet (RPP #1415). They are public as normal.")
 });
 
 /** Api.Dtos.DiscoverySubmissionListResponse — GET /discovery-submissions. */
@@ -1216,6 +1217,9 @@ export const discoverySubmissionDetailResponseSchema = z.object({
 	releaseReason: z.string().nullable().optional(),
 	inProgressOperation: z.enum(["Apply", "Retry", "Release"]).nullable().optional().describe("While status is Applying: the operation holding the submission. null otherwise."),
 	inProgressSince: isoDateTime.nullable().optional(),
+	outputsReviewPending: z.boolean().optional().describe("The apply created or matched episodes the supervisor has not marked reviewed yet (RPP #1415). They are public as normal; see `itemOutcomes` for their ids."),
+	outputsReviewedAt: isoDateTime.nullable().optional(),
+	outputsReviewedBy: z.string().nullable().optional(),
 	reports: z.array(discoverySubmissionReportSchema),
 	history: z.array(discoverySubmissionHistorySchema)
 });
@@ -1270,6 +1274,11 @@ export const discoverySubmissionSetStateRequestSchema = z.object({
 export const discoverySubmissionReleaseRequestSchema = z.object({
 	etag: z.string(),
 	reason: z.string().nullable().optional()
+});
+
+/** Api.Dtos.DiscoverySubmissionOutputsReviewedRequestDto — POST /discovery-submissions/{id}/outputs-reviewed. */
+export const discoverySubmissionOutputsReviewedRequestSchema = z.object({
+	etag: z.string()
 });
 
 /** Api.Dtos.DiscoveryReportReleaseRequestDto — POST /discovery-reports/{id}/release (admin). */

@@ -60,6 +60,7 @@ import {
 	getDiscoverySubmission,
 	getDiscoverySubmissions,
 	postDiscoverySubmissionApply,
+	postDiscoverySubmissionOutputsReviewed,
 	postDiscoverySubmissionRelease,
 	postDiscoverySubmissionRetry,
 	postDiscoverySubmissionState,
@@ -93,6 +94,7 @@ import {
 	discoverySubmissionRetryRequestSchema,
 	discoverySubmissionSetStateRequestSchema,
 	discoverySubmissionReleaseRequestSchema,
+	discoverySubmissionOutputsReviewedRequestSchema,
 	discoveryReportReleaseRequestSchema,
 	discoveryReportReleaseResponseSchema,
 	discoverySubmissionHeldResponseSchema,
@@ -1592,10 +1594,11 @@ export const PostDiscoverySubmissionApplyRoute = createOpenApiRoute(postDiscover
     schema: {
         tags: ["Discovery"],
         summary: "Apply a supervised discovery submission",
-        description: "Command. Moves held reports PendingSupervisor → Processed (all-or-nothing) then ingests the final accepted set. 200 `status` Applied or PartiallyApplied, with `outcome` (this run) and `itemOutcomes` (cumulative). Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`). Apply on PartiallyApplied, or ApplyFailed with outcomes, is 409 (use retry).",
+        description: "Command. Claims the submission (`Applying`) and runs the language / kind / identity preflight on the request. A decision prompt (or a no-op) is answered 200 as before. Otherwise the ingest is queued and the answer is **202** `status: \"Applying\"` with the claimed `etag`: a background worker moves held reports PendingSupervisor → Processed (all-or-nothing), ingests the final accepted set and records Applied / PartiallyApplied / ApplyFailed with `itemOutcomes` on the submission. Poll GET /discovery-submissions/{id} until `status` leaves Applying (RPP #1415). Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`). Apply on PartiallyApplied, or ApplyFailed with outcomes, is 409 (use retry); so is apply while Applying.",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionApplyRequestSchema) },
         responses: {
-            200: { description: "Applied; `outcome` carries the ingest result", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            200: { description: "Answered on the request: a decision prompt (`languageDecisionsRequired` / `kindDecisionsRequired` / `identityDecisionsRequired`), an all-cancelled set, or the already-applied no-op", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            202: { description: "Queued: `status: \"Applying\"`; poll GET /discovery-submissions/{id} for the outcome", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             500: { description: "Ingest failed: `status: \"ApplyFailed\"` and `message`; reports returned to PendingSupervisor for retry with a fresh etag. Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
             ...authResponses
@@ -1608,10 +1611,11 @@ export const PostDiscoverySubmissionRetryRoute = createOpenApiRoute(postDiscover
     schema: {
         tags: ["Discovery"],
         summary: "Retry failed items of a supervised discovery submission",
-        description: "Command. For PartiallyApplied, or ApplyFailed with `itemOutcomes`. Re-ingests Failed items; `abandonResultIds` drops them instead. Abandoning all failed items closes the submission as Applied without ingesting. 400 when abandoning an id that is not Failed (`ids`); 409 stale etag or nothing to retry.",
+        description: "Command. For PartiallyApplied, or ApplyFailed with `itemOutcomes`. Re-ingests Failed items; `abandonResultIds` drops them instead. Abandoning all failed items closes the submission as Applied without ingesting (200). Like apply, a retry that passes its preflight is queued: **202** `status: \"Applying\"`, then poll GET /discovery-submissions/{id} (RPP #1415). 400 when abandoning an id that is not Failed (`ids`); 409 stale etag or nothing to retry.",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionRetryRequestSchema) },
         responses: {
-            200: { description: "Retried; same command outcome as apply", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            200: { description: "Answered on the request: abandon-only close, a decision prompt or a refusal", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            202: { description: "Queued: `status: \"Applying\"`; poll GET /discovery-submissions/{id} for the outcome", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             500: { description: "Every retried item failed (`status: \"ApplyFailed\"`, see `itemOutcomes`). Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
             ...authResponses
@@ -1628,6 +1632,22 @@ export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscov
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReleaseRequestSchema) },
         responses: {
             200: { description: "Released", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            ...discoverySubmissionErrors,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PostDiscoverySubmissionOutputsReviewedRoute = createOpenApiRoute(postDiscoverySubmissionOutputsReviewed, {
+    auth: discoverySuperviseAuth,
+    schema: {
+        tags: ["Discovery"],
+        summary: "Mark an applied submission's episodes as reviewed",
+        description: "Command. Clears `outputsReviewPending` and records `outputsReviewedAt` / `outputsReviewedBy` with an `OutputsReviewed` history entry. The episodes themselves are not changed (they are public as normal). A no-op 200 when nothing is waiting for review. 409 stale etag or while Applying (RPP #1415).",
+        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionOutputsReviewedRequestSchema) },
+        responses: {
+            200: { description: "Marked reviewed (or nothing was waiting)", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             ...serverErrorResponse,
             ...authResponses
