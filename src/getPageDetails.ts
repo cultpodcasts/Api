@@ -7,6 +7,7 @@ import { ShortnerRecord } from "./ShortnerRecord";
 import { AddResponseHeaders } from "./AddResponseHeaders";
 import {
 	buildBrandedOgImageUrl,
+	isImageRemovedToken,
 	shareImageFromStorage,
 	toShareImageStorage,
 	type SearchEpisodeImageFields
@@ -47,13 +48,19 @@ function searchHitToPlatformSource(episode: Record<string, unknown>): OgPlatform
 	};
 }
 
-function pageDetailsFromKv(
+/**
+ * Page-details from a shortener KV record (never rewritten). RPP #1500: when the live search hit says a curator
+ * removed the image (`-`), the stored KV art is stale, so no share image is returned (site default) — read-only,
+ * the KV record is left as it is.
+ */
+export function pageDetailsFromKv(
 	podcastName: string,
 	meta: ShortnerRecord,
 	requestUrl: string,
 	searchHit?: Record<string, unknown>
 ): IPageDetails {
-	const share = shareImageFromStorage(meta);
+	const imageRemoved = isImageRemovedToken(typeof searchHit?.image === "string" ? searchHit.image : undefined);
+	const share = imageRemoved ? undefined : shareImageFromStorage(meta);
 	const platforms = resolveOgPlatformsForCard(
 		{
 			platforms: meta.platforms,
@@ -77,7 +84,7 @@ function pageDetailsFromKv(
 		releaseDate: meta.releaseDate,
 		duration: meta.duration,
 		image,
-		imageAspect: share?.imageAspect ?? meta.imageAspect
+		imageAspect: imageRemoved ? undefined : share?.imageAspect ?? meta.imageAspect
 	};
 }
 
