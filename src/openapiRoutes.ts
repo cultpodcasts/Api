@@ -35,7 +35,7 @@ import {
 	SubmitRoute
 } from "./openapiSubmitPodcastRoutes";
 import { streamingScrapeSurvey } from "./streamingScrapeSurvey";
-import { searchAdminDocs, searchAdminInventory } from "./searchAdminDocs";
+import { searchAdminDocs, searchAdminInventory, searchAdminRebuild, searchAdminRebuildStatus } from "./searchAdminDocs";
 import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
@@ -159,6 +159,11 @@ import {
 	searchUpstreamErrorSchema,
 	searchAdminDocsOutcomeSchema,
 	searchAdminInventoryPageSchema,
+	searchRebuildActionParam,
+	searchRebuildConflictSchema,
+	searchRebuildOutcomeSchema,
+	searchRebuildRequestSchema,
+	searchRebuildStatusSchema,
 	searchAdminInventoryQuerySchema,
 	searchAdminDocsRequestSchema,
 	searchWorkerErrorSchema,
@@ -780,6 +785,47 @@ export const SearchAdminInventoryRoute = createOpenApiRoute(searchAdminInventory
             400: { description: "Bad `after` or `limit` (named in message)", ...contentJson(searchWorkerErrorSchema) },
             502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
             503: { description: "D1 unavailable or no search binding. Retryable", ...contentJson(searchWorkerErrorSchema) },
+            ...authResponses
+        }
+    }
+});
+
+export const SearchAdminRebuildStatusRoute = createOpenApiRoute(searchAdminRebuildStatus, {
+    auth: searchIndexWriteAuth,
+    schema: {
+        tags: ["Search"],
+        summary: "State of a D1 search index rebuild",
+        description:
+            "SP-2.3. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
+            "The rebuild in progress (if any) and the document counts of the live, shadow and parked index generations.",
+        responses: {
+            200: { description: "Rebuild state", ...contentJson(searchRebuildStatusSchema) },
+            502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
+            503: { description: "D1 unavailable or no search binding. Retryable", ...contentJson(searchWorkerErrorSchema) },
+            ...authResponses
+        }
+    }
+});
+
+export const SearchAdminRebuildRoute = createOpenApiRoute(searchAdminRebuild, {
+    auth: searchIndexWriteAuth,
+    schema: {
+        tags: ["Search"],
+        summary: "Rebuild the D1 search index into shadow tables and swap it in",
+        description:
+            "SP-2.3. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
+            "Driven by the RPP `D1SearchReconcile --rebuild` console: start creates shadow tables; docs loads them (pushes during the load go to both); " +
+            "swap verifies the shadow (counts, full-text rows and structure) and swaps it in with one transaction, parking the previous index; " +
+            "check reports the new index's full-text integrity, counts and sample hits; finish drops the parked index; swap-back restores it; abort drops the shadow. " +
+            "Not the live search index yet: Azure AI Search stays the default until cutover (SP-4.x).",
+        request: { params: searchRebuildActionParam, body: jsonBody(searchRebuildRequestSchema) },
+        responses: {
+            200: { description: "Action outcome", ...contentJson(searchRebuildOutcomeSchema) },
+            400: { description: "Bad body (field named in message); nothing changed", ...contentJson(searchWorkerErrorSchema) },
+            404: { description: "Unknown action", ...contentJson(searchWorkerErrorSchema) },
+            409: { description: "The rebuild's state does not allow this action, or the swap failed verification; nothing changed", ...contentJson(searchRebuildConflictSchema) },
+            502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
+            503: { description: "D1 unavailable or no search binding; nothing changed. Retryable", ...contentJson(searchWorkerErrorSchema) },
             ...authResponses
         }
     }

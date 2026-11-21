@@ -147,3 +147,60 @@ export async function searchAdminInventory(c: Auth0ActionContext): Promise<Respo
 	}
 	return relay(upstream, body);
 }
+
+/**
+ * SP-2.3 (cultpodcasts/Api#226): the index rebuild, for the RPP `D1SearchReconcile --rebuild` console.
+ * `GET /search/admin/rebuild` is the state; `POST /search/admin/rebuild/{action}` is start, docs, swap,
+ * check, finish, swap-back or abort (workers/search/src/admin-rebuild.ts). The same writer auth as
+ * `POST /search/admin/docs`: the rebuild replaces the whole index, so only the index writer may run it.
+ * The body is forwarded unchanged; the search Worker's answer (200, 400, 409, 503) is returned as-is.
+ */
+export const SEARCH_ADMIN_REBUILD_URL = "https://search/admin/rebuild";
+
+/** Must match REBUILD_ACTIONS in workers/search/src/admin-rebuild.ts (pinned by a test). */
+export const SEARCH_REBUILD_ACTIONS = ["start", "docs", "swap", "check", "finish", "swap-back", "abort"] as const;
+
+export async function searchAdminRebuildStatus(c: Auth0ActionContext): Promise<Response> {
+	return forwardRebuild(c, SEARCH_ADMIN_REBUILD_URL, { method: "GET" }, "status");
+}
+
+export async function searchAdminRebuild(c: Auth0ActionContext): Promise<Response> {
+	const action = c.req.param("action") ?? "";
+	if (!(SEARCH_REBUILD_ACTIONS as readonly string[]).includes(action)) {
+		return c.json({ error: { code: "NotFound", message: `unknown rebuild action; one of ${SEARCH_REBUILD_ACTIONS.join(", ")}` } }, 404);
+	}
+	return forwardRebuild(
+		c,
+		`${SEARCH_ADMIN_REBUILD_URL}/${action}`,
+		{ method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: await c.req.text() },
+		action
+	);
+}
+
+async function forwardRebuild(c: Auth0ActionContext, url: string, init: RequestInit, action: string): Promise<Response> {
+	const log = new LogCollector();
+	log.collectRequest(c);
+	log.add({ route: "searchAdminRebuild" });
+	log.addMessage(`action=${action}`);
+
+	const refused = refuse(c, log);
+	if (refused) return refused;
+
+	let upstream: Response;
+	try {
+		upstream = await c.env.SEARCH!.fetch(url, init);
+	} catch (e) {
+		log.addMessage(`search binding failed: ${e instanceof Error ? e.message : String(e)}`);
+		log.emitError({ event: "search_admin.upstream_error", outcome: "error", status: 502 });
+		return c.json({ error: { code: "UpstreamSearchError", message: "Upstream search unavailable" } }, 502);
+	}
+
+	const body = await upstream.text();
+	if (upstream.ok) {
+		log.emit({ event: "search_admin.rebuild_ok", outcome: "success", status: upstream.status });
+	} else {
+		log.addMessage(body.slice(0, 500));
+		log.emitError({ event: "search_admin.rejected", outcome: "error", status: upstream.status });
+	}
+	return relay(upstream, body);
+}

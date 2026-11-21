@@ -103,6 +103,7 @@ npm run search:dev            # http://127.0.0.1:8789/health
 | `POST /indexes/{index}/docs/search` | Azure AI Search docs/search over D1 FTS5 (SP-1.9) |
 | `POST /admin/docs` | Index write path: upserts and deletes in one transaction (SP-1.4, below) |
 | `GET /admin/docs/inventory` | `{ id, modifiedAt }` pages for the weekly reconcile (SP-2.2, below) |
+| `GET /admin/rebuild`, `POST /admin/rebuild/{action}` | Rebuild the whole index into shadow tables and swap it in (SP-2.3, below) |
 
 `GET /health` also returns `servedByRegion` / `servedByPrimary` (SP-1.2).
 
@@ -195,6 +196,63 @@ writer's client id (output `client_id`) and secret, and confirm `scope` contains
 `write:search-index` and `gty` is `client_credentials`. A token without it gets 403; the api
 Worker's `search_admin.forbidden` log line says `reason=missing_permission` (no grant) or
 `reason=not_m2m` (not a client_credentials token), with the token's `azp`.
+
+## Rebuild: `/admin/rebuild` (SP-2.3)
+
+[Api#226](https://github.com/cultpodcasts/Api/issues/226). `src/admin-rebuild.ts`, `src/index-generations.ts`.
+
+For the rare case a patch can't fix (drift beyond the reconcile's threshold, a corrupt index). It runs
+from the RPP console (`D1SearchReconcile --rebuild`, Jon's call, 21 Nov 2026), which reads Cosmos with
+the reconcile's own rules. A schema or tokenizer change stays a migration (an external-content FTS
+table can be rebuilt from `search_docs` in SQL), so this never runs on a schedule.
+
+```mermaid
+sequenceDiagram
+  participant C as RPP console
+  participant A as api Worker /search/admin/rebuild
+  participant S as search Worker
+  C->>A: start
+  A->>S: create search_docs_new, doc_subjects_new, search_fts_new + triggers
+  loop 100 documents a request
+    C->>A: docs { rebuildId, upserts }
+  end
+  Note over S: meanwhile POST /admin/docs writes live and shadow in one batch
+  C->>A: swap { rebuildId, expectedTotal, expectedKinds, tolerance, maxShrink }
+  A->>S: verify counts, FTS rows, FTS structure; then one batch: live -> _old, _new -> live
+  C->>A: check { rebuildId, sampleQueries }
+  alt checks pass (and the console's reconcile dry run is clean)
+    C->>A: finish (drop _old)
+  else
+    C->>A: swap-back, then abort (drop the rejected tables)
+  end
+```
+
+- **One transaction.** The swap is a single `db.batch()`: drop the live triggers and secondary
+  indexes, rename live to `_old`, rename `_new` to live, recreate the indexes and triggers from the
+  live schema's own SQL (`sqlite_master`). Readers see the old index or the new one, never a mix; a
+  failure anywhere rolls the whole batch back (503, nothing changed).
+- **Why recreate triggers and indexes.** A rename rewrites foreign keys and trigger table names, but
+  not an FTS5 `content=` option or the FTS "special column" a trigger names
+  (`INSERT INTO search_fts (search_fts, …) VALUES ('delete', …)`): kept, the delete and update
+  triggers would fail after a swap. So the shadow FTS table is created with `content='search_docs'`
+  (its content table's name after the swap) and the swap rebuilds every trigger and index under its
+  migration name. Indexes are built in the swap, not during the load, which also keeps the load fast.
+- **Verification gate (409 `VerificationFailed`, nothing changed).** The shadow's total and per-kind
+  counts must be within `tolerance` of what the console loaded (`tolerance` covers pushes during the
+  load); the FTS index must hold one row per document and pass a structure `integrity-check`; and the
+  shadow may not be smaller than the live index by more than `maxShrink` (default 5%).
+- **Pushes during a load** go to both generations in the same batch (`POST /admin/docs` reads the
+  `rebuild` row in `search_meta`), with the same `modifiedAt` guard, so the swap loses none. A delete
+  that races the console's Cosmos read can resurrect a document in the shadow; the console's
+  post-swap reconcile catches it.
+- **States** (`search_meta` key `rebuild`): `loading` → `swapped` → finished (row removed), or
+  `swapped` → `swappedBack` → aborted. `start` refuses (409) while any rebuild is recorded or a
+  `_new` / `_old` table is left over; `abort` refuses while the new index is live.
+- **`check`** (after the swap) runs the content-aware `integrity-check` against the new live tables,
+  returns counts, and counts hits for up to 10 sample queries (each matched as a phrase).
+- **Verified** on local workerd D1 (`wrangler dev --env local`): two full cycles (finish, then
+  swap-back + abort), with updates and deletes reaching the FTS index after each swap. A preview run
+  is the remaining check before production.
 
 ## Read replication and the Sessions API (SP-1.2)
 

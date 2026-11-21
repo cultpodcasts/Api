@@ -1719,6 +1719,68 @@ export const searchAdminInventoryPageSchema = z.object({
 	next: z.string().nullable().describe("Pass as `after` for the next page; null on the last page")
 });
 
+/** `/search/admin/rebuild` document counts: the total and per content kind. */
+export const searchRebuildCountsSchema = z.object({
+	total: z.number().int(),
+	kinds: z.record(z.string(), z.number().int()).describe("Documents per contentKind (Episode, TvShowEpisode, Film, NewsReport)")
+});
+
+/** `GET /search/admin/rebuild` 200 (SP-2.3): the rebuild in progress, if any, and each generation's counts. */
+export const searchRebuildStatusSchema = z.object({
+	state: z.enum(["none", "loading", "swapped", "swappedBack"]),
+	rebuildId: z.string().nullable(),
+	startedAt: z.string().nullable(),
+	swappedAt: z.string().nullable(),
+	live: searchRebuildCountsSchema,
+	shadow: searchRebuildCountsSchema.nullable().describe("The generation being loaded (or rejected after a swap-back)"),
+	parked: searchRebuildCountsSchema.nullable().describe("The previous live generation, kept until finish or swap-back")
+});
+
+/** `POST /search/admin/rebuild/{action}` path parameter (SP-2.3). */
+export const searchRebuildActionParam = z.object({
+	action: z.enum(["start", "docs", "swap", "check", "finish", "swap-back", "abort"])
+});
+
+/**
+ * `POST /search/admin/rebuild/{action}` body (SP-2.3). Which fields apply depends on the action:
+ * start takes none; docs takes rebuildId + upserts; swap takes rebuildId + expectedTotal (+ expectedKinds,
+ * tolerance, maxShrink); check takes rebuildId (+ sampleQueries); finish, swap-back and abort take rebuildId.
+ */
+export const searchRebuildRequestSchema = z.object({
+	rebuildId: z.string().optional().describe("The id start returned (every action but start)"),
+	upserts: z.array(searchIndexDocSchema).max(100).optional().describe("docs: documents for the shadow index, as POST /search/admin/docs"),
+	expectedTotal: z.number().int().nonnegative().optional().describe("swap: documents the console loaded"),
+	expectedKinds: z.record(z.string(), z.number().int().nonnegative()).optional().describe("swap: documents loaded per contentKind"),
+	tolerance: z.number().int().nonnegative().optional().describe("swap: allowed difference per count (pushes during the load), default 0"),
+	maxShrink: z.number().min(0).max(1).optional().describe("swap: refuse when the new index is smaller than the live one by more than this share, default 0.05"),
+	sampleQueries: z.array(z.string().min(1).max(200)).max(10).optional().describe("check: queries that must each find at least one document")
+});
+
+/** `POST /search/admin/rebuild/{action}` 200: the action's outcome (shape depends on the action). */
+export const searchRebuildOutcomeSchema = z.object({
+	rebuildId: z.string(),
+	state: z.string().optional().describe("loading, swapped, swappedBack, finished or aborted"),
+	upserted: z.number().int().optional(),
+	stale: z.array(z.string()).optional(),
+	ok: z.boolean().optional().describe("check: integrity passed and every sample query found something"),
+	integrity: z.object({ ok: z.boolean(), error: z.string().optional() }).optional(),
+	counts: searchRebuildCountsSchema.optional(),
+	samples: z.array(z.object({ query: z.string(), hits: z.number().int() })).optional(),
+	verification: z.object({
+		ok: z.boolean(),
+		failures: z.array(z.string()),
+		shadow: searchRebuildCountsSchema,
+		live: searchRebuildCountsSchema,
+		ftsRows: z.number().int()
+	}).optional()
+}).passthrough();
+
+/** `POST /search/admin/rebuild/{action}` 409: the rebuild's state does not allow it, or the swap failed verification. */
+export const searchRebuildConflictSchema = z.object({
+	error: z.object({ code: z.enum(["RebuildConflict", "VerificationFailed"]), message: z.string() }),
+	verification: z.unknown().optional().describe("VerificationFailed: the same shape as a swap's verification")
+});
+
 /** Search Worker error envelope (`{ error: { code, message } }`): 400 has an empty code, 503 `ServiceUnavailable`. */
 export const searchWorkerErrorSchema = z.object({
 	error: z.object({ code: z.string(), message: z.string() })

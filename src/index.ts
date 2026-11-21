@@ -78,6 +78,8 @@ import {
 	SearchRoute,
 	SearchAdminDocsRoute,
 	SearchAdminInventoryRoute,
+	SearchAdminRebuildRoute,
+	SearchAdminRebuildStatusRoute,
 	SubmitDiscoveryRoute,
 	SubmitDiscoveryOutcomeRoute,
 	GetDiscoveryCurationSessionRoute,
@@ -389,6 +391,8 @@ openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
 openapi.post('/search/admin/docs', SearchAdminDocsRoute);
 openapi.get('/search/admin/docs/inventory', SearchAdminInventoryRoute);
+openapi.get('/search/admin/rebuild', SearchAdminRebuildStatusRoute);
+openapi.post('/search/admin/rebuild/:action', SearchAdminRebuildRoute);
 openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit/prepare', SubmitPrepareRoute);
 openapi.post('/submit', SubmitRoute);
