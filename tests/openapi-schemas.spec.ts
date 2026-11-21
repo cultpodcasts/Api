@@ -61,6 +61,7 @@ import {
 	filmChangeRequestSchema,
 	filmDtoSchema,
 	episodeFilmMoveRequestSchema,
+	podcastEpisodeFilmMoveRequestSchema,
 	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
@@ -1423,6 +1424,14 @@ describe("openapi Zod schemas", () => {
 		expect(() => episodeTvShowMoveRequestSchema.parse({ tvShowId: "not-a-guid" })).toThrow();
 		expect(episodeTvShowMoveResponseSchema.parse({ tvShowId, tvShowName: "Synthetic Show", episodeId: tvShowId, createdShow: true, failureIndexing: false }).createdShow)
 			.toBe(true);
+	});
+
+	it("parses filmId on the podcast-episode move-to-film body only (RPP #1522 Move to an existing film)", () => {
+		const filmId = "925e2a11-668f-4dfa-a78d-57dd4de0051f";
+		expect(podcastEpisodeFilmMoveRequestSchema.parse({ filmId }).filmId).toBe(filmId);
+		expect(podcastEpisodeFilmMoveRequestSchema.parse({ title: "Synthetic Film" }).filmId).toBeUndefined();
+		expect(() => podcastEpisodeFilmMoveRequestSchema.parse({ filmId: "not-a-guid" })).toThrow();
+		expect(episodeFilmMoveRequestSchema.shape).not.toHaveProperty("filmId");
 	});
 
 	it("parses the move-to-film request and identityDecision / cancelled 200 bodies", () => {

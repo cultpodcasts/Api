@@ -138,6 +138,7 @@ import {
 	podcastKindTransferEnqueueResponseSchema,
 	podcastKindTransferJobStatusResponseSchema,
 	episodeFilmMoveRequestSchema,
+	podcastEpisodeFilmMoveRequestSchema,
 	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
@@ -1043,13 +1044,14 @@ export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
             "saves the film under the episode guid, swaps the search document to contentKind Film, then deletes the episode row. " +
             "The source podcast is kept. The short link is unchanged; old /podcast/{name}/{id} links redirect to /film/{name}/{shortId}. " +
             "A failed search swap keeps the episode row; re-sending the request resumes. " +
-            "Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and selectedIdentityKey (or continue/cancel), same as URL-submit.",
-        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeFilmMoveRequestSchema) },
+            "Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and selectedIdentityKey (or continue/cancel), same as URL-submit. " +
+            "With filmId (RPP #1522) the episode is merged into that existing film instead: its missing links and subjects are added to the film, the episode leaves search and is deleted, and its short link redirects to the film.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(podcastEpisodeFilmMoveRequestSchema) },
         responses: {
-            202: { description: "Moved (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
+            202: { description: "Moved, or merged into the existing film when filmId is set (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
             200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(episodeFilmMoveResponseSchema) },
-            400: { description: "Title contains '/', or the episode is removed", ...contentJson(errorSchema) },
-            409: { description: "Another film already has the name", ...contentJson(episodeFilmMoveResponseSchema) },
+            400: { description: "Title contains '/', or the episode is removed; with filmId also a removed film, the episode's own id, or an episode with no links", ...contentJson(errorSchema) },
+            409: { description: "Another film already has the name; with filmId, the film already has a different link for one of the episode's services (filmId names it)", ...contentJson(episodeFilmMoveResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
