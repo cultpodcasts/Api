@@ -45,6 +45,8 @@ export type Env = {
 	searchShadowSampleRate?: string;
 	/** Leading hit ids compared between Azure and D1. Default `10`. */
 	searchShadowTopN?: string;
+	/** Abort the shadow D1 call after this many ms (100–30000); a timeout logs as `d1Unavailable`. Default `3000`. */
+	searchShadowTimeoutMs?: string;
 	PROFILE_DURABLE_OBJECT: DurableObjectNamespace<import("./ProfileDurableObject").ProfileDurableObject>;
 	HERO_CURATION_DURABLE_OBJECT: DurableObjectNamespace<import("./HeroCurationDurableObject").HeroCurationDurableObject>;
 	DISCOVERY_CURATION_DURABLE_OBJECT: DurableObjectNamespace<
