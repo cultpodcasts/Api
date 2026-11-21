@@ -2,7 +2,21 @@
 
 The Cloudflare Api worker (`src/openapiSchemas.ts` + `src/openapiRoutes.ts`) documents JSON that **api-infra** (Azure Functions) and a few worker-local routes actually return or accept.
 
-There is **no automated codegen today**. “Generate” means: copy the C# contract into a **strict** Zod object, wire it on the route, add a Vitest parse test, then deploy. Do **not** use `.passthrough()`, `z.any()`, or `z.record(z.string(), z.unknown())` for known DTOs — Swagger renders those as `additionalProp1/2/3`.
+## Generated schemas: `@cultpodcasts/contracts` (RedditPodcastPoster#1502)
+
+RedditPodcastPoster generates Zod 4 schemas, TypeScript types and a JSON Schema bundle from the Azure Functions DTOs in `Api.Dtos` that carry `[ExportContract]` (and everything they reference). They are published from RPP `main` as the private npm package `@cultpodcasts/contracts` on GitHub Packages. RPP `docs/typescript-contracts.md` has the generator rules.
+
+- **Use the package for every DTO it exports.** Import from `@cultpodcasts/contracts/zod` in `src/openapiSchemas.ts` and re-export under the worker's existing name (e.g. `export const episodeUpdateResponseSchema = generatedEpisodeUpdateResponseSchema;`). Never copy generated code into this repo.
+- **Metadata only by extension.** Add OpenAPI descriptions with `.extend({ field: generated.shape.field.describe("…") })` (see `episodeDtoSchema`). Do not change a generated field's type here; fix the C# DTO in RPP instead.
+- **Today (0.1.x)** the package covers `SearchIndexerState`, `EpisodeUpdateResponse`, `EpisodeDto`, `PublicEpisodeDto` (from 0.1.3) and their closure: `ServiceDto`, `ApprovalStatusDto`, `PersonDto`, `EpisodeDto+PersonMatch`/`+MatchResult`, `EpisodeIdsDto`, `EpisodeImagesDto`, `ServiceUrlsDto`, `ServiceLinkDto`, `SubjectMatchDto`. In the worker these back `searchIndexerStateSchema`, `episodeUpdateResponseSchema`, `episodeDtoSchema`, `publicEpisodeDtoSchema`, `personDtoSchema`, `serviceNameSchema`, `approvalStatusSchema`, `serviceLinkDtoSchema` and the subject-match / guest-suggestion schemas.
+- **Generated schemas are the wire format.** Objects are `.strict()`. A nullable C# property without `WhenWritingNull` is a **required** key whose value may be `null`; only `WhenWritingNull` / `WhenWritingDefault` properties are optional. Dates are UTC instants ending in `Z`, `TimeSpan` matches the constant format, `long` ids are integers. Test fixtures must therefore be full Azure bodies (`wireEpisodeDto` / `wirePublicEpisodeDto` / `wirePerson` in `tests/openapi-schemas.spec.ts`).
+- **A DTO that is not exported yet** is still copied by hand (the workflow below), but do not hand-write a new copy of an `Api.Dtos` type: propose `[ExportContract]` on it in RPP first. Types outside `Api.Dtos` (domain models such as `EpisodeIds`, `ServiceLink`, `ServiceUrls`, request `Models`) need a boundary DTO in `Api.Dtos` before they can be exported.
+- **Install.** `.npmrc` scopes `@cultpodcasts` to `https://npm.pkg.github.com` with `${NODE_AUTH_TOKEN}`. `NODE_AUTH_TOKEN` must be a GitHub PAT with `read:packages` (this repo's `GITHUB_TOKEN` cannot read a package published from RPP): set it in your shell for local `npm ci`, as the `NODE_AUTH_TOKEN` repository secret for GitHub Actions (`test.yml`, `search-stack.yml`), and as a **build** variable on the Cloudflare Workers Builds projects (`docs/workers-builds-deploy.md`). Without it `npm ci` fails with 401/403.
+- **New versions.** RPP publishes a new patch whenever the generated output changes. Bump the caret range here when the worker needs the new fields.
+
+## Hand-written schemas (types not exported yet)
+
+“Generate” for a type the package does not export means: copy the C# contract into a **strict** Zod object, wire it on the route, add a Vitest parse test, then deploy. Do **not** use `.passthrough()`, `z.any()`, or `z.record(z.string(), z.unknown())` for known DTOs — Swagger renders those as `additionalProp1/2/3`.
 
 ## Source of truth (C#)
 
@@ -103,7 +117,7 @@ Worker: `episodeChangeRequestSchema` in `src/openapiSchemas.ts`, used by update-
 
 `GET /episode/:id` (curate) and `GET /public/episode/:id` (signed in) are passthrough proxies to `episode/{id}` and `public/episode/{id}`. Azure first looks up a podcast episode; when none has the id it looks up a news report, TV episode or film (the catalogue migration keeps ids, so Review links and bookmarks keep working). The public GET is 404 when the item or its parent is removed; the curator GET returns removed items, as it does for episodes.
 
-Both bodies keep every existing field and add `contentKind` (`Episode` | `NewsReport` | `TvShowEpisode` | `Film`), `parentId`, `parentName`, `slug` and `path` (`playableKindFields` in `src/openapiSchemas.ts`; C# `Api.Models.PlayableKind`). Null fields are omitted: a film has no `parentId`/`parentName`, and episode bodies from other routes (outgoing lists) carry none of them. For a news report or TV episode `podcastId`/`podcastName` are the organisation or show; for a film they are the film's own id and name. `path` is the site path with the kind's short id (`/podcast/…`, `/news/…`, `/tv/…`, `/film/…`).
+Both bodies keep every existing field and add `contentKind` (`Episode` | `NewsReport` | `TvShowEpisode` | `Film`), `parentId`, `parentName`, `slug` and `path` (generated `EpisodeDto` for the curator GET and generated `PublicEpisodeDto` for the public GET; in both `contentKind` is the generated `ContentKindDto` string enum (`Api.Dtos.ContentKindDto`, `@cultpodcasts/contracts` 0.1.4+, RedditPodcastPoster#1508), so the OpenAPI document lists the four values and an unknown kind fails validation). Null fields are omitted: a film has no `parentId`/`parentName`, and episode bodies from other routes (outgoing lists) carry none of them. For a news report or TV episode `podcastId`/`podcastName` are the organisation or show; for a film they are the film's own id and name. `path` is the site path with the kind's short id (`/podcast/…`, `/news/…`, `/tv/…`, `/film/…`).
 
 ## Catalogue curation proxies (curate)
 
@@ -179,4 +193,4 @@ TV and film rewrite any other status to a Worker 500. The news routes also forwa
 | `tests/openapi-schemas.spec.ts` | Schema parse contracts |
 | `src/proxyToAzure.ts` | Runtime status forwarding for Azure proxies |
 
-When Azure DTO shapes change in RedditPodcastPoster, update the Zod schema in the same PR wave as the Functions deploy (or immediately after) so Swagger on `api.cultpodcasts.com` stays honest.
+When Azure DTO shapes change in RedditPodcastPoster, update the Zod schema in the same PR wave as the Functions deploy (or immediately after) so Swagger on `api.cultpodcasts.com` stays honest. For an exported DTO that means bumping `@cultpodcasts/contracts`, not editing a schema here.
