@@ -18,7 +18,9 @@ import {
 	PublicGetEpisodeRoute,
 	PutHeroCurationRoute,
 	SearchAdminDocsRoute,
-	SearchAdminInventoryRoute
+	SearchAdminInventoryRoute,
+	SearchAdminRebuildRoute,
+	SearchAdminRebuildStatusRoute
 } from "../src/openapiRoutes";
 import { registerBearerAuthScheme } from "../src/openapiRouteFactory";
 import { SubmitLookupRoute, SubmitRoute } from "../src/openapiSubmitPodcastRoutes";
@@ -53,6 +55,8 @@ describe("OpenAPI auth and response contracts", () => {
 	api.post("/episode/:podcastId/:episodeId/trailer", AttachEpisodeAsTrailerRoute);
 	api.post("/search/admin/docs", SearchAdminDocsRoute);
 	api.get("/search/admin/docs/inventory", SearchAdminInventoryRoute);
+	api.get("/search/admin/rebuild", SearchAdminRebuildStatusRoute);
+	api.post("/search/admin/rebuild/:action", SearchAdminRebuildRoute);
 	const doc = (api as unknown as { schema: {
 		components?: { securitySchemes?: Record<string, { type?: string; scheme?: string }> };
 		paths?: Record<string, Record<string, unknown>>;
@@ -94,6 +98,23 @@ describe("OpenAPI auth and response contracts", () => {
 		expect(inventory.parameters?.filter((p) => p.in === "query").map((p) => p.name).sort()).toEqual(["after", "limit"]);
 		const page = JSON.stringify(inventory.responses?.["200"]?.content?.["application/json"]);
 		for (const key of ["items", "id", "modifiedAt", "next"]) expect(page).toContain(`"${key}"`);
+	});
+
+	it("documents the D1 index rebuild routes with the writer's auth, the action path and the 409 envelope (SP-2.3)", () => {
+		const rebuild = operation(doc, "/search/admin/rebuild/{action}", "post") as ReturnType<typeof operation> & {
+			parameters?: { name: string; in: string; schema?: { enum?: string[] } }[];
+		};
+		const state = operation(doc, "/search/admin/rebuild", "get");
+		for (const op of [rebuild, state]) {
+			expect(op.security).toEqual([{ bearerAuth: [] }]);
+			expect(op.description).toMatch(/`write:search-index`/);
+			expect(op.responses?.["403"]?.description).toBe("Forbidden — authenticated without `write:search-index`");
+		}
+		expect(rebuild.parameters?.find((p) => p.in === "path")?.schema?.enum).toEqual(["start", "docs", "swap", "check", "finish", "swap-back", "abort"]);
+		expect(JSON.stringify(rebuild.responses?.["409"]?.content?.["application/json"])).toMatch(/VerificationFailed/);
+		for (const key of ["live", "shadow", "parked", "state"]) {
+			expect(JSON.stringify(state.responses?.["200"]?.content?.["application/json"])).toContain(`"${key}"`);
+		}
 	});
 
 	it("publishes a bearer scheme and does not treat ID-token roles as the check", () => {
