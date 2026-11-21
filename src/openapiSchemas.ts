@@ -6,6 +6,7 @@ import {
 	episodeDtoSchema as generatedEpisodeDtoSchema,
 	episodeUpdateResponseSchema as generatedEpisodeUpdateResponseSchema,
 	personDtoSchema as generatedPersonDtoSchema,
+	publicEpisodeDtoSchema as generatedPublicEpisodeDtoSchema,
 	searchIndexerStateSchema as generatedSearchIndexerStateSchema,
 	serviceDtoSchema,
 	serviceLinkDtoSchema as generatedServiceLinkDtoSchema,
@@ -811,26 +812,6 @@ export const peopleListResponseSchema = z.array(personDtoSchema);
 const episodeGuestSuggestionSchema = episodeDtoPersonMatchSchema;
 
 /**
- * Additive kind fields on the GET-by-id episode read models (RPP `Api.Models.PlayableKind` / `IPlayableKindDto`).
- * Set only by `GET /episode/:id` (and `/episode/:podcastName/:episodeId`) and `GET /public/episode/:id`; omitted
- * elsewhere (outgoing lists). Since the catalogue migration keeps each episode's id, those GETs also resolve a news
- * report, TV episode or film by id: the podcast fields then carry the parent (`podcastName`/`podcastId` = news
- * organisation or TV show; for a film, the film's own name and id).
- */
-const playableKindFields = {
-	contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"]).optional()
-		.describe("Kind of playable. Podcast episodes are `Episode`."),
-	parentId: z.string().uuid().optional()
-		.describe("Podcast, news organisation or TV show id. Absent for a film (no parent)."),
-	parentName: z.string().optional()
-		.describe("Podcast, news organisation or TV show name. Absent for a film."),
-	slug: z.string().optional()
-		.describe("Site route segment: the parent name, or a film's own name (unencoded)."),
-	path: z.string().optional()
-		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`.")
-};
-
-/**
  * Api.Dtos.EpisodeDto (generated). TimeSpan `duration` serialises as a string (e.g. "01:30:00"); `release` is a UTC
  * instant ending in `Z`. Only OpenAPI descriptions are added here.
  */
@@ -853,22 +834,26 @@ export const episodeDtoSchema = generatedEpisodeDtoSchema.extend({
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
 
-/** Api.Dtos.PublicEpisodeDto */
-export const publicEpisodeDtoSchema = z.object({
-	...playableKindFields,
-	id: z.string().uuid(),
-	podcastName: z.string(),
-	title: z.string(),
-	description: z.string(),
-	release: isoDateTime,
-	duration: z.string(),
-	explicit: z.boolean(),
-	subjects: z.array(z.string()),
-	ids: episodeIdsSchema.optional().nullable(),
-	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	image: z.string().url().optional().nullable(),
-	alternativeTitles: z.array(z.string()).optional().nullable()
-		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
+/**
+ * Api.Dtos.PublicEpisodeDto (generated) — `GET /public/episode/:id`. Every non-optional key is present; unset values
+ * are null. `image` is already coalesced across services and is null when a curator removed it, which also sets
+ * `imageRemoved` (RPP #1500). Only OpenAPI descriptions are added here.
+ */
+export const publicEpisodeDtoSchema = generatedPublicEpisodeDtoSchema.extend({
+	contentKind: generatedPublicEpisodeDtoSchema.shape.contentKind
+		.describe("Kind of playable: `Episode`, `TvShowEpisode`, `Film` or `NewsReport`. Podcast episodes are `Episode`."),
+	parentId: generatedPublicEpisodeDtoSchema.shape.parentId
+		.describe("Podcast, news organisation or TV show id. Absent for a film (no parent)."),
+	parentName: generatedPublicEpisodeDtoSchema.shape.parentName
+		.describe("Podcast, news organisation or TV show name. Absent for a film."),
+	slug: generatedPublicEpisodeDtoSchema.shape.slug
+		.describe("Site route segment: the parent name, or a film's own name (unencoded)."),
+	path: generatedPublicEpisodeDtoSchema.shape.path
+		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`."),
+	alternativeTitles: generatedPublicEpisodeDtoSchema.shape.alternativeTitles
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film."),
+	imageRemoved: generatedPublicEpisodeDtoSchema.shape.imageRemoved
+		.describe("`true` when a curator deliberately removed the episode's image (RPP #1500): show no art, not a YouTube thumbnail fallback. Omitted otherwise.")
 });
 
 /** Api.Dtos.EpisodeUpdateResponse (generated) — POST episode → 202. Every key is present; unset values are null. */

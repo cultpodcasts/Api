@@ -2126,7 +2126,7 @@ export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
     schema: {
         tags: ["Episodes"],
         summary: "Get episode read model by id (any kind)",
-        description: "Resolves a podcast episode, news report, TV episode or film by id; 404 when it or its parent is removed. The body is PublicEpisodeDto plus contentKind, parentId, parentName, slug and path.",
+        description: "Resolves a podcast episode, news report, TV episode or film by id; 404 when it or its parent is removed. The body is PublicEpisodeDto, including contentKind, parentId, parentName, slug and path, and imageRemoved when a curator removed the image.",
         request: { params: idParam },
         responses: {
             200: { description: "Public episode, news report, TV episode or film", ...contentJson(publicEpisodeDtoSchema) },

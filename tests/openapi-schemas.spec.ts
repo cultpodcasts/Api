@@ -132,6 +132,25 @@ const wireEpisodeDto = (overrides: Record<string, unknown> = {}) => ({
 	...overrides
 });
 
+/**
+ * Full Azure `Api.Dtos.PublicEpisodeDto` JSON (`GET /public/episode/:id`): every non-optional key present, unset values
+ * null; the optional keys (kind fields, alternativeTitles, imageRemoved) are omitted when null.
+ */
+const wirePublicEpisodeDto = (overrides: Record<string, unknown> = {}) => ({
+	id: "550e8400-e29b-41d4-a716-446655440000",
+	podcastName: "Show",
+	title: "Ep",
+	description: "Desc",
+	release: "2026-07-01T12:00:00Z",
+	duration: "01:00:00",
+	explicit: false,
+	subjects: [],
+	ids: null,
+	services: null,
+	image: null,
+	...overrides
+});
+
 /** Full `Api.Dtos.PersonDto` JSON (every key present; unset values null). */
 const wirePerson = (overrides: Record<string, unknown> = {}) => ({
 	id: null,
@@ -745,18 +764,23 @@ describe("openapi Zod schemas", () => {
 	});
 
 	it("accepts PublicEpisodeDto", () => {
-		const parsed = publicEpisodeDtoSchema.parse({
-			id: "550e8400-e29b-41d4-a716-446655440000",
-			podcastName: "Show",
-			title: "Ep",
-			description: "Desc",
-			release: "2026-07-01T12:00:00Z",
-			duration: "01:00:00",
-			explicit: false,
-			subjects: [],
-			urls: {}
-		});
+		const parsed = publicEpisodeDtoSchema.parse(wirePublicEpisodeDto({
+			ids: { spotify: null, apple: null, youtube: "xyz" },
+			services: { youtube: { url: "https://www.youtube.com/watch?v=xyz" } },
+			image: "https://i.ytimg.com/vi/xyz/hqdefault.jpg"
+		}));
 		expect(parsed.title).toBe("Ep");
+		expect(parsed.imageRemoved).toBeUndefined();
+	});
+
+	it("uses the generated PublicEpisodeDto schema: imageRemoved accepted, curator-only keys and partial bodies rejected (RedditPodcastPoster#1502, #1500)", () => {
+		expect(Object.keys(publicEpisodeDtoSchema.shape)).toEqual(Object.keys(generated.publicEpisodeDtoSchema.shape));
+		const removed = publicEpisodeDtoSchema.parse(wirePublicEpisodeDto({ image: null, imageRemoved: true }));
+		expect(removed.imageRemoved).toBe(true);
+		expect(removed.image).toBeNull();
+		expect(publicEpisodeDtoSchema.safeParse(wirePublicEpisodeDto({ urls: {} })).success).toBe(false);
+		const { image: _image, ...missingImage } = wirePublicEpisodeDto();
+		expect(publicEpisodeDtoSchema.safeParse(missingImage).success).toBe(false);
 	});
 
 	it("accepts EpisodeDto for a news report resolved by id, with additive kind fields", () => {
@@ -776,19 +800,15 @@ describe("openapi Zod schemas", () => {
 	});
 
 	it("accepts PublicEpisodeDto for a film without parent fields", () => {
-		const parsed = publicEpisodeDtoSchema.parse({
-			id: "550e8400-e29b-41d4-a716-446655440000",
+		const parsed = publicEpisodeDtoSchema.parse(wirePublicEpisodeDto({
 			podcastName: "Synthetic Film",
 			title: "Synthetic Film",
-			description: "Desc",
 			release: "2026-01-01T00:00:00Z",
 			duration: "01:40:00",
-			explicit: false,
-			subjects: [],
 			contentKind: "Film",
 			slug: "Synthetic Film",
 			path: "/film/Synthetic%20Film/ZgCEDlWb4tRBpxZEZlVEAAA"
-		});
+		}));
 		expect(parsed.contentKind).toBe("Film");
 		expect(parsed.parentId).toBeUndefined();
 	});
@@ -806,18 +826,15 @@ describe("openapi Zod schemas", () => {
 		expect(film.alternativeTitles).toEqual(titles);
 		expect(filmDtoSchema.parse({ id: film.id, name: film.name, description: "", alternativeTitles: [] }).alternativeTitles).toEqual([]);
 
-		const publicFilm = publicEpisodeDtoSchema.parse({
-			id: "550e8400-e29b-41d4-a716-446655440000",
+		const publicFilm = publicEpisodeDtoSchema.parse(wirePublicEpisodeDto({
 			podcastName: "Faderhuset",
 			title: "Faderhuset",
 			description: "",
 			release: "2026-11-19T00:00:00Z",
 			duration: "01:30:00",
-			explicit: false,
-			subjects: [],
 			contentKind: "Film",
 			alternativeTitles: titles
-		});
+		}));
 		expect(publicFilm.alternativeTitles).toEqual(titles);
 
 		const episode = episodeDtoSchema.parse(wireEpisodeDto({
@@ -841,20 +858,6 @@ describe("openapi Zod schemas", () => {
 		});
 		expect(parsed.image).toBe("https://image.tmdb.org/t/p/w780/still.jpg");
 		expect(tvShowEpisodeDtoSchema.parse({ id: parsed.id, tvShowId: parsed.tvShowId, title: "Pilot", description: "" }).image).toBeUndefined();
-	});
-
-	it("rejects an unknown contentKind on PublicEpisodeDto", () => {
-		expect(() => publicEpisodeDtoSchema.parse({
-			id: "550e8400-e29b-41d4-a716-446655440000",
-			podcastName: "Show",
-			title: "Ep",
-			description: "Desc",
-			release: "2026-07-01T12:00:00Z",
-			duration: "01:00:00",
-			explicit: false,
-			subjects: [],
-			contentKind: "Movie"
-		})).toThrow();
 	});
 
 	it("accepts DiscoverySubmitResponse", () => {

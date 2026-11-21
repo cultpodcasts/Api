@@ -5,7 +5,9 @@ import {
 	shareImageFromStorage,
 	toShareImageStorage,
 	buildBrandedOgImageUrl,
-	isAllowedShareImageSourceHost
+	isAllowedShareImageSourceHost,
+	IMAGE_REMOVED_TOKEN,
+	isImageRemovedToken
 } from "../src/episodeShareImage";
 
 describe("expandSearchImage (search-index encoding)", () => {
@@ -204,5 +206,34 @@ describe("buildBrandedOgImageUrl / allowlist", () => {
 		expect(isAllowedShareImageSourceHost("i.scdn.co")).toBe(true);
 		expect(isAllowedShareImageSourceHost("is3-ssl.mzstatic.com")).toBe(true);
 		expect(isAllowedShareImageSourceHost("evil.example")).toBe(false);
+	});
+});
+
+describe("curator-removed image (RPP #1500)", () => {
+	it("recognises the removed token", () => {
+		expect(IMAGE_REMOVED_TOKEN).toBe("-");
+		expect(isImageRemovedToken("-")).toBe(true);
+		expect(isImageRemovedToken("")).toBe(false);
+		expect(isImageRemovedToken(undefined)).toBe(false);
+		expect(isImageRemovedToken("yh")).toBe(false);
+	});
+
+	it("resolves no share image even when a youtubeId is set", () => {
+		expect(resolveEpisodeShareImage({ image: "-", youtubeId: "YSO1Lh02_Tk" })).toBeUndefined();
+	});
+
+	it("stores no share image on new shortener KV", () => {
+		expect(toShareImageStorage({ image: "-", youtubeId: "YSO1Lh02_Tk" })).toBeUndefined();
+	});
+
+	it("expands a stored removed token to no share image", () => {
+		expect(shareImageFromStorage({ image: "-", youtubeId: "YSO1Lh02_Tk", imageAspect: "wide" })).toBeUndefined();
+	});
+
+	it("keeps the YouTube frame fallback when nothing is stored and nothing was removed", () => {
+		expect(resolveEpisodeShareImage({ image: "", youtubeId: "griffinsong42" })).toEqual({
+			image: "https://i.ytimg.com/vi/griffinsong42/hqdefault.jpg",
+			imageAspect: "wide"
+		});
 	});
 });
