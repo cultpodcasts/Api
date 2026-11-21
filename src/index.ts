@@ -94,6 +94,7 @@ import {
 	PostDiscoverySubmissionApplyRoute,
 	PostDiscoverySubmissionRetryRoute,
 	PostDiscoverySubmissionReleaseRoute,
+	PostDiscoverySubmissionOutputsReviewedRoute,
 	PostDiscoverySubmissionStateRoute,
 	PostDiscoveryReportReleaseRoute,
 	SubmitLookupRoute,
@@ -466,6 +467,7 @@ openapi.put('/discovery-submissions/:id/review', PutDiscoverySubmissionReviewRou
 openapi.post('/discovery-submissions/:id/apply', PostDiscoverySubmissionApplyRoute);
 openapi.post('/discovery-submissions/:id/retry', PostDiscoverySubmissionRetryRoute);
 openapi.post('/discovery-submissions/:id/release', PostDiscoverySubmissionReleaseRoute);
+openapi.post('/discovery-submissions/:id/outputs-reviewed', PostDiscoverySubmissionOutputsReviewedRoute);
 openapi.post('/discovery-submissions/:id/state', PostDiscoverySubmissionStateRoute);
 openapi.post('/discovery-reports/:id/release', PostDiscoveryReportReleaseRoute);
 openapi.get('/discovery-info', GetDiscoveryInfoRoute);
