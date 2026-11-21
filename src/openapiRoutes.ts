@@ -60,7 +60,6 @@ import {
 	getDiscoverySubmission,
 	getDiscoverySubmissions,
 	postDiscoverySubmissionApply,
-	postDiscoverySubmissionOutputsReviewed,
 	postDiscoverySubmissionRelease,
 	postDiscoverySubmissionRetry,
 	postDiscoverySubmissionState,
@@ -94,7 +93,6 @@ import {
 	discoverySubmissionRetryRequestSchema,
 	discoverySubmissionSetStateRequestSchema,
 	discoverySubmissionReleaseRequestSchema,
-	discoverySubmissionOutputsReviewedRequestSchema,
 	discoveryReportReleaseRequestSchema,
 	discoveryReportReleaseResponseSchema,
 	discoverySubmissionHeldResponseSchema,
@@ -1632,22 +1630,6 @@ export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscov
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReleaseRequestSchema) },
         responses: {
             200: { description: "Released", ...contentJson(discoverySubmissionCommandResponseSchema) },
-            ...discoverySubmissionErrors,
-            ...serverErrorResponse,
-            ...authResponses
-        }
-    }
-});
-
-export const PostDiscoverySubmissionOutputsReviewedRoute = createOpenApiRoute(postDiscoverySubmissionOutputsReviewed, {
-    auth: discoverySuperviseAuth,
-    schema: {
-        tags: ["Discovery"],
-        summary: "Mark an applied submission's episodes as reviewed",
-        description: "Command. Clears `outputsReviewPending` and records `outputsReviewedAt` / `outputsReviewedBy` with an `OutputsReviewed` history entry. The episodes themselves are not changed (they are public as normal). A no-op 200 when nothing is waiting for review. 409 stale etag or while Applying (RPP #1415).",
-        request: { params: submissionIdParam, body: jsonBody(discoverySubmissionOutputsReviewedRequestSchema) },
-        responses: {
-            200: { description: "Marked reviewed (or nothing was waiting)", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             ...serverErrorResponse,
             ...authResponses
