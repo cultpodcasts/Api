@@ -67,6 +67,8 @@ export type SearchDocUpsert = {
 	image?: string | null;
 	/** `{duration}|{url}|{title}` tokens. */
 	trailers?: string[] | null;
+	/** `{youTubeId}|{release}|{channelName}` tokens (RPP #1411). Retrievable, not searchable. */
+	youTubeAlternates?: string[] | null;
 	/** Film AKAs: searchable and returned. */
 	alternativeTitles?: string[] | null;
 	imdbId?: string | null;
@@ -122,6 +124,7 @@ type DocRow = {
 	svc: string;
 	image: string | null;
 	trailers: string | null;
+	youtube_alternates: string | null;
 	imdb_id: string | null;
 	tmdb_id: number | null;
 	tvdb_id: number | null;
@@ -155,6 +158,7 @@ const ROW_COLUMNS = [
 	"svc",
 	"image",
 	"trailers",
+	"youtube_alternates",
 	"imdb_id",
 	"tmdb_id",
 	"tvdb_id",
@@ -331,7 +335,7 @@ const STRING_FIELDS = [
 	"publisherSearchTerms",
 	"episodeSearchTerms"
 ] as const;
-const STRING_LIST_FIELDS = ["subjects", "trailers", "alternativeTitles", "guests"] as const;
+const STRING_LIST_FIELDS = ["subjects", "trailers", "youTubeAlternates", "alternativeTitles", "guests"] as const;
 const INTEGER_FIELDS = ["tmdbId", "tvdbId", "seriesTmdbId", "seriesTvdbId"] as const;
 /** On `EpisodeSearchRecord` but `[FieldBuilderIgnore]` (not on the live index): accepted and dropped. */
 const IGNORED_LEGACY_FIELDS = ["podcastName", "episodeTitle", "episodeDescription"] as const;
@@ -448,6 +452,7 @@ export function toDocRow(doc: SearchDocUpsert): DocRow {
 		svc: doc.svc ?? "",
 		image: doc.image ?? null,
 		trailers: doc.trailers?.length ? JSON.stringify(doc.trailers) : null,
+		youtube_alternates: doc.youTubeAlternates?.length ? JSON.stringify(doc.youTubeAlternates) : null,
 		imdb_id: doc.imdbId ?? null,
 		tmdb_id: doc.tmdbId ?? null,
 		tvdb_id: doc.tvdbId ?? null,

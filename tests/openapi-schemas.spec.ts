@@ -64,6 +64,8 @@ import {
 	podcastEpisodeFilmMoveRequestSchema,
 	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
+	episodeYouTubeAlternateAttachRequestSchema,
+	episodeYouTubeAlternateAttachResponseSchema,
 	episodeTrailerAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
 	episodeTvShowMoveResponseSchema,
@@ -1342,9 +1344,15 @@ describe("openapi Zod schemas", () => {
 				url: "https://www.youtube.com/watch?v=synthetic01",
 				release: "2026-01-02T03:04:05Z",
 				duration: "0:02:11"
+			}],
+			additionalYouTube: [{
+				youTubeId: "GSIPAfDO_ec",
+				url: "https://www.youtube.com/watch?v=GSIPAfDO_ec",
+				channelName: "True Crime Fix"
 			}]
 		});
 		expect(film.trailers?.[0]?.id).toBe(trailerId);
+		expect(film.additionalYouTube?.[0]?.youTubeId).toBe("GSIPAfDO_ec");
 
 		const change = filmChangeRequestSchema.parse({
 			imdbId: "",
@@ -1360,6 +1368,11 @@ describe("openapi Zod schemas", () => {
 		}).expectedTrailerIds).toEqual([trailerId]);
 		expect(() => filmChangeRequestSchema.parse({ trailers: [{ id: "not-a-guid" }] })).toThrow();
 		expect(() => filmChangeRequestSchema.parse({ expectedTrailerIds: ["not-a-guid"] })).toThrow();
+		expect(filmChangeRequestSchema.parse({
+			additionalYouTube: [{ youTubeId: "GSIPAfDO_ec" }, { url: "https://www.youtube.com/watch?v=VCRf_qazO9s" }],
+			expectedAdditionalYouTubeIds: ["GSIPAfDO_ec"],
+			promoteYouTubeId: "GSIPAfDO_ec"
+		}).promoteYouTubeId).toBe("GSIPAfDO_ec");
 
 		const hit = searchResponseSchema.parse({
 			value: [{
@@ -1370,10 +1383,12 @@ describe("openapi Zod schemas", () => {
 				release: "2026-01-02T03:04:05Z",
 				duration: "1:30:00",
 				contentKind: "Film",
-				trailers: ["00:02:11|https://www.youtube.com/watch?v=synthetic01|Synthetic | Teaser"]
+				trailers: ["00:02:11|https://www.youtube.com/watch?v=synthetic01|Synthetic | Teaser"],
+				youTubeAlternates: ["GSIPAfDO_ec|2024-03-01|True Crime Fix"]
 			}]
 		});
 		expect(hit.value[0]?.trailers).toHaveLength(1);
+		expect(hit.value[0]?.youTubeAlternates).toEqual(["GSIPAfDO_ec|2024-03-01|True Crime Fix"]);
 	});
 
 	it("parses the attach-as-trailer request and command outcome and requires a film id", () => {
@@ -1388,6 +1403,18 @@ describe("openapi Zod schemas", () => {
 		expect(episodeTrailerAttachResponseSchema.parse({ filmId, filmCreated: true }).filmCreated).toBe(true);
 		expect(episodeTrailerAttachResponseSchema.parse({ filmId, name: "Synthetic Film Title", failureIndexing: false }).name)
 			.toBe("Synthetic Film Title");
+	});
+
+	it("parses the attach-as-additional-YouTube request and command outcome (RPP #1411)", () => {
+		const targetId = "925e2a11-668f-4dfa-a78d-57dd4de0051f";
+		expect(episodeYouTubeAlternateAttachRequestSchema.parse({ targetKind: "Film", targetId }).targetKind).toBe("Film");
+		expect(episodeYouTubeAlternateAttachRequestSchema.parse({ targetKind: "NewsReport", targetId }).targetKind).toBe("NewsReport");
+		expect(episodeYouTubeAlternateAttachRequestSchema.parse({ targetKind: "TvShowEpisode", targetId }).targetKind).toBe("TvShowEpisode");
+		expect(episodeYouTubeAlternateAttachRequestSchema.parse({ targetKind: "Episode", targetId }).targetKind).toBe("Episode");
+		expect(() => episodeYouTubeAlternateAttachRequestSchema.parse({ targetKind: "Film" })).toThrow();
+		expect(() => episodeYouTubeAlternateAttachRequestSchema.parse({ targetKind: "Podcast", targetId })).toThrow();
+		expect(() => episodeYouTubeAlternateAttachRequestSchema.parse({ targetKind: "Film", targetId: "not-a-guid" })).toThrow();
+		expect(episodeYouTubeAlternateAttachResponseSchema.parse({ targetId, name: "Manic", failureIndexing: false }).name).toBe("Manic");
 	});
 
 	it("parses the move-to-news requests and command outcome", () => {

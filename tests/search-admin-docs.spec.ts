@@ -160,7 +160,7 @@ describe("search Worker POST /admin/docs (SP-1.4)", () => {
 
 	it("stores the Azure shapes: UTC release without milliseconds, Episode when contentKind is absent, '' for missing service keys", async () => {
 		const { db, env } = fixture();
-		const { contentKind: _, ...noKind } = doc("ep-1", { release: "2026-11-01T11:30:00.123+01:00", trailers: ["0:02:00|https://y/t|Trailer"] });
+		const { contentKind: _, ...noKind } = doc("ep-1", { release: "2026-11-01T11:30:00.123+01:00", trailers: ["0:02:00|https://y/t|Trailer"], youTubeAlternates: ["GSIPAfDO_ec|2024-03-01|True Crime Fix"] });
 		await write(env, { upserts: [noKind] });
 		expect(row(db, "ep-1")).toMatchObject({
 			kind: "Episode",
@@ -168,7 +168,8 @@ describe("search Worker POST /admin/docs (SP-1.4)", () => {
 			bbc: "",
 			internet_archive: "",
 			svc: "",
-			trailers: JSON.stringify(["0:02:00|https://y/t|Trailer"])
+			trailers: JSON.stringify(["0:02:00|https://y/t|Trailer"]),
+			youtube_alternates: JSON.stringify(["GSIPAfDO_ec|2024-03-01|True Crime Fix"])
 		});
 	});
 
@@ -248,7 +249,7 @@ describe("search Worker POST /admin/docs (SP-1.4)", () => {
 			if (key === "contentKind") return "Film";
 			if (key === "release") return "2026-11-01T10:00:00Z";
 			if (key === "modifiedAt") return T0;
-			if (["subjects", "trailers", "alternativeTitles", "guests"].includes(key)) return [`${key}-value`];
+			if (["subjects", "trailers", "youTubeAlternates", "alternativeTitles", "guests"].includes(key)) return [`${key}-value`];
 			if (/TmdbId$|TvdbId$|^tmdbId$|^tvdbId$/.test(key)) return 42;
 			return `${key}-value`;
 		};

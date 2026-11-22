@@ -5,7 +5,7 @@ import type { SearchDocUpsert } from "../workers/search/src/admin-docs";
 import { generationTriggerSql, REBUILD_ACTIONS, shadowTableSql, shadowTriggerSql } from "../workers/search/src/admin-rebuild";
 import { PARKED_TABLES } from "../workers/search/src/index-generations";
 import type { SearchEnv } from "../workers/search/src/env";
-import { d1, migratedSearchDb } from "./support/searchD1";
+import { applySearchMigration, d1, migratedSearchDb, migratedSearchDbThrough } from "./support/searchD1";
 import type { Auth0JwtPayload } from "../src/Auth0JwtPayload";
 import { SEARCH_ADMIN_REBUILD_URL, SEARCH_REBUILD_ACTIONS, searchAdminRebuild, searchAdminRebuildStatus } from "../src/searchAdminDocs";
 import { appWithAuthPayload, testEnv } from "./honoTestApp";
@@ -451,6 +451,55 @@ describe("shadow schema SQL (SP-2.3)", () => {
 		expect(parked).toBe(
 			"CREATE TRIGGER search_docs_ad_old AFTER DELETE ON search_docs_old BEGIN INSERT INTO search_fts_old (search_fts_old, rowid) VALUES ('delete', old.rowid); END"
 		);
+	});
+});
+
+
+describe("search Worker index rebuild schema preflight (RPP #1411)", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it("answers 409 for docs when a shadow was started before a later live migration", async () => {
+		// Arrange: start the rebuild on schema 2, then migrate live to 3 so the shadow is stale.
+		const db = migratedSearchDbThrough(2);
+		const env: SearchEnv = { SEARCH_DB: d1(db), searchEnvironment: "preview" };
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const started = await rebuild(env, "start");
+		expect(started.status).toBe(200);
+		applySearchMigration(db, "0003_youtube_alternates.sql");
+
+		// Act
+		const loaded = await rebuild(env, "docs", { rebuildId: started.body.rebuildId, upserts: [doc("new-1")] });
+
+		// Assert
+		expect(loaded.status).toBe(409);
+		expect(loaded.body.error.code).toBe("RebuildConflict");
+		expect(loaded.body.error.message).toBe("rebuild was started on an older schema: abort and start again");
+	});
+
+	it("answers 409 for swap-back when the parked generation predates a later live migration", async () => {
+		// Arrange: swap a schema-2 shadow into live (empty: docs would write youtube_alternates
+		// which schema 2 does not have), then migrate, so the parked copy is stale.
+		const db = migratedSearchDbThrough(2);
+		const env: SearchEnv = { SEARCH_DB: d1(db), searchEnvironment: "preview" };
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const started = await rebuild(env, "start");
+		expect(started.status).toBe(200);
+		const rebuildId = started.body.rebuildId as string;
+		const swapped = await rebuild(env, "swap", { rebuildId, expectedTotal: 0, maxShrink: 1 });
+		expect(swapped.status).toBe(200);
+		applySearchMigration(db, "0003_youtube_alternates.sql");
+
+		// Act
+		const back = await rebuild(env, "swap-back", { rebuildId });
+
+		// Assert
+		expect(back.status).toBe(409);
+		expect(back.body.error.code).toBe("RebuildConflict");
+		expect(back.body.error.message).toBe("parked generation predates migration 3: finish, don't swap back");
 	});
 });
 

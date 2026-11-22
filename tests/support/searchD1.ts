@@ -23,6 +23,20 @@ export function migratedSearchDb(): DatabaseSync {
 	return db;
 }
 
+/** In-memory database with only the first `count` search migrations applied (sorted file order). */
+export function migratedSearchDbThrough(count: number): DatabaseSync {
+	const db = new DatabaseSync(":memory:");
+	db.exec("PRAGMA foreign_keys = ON;");
+	for (const file of searchMigrationFiles().slice(0, count)) {
+		db.exec(readFileSync(resolve(searchMigrationsDir, file), "utf8"));
+	}
+	return db;
+}
+
+export function applySearchMigration(db: DatabaseSync, fileName: string): void {
+	db.exec(readFileSync(resolve(searchMigrationsDir, fileName), "utf8"));
+}
+
 /** D1 rejects a statement with more than 100 bound parameters; the adapter does too. */
 export const D1_MAX_BOUND_PARAMETERS = 100;
 

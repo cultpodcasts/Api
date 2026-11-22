@@ -1575,6 +1575,11 @@ export const episodeSearchHitSchema = z.object({
 	 * `|`; the title may contain `|`). Omitted when the film has none. Trailers have no search documents of their own.
 	 */
 	trailers: z.array(z.string()).optional().nullable(),
+	/**
+	 * Additional YouTube uploads, one `{youTubeId}|{release}|{channelName}` token per upload in display
+	 * order (RPP #1411; split on the first two `|`; channelName may contain `|`). Omitted when there are none.
+	 */
+	youTubeAlternates: z.array(z.string()).optional().nullable(),
 	"@search.score": z.number().optional()
 });
 
@@ -1619,6 +1624,8 @@ export const searchIndexDocSchema = z.object({
 	subjects: z.array(z.string()).nullable().optional(),
 	image: z.string().nullable().optional(),
 	trailers: z.array(z.string()).nullable().optional(),
+	youTubeAlternates: z.array(z.string()).nullable().optional()
+		.describe("Additional YouTube uploads: `{youTubeId}|{release}|{channelName}` tokens (RPP #1411). Retrievable, not searchable."),
 	alternativeTitles: z.array(z.string()).nullable().optional().describe("Film AKAs: searchable and returned"),
 	imdbId: z.string().nullable().optional(),
 	tmdbId: z.number().int().nullable().optional(),
@@ -2129,6 +2136,39 @@ export const filmTrailerChangeSchema = z.object({
 	title: z.string().optional().nullable()
 });
 
+/** Api.Dtos.YouTubeAlternateDto: one additional YouTube upload (RPP #1411). */
+export const youTubeAlternateDtoSchema = z.object({
+	youTubeId: z.string(),
+	url: z.string().url(),
+	image: z.string().url().optional().nullable(),
+	title: z.string().optional().nullable(),
+	channelId: z.string().optional().nullable(),
+	channelName: z.string().optional().nullable(),
+	release: z.string().optional().nullable(),
+	duration: z.string().optional().nullable(),
+	sourceEpisodeId: z.string().uuid().optional().nullable()
+});
+
+/** Api.Dtos.YouTubeAlternateChangeRequest: keep an existing upload or add one from a YouTube url. */
+export const youTubeAlternateChangeSchema = z.object({
+	youTubeId: z.string().optional().nullable(),
+	url: z.string().optional().nullable(),
+	title: z.string().optional().nullable(),
+	channelName: z.string().optional().nullable()
+});
+
+export const episodeYouTubeAlternateAttachRequestSchema = z.object({
+	targetKind: z.enum(["Film", "NewsReport", "TvShowEpisode", "Episode"]),
+	targetId: z.string().uuid()
+});
+
+export const episodeYouTubeAlternateAttachResponseSchema = z.object({
+	targetId: z.string().uuid().optional().nullable(),
+	name: z.string().optional().nullable(),
+	error: z.string().optional().nullable(),
+	failureIndexing: z.boolean().optional()
+});
+
 /**
  * Api.Dtos.FilmDto: publisher fields + IMDb + the playable fields a film has (RPP #1053).
  * `release` is `yyyy` for a year-only release, otherwise `yyyy-MM-dd`. Films have no title (the name is the title).
@@ -2154,6 +2194,8 @@ export const filmDtoSchema = z.object({
 		guestSuggestions: z.array(episodeDtoPersonMatchSchema).optional().nullable(),
 		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
 		trailers: z.array(filmTrailerDtoSchema).optional().nullable(),
+		additionalYouTube: z.array(youTubeAlternateDtoSchema).optional().nullable()
+			.describe("Extra YouTube uploads in display order (RPP #1411). Omitted when the film has none."),
 		image: z.string().url().optional().nullable()
 			.describe("Image from the film's identity (TMDB backdrop, else poster; RedditPodcastPoster#1430). Search uses it only when no service has an image."),
 		alternativeTitles: z.array(z.string()).optional().nullable()
@@ -2177,6 +2219,12 @@ export const filmChangeRequestSchema = z.object({
 		.describe("The trailers to keep, in display order, with optional rename. Omitted trailers are removed; [] removes all. Unknown or repeated id is a 400. Send expectedTrailerIds with this field."),
 	expectedTrailerIds: z.array(z.string().uuid()).optional().nullable()
 		.describe("Trailer ids the client last saw. When trailers is sent, a stored trailer whose id is not in this list is a 409 and nothing is saved. Omitted or empty means the client listed no trailer ids."),
+	additionalYouTube: z.array(youTubeAlternateChangeSchema).optional().nullable()
+		.describe("Additional YouTube uploads to keep, in display order (RPP #1411). Existing entries are identified by youTubeId; a new entry is added from a YouTube url. Omitted entries are removed; [] removes all. Send expectedAdditionalYouTubeIds with this field."),
+	expectedAdditionalYouTubeIds: z.array(z.string()).optional().nullable()
+		.describe("Additional YouTube ids the client last saw. When additionalYouTube is sent, a stored id not in this list is a 409 and nothing is saved."),
+	promoteYouTubeId: z.string().optional().nullable()
+		.describe("The YouTube id of an additional upload to swap into the primary services.youtube link. The previous primary becomes an additional upload."),
 	...publisherFieldsChangeShape,
 	release: z.string().optional().nullable(),
 	duration: z.string().optional().nullable(),
@@ -2194,7 +2242,8 @@ export const filmChangeRequestSchema = z.object({
 /** PATCH /film 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
 export const filmStaleTrailersConflictSchema = z.object({
 	message: z.string().optional(),
-	unexpectedTrailerIds: z.array(z.string().uuid())
+	unexpectedTrailerIds: z.array(z.string().uuid()).optional(),
+	unexpectedAdditionalYouTubeIds: z.array(z.string()).optional()
 });
 
 /**

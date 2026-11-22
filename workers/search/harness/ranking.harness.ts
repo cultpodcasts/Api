@@ -73,6 +73,7 @@ function load(db: DatabaseSync, doc: AzureDoc) {
 			lang: doc.lang ?? null,
 			image: doc.image ?? null,
 			trailers: doc.trailers?.length ? JSON.stringify(doc.trailers) : null,
+			youtube_alternates: doc.youTubeAlternates?.length ? JSON.stringify(doc.youTubeAlternates) : null,
 			tmdb_id: doc.tmdbId ?? null
 		},
 		doc.subjects ?? []
