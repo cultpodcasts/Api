@@ -231,6 +231,7 @@ const row = (over: Partial<AzureSearchDocRow> = {}): AzureSearchDocRow => ({
 	svc: "",
 	image: null,
 	trailers: '["00:02:10|https://www.youtube.com/watch?v=x|Trailer"]',
+	youtube_alternates: '["GSIPAfDO_ec|2024-03-01|True Crime Fix"]',
 	alternative_titles: "Source Family\nLa famille Source\n",
 	imdb_id: "tt2391950",
 	tmdb_id: 157851,
@@ -245,7 +246,7 @@ const row = (over: Partial<AzureSearchDocRow> = {}): AzureSearchDocRow => ({
 describe("Azure document shape (SP-0.2) over the SP-1.1 columns", () => {
 	it("returns exactly the live Azure retrievable keys, in Azure order, after @search.score", () => {
 		const doc = toAzureSearchDocument(row(), 2.5, ["Cults"]);
-		expect(LIVE_AZURE_RETRIEVABLE_KEYS).toHaveLength(25);
+		expect(LIVE_AZURE_RETRIEVABLE_KEYS).toHaveLength(26);
 		expect(Object.keys(doc)).toEqual(["@search.score", ...LIVE_AZURE_RETRIEVABLE_KEYS]);
 		for (const hidden of ["podcastName", "guests", "publisherSearchTerms", "episodeSearchTerms"]) {
 			expect(doc).not.toHaveProperty(hidden);
@@ -257,6 +258,7 @@ describe("Azure document shape (SP-0.2) over the SP-1.1 columns", () => {
 			release: "2026-10-01T10:00:00Z",
 			alternativeTitles: ["Source Family", "La famille Source"],
 			trailers: ["00:02:10|https://www.youtube.com/watch?v=x|Trailer"],
+			youTubeAlternates: ["GSIPAfDO_ec|2024-03-01|True Crime Fix"],
 			imdbId: "tt2391950",
 			tmdbId: 157851,
 			tvdbId: null

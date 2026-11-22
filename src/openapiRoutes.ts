@@ -142,6 +142,8 @@ import {
 	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
+	episodeYouTubeAlternateAttachRequestSchema,
+	episodeYouTubeAlternateAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
 	episodeTvShowMoveResponseSchema,
 	episodeNewsMoveRequestSchema,
@@ -234,6 +236,7 @@ import { getPodcastKindTransferStatus } from "./getPodcastKindTransferStatus";
 import { transferPodcastKind } from "./transferPodcastKind";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
+import { attachEpisodeYouTubeAlternate } from "./attachEpisodeYouTubeAlternate";
 import { moveEpisodeToTvShow } from "./moveEpisodeToTvShow";
 import { moveEpisodeToNews, movePodcastEpisodesToNews } from "./moveToNews";
 import { moveNewsReportToFilm, moveNewsReportToTvShow } from "./moveNewsReport";
@@ -398,7 +401,7 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 			},
 			409: {
 				description:
-					"Stored trailers include an id that was not in expectedTrailerIds. The keep-list was not applied.",
+					"Stored trailers include an id that was not in expectedTrailerIds, or stored additional YouTube ids were not in expectedAdditionalYouTubeIds. The keep-list was not applied.",
 				...contentJson(filmStaleTrailersConflictSchema)
 			},
 			...notFoundResponse,
@@ -1045,13 +1048,13 @@ export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
             "The source podcast is kept. The short link is unchanged; old /podcast/{name}/{id} links redirect to /film/{name}/{shortId}. " +
             "A failed search swap keeps the episode row; re-sending the request resumes. " +
             "Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and selectedIdentityKey (or continue/cancel), same as URL-submit. " +
-            "With filmId (RPP #1522) the episode is merged into that existing film instead: its missing links and subjects are added to the film, the episode leaves search and is deleted, and its short link redirects to the film.",
+            "With filmId (RPP #1522 / #1411) the episode is merged into that existing film instead: its missing links and subjects are added to the film, a different YouTube upload becomes an additional YouTube link, the episode leaves search and is deleted, and its short link redirects to the film.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(podcastEpisodeFilmMoveRequestSchema) },
         responses: {
             202: { description: "Moved, or merged into the existing film when filmId is set (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
             200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(episodeFilmMoveResponseSchema) },
             400: { description: "Title contains '/', or the episode is removed; with filmId also a removed film, the episode's own id, or an episode with no links", ...contentJson(errorSchema) },
-            409: { description: "Another film already has the name; with filmId, the film already has a different link for one of the episode's services (filmId names it)", ...contentJson(episodeFilmMoveResponseSchema) },
+            409: { description: "Another film already has the name; with filmId, the film already has a different Spotify, Apple or other non-YouTube link for one of the episode's services (filmId names it)", ...contentJson(episodeFilmMoveResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -1088,6 +1091,30 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
                     "(body filmId is one of those films, not a film to resume; attach by id instead).",
                 ...contentJson(episodeTrailerAttachResponseSchema)
             },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+
+export const AttachEpisodeYouTubeAlternateRoute = createOpenApiRoute(attachEpisodeYouTubeAlternate, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Attach one podcast episode as an additional YouTube upload on an existing catalogue item",
+        description:
+            "Curator command (RPP #1411). Body `{ targetKind, targetId }` where targetKind is Film, NewsReport, " +
+            "TvShowEpisode or Episode. The episode's YouTube upload (and any other non-conflicting service links) " +
+            "is added to that item; a different YouTube becomes an additionalYouTube entry. The episode then leaves " +
+            "search and is deleted, and its short link redirects to the owning item. A Film target is the same merge " +
+            "as POST /episode/:podcastId/:episodeId/film with filmId. A failed search step keeps the episode row; re-sending resumes.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeYouTubeAlternateAttachRequestSchema) },
+        responses: {
+            202: { description: "Attached (command outcome; GET the target item for the resource)", ...contentJson(episodeYouTubeAlternateAttachResponseSchema) },
+            400: { description: "Missing or invalid targetKind/targetId, a removed or held-for-approval episode, a removed target, no YouTube upload, or attaching an episode to itself", ...contentJson(errorSchema) },
+            409: { description: "The target already has a different Spotify, Apple or other non-YouTube link for one of the episode's services", ...contentJson(episodeYouTubeAlternateAttachResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses

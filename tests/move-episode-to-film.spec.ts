@@ -57,11 +57,11 @@ describe("move episode to film", () => {
 		expect(JSON.parse(String(init.body))).toEqual({ filmId: existingFilmId });
 	});
 
-	it("forwards the 409 when the existing film already has a different link (until RPP #1411)", async () => {
+	it("forwards the 409 when the existing film already has a different Spotify or Apple link (RPP #1411: a different YouTube becomes an additional upload)", async () => {
 		const outcome = {
 			filmId: "925e2a11-668f-4dfa-a78d-57dd4de0051f",
 			name: "Manic",
-			error: "Film 'Manic' already has a different youtube link (https://www.youtube.com/watch?v=VCRf_qazO9s). A film holds one link per service until multiple YouTube links are supported (#1411)."
+			error: "Film 'Manic' already has a different spotify link (https://open.spotify.com/episode/synthetic)."
 		};
 		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(outcome), { status: 409 })));
 

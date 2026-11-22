@@ -331,6 +331,30 @@ describe("catalogue Azure proxies", () => {
 		const [, init] = fetchMock.mock.calls[0] as unknown as [URL | string, RequestInit];
 		expect(JSON.parse(String(init.body))).toEqual(payload);
 	});
+
+	it("PATCH /film/:id forwards expectedAdditionalYouTubeIds and the stale-additional-YouTube 409 body", async () => {
+		const payload = {
+			additionalYouTube: [{ youTubeId: "GSIPAfDO_ec" }],
+			expectedAdditionalYouTubeIds: ["GSIPAfDO_ec"]
+		};
+		const conflict = {
+			message: "The film's additional YouTube links changed after this edit was loaded. Close and reopen the film to edit them.",
+			unexpectedTrailerIds: [],
+			unexpectedAdditionalYouTubeIds: ["VCRf_qazO9s"]
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(conflict), { status: 409 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appFor("/film/:id", "patch", updateFilm, ["curate"]);
+		const resp = await app.request(
+			`/film/${id}`,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(payload) },
+			catalogueEnv()
+		);
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflict);
+		const [, init] = fetchMock.mock.calls[0] as unknown as [URL | string, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual(payload);
+	});
 });
 
 describe("catalogue OpenAPI contracts", () => {
@@ -389,6 +413,7 @@ describe("catalogue OpenAPI contracts", () => {
 		expect(responses?.[500]?.description).toMatch(/retry/i);
 		const filmConflict = UpdateFilmRoute.openApiSchema.responses?.[409] as { description?: string } | undefined;
 		expect(filmConflict?.description).toMatch(/expectedTrailerIds/);
+		expect(filmConflict?.description).toMatch(/expectedAdditionalYouTubeIds/);
 		expect(UpdateTvShowEpisodeRoute.openApiSchema.responses?.[409]).toBeUndefined();
 	});
 });

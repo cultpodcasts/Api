@@ -9,6 +9,7 @@ import { putHeroCurationOpenApiSchema } from "../src/heroCurationOpenApi";
 import {
 	AddBookmarkRoute,
 	AttachEpisodeAsTrailerRoute,
+	AttachEpisodeYouTubeAlternateRoute,
 	CreatePersonRoute,
 	DeletePodcastEpisodeRoute,
 	GetDiscoveryScheduleRoute,
@@ -53,6 +54,7 @@ describe("OpenAPI auth and response contracts", () => {
 	api.post("/submit", SubmitRoute);
 	api.get("/submit/lookup", SubmitLookupRoute);
 	api.post("/episode/:podcastId/:episodeId/trailer", AttachEpisodeAsTrailerRoute);
+	api.post("/episode/:podcastId/:episodeId/youtube-alternate", AttachEpisodeYouTubeAlternateRoute);
 	api.post("/search/admin/docs", SearchAdminDocsRoute);
 	api.get("/search/admin/docs/inventory", SearchAdminInventoryRoute);
 	api.get("/search/admin/rebuild", SearchAdminRebuildStatusRoute);

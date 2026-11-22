@@ -2,7 +2,7 @@ import { readSession, servedBy } from "./d1-session";
 import type { SearchEnv } from "./env";
 
 /** Must match the `schema_version` row written by the latest migration in ../migrations. */
-export const SEARCH_SCHEMA_VERSION = "2";
+export const SEARCH_SCHEMA_VERSION = "3";
 
 type Health = {
 	ok: boolean;
