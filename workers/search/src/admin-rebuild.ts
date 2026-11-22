@@ -2,7 +2,7 @@ import { applyAdminDocs, CONTENT_KINDS, parseAdminDocsRequest, type AdminDocsOut
 import { writeDb } from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
-import { json } from "./health";
+import { json, SEARCH_SCHEMA_VERSION } from "./health";
 import {
 	LIVE_TABLES,
 	PARKED_TABLES,
@@ -214,6 +214,11 @@ async function loadDocs(db: D1Database, body: Record<string, unknown>): Promise<
 	const rebuildId = rebuildIdOf(body);
 	const req = parseAdminDocsRequest(JSON.stringify({ upserts: body.upserts }));
 	await requireState(db, rebuildId, "loading");
+	await requireGenerationSchemaMatchesLive(
+		db,
+		SHADOW_TABLES,
+		"rebuild was started on an older schema: abort and start again"
+	);
 	const outcome = await applyAdminDocs(req, db, [], SHADOW_TABLES);
 	return { rebuildId, ...outcome };
 }
@@ -254,6 +259,11 @@ export async function verify(db: D1Database, req: SwapRequest): Promise<Verifica
 
 export async function swap(db: D1Database, req: SwapRequest, now: () => Date = () => new Date()) {
 	const state = await requireState(db, req.rebuildId, "loading");
+	await requireGenerationSchemaMatchesLive(
+		db,
+		SHADOW_TABLES,
+		"rebuild was started on an older schema: abort and start again"
+	);
 	const verification = await verify(db, req);
 	if (!verification.ok) throw new VerificationFailed(verification);
 	const swapped: RebuildState = { ...state, state: "swapped", swappedAt: now().toISOString() };
@@ -294,6 +304,11 @@ export async function finish(db: D1Database, rebuildId: string) {
 
 export async function swapBack(db: D1Database, rebuildId: string) {
 	const state = await requireState(db, rebuildId, "swapped");
+	await requireGenerationSchemaMatchesLive(
+		db,
+		PARKED_TABLES,
+		`parked generation predates migration ${SEARCH_SCHEMA_VERSION}: finish, don't swap back`
+	);
 	const back: RebuildState = { ...state, state: "swappedBack" };
 	await exchange(db, PARKED_TABLES, SHADOW_TABLES, { parkedTriggers: false }, putState(db, back));
 	return back;
@@ -436,6 +451,33 @@ async function counts(db: D1Database, t: IndexTables): Promise<Counts> {
 		total += Number(r.n);
 	}
 	return { total, kinds };
+}
+
+
+/** Column names of a docs table, in PRAGMA order. */
+async function docsTableColumns(db: D1Database, table: string): Promise<string[]> {
+	const { results } = await db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+	return results.map((r) => r.name);
+}
+
+/**
+ * Refuse docs / swap / swap-back when a shadow or parked docs table was cloned before a later
+ * live migration (RPP #1411). The ALTER only touches `search_docs`, so a mid-flight generation
+ * keeps the old columns and later writes would fail with "no such column".
+ */
+async function requireGenerationSchemaMatchesLive(
+	db: D1Database,
+	generation: { docs: string },
+	message: string
+): Promise<void> {
+	if (!(await tableExists(db, generation.docs))) {
+		return;
+	}
+	const live = await docsTableColumns(db, LIVE_TABLES.docs);
+	const other = await docsTableColumns(db, generation.docs);
+	if (live.length !== other.length || live.some((name, i) => name !== other[i])) {
+		throw new RebuildConflict(message);
+	}
 }
 
 async function tableExists(db: D1Database, name: string): Promise<boolean> {
