@@ -1,13 +1,36 @@
 // pragma: allowlist secret
 import { z } from "zod";
+import {
+	episodeDtoPersonMatchSchema,
+	episodeDtoSchema as generatedEpisodeDtoSchema,
+	episodeUpdateResponseSchema,
+	personDtoSchema,
+	publicEpisodeDtoSchema as generatedPublicEpisodeDtoSchema,
+	searchIndexerStateSchema,
+	serviceLinkDtoSchema,
+	subjectMatchDtoSchema
+} from "@cultpodcasts/contracts/zod";
 import { CatalogueParentKind } from "./catalogueParentKind";
 import { DiscoverySubmitOutcomeState } from "./discoverySubmitOutcomeState";
 import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contract";
+
+/** Generated schemas used elsewhere in the worker, re-exported under the same package names (no rename aliases). */
+export {
+	episodeUpdateResponseSchema,
+	personDtoSchema,
+	searchIndexerStateSchema,
+	serviceLinkDtoSchema
+};
 
 /**
  * OpenAPI/Zod contracts for the Cloudflare Api worker.
  * Known Azure/DTO / R2 / Search shapes are strict objects (no `.passthrough()` /
  * open records) so Swagger examples show real fields instead of additionalProp1/2/3.
+ *
+ * Azure Functions DTOs that RPP exports (`[ExportContract]`) come from `@cultpodcasts/contracts/zod`
+ * and are generated from the C# (RedditPodcastPoster#1502). Do not copy them here; add OpenAPI
+ * metadata by extending the generated schema. Everything else below is still hand-written
+ * (docs/openapi-schemas-from-csharp.md).
  */
 
 export const errorSchema = z.object({
@@ -345,12 +368,12 @@ const discoveryMatchingPodcastSchema = z.object({
 	kind: z.string().optional().nullable()
 });
 
-/** Api.Dtos.SubjectMatchDto — why a subject matched; `source` serialises as the enum name. */
-const episodeSubjectMatchSchema = z.object({
-	subject: z.string(),
-	term: z.string(),
-	source: z.enum(["Title", "Description", "PodcastDefault"])
-}).describe("Why a subject matched: the subject, the term (subject name or alias) that matched, and where it matched.");
+/**
+ * Api.Dtos.SubjectMatchDto (generated). `source` is a C# string holding the PlayableSubjectMatch source enum name
+ * (`Title`, `Description`, `PodcastDefault`), so the contract types it as a plain string.
+ */
+const episodeSubjectMatchSchema = subjectMatchDtoSchema
+	.describe("Why a subject matched: the subject, the term (subject name or alias) that matched, and where it matched (`Title`, `Description` or `PodcastDefault`).");
 
 const discoveryCurationItemSchema = z.object({
 	id: z.string().uuid(),
@@ -662,14 +685,6 @@ export const serviceEnumSchema = z.enum(["Spotify", "Apple", "YouTube", "Other"]
 /** JsonStringEnumConverter — RedditPodcastPoster.Models.Subjects.SubjectType */
 export const subjectTypeSchema = z.enum(["Unset", "Canonical", "Meta"]);
 
-/**
- * RedditPodcastPoster.Models.Episodes.ApprovalStatus (enum names, RPP #1484). Set only on an episode held for curator
- * approval: today a split-off (the stored episode's old links after a `serviceLinkConflictDecision: "overwrite"`).
- * Both values are hidden from the public and never posted. There is no approved value: absent/null means approved,
- * so every ordinary episode (and a split-off once approved) has none.
- */
-export const approvalStatusSchema = z.enum(["AwaitingApproval", "Rejected"]);
-
 /** Api.Models.ApprovalDecision (RPP #1484): a curator's decision on an episode held for approval. */
 export const approvalDecisionSchema = z.enum(["Approve", "Reject"]);
 
@@ -780,133 +795,51 @@ export const episodePublishRequestSchema = z.object({
 
 // --- Azure Functions response DTOs (Cloud/Api/Dtos) ---
 
-export const searchIndexerStateSchema = z.enum([
-	"EpisodeNotFound",
-	"EpisodeIdConflict",
-	"NoDocuments",
-	"Executed",
-	"Failure",
-	"TooManyRequests",
-	"AlreadyRunning",
-	"Unknown"
-]);
-
-/** JsonStringEnumConverter Service values used on EpisodeDto / PodcastDto. */
-export const serviceNameSchema = serviceEnumSchema;
-
-export const personDtoSchema = z.object({
-	id: z.string().uuid().optional().nullable(),
-	name: z.string().optional().nullable(),
-	sortName: z.string().optional().nullable(),
-	isOrganization: z.boolean().optional().nullable(),
-	aliases: z.array(z.string()).optional().nullable(),
-	twitterHandle: z.string().optional().nullable(),
-	blueskyHandle: z.string().optional().nullable()
-});
-
 export const peopleListResponseSchema = z.array(personDtoSchema);
 
-const episodeGuestMatchResultSchema = z.object({
-	term: z.string(),
-	matches: z.number()
-});
-
-const episodeGuestSuggestionSchema = z.object({
-	person: personDtoSchema,
-	matchResults: z.array(episodeGuestMatchResultSchema)
-});
-
 /**
- * Additive kind fields on the GET-by-id episode read models (RPP `Api.Models.PlayableKind` / `IPlayableKindDto`).
- * Set only by `GET /episode/:id` (and `/episode/:podcastName/:episodeId`) and `GET /public/episode/:id`; omitted
- * elsewhere (outgoing lists). Since the catalogue migration keeps each episode's id, those GETs also resolve a news
- * report, TV episode or film by id: the podcast fields then carry the parent (`podcastName`/`podcastId` = news
- * organisation or TV show; for a film, the film's own name and id).
+ * Api.Dtos.EpisodeDto (generated). TimeSpan `duration` serialises as a string (e.g. "01:30:00"); `release` is a UTC
+ * instant ending in `Z`. Only OpenAPI descriptions are added here.
  */
-const playableKindFields = {
-	contentKind: z.enum(["Episode", "TvShowEpisode", "Film", "NewsReport"]).optional()
-		.describe("Kind of playable. Podcast episodes are `Episode`."),
-	parentId: z.string().uuid().optional()
+export const episodeDtoSchema = generatedEpisodeDtoSchema.extend({
+	contentKind: generatedEpisodeDtoSchema.shape.contentKind
+		.describe("Kind of playable: `Episode`, `TvShowEpisode`, `Film` or `NewsReport`. Podcast episodes are `Episode`. Omitted outside the GET-by-id reads."),
+	parentId: generatedEpisodeDtoSchema.shape.parentId
 		.describe("Podcast, news organisation or TV show id. Absent for a film (no parent)."),
-	parentName: z.string().optional()
+	parentName: generatedEpisodeDtoSchema.shape.parentName
 		.describe("Podcast, news organisation or TV show name. Absent for a film."),
-	slug: z.string().optional()
+	slug: generatedEpisodeDtoSchema.shape.slug
 		.describe("Site route segment: the parent name, or a film's own name (unencoded)."),
-	path: z.string().optional()
-		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`.")
-};
-
-/** Api.Dtos.EpisodeDto — TimeSpan `duration` serialises as string (e.g. "01:30:00"). */
-export const episodeDtoSchema = z.object({
-	...playableKindFields,
-	id: z.string().uuid(),
-	podcastId: z.string().uuid(),
-	podcastName: z.string(),
-	title: z.string(),
-	displayTitle: z.string().optional(),
-	description: z.string(),
-	displayDescription: z.string().optional(),
-	release: isoDateTime,
-	duration: z.string(),
-	explicit: z.boolean(),
-	posted: z.boolean(),
-	tweeted: z.boolean(),
-	bluesky: z.boolean().optional().nullable(),
-	ignored: z.boolean(),
-	removed: z.boolean(),
-	approvalStatus: approvalStatusSchema.optional()
+	path: generatedEpisodeDtoSchema.shape.path
+		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`."),
+	approvalStatus: generatedEpisodeDtoSchema.shape.approvalStatus
 		.describe("Only on an episode held for curator approval (RPP #1484): `AwaitingApproval` or `Rejected`, both hidden and never posted. Omitted means approved (every ordinary episode, and a split-off once approved)."),
-	lang: z.string().optional().nullable(),
-	spotifyId: z.string().optional(),
-	appleId: z.number().optional().nullable(),
-	youTubeId: z.string().optional(),
-	ids: episodeIdsSchema.optional().nullable(),
-	urls: serviceUrlsSchema,
-	subjects: z.array(z.string()),
-	removedSubjects: z.array(z.string()).optional(),
-	matches: z.array(episodeSubjectMatchSchema).optional(),
-	searchTerms: z.string().optional().nullable(),
-	hashTag: z.string().optional().nullable(),
-	images: serviceImageUrlsSchema.optional().nullable(),
-	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	guests: z.array(z.string()).optional().nullable(),
-	youTubePodcast: z.boolean().optional(),
-	spotifyPodcast: z.boolean().optional(),
-	applePodcast: z.boolean().optional(),
-	releaseAuthority: serviceNameSchema.optional().nullable(),
-	primaryPostService: serviceNameSchema.optional().nullable(),
-	image: z.string().url().optional().nullable(),
-	guestPeople: z.array(personDtoSchema).optional().nullable(),
-	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
-	alternativeTitles: z.array(z.string()).optional().nullable()
+	alternativeTitles: generatedEpisodeDtoSchema.shape.alternativeTitles
 		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
 });
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
 
-/** Api.Dtos.PublicEpisodeDto */
-export const publicEpisodeDtoSchema = z.object({
-	...playableKindFields,
-	id: z.string().uuid(),
-	podcastName: z.string(),
-	title: z.string(),
-	description: z.string(),
-	release: isoDateTime,
-	duration: z.string(),
-	explicit: z.boolean(),
-	subjects: z.array(z.string()),
-	ids: episodeIdsSchema.optional().nullable(),
-	services: episodeServicesSchema.optional().nullable(), // pragma: allowlist secret
-	image: z.string().url().optional().nullable(),
-	alternativeTitles: z.array(z.string()).optional().nullable()
-		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
-});
-
-/** Api.Dtos.EpisodeUpdateResponse — POST episode → 202 */
-export const episodeUpdateResponseSchema = z.object({
-	tweetDeleted: z.boolean().optional().nullable(),
-	blueskyPostDeleted: z.boolean().optional().nullable(),
-	searchIndexerState: searchIndexerStateSchema.optional().nullable()
+/**
+ * Api.Dtos.PublicEpisodeDto (generated) — `GET /public/episode/:id`. Every non-optional key is present; unset values
+ * are null. `image` is already coalesced across services and is null when a curator removed it, which also sets
+ * `imageRemoved` (RPP #1500). Only OpenAPI descriptions are added here.
+ */
+export const publicEpisodeDtoSchema = generatedPublicEpisodeDtoSchema.extend({
+	contentKind: generatedPublicEpisodeDtoSchema.shape.contentKind
+		.describe("Kind of playable: `Episode`, `TvShowEpisode`, `Film` or `NewsReport`. Podcast episodes are `Episode`."),
+	parentId: generatedPublicEpisodeDtoSchema.shape.parentId
+		.describe("Podcast, news organisation or TV show id. Absent for a film (no parent)."),
+	parentName: generatedPublicEpisodeDtoSchema.shape.parentName
+		.describe("Podcast, news organisation or TV show name. Absent for a film."),
+	slug: generatedPublicEpisodeDtoSchema.shape.slug
+		.describe("Site route segment: the parent name, or a film's own name (unencoded)."),
+	path: generatedPublicEpisodeDtoSchema.shape.path
+		.describe("Site path with the kind's short id, e.g. `/news/NBC%20News/<shortId>`, `/tv/…`, `/film/…`, `/podcast/…`."),
+	alternativeTitles: generatedPublicEpisodeDtoSchema.shape.alternativeTitles
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film."),
+	imageRemoved: generatedPublicEpisodeDtoSchema.shape.imageRemoved
+		.describe("`true` when a curator deliberately removed the episode's image (RPP #1500): show no art, not a YouTube thumbnail fallback. Omitted otherwise.")
 });
 
 /** Api.Dtos.EpisodePublishResponse */
@@ -1409,6 +1342,17 @@ export const episodeFilmMoveRequestSchema = z.object({
 		.describe("Candidate key when identityDecision is select (e.g. tmdb:123).")
 });
 
+/**
+ * Podcast-episode Move to film body: the shared move body plus filmId (RPP #1522, Move to an existing film).
+ * Api.Dtos.EpisodeFilmMoveRequest carries filmId; a news report move with filmId is a 400 from Azure.
+ */
+export const podcastEpisodeFilmMoveRequestSchema = episodeFilmMoveRequestSchema.extend({
+	filmId: z.string().uuid().nullable().optional()
+		.describe("Existing film to merge the episode into (Move to an existing film). The episode's links for services the film has no link for are added to it, " +
+			"the episode leaves search and is deleted, and its short link redirects to the film. A different link for a service the film already has (e.g. a second YouTube upload) is a 409 " +
+			"until multiple YouTube links (RPP #1411). Omit to create a new film; title and the identity fields only apply then.")
+});
+
 /** EpisodeFilmMoveResponse — command outcome (not the film read model). GET /film/:id for the film. */
 export const episodeFilmMoveResponseSchema = z.object({
 	filmId: z.string().uuid().optional().nullable().describe("The new film id (same as the episode id). On 409, the film that already has the name."),
@@ -1631,6 +1575,11 @@ export const episodeSearchHitSchema = z.object({
 	 * `|`; the title may contain `|`). Omitted when the film has none. Trailers have no search documents of their own.
 	 */
 	trailers: z.array(z.string()).optional().nullable(),
+	/**
+	 * Additional YouTube uploads, one `{youTubeId}|{release}|{channelName}` token per upload in display
+	 * order (RPP #1411; split on the first two `|`; channelName may contain `|`). Omitted when there are none.
+	 */
+	youTubeAlternates: z.array(z.string()).optional().nullable(),
 	"@search.score": z.number().optional()
 });
 
@@ -1675,6 +1624,8 @@ export const searchIndexDocSchema = z.object({
 	subjects: z.array(z.string()).nullable().optional(),
 	image: z.string().nullable().optional(),
 	trailers: z.array(z.string()).nullable().optional(),
+	youTubeAlternates: z.array(z.string()).nullable().optional()
+		.describe("Additional YouTube uploads: `{youTubeId}|{release}|{channelName}` tokens (RPP #1411). Retrievable, not searchable."),
 	alternativeTitles: z.array(z.string()).nullable().optional().describe("Film AKAs: searchable and returned"),
 	imdbId: z.string().nullable().optional(),
 	tmdbId: z.number().int().nullable().optional(),
@@ -1717,6 +1668,68 @@ export const searchAdminInventoryPageSchema = z.object({
 		modifiedAt: z.number().int().describe("Stored modifiedAt, epoch milliseconds")
 	})),
 	next: z.string().nullable().describe("Pass as `after` for the next page; null on the last page")
+});
+
+/** `/search/admin/rebuild` document counts: the total and per content kind. */
+export const searchRebuildCountsSchema = z.object({
+	total: z.number().int(),
+	kinds: z.record(z.string(), z.number().int()).describe("Documents per contentKind (Episode, TvShowEpisode, Film, NewsReport)")
+});
+
+/** `GET /search/admin/rebuild` 200 (SP-2.3): the rebuild in progress, if any, and each generation's counts. */
+export const searchRebuildStatusSchema = z.object({
+	state: z.enum(["none", "loading", "swapped", "swappedBack"]),
+	rebuildId: z.string().nullable(),
+	startedAt: z.string().nullable(),
+	swappedAt: z.string().nullable(),
+	live: searchRebuildCountsSchema,
+	shadow: searchRebuildCountsSchema.nullable().describe("The generation being loaded (or rejected after a swap-back)"),
+	parked: searchRebuildCountsSchema.nullable().describe("The previous live generation, kept until finish or swap-back")
+});
+
+/** `POST /search/admin/rebuild/{action}` path parameter (SP-2.3). */
+export const searchRebuildActionParam = z.object({
+	action: z.enum(["start", "docs", "swap", "check", "finish", "swap-back", "abort"])
+});
+
+/**
+ * `POST /search/admin/rebuild/{action}` body (SP-2.3). Which fields apply depends on the action:
+ * start takes none; docs takes rebuildId + upserts; swap takes rebuildId + expectedTotal (+ expectedKinds,
+ * tolerance, maxShrink); check takes rebuildId (+ sampleQueries); finish, swap-back and abort take rebuildId.
+ */
+export const searchRebuildRequestSchema = z.object({
+	rebuildId: z.string().optional().describe("The id start returned (every action but start)"),
+	upserts: z.array(searchIndexDocSchema).max(100).optional().describe("docs: documents for the shadow index, as POST /search/admin/docs"),
+	expectedTotal: z.number().int().nonnegative().optional().describe("swap: documents the console loaded"),
+	expectedKinds: z.record(z.string(), z.number().int().nonnegative()).optional().describe("swap: documents loaded per contentKind"),
+	tolerance: z.number().int().nonnegative().optional().describe("swap: allowed difference per count (pushes during the load), default 0"),
+	maxShrink: z.number().min(0).max(1).optional().describe("swap: refuse when the new index is smaller than the live one by more than this share, default 0.05"),
+	sampleQueries: z.array(z.string().min(1).max(200)).max(10).optional().describe("check: queries that must each find at least one document")
+});
+
+/** `POST /search/admin/rebuild/{action}` 200: the action's outcome (shape depends on the action). */
+export const searchRebuildOutcomeSchema = z.object({
+	rebuildId: z.string(),
+	state: z.string().optional().describe("loading, swapped, swappedBack, finished or aborted"),
+	upserted: z.number().int().optional(),
+	stale: z.array(z.string()).optional(),
+	ok: z.boolean().optional().describe("check: integrity passed and every sample query found something"),
+	integrity: z.object({ ok: z.boolean(), error: z.string().optional() }).optional(),
+	counts: searchRebuildCountsSchema.optional(),
+	samples: z.array(z.object({ query: z.string(), hits: z.number().int() })).optional(),
+	verification: z.object({
+		ok: z.boolean(),
+		failures: z.array(z.string()),
+		shadow: searchRebuildCountsSchema,
+		live: searchRebuildCountsSchema,
+		ftsRows: z.number().int()
+	}).optional()
+}).passthrough();
+
+/** `POST /search/admin/rebuild/{action}` 409: the rebuild's state does not allow it, or the swap failed verification. */
+export const searchRebuildConflictSchema = z.object({
+	error: z.object({ code: z.enum(["RebuildConflict", "VerificationFailed", "RebuildStateUnreadable"]), message: z.string() }),
+	verification: z.unknown().optional().describe("VerificationFailed: the same shape as a swap's verification")
 });
 
 /** Search Worker error envelope (`{ error: { code, message } }`): 400 has an empty code, 503 `ServiceUnavailable`. */
@@ -1855,13 +1868,6 @@ const publisherFieldsChangeShape = {
 	ignoredAssociatedSubjects: z.array(z.string()).optional().nullable()
 };
 
-/** Api.Dtos.ServiceLinkDto (url, image, lang; nulls omitted). */
-export const serviceLinkDtoSchema = z.object({
-	url: z.string().url().optional().nullable(),
-	image: z.string().url().optional().nullable(),
-	lang: z.string().optional().nullable()
-});
-
 /** Shared curator playable fields (Api.Dtos.PlayableFieldsDto): news report and TV-show episode. */
 const playableFieldsDtoShape = {
 	id: z.string().uuid(),
@@ -1881,7 +1887,7 @@ const playableFieldsDtoShape = {
 	language: z.string().optional().nullable(),
 	guests: z.array(z.string()).optional().nullable(),
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
-	guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
+	guestSuggestions: z.array(episodeDtoPersonMatchSchema).optional().nullable(),
 	services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable()
 };
 
@@ -2130,6 +2136,39 @@ export const filmTrailerChangeSchema = z.object({
 	title: z.string().optional().nullable()
 });
 
+/** Api.Dtos.YouTubeAlternateDto: one additional YouTube upload (RPP #1411). */
+export const youTubeAlternateDtoSchema = z.object({
+	youTubeId: z.string(),
+	url: z.string().url(),
+	image: z.string().url().optional().nullable(),
+	title: z.string().optional().nullable(),
+	channelId: z.string().optional().nullable(),
+	channelName: z.string().optional().nullable(),
+	release: z.string().optional().nullable(),
+	duration: z.string().optional().nullable(),
+	sourceEpisodeId: z.string().uuid().optional().nullable()
+});
+
+/** Api.Dtos.YouTubeAlternateChangeRequest: keep an existing upload or add one from a YouTube url. */
+export const youTubeAlternateChangeSchema = z.object({
+	youTubeId: z.string().optional().nullable(),
+	url: z.string().optional().nullable(),
+	title: z.string().optional().nullable(),
+	channelName: z.string().optional().nullable()
+});
+
+export const episodeYouTubeAlternateAttachRequestSchema = z.object({
+	targetKind: z.enum(["Film", "NewsReport", "TvShowEpisode", "Episode"]),
+	targetId: z.string().uuid()
+});
+
+export const episodeYouTubeAlternateAttachResponseSchema = z.object({
+	targetId: z.string().uuid().optional().nullable(),
+	name: z.string().optional().nullable(),
+	error: z.string().optional().nullable(),
+	failureIndexing: z.boolean().optional()
+});
+
 /**
  * Api.Dtos.FilmDto: publisher fields + IMDb + the playable fields a film has (RPP #1053).
  * `release` is `yyyy` for a year-only release, otherwise `yyyy-MM-dd`. Films have no title (the name is the title).
@@ -2152,9 +2191,11 @@ export const filmDtoSchema = z.object({
 		subjects: z.array(z.string()),
 		guests: z.array(z.string()).optional().nullable(),
 		guestPeople: z.array(personDtoSchema).optional().nullable(),
-		guestSuggestions: z.array(episodeGuestSuggestionSchema).optional().nullable(),
+		guestSuggestions: z.array(episodeDtoPersonMatchSchema).optional().nullable(),
 		services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
 		trailers: z.array(filmTrailerDtoSchema).optional().nullable(),
+		additionalYouTube: z.array(youTubeAlternateDtoSchema).optional().nullable()
+			.describe("Extra YouTube uploads in display order (RPP #1411). Omitted when the film has none."),
 		image: z.string().url().optional().nullable()
 			.describe("Image from the film's identity (TMDB backdrop, else poster; RedditPodcastPoster#1430). Search uses it only when no service has an image."),
 		alternativeTitles: z.array(z.string()).optional().nullable()
@@ -2178,6 +2219,12 @@ export const filmChangeRequestSchema = z.object({
 		.describe("The trailers to keep, in display order, with optional rename. Omitted trailers are removed; [] removes all. Unknown or repeated id is a 400. Send expectedTrailerIds with this field."),
 	expectedTrailerIds: z.array(z.string().uuid()).optional().nullable()
 		.describe("Trailer ids the client last saw. When trailers is sent, a stored trailer whose id is not in this list is a 409 and nothing is saved. Omitted or empty means the client listed no trailer ids."),
+	additionalYouTube: z.array(youTubeAlternateChangeSchema).optional().nullable()
+		.describe("Additional YouTube uploads to keep, in display order (RPP #1411). Existing entries are identified by youTubeId; a new entry is added from a YouTube url. Omitted entries are removed; [] removes all. Send expectedAdditionalYouTubeIds with this field."),
+	expectedAdditionalYouTubeIds: z.array(z.string()).optional().nullable()
+		.describe("Additional YouTube ids the client last saw. When additionalYouTube is sent, a stored id not in this list is a 409 and nothing is saved."),
+	promoteYouTubeId: z.string().optional().nullable()
+		.describe("The YouTube id of an additional upload to swap into the primary services.youtube link. The previous primary becomes an additional upload."),
 	...publisherFieldsChangeShape,
 	release: z.string().optional().nullable(),
 	duration: z.string().optional().nullable(),
@@ -2195,7 +2242,8 @@ export const filmChangeRequestSchema = z.object({
 /** PATCH /film 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
 export const filmStaleTrailersConflictSchema = z.object({
 	message: z.string().optional(),
-	unexpectedTrailerIds: z.array(z.string().uuid())
+	unexpectedTrailerIds: z.array(z.string().uuid()).optional(),
+	unexpectedAdditionalYouTubeIds: z.array(z.string()).optional()
 });
 
 /**

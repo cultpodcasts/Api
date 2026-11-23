@@ -3,7 +3,10 @@ import { Auth0ActionContext } from "./Auth0ActionContext";
 import { Endpoint } from "./Endpoint";
 import { proxyJsonCommandToAzure } from "./proxyJsonCommandToAzure";
 
-/** POST /episode/:podcastId/:episodeId/film - curator move of one podcast episode into a new Film (same guid). */
+/**
+ * POST /episode/:podcastId/:episodeId/film - curator move of one podcast episode into a new Film (same guid), or with
+ * filmId into an existing Film (RPP #1522). The body is passed through to Azure unchanged.
+ */
 export async function moveEpisodeToFilm(c: Auth0ActionContext): Promise<Response> {
 	const podcastId = c.req.param("podcastId");
 	const episodeId = c.req.param("episodeId");
@@ -20,6 +23,6 @@ export async function moveEpisodeToFilm(c: Auth0ActionContext): Promise<Response
 			forwardStatuses: [400, 404, 409, 500],
 			logName: "secure-episode-move-to-film-endpoint"
 		},
-		"\"title\"?: string, \"identityDecision\"?: string, \"selectedIdentityKey\"?: string"
+		"\"title\"?: string, \"identityDecision\"?: string, \"selectedIdentityKey\"?: string, \"filmId\"?: string"
 	);
 }

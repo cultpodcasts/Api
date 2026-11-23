@@ -286,8 +286,9 @@ describe("search stack workflow", () => {
 		const install = step(j, "Install wrangler");
 		expect(install).toBeGreaterThan(-1);
 		const installStep = j.slice(install, j.indexOf("- name:", install + 1));
-		expect(installStep).toMatch(/env:\s*\n\s*TF_VAR_cloudflare_api_token: ""\s*\n\s*TF_TOKEN_app_terraform_io: ""\s*\n\s*run: npm ci/);
-		expect(installStep).not.toContain("secrets.");
+		expect(installStep).toMatch(/env:\s*\n\s*TF_VAR_cloudflare_api_token: ""\s*\n\s*TF_TOKEN_app_terraform_io: ""\s*\n\s*NODE_AUTH_TOKEN: \$\{\{ secrets\.NODE_AUTH_TOKEN \}\}\s*\n\s*run: npm ci/);
+		// The only secret npm ci sees is the read:packages PAT for @cultpodcasts/contracts (RedditPodcastPoster#1502).
+		expect(installStep.match(/secrets\.[A-Z_]+/g)).toEqual(["secrets.NODE_AUTH_TOKEN"]);
 		expect(j.match(/run: npm ci/g)).toHaveLength(1);
 	});
 

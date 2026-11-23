@@ -39,6 +39,42 @@ describe("move episode to film", () => {
 		expect(JSON.parse(String(init.body))).toEqual({ title: "Synthetic Film Title" });
 	});
 
+	it("passes filmId through to Azure for Move to an existing film (RPP #1522) and returns the 202 outcome", async () => {
+		const existingFilmId = "925e2a11-668f-4dfa-a78d-57dd4de0051f";
+		const outcome = { filmId: existingFilmId, name: "Manic" };
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(outcome), { status: 202 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resp = await appWithCurate().request(
+			filmPath,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ filmId: existingFilmId }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(202);
+		expect(await resp.json()).toEqual(outcome);
+		const [, init] = fetchMock.mock.calls[0] as [URL | string, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual({ filmId: existingFilmId });
+	});
+
+	it("forwards the 409 when the existing film already has a different Spotify or Apple link (RPP #1411: a different YouTube becomes an additional upload)", async () => {
+		const outcome = {
+			filmId: "925e2a11-668f-4dfa-a78d-57dd4de0051f",
+			name: "Manic",
+			error: "Film 'Manic' already has a different spotify link (https://open.spotify.com/episode/synthetic)."
+		};
+		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(outcome), { status: 409 })));
+
+		const resp = await appWithCurate().request(
+			filmPath,
+			{ method: "POST", headers: authJsonHeaders, body: JSON.stringify({ filmId: outcome.filmId }) },
+			testEnv()
+		);
+
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(outcome);
+	});
+
 	it("sends {} to Azure when the request has no body", async () => {
 		const fetchMock = vi.fn(async () => new Response(JSON.stringify({ filmId: episodeId }), { status: 202 }));
 		vi.stubGlobal("fetch", fetchMock);

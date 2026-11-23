@@ -35,7 +35,7 @@ import {
 	SubmitRoute
 } from "./openapiSubmitPodcastRoutes";
 import { streamingScrapeSurvey } from "./streamingScrapeSurvey";
-import { searchAdminDocs, searchAdminInventory } from "./searchAdminDocs";
+import { searchAdminDocs, searchAdminInventory, searchAdminRebuild, searchAdminRebuildStatus } from "./searchAdminDocs";
 import { addBookmark } from "./addBookmark";
 import { createPerson } from "./createPerson";
 import { createSubject } from "./createSubject";
@@ -138,9 +138,12 @@ import {
 	podcastKindTransferEnqueueResponseSchema,
 	podcastKindTransferJobStatusResponseSchema,
 	episodeFilmMoveRequestSchema,
+	podcastEpisodeFilmMoveRequestSchema,
 	episodeFilmMoveResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
+	episodeYouTubeAlternateAttachRequestSchema,
+	episodeYouTubeAlternateAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
 	episodeTvShowMoveResponseSchema,
 	episodeNewsMoveRequestSchema,
@@ -159,6 +162,11 @@ import {
 	searchUpstreamErrorSchema,
 	searchAdminDocsOutcomeSchema,
 	searchAdminInventoryPageSchema,
+	searchRebuildActionParam,
+	searchRebuildConflictSchema,
+	searchRebuildOutcomeSchema,
+	searchRebuildRequestSchema,
+	searchRebuildStatusSchema,
 	searchAdminInventoryQuerySchema,
 	searchAdminDocsRequestSchema,
 	searchWorkerErrorSchema,
@@ -228,6 +236,7 @@ import { getPodcastKindTransferStatus } from "./getPodcastKindTransferStatus";
 import { transferPodcastKind } from "./transferPodcastKind";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
+import { attachEpisodeYouTubeAlternate } from "./attachEpisodeYouTubeAlternate";
 import { moveEpisodeToTvShow } from "./moveEpisodeToTvShow";
 import { moveEpisodeToNews, movePodcastEpisodesToNews } from "./moveToNews";
 import { moveNewsReportToFilm, moveNewsReportToTvShow } from "./moveNewsReport";
@@ -392,7 +401,7 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 			},
 			409: {
 				description:
-					"Stored trailers include an id that was not in expectedTrailerIds. The keep-list was not applied.",
+					"Stored trailers include an id that was not in expectedTrailerIds, or stored additional YouTube ids were not in expectedAdditionalYouTubeIds. The keep-list was not applied.",
 				...contentJson(filmStaleTrailersConflictSchema)
 			},
 			...notFoundResponse,
@@ -785,6 +794,47 @@ export const SearchAdminInventoryRoute = createOpenApiRoute(searchAdminInventory
     }
 });
 
+export const SearchAdminRebuildStatusRoute = createOpenApiRoute(searchAdminRebuildStatus, {
+    auth: searchIndexWriteAuth,
+    schema: {
+        tags: ["Search"],
+        summary: "State of a D1 search index rebuild",
+        description:
+            "SP-2.3. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
+            "The rebuild in progress (if any) and the document counts of the live, shadow and parked index generations.",
+        responses: {
+            200: { description: "Rebuild state", ...contentJson(searchRebuildStatusSchema) },
+            502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
+            503: { description: "D1 unavailable or no search binding. Retryable", ...contentJson(searchWorkerErrorSchema) },
+            ...authResponses
+        }
+    }
+});
+
+export const SearchAdminRebuildRoute = createOpenApiRoute(searchAdminRebuild, {
+    auth: searchIndexWriteAuth,
+    schema: {
+        tags: ["Search"],
+        summary: "Rebuild the D1 search index into shadow tables and swap it in",
+        description:
+            "SP-2.3. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
+            "Driven by the RPP `D1SearchReconcile --rebuild` console: start creates shadow tables; docs loads them (pushes during the load go to both); " +
+            "swap verifies the shadow (counts, full-text rows and structure) and swaps it in with one transaction, parking the previous index; " +
+            "check reports the new index's full-text integrity, counts and sample hits; finish drops the parked index; swap-back restores it; abort drops the shadow. " +
+            "Not the live search index yet: Azure AI Search stays the default until cutover (SP-4.x).",
+        request: { params: searchRebuildActionParam, body: jsonBody(searchRebuildRequestSchema) },
+        responses: {
+            200: { description: "Action outcome", ...contentJson(searchRebuildOutcomeSchema) },
+            400: { description: "Bad body (field named in message); nothing changed", ...contentJson(searchWorkerErrorSchema) },
+            404: { description: "Unknown action", ...contentJson(searchWorkerErrorSchema) },
+            409: { description: "The rebuild's state does not allow this action, or the swap failed verification; nothing changed", ...contentJson(searchRebuildConflictSchema) },
+            502: { description: "Search Worker unreachable over the service binding. Retryable", ...contentJson(searchUpstreamErrorSchema) },
+            503: { description: "D1 unavailable or no search binding; nothing changed. Retryable", ...contentJson(searchWorkerErrorSchema) },
+            ...authResponses
+        }
+    }
+});
+
 export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
     auth: curateAuth,
     schema: {
@@ -997,13 +1047,14 @@ export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
             "saves the film under the episode guid, swaps the search document to contentKind Film, then deletes the episode row. " +
             "The source podcast is kept. The short link is unchanged; old /podcast/{name}/{id} links redirect to /film/{name}/{shortId}. " +
             "A failed search swap keeps the episode row; re-sending the request resumes. " +
-            "Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and selectedIdentityKey (or continue/cancel), same as URL-submit.",
-        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeFilmMoveRequestSchema) },
+            "Ambiguous IMDb/TMDB returns 200 with identityDecision (nothing written); re-POST with identityDecision=select and selectedIdentityKey (or continue/cancel), same as URL-submit. " +
+            "With filmId (RPP #1522 / #1411) the episode is merged into that existing film instead: its missing links and subjects are added to the film, a different YouTube upload becomes an additional YouTube link, the episode leaves search and is deleted, and its short link redirects to the film.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(podcastEpisodeFilmMoveRequestSchema) },
         responses: {
-            202: { description: "Moved (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
+            202: { description: "Moved, or merged into the existing film when filmId is set (command outcome; GET /film/:id for the film)", ...contentJson(episodeFilmMoveResponseSchema) },
             200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(episodeFilmMoveResponseSchema) },
-            400: { description: "Title contains '/', or the episode is removed", ...contentJson(errorSchema) },
-            409: { description: "Another film already has the name", ...contentJson(episodeFilmMoveResponseSchema) },
+            400: { description: "Title contains '/', or the episode is removed; with filmId also a removed film, the episode's own id, or an episode with no links", ...contentJson(errorSchema) },
+            409: { description: "Another film already has the name; with filmId, the film already has a different Spotify, Apple or other non-YouTube link for one of the episode's services (filmId names it)", ...contentJson(episodeFilmMoveResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -1040,6 +1091,30 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
                     "(body filmId is one of those films, not a film to resume; attach by id instead).",
                 ...contentJson(episodeTrailerAttachResponseSchema)
             },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+
+export const AttachEpisodeYouTubeAlternateRoute = createOpenApiRoute(attachEpisodeYouTubeAlternate, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Catalogue"],
+        summary: "Attach one podcast episode as an additional YouTube upload on an existing catalogue item",
+        description:
+            "Curator command (RPP #1411). Body `{ targetKind, targetId }` where targetKind is Film, NewsReport, " +
+            "TvShowEpisode or Episode. The episode's YouTube upload (and any other non-conflicting service links) " +
+            "is added to that item; a different YouTube becomes an additionalYouTube entry. The episode then leaves " +
+            "search and is deleted, and its short link redirects to the owning item. A Film target is the same merge " +
+            "as POST /episode/:podcastId/:episodeId/film with filmId. A failed search step keeps the episode row; re-sending resumes.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeYouTubeAlternateAttachRequestSchema) },
+        responses: {
+            202: { description: "Attached (command outcome; GET the target item for the resource)", ...contentJson(episodeYouTubeAlternateAttachResponseSchema) },
+            400: { description: "Missing or invalid targetKind/targetId, a removed or held-for-approval episode, a removed target, no YouTube upload, or attaching an episode to itself", ...contentJson(errorSchema) },
+            409: { description: "The target already has a different Spotify, Apple or other non-YouTube link for one of the episode's services", ...contentJson(episodeYouTubeAlternateAttachResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses
@@ -1546,10 +1621,11 @@ export const PostDiscoverySubmissionApplyRoute = createOpenApiRoute(postDiscover
     schema: {
         tags: ["Discovery"],
         summary: "Apply a supervised discovery submission",
-        description: "Command. Moves held reports PendingSupervisor → Processed (all-or-nothing) then ingests the final accepted set. 200 `status` Applied or PartiallyApplied, with `outcome` (this run) and `itemOutcomes` (cumulative). Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`). Apply on PartiallyApplied, or ApplyFailed with outcomes, is 409 (use retry).",
+        description: "Command. Claims the submission (`Applying`) and runs the language / kind / identity preflight on the request. A decision prompt (or a no-op) is answered 200 as before. Otherwise the ingest is queued and the answer is **202** `status: \"Applying\"` with the claimed `etag`: a background worker moves held reports PendingSupervisor → Processed (all-or-nothing), ingests the final accepted set and records Applied / PartiallyApplied / ApplyFailed with `itemOutcomes` on the submission. Poll GET /discovery-submissions/{id} until `status` leaves Applying (RPP #1415). Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`). Apply on PartiallyApplied, or ApplyFailed with outcomes, is 409 (use retry); so is apply while Applying.",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionApplyRequestSchema) },
         responses: {
-            200: { description: "Applied; `outcome` carries the ingest result", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            200: { description: "Answered on the request: a decision prompt (`languageDecisionsRequired` / `kindDecisionsRequired` / `identityDecisionsRequired`), an all-cancelled set, or the already-applied no-op", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            202: { description: "Queued: `status: \"Applying\"`; poll GET /discovery-submissions/{id} for the outcome", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             500: { description: "Ingest failed: `status: \"ApplyFailed\"` and `message`; reports returned to PendingSupervisor for retry with a fresh etag. Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
             ...authResponses
@@ -1562,10 +1638,11 @@ export const PostDiscoverySubmissionRetryRoute = createOpenApiRoute(postDiscover
     schema: {
         tags: ["Discovery"],
         summary: "Retry failed items of a supervised discovery submission",
-        description: "Command. For PartiallyApplied, or ApplyFailed with `itemOutcomes`. Re-ingests Failed items; `abandonResultIds` drops them instead. Abandoning all failed items closes the submission as Applied without ingesting. 400 when abandoning an id that is not Failed (`ids`); 409 stale etag or nothing to retry.",
+        description: "Command. For PartiallyApplied, or ApplyFailed with `itemOutcomes`. Re-ingests Failed items; `abandonResultIds` drops them instead. Abandoning all failed items closes the submission as Applied without ingesting (200). Like apply, a retry that passes its preflight is queued: **202** `status: \"Applying\"`, then poll GET /discovery-submissions/{id} (RPP #1415). 400 when abandoning an id that is not Failed (`ids`); 409 stale etag or nothing to retry.",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionRetryRequestSchema) },
         responses: {
-            200: { description: "Retried; same command outcome as apply", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            200: { description: "Answered on the request: abandon-only close, a decision prompt or a refusal", ...contentJson(discoverySubmissionCommandResponseSchema) },
+            202: { description: "Queued: `status: \"Applying\"`; poll GET /discovery-submissions/{id} for the outcome", ...contentJson(discoverySubmissionCommandResponseSchema) },
             ...discoverySubmissionErrors,
             500: { description: "Every retried item failed (`status: \"ApplyFailed\"`, see `itemOutcomes`). Worker failures use the error shape.", ...contentJson(z.union([discoverySubmissionCommandResponseSchema, errorSchema])) },
             ...authResponses
@@ -2078,7 +2155,7 @@ export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
     schema: {
         tags: ["Episodes"],
         summary: "Get episode read model by id (any kind)",
-        description: "Resolves a podcast episode, news report, TV episode or film by id; 404 when it or its parent is removed. The body is PublicEpisodeDto plus contentKind, parentId, parentName, slug and path.",
+        description: "Resolves a podcast episode, news report, TV episode or film by id; 404 when it or its parent is removed. The body is PublicEpisodeDto, including contentKind, parentId, parentName, slug and path, and imageRemoved when a curator removed the image.",
         request: { params: idParam },
         responses: {
             200: { description: "Public episode, news report, TV episode or film", ...contentJson(publicEpisodeDtoSchema) },

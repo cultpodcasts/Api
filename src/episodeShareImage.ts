@@ -41,6 +41,17 @@ export type SearchEpisodeImageFields = {
 	internetArchive?: string | null;
 };
 
+/**
+ * RPP #1500: search-index / D1 `image` value for an episode whose image a curator deliberately removed.
+ * Share previews must show no episode art (site icon fallback) — never the synthesized YouTube thumbnail.
+ * An empty `image` (nothing stored, no removal) still falls back to the YouTube frame.
+ */
+export const IMAGE_REMOVED_TOKEN = "-";
+
+export function isImageRemovedToken(image: string | undefined | null): boolean {
+	return typeof image === "string" && image.trim() === IMAGE_REMOVED_TOKEN;
+}
+
 /** Loss-less inverse of SearchEpisodeImage compaction (mirrors website expandImage). */
 export function expandSearchImage(
 	image: string | undefined | null,
@@ -108,8 +119,12 @@ function isBbcIplayerUrl(value: string | null | undefined): boolean {
 /**
  * Display URL for share previews — mirrors website episodeImageUrl for search hits:
  * prefer YouTube frame when youtubeId is set; else expand the search-index image value.
+ * A curator-removed image (`-`, RPP #1500) resolves to nothing.
  */
 export function resolveShareImageAbsoluteUrl(episode: SearchEpisodeImageFields): string | undefined {
+	if (isImageRemovedToken(episode.image)) {
+		return undefined;
+	}
 	if (isYoutubeThumbnailTokenOrUrl(episode.image ?? undefined)) {
 		return expandSearchImage(episode.image, episode.youtubeId);
 	}

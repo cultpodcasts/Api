@@ -1,6 +1,6 @@
 {
   "name": "cultpodcasts-api",
-  "version": "2.23.23",
+  "version": "2.23.36",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
@@ -34,12 +34,14 @@
   "dependencies": {
     "@cfworker/jwt": "^4.0.6",
     "@cloudflare/puppeteer": "^1.4.0",
+    "@cultpodcasts/contracts": "^0.1.4",
     "@prisma/adapter-d1": "^5.13.0",
     "@prisma/client": "^5.13.0",
     "chanfana": "^3.4.0",
     "hono": "^4.13.13",
     "prisma": "^5.13.0",
     "workers-og": "^0.0.27",
-    "yoga-wasm-web": "^0.3.3"
+    "yoga-wasm-web": "^0.3.3",
+    "zod": "^4.6.5"
   }
 }

@@ -1,5 +1,6 @@
 import { adminDocs, ADMIN_DOCS_PATH } from "./admin-docs";
 import { adminInventory, ADMIN_INVENTORY_PATH } from "./admin-inventory";
+import { adminRebuild, rebuildAction } from "./admin-rebuild";
 import { docsSearch, DOCS_SEARCH_PATH } from "./docs-search";
 import type { SearchEnv } from "./env";
 import { health, json } from "./health";
@@ -16,6 +17,8 @@ import { health, json } from "./health";
  * one D1 transaction on the primary, with a `modifiedAt` stale-replay guard.
  * `GET /admin/docs/inventory` pages through every `{ id, modifiedAt }` for the weekly reconcile
  * (SP-2.2, RPP #1322, `admin-inventory.ts`).
+ * `GET /admin/rebuild` and `POST /admin/rebuild/{action}` rebuild the whole index into shadow tables
+ * and swap it in with one transaction (SP-2.3, #226, `admin-rebuild.ts`).
  *
  * The entry module exports only the handler: workerd rejects any other named export.
  */
@@ -46,6 +49,14 @@ export default {
 				return json({ error: { code: "MethodNotAllowed", message: "POST only" } }, 405);
 			}
 			return adminDocs(request, env);
+		}
+		const action = rebuildAction(url.pathname);
+		if (action !== undefined) {
+			const method = action === null ? "GET" : "POST";
+			if (request.method !== method) {
+				return json({ error: { code: "MethodNotAllowed", message: `${method} only` } }, 405);
+			}
+			return adminRebuild(request, env, action);
 		}
 		return json({ error: { code: "NotFound", message: "Not found" } }, 404);
 	}

@@ -78,6 +78,8 @@ import {
 	SearchRoute,
 	SearchAdminDocsRoute,
 	SearchAdminInventoryRoute,
+	SearchAdminRebuildRoute,
+	SearchAdminRebuildStatusRoute,
 	SubmitDiscoveryRoute,
 	SubmitDiscoveryOutcomeRoute,
 	GetDiscoveryCurationSessionRoute,
@@ -104,6 +106,7 @@ import {
 	GetPodcastKindTransferStatusRoute,
 	MoveEpisodeToFilmRoute,
 	AttachEpisodeAsTrailerRoute,
+	AttachEpisodeYouTubeAlternateRoute,
 	MoveEpisodeToTvShowRoute,
 	MoveEpisodeToNewsRoute,
 	MovePodcastEpisodesToNewsRoute,
@@ -389,6 +392,8 @@ openapi.get('/flairs', GetFlairsRoute);
 openapi.post('/search', SearchRoute);
 openapi.post('/search/admin/docs', SearchAdminDocsRoute);
 openapi.get('/search/admin/docs/inventory', SearchAdminInventoryRoute);
+openapi.get('/search/admin/rebuild', SearchAdminRebuildStatusRoute);
+openapi.post('/search/admin/rebuild/:action', SearchAdminRebuildRoute);
 openapi.get('/submit/lookup', SubmitLookupRoute);
 openapi.post('/submit/prepare', SubmitPrepareRoute);
 openapi.post('/submit', SubmitRoute);
@@ -404,6 +409,7 @@ openapi.patch('/episode/:podcastId/:episodeId', UpdatePodcastEpisodeRoute);
 openapi.delete('/episode/:podcastId/:episodeId', DeletePodcastEpisodeRoute);
 openapi.post('/episode/:podcastId/:episodeId/film', MoveEpisodeToFilmRoute);
 openapi.post('/episode/:podcastId/:episodeId/trailer', AttachEpisodeAsTrailerRoute);
+openapi.post('/episode/:podcastId/:episodeId/youtube-alternate', AttachEpisodeYouTubeAlternateRoute);
 openapi.post('/episode/:podcastId/:episodeId/tvshow', MoveEpisodeToTvShowRoute);
 openapi.post('/episode/:podcastId/:episodeId/news', MoveEpisodeToNewsRoute);
 // \New Episode Endpoints

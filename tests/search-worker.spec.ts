@@ -249,6 +249,7 @@ describe("search D1 schema (workers/search/migrations)", () => {
 				"series_tmdb_id",
 				"series_tvdb_id",
 				"trailers",
+				"youtube_alternates",
 				"modified_at"
 			])
 		);

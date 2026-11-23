@@ -2,6 +2,7 @@ import { writeDb } from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
 import { json } from "./health";
+import { alsoWriteTo, LIVE_TABLES, PARKED_TABLES, readRebuildState, RebuildStateUnreadable, SHADOW_TABLES, type IndexTables } from "./index-generations";
 
 /**
  * `POST /admin/docs`: the search index write path (SP-1.4, cultpodcasts/Api#222).
@@ -66,6 +67,8 @@ export type SearchDocUpsert = {
 	image?: string | null;
 	/** `{duration}|{url}|{title}` tokens. */
 	trailers?: string[] | null;
+	/** `{youTubeId}|{release}|{channelName}` tokens (RPP #1411). Retrievable, not searchable. */
+	youTubeAlternates?: string[] | null;
 	/** Film AKAs: searchable and returned. */
 	alternativeTitles?: string[] | null;
 	imdbId?: string | null;
@@ -121,6 +124,7 @@ type DocRow = {
 	svc: string;
 	image: string | null;
 	trailers: string | null;
+	youtube_alternates: string | null;
 	imdb_id: string | null;
 	tmdb_id: number | null;
 	tvdb_id: number | null;
@@ -154,6 +158,7 @@ const ROW_COLUMNS = [
 	"svc",
 	"image",
 	"trailers",
+	"youtube_alternates",
 	"imdb_id",
 	"tmdb_id",
 	"tvdb_id",
@@ -163,33 +168,40 @@ const ROW_COLUMNS = [
 	"modified_at"
 ] as const satisfies readonly (keyof DocRow)[];
 
+/** Write SQL for one generation of the index. */
+export type WriteSql = { upsert: string; subjectsClear: string; subjectsInsert: string; delete: string };
+
 /**
  * Upsert a chunk of documents bound as one JSON array (D1 allows 100 bound parameters, so rows
  * cannot bind column by column). `WHERE true` resolves SQLite's INSERT…SELECT…ON CONFLICT parse
  * ambiguity. The DO UPDATE `WHERE` is the stale-replay guard; RETURNING lists the rows written.
- * The SET list names all eight FTS columns, so `search_docs_au` (AFTER UPDATE OF) rewrites the FTS
- * row on every applied upsert, even when the text is unchanged: callers should push only new or
- * changed documents.
- */
-const UPSERT_SQL =
-	`INSERT INTO search_docs (${ROW_COLUMNS.join(", ")}) ` +
-	`SELECT ${ROW_COLUMNS.map((c) => `json_extract(j.value, '$.${c}')`).join(", ")} FROM json_each(?) j WHERE true ` +
-	`ON CONFLICT(id) DO UPDATE SET ${ROW_COLUMNS.filter((c) => c !== "id")
-		.map((c) => `${c} = excluded.${c}`)
-		.join(", ")} ` +
-	"WHERE excluded.modified_at >= search_docs.modified_at RETURNING id";
-
-/**
+ * The SET list names all eight FTS columns, so the AFTER UPDATE OF trigger rewrites the FTS row on
+ * every applied upsert, even when the text is unchanged: callers should push only new or changed
+ * documents.
+ *
  * Subject rows follow the document, but only for upserts the guard let through: the joined row
  * must now carry this upsert's `modified_at`. A stale upsert leaves the stored subjects alone.
+ * A delete cascades to the subjects and the delete trigger removes the FTS row.
  */
-const APPLIED_DOCS =
-	"FROM json_each(?) j JOIN search_docs d ON d.id = json_extract(j.value, '$.id') AND d.modified_at = json_extract(j.value, '$.modified_at')";
-const SUBJECTS_CLEAR_SQL = `DELETE FROM doc_subjects WHERE rowid_ref IN (SELECT d.rowid ${APPLIED_DOCS})`;
-const SUBJECTS_INSERT_SQL = `INSERT INTO doc_subjects (rowid_ref, subject) SELECT d.rowid, s.value ${APPLIED_DOCS} JOIN json_each(j.value, '$.subjects') s`;
+export function writeSql(t: IndexTables): WriteSql {
+	const applied =
+		`FROM json_each(?) j JOIN ${t.docs} d ON d.id = json_extract(j.value, '$.id') ` +
+		"AND d.modified_at = json_extract(j.value, '$.modified_at')";
+	return {
+		upsert:
+			`INSERT INTO ${t.docs} (${ROW_COLUMNS.join(", ")}) ` +
+			`SELECT ${ROW_COLUMNS.map((c) => `json_extract(j.value, '$.${c}')`).join(", ")} FROM json_each(?) j WHERE true ` +
+			`ON CONFLICT(id) DO UPDATE SET ${ROW_COLUMNS.filter((c) => c !== "id")
+				.map((c) => `${c} = excluded.${c}`)
+				.join(", ")} ` +
+			`WHERE excluded.modified_at >= ${t.docs}.modified_at RETURNING id`,
+		subjectsClear: `DELETE FROM ${t.subjects} WHERE rowid_ref IN (SELECT d.rowid ${applied})`,
+		subjectsInsert: `INSERT INTO ${t.subjects} (rowid_ref, subject) SELECT d.rowid, s.value ${applied} JOIN json_each(j.value, '$.subjects') s`,
+		delete: `DELETE FROM ${t.docs} WHERE id IN (SELECT value FROM json_each(?)) RETURNING id`
+	};
+}
 
-/** `doc_subjects` cascades and `search_docs_ad` removes the FTS row. */
-const DELETE_SQL = "DELETE FROM search_docs WHERE id IN (SELECT value FROM json_each(?)) RETURNING id";
+const LIVE_SQL = writeSql(LIVE_TABLES);
 
 export async function adminDocs(request: Request, env: SearchEnv): Promise<Response> {
 	let req: AdminDocsRequest;
@@ -199,16 +211,28 @@ export async function adminDocs(request: Request, env: SearchEnv): Promise<Respo
 		return badRequest(e);
 	}
 	try {
-		const outcome = await applyAdminDocs(req, writeDb(env));
+		const db = writeDb(env);
+		// SP-2.3: while a rebuild is loading, every write also lands in the shadow tables (same
+		// transaction), so the swap never loses a push made during the load. After the swap, until
+		// finish or swap-back, it also lands in the parked previous generation, so a swap-back
+		// restores an index that missed nothing. An unreadable rebuild state refuses the write.
+		const also = alsoWriteTo(await readRebuildState(db));
+		const outcome = await applyAdminDocs(req, db, also);
 		console.log(ADMIN_WRITE_LOG, {
 			environment: env.searchEnvironment ?? "unknown",
 			upserted: outcome.upserted,
 			deleted: outcome.deleted,
 			stale: outcome.stale.length,
-			notFound: outcome.notFound.length
+			notFound: outcome.notFound.length,
+			...(also.includes(SHADOW_TABLES) ? { alsoShadow: true } : {}),
+			...(also.includes(PARKED_TABLES) ? { alsoParked: true } : {})
 		});
 		return json(outcome, 200);
 	} catch (e) {
+		if (e instanceof RebuildStateUnreadable) {
+			console.error(ADMIN_WRITE_LOG, { environment: env.searchEnvironment ?? "unknown", refused: e.message });
+			return json({ error: { code: "RebuildStateUnreadable", message: e.message } }, 503);
+		}
 		return d1Unavailable(e);
 	}
 }
@@ -216,26 +240,50 @@ export async function adminDocs(request: Request, env: SearchEnv): Promise<Respo
 /** Log line name; filter on it in Workers Observability (`message = "search: admin write"`). */
 export const ADMIN_WRITE_LOG = "search: admin write";
 
-/** Applies a parsed request in one transaction and reports what happened to each id. */
-export async function applyAdminDocs(req: AdminDocsRequest, db: D1Database): Promise<AdminDocsOutcome> {
+/** The statements that apply a parsed request to one generation of the index. */
+export function writeStatements(
+	req: AdminDocsRequest,
+	db: D1Database,
+	sql: WriteSql
+): { statements: D1PreparedStatement[]; deleteAt: number | null; upsertsAt: number[] } {
 	const items = req.upserts.map((doc) => ({ row: toDocRow(doc), subjects: subjectsOf(doc) }));
 	const statements: D1PreparedStatement[] = [];
-	if (req.deletes.length) statements.push(db.prepare(DELETE_SQL).bind(JSON.stringify(req.deletes)));
-	const upsertStatements: number[] = [];
-	for (const chunk of chunkBySize(items)) {
-		upsertStatements.push(statements.length);
-		statements.push(db.prepare(UPSERT_SQL).bind(JSON.stringify(chunk.map((c) => c.row))));
-		const subjects = JSON.stringify(chunk.map((c) => ({ id: c.row.id, modified_at: c.row.modified_at, subjects: c.subjects })));
-		statements.push(db.prepare(SUBJECTS_CLEAR_SQL).bind(subjects));
-		statements.push(db.prepare(SUBJECTS_INSERT_SQL).bind(subjects));
+	let deleteAt: number | null = null;
+	if (req.deletes.length) {
+		deleteAt = statements.length;
+		statements.push(db.prepare(sql.delete).bind(JSON.stringify(req.deletes)));
 	}
+	const upsertsAt: number[] = [];
+	for (const chunk of chunkBySize(items)) {
+		upsertsAt.push(statements.length);
+		statements.push(db.prepare(sql.upsert).bind(JSON.stringify(chunk.map((c) => c.row))));
+		const subjects = JSON.stringify(chunk.map((c) => ({ id: c.row.id, modified_at: c.row.modified_at, subjects: c.subjects })));
+		statements.push(db.prepare(sql.subjectsClear).bind(subjects));
+		statements.push(db.prepare(sql.subjectsInsert).bind(subjects));
+	}
+	return { statements, deleteAt, upsertsAt };
+}
+
+/**
+ * Applies a parsed request in one transaction and reports what happened to each id in the first
+ * generation written (the live index, or the shadow for a rebuild load). `alsoTo` generations get the
+ * same writes in the same batch (SP-2.3 dual write); their outcome is not reported.
+ */
+export async function applyAdminDocs(
+	req: AdminDocsRequest,
+	db: D1Database,
+	alsoTo: IndexTables[] = [],
+	tables: IndexTables = LIVE_TABLES
+): Promise<AdminDocsOutcome> {
+	const primary = writeStatements(req, db, tables === LIVE_TABLES ? LIVE_SQL : writeSql(tables));
+	const statements = [...primary.statements, ...alsoTo.flatMap((t) => writeStatements(req, db, writeSql(t)).statements)];
 	const results = await db.batch<{ id: string }>(statements);
-	const deleted = new Set(req.deletes.length ? results[0].results.map((r) => r.id) : []);
-	const written = new Set(upsertStatements.flatMap((i) => results[i].results.map((r) => r.id)));
+	const deleted = new Set(primary.deleteAt === null ? [] : results[primary.deleteAt].results.map((r) => r.id));
+	const written = new Set(primary.upsertsAt.flatMap((i) => results[i].results.map((r) => r.id)));
 	return {
 		upserted: written.size,
 		deleted: deleted.size,
-		stale: items.map((c) => c.row.id).filter((id) => !written.has(id)),
+		stale: req.upserts.map((d) => d.id).filter((id) => !written.has(id)),
 		notFound: req.deletes.filter((id) => !deleted.has(id))
 	};
 }
@@ -287,7 +335,7 @@ const STRING_FIELDS = [
 	"publisherSearchTerms",
 	"episodeSearchTerms"
 ] as const;
-const STRING_LIST_FIELDS = ["subjects", "trailers", "alternativeTitles", "guests"] as const;
+const STRING_LIST_FIELDS = ["subjects", "trailers", "youTubeAlternates", "alternativeTitles", "guests"] as const;
 const INTEGER_FIELDS = ["tmdbId", "tvdbId", "seriesTmdbId", "seriesTvdbId"] as const;
 /** On `EpisodeSearchRecord` but `[FieldBuilderIgnore]` (not on the live index): accepted and dropped. */
 const IGNORED_LEGACY_FIELDS = ["podcastName", "episodeTitle", "episodeDescription"] as const;
@@ -404,6 +452,7 @@ export function toDocRow(doc: SearchDocUpsert): DocRow {
 		svc: doc.svc ?? "",
 		image: doc.image ?? null,
 		trailers: doc.trailers?.length ? JSON.stringify(doc.trailers) : null,
+		youtube_alternates: doc.youTubeAlternates?.length ? JSON.stringify(doc.youTubeAlternates) : null,
 		imdb_id: doc.imdbId ?? null,
 		tmdb_id: doc.tmdbId ?? null,
 		tvdb_id: doc.tvdbId ?? null,

@@ -28,6 +28,7 @@ export const DOC_COLUMNS = [
 	"svc",
 	"image",
 	"trailers",
+	"youtube_alternates",
 	"alternative_titles",
 	"imdb_id",
 	"tmdb_id",
@@ -58,6 +59,8 @@ export type AzureSearchDocRow = {
 	image: string | null;
 	/** JSON array of "{duration}|{url}|{title}" tokens. */
 	trailers: string | null;
+	/** JSON array of "{youTubeId}|{release}|{channelName}" tokens (RPP #1411). */
+	youtube_alternates: string | null;
 	/** Newline-separated. */
 	alternative_titles: string | null;
 	imdb_id: string | null;
@@ -93,6 +96,7 @@ export const LIVE_AZURE_RETRIEVABLE_KEYS = [
 	"subjects",
 	"image",
 	"trailers",
+	"youTubeAlternates",
 	"alternativeTitles",
 	"imdbId",
 	"tmdbId",
@@ -142,6 +146,7 @@ export function toAzureSearchDocument(d: AzureSearchDocRow, score: number, subje
 		subjects, // pragma: allowlist secret
 		image: d.image,
 		trailers: parseStringArray(d.trailers),
+		youTubeAlternates: parseStringArray(d.youtube_alternates),
 		alternativeTitles: splitLines(d.alternative_titles),
 		imdbId: d.imdb_id,
 		tmdbId: d.tmdb_id,

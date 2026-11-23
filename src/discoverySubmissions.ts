@@ -56,7 +56,20 @@ export async function putDiscoverySubmissionReview(c: Auth0ActionContext): Promi
 	});
 }
 
-async function postSubmissionCommand(c: Auth0ActionContext, action: "apply" | "retry" | "release"): Promise<Response> {
+/**
+ * Apply and retry answer 202 once the ingest is queued (RPP #1415); a preflight decision, a no-op or release is 200.
+ * The submission document is the job status: poll GET /discovery-submissions/{id} until it leaves Applying.
+ */
+const commandSuccessStatuses: Record<"apply" | "retry" | "release", number[]> = {
+	apply: [200, 202],
+	retry: [200, 202],
+	release: [200]
+};
+
+async function postSubmissionCommand(
+	c: Auth0ActionContext,
+	action: "apply" | "retry" | "release"
+): Promise<Response> {
 	AddResponseHeaders(c, { methods: ["POST", "OPTIONS"] });
 	const body = JSON.stringify(await c.req.json());
 	return proxyToAzure(c, {
@@ -65,7 +78,7 @@ async function postSubmissionCommand(c: Auth0ActionContext, action: "apply" | "r
 		method: "POST",
 		pathSuffix: idSuffix(c, action),
 		body,
-		successStatuses: [200],
+		successStatuses: commandSuccessStatuses[action],
 		forwardStatuses,
 		logName
 	});
