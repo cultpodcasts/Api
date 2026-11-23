@@ -15,6 +15,7 @@ import {
 	greenStreak,
 	latencyRag,
 	loadSoakReport,
+	SLO_RATIO_RULES,
 	soakSummary,
 	worstRag,
 	shadowDataPoint,
@@ -25,8 +26,18 @@ import {
 	type SoakCounts,
 	type SoakDay
 } from "../src/searchShadowSoak";
-import { SEARCH_SHADOW_SOAK_PATH, searchShadowSoakPage } from "../src/searchShadowSoakPage";
-import { renderChart } from "../src/soakCharts";
+import {
+	fmtPct,
+	liveRefreshAction,
+	provisionalLatency,
+	provisionalRatio,
+	renderSoakReport,
+	SEARCH_SHADOW_SOAK_PATH,
+	searchShadowSoakPage,
+	showFor,
+	soakDates
+} from "../src/searchShadowSoakPage";
+import { niceCeiling, renderChart } from "../src/soakCharts";
 import { buildDocsPageHtml } from "../src/resources/docsPageHtml";
 import { testEnv } from "./honoTestApp";
 import { testEnv as auth0TestEnv } from "./support/honoRoute";
@@ -332,6 +343,236 @@ describe("renderChart", () => {
 		const svg = renderChart({ title: "empty", labels: [], series: [{ name: "x", color: "#000", values: [] }] });
 		expect(svg).not.toContain("NaN");
 	});
+
+	it("shows a 'No data yet' placeholder instead of empty axes when no series has a value", () => {
+		const html = renderChart({ title: "Cache", labels: ["a", "b"], series: [{ name: "x", color: "#000", values: [null, null] }], format: (v) => `${v} ms` });
+		expect(html).toContain("No data yet");
+		expect(html).not.toContain("<svg");
+		expect(html).not.toContain(" ms");
+		expect(renderChart({ title: "c", labels: ["a"], series: [{ name: "x", color: "#000", values: [null] }], emptyText: "No cache data yet" })).toContain("No cache data yet");
+	});
+
+	it("rounds the axis top to a readable step", () => {
+		expect(niceCeiling(902)).toBe(1000);
+		expect(niceCeiling(431)).toBe(500);
+		expect(niceCeiling(220)).toBe(240);
+		expect(niceCeiling(4)).toBe(4);
+		expect(niceCeiling(0)).toBe(0);
+	});
+});
+
+describe("soak page display helpers", () => {
+	it("formats percentages without trailing zeros", () => {
+		expect(fmtPct(0)).toBe("0%");
+		expect(fmtPct(1)).toBe("100%");
+		expect(fmtPct(0.99512)).toBe("99.5%");
+		expect(fmtPct(0.001)).toBe("0.1%");
+		expect(fmtPct(0.0005)).toBe("0.05%");
+		expect(fmtPct(null)).toBe("–");
+	});
+
+	it("shows too few samples as grey 'wait', never as a warning", () => {
+		expect(showFor("no-verdict", "amber")).toBe("wait");
+		expect(showFor("pass", "green")).toBe("pass");
+		expect(showFor("pass", "amber")).toBe("margin");
+		expect(showFor("fail", "red")).toBe("breach");
+	});
+
+	it("judges today's provisional speed with the same thresholds", () => {
+		expect(provisionalLatency(820, 570)).toBe("breach"); // over 300 ms
+		expect(provisionalLatency(250, 260)).toBe("breach"); // slower than Azure
+		expect(provisionalLatency(300, 270)).toBe("margin"); // above 250 ms and 90% of Azure
+		expect(provisionalLatency(300, 120)).toBe("pass");
+		expect(provisionalLatency(null, 120)).toBe("wait");
+	});
+
+	it("judges today's provisional ratios with the day verdict rules", () => {
+		expect(provisionalRatio(0, SLO_RATIO_RULES.availability)).toBe("pass");
+		expect(provisionalRatio(0.0007, SLO_RATIO_RULES.availability)).toBe("margin");
+		expect(provisionalRatio(0.002, SLO_RATIO_RULES.availability)).toBe("breach");
+		expect(provisionalRatio(0.993, SLO_RATIO_RULES.countAgreement)).toBe("margin");
+		expect(provisionalRatio(0.94, SLO_RATIO_RULES.browseOverlap)).toBe("breach");
+		expect(provisionalRatio(null, SLO_RATIO_RULES.browseOverlap)).toBe("wait");
+	});
+
+	const iso = (ms: number | null | undefined) => (ms == null ? null : new Date(ms).toISOString().slice(0, 10));
+
+	it("dates Day 1 and the earliest finish", () => {
+		const quiet = buildSoakReport(NOW, { daily: [{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 4 }) }], dailyLatency: [], weekLatency: undefined });
+		const d = soakDates(quiet)!;
+		// 4 samples by 21:00 is not on course for 200: Day 1 is tomorrow.
+		expect(d.steps.map(iso)).toEqual(["2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27", "2026-11-28", "2026-11-29", "2026-11-30"]);
+		expect(iso(d.finishMs)).toBe("2026-11-30");
+		const busy = buildSoakReport(NOW, {
+			daily: [
+				{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 300 }) },
+				{ bucket_day: "2026-11-22 00:00:00", ...counts() }
+			],
+			dailyLatency: [{ bucket_day: "2026-11-22 00:00:00", ...goodLatency }],
+			weekLatency: goodLatency
+		});
+		expect(busy.streak).toBe(1);
+		const b = soakDates(busy)!;
+		expect(iso(b.steps[0])).toBe("2026-11-22");
+		expect(iso(b.steps[1])).toBe("2026-11-23");
+		expect(iso(b.finishMs)).toBe("2026-11-28");
+	});
+
+	it("dates the green steps from the days that passed, skipping a quiet day inside the run", () => {
+		// pass (20th) / too few samples (21st) / pass (22nd): streak 2, Day 1 is the 20th, not the 21st.
+		const report = buildSoakReport(NOW, {
+			daily: [
+				{ bucket_day: "2026-11-20 00:00:00", ...counts() },
+				{ bucket_day: "2026-11-21 00:00:00", ...counts({ samples: 50 }) },
+				{ bucket_day: "2026-11-22 00:00:00", ...counts() }
+			],
+			dailyLatency: ["2026-11-20", "2026-11-21", "2026-11-22"].map((day) => ({ bucket_day: `${day} 00:00:00`, ...goodLatency })),
+			weekLatency: goodLatency
+		});
+		expect(report.streak).toBe(2);
+		const d = soakDates(report)!;
+		expect(d.steps.map(iso)).toEqual(["2026-11-20", "2026-11-22", "2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27"]);
+		expect(iso(d.finishMs)).toBe("2026-11-27");
+		const html = renderSoakReport(report, "production");
+		expect(html).toContain("Day 1: <strong>Fri 20 Nov</strong>");
+		const tracker = html.match(/<ol class="tracker"[^>]*>(.*?)<\/ol>/s)![1];
+		expect(tracker).toContain('<li class="done" title="Day 1: green" aria-label="Day 1: green">1<small>20 Nov</small></li>');
+		expect(tracker).toContain('<li class="done" title="Day 2: green" aria-label="Day 2: green">2<small>22 Nov</small></li>');
+		expect(tracker).not.toContain("21 Nov");
+	});
+
+	it("leaves a green step undated when its pass is older than the report's 7 days", () => {
+		const report = buildSoakReport(NOW, { daily: [{ bucket_day: "2026-11-22 00:00:00", ...counts() }], dailyLatency: [{ bucket_day: "2026-11-22 00:00:00", ...goodLatency }], weekLatency: goodLatency });
+		const d = soakDates({ ...report, streak: 2, summary: { ...report.summary, streak: 2, day: 2 } })!;
+		expect(d.steps.map(iso).slice(0, 3)).toEqual([null, "2026-11-22", "2026-11-23"]);
+	});
+
+	it("does not project today's sample rate just after midnight", () => {
+		const justAfter = Date.UTC(2026, 10, 23, 0, 1, 0);
+		const one = buildSoakReport(justAfter, { daily: [{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 1 }) }], dailyLatency: [], weekLatency: undefined });
+		expect(iso(soakDates(one)!.steps[0])).toBe("2026-11-24");
+		const morning = Date.UTC(2026, 10, 23, 7, 0, 0);
+		const onCourse = buildSoakReport(morning, { daily: [{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 80 }) }], dailyLatency: [], weekLatency: undefined });
+		expect(iso(soakDates(onCourse)!.steps[0])).toBe("2026-11-23");
+		const enough = buildSoakReport(justAfter, { daily: [{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 200 }) }], dailyLatency: [], weekLatency: undefined });
+		expect(iso(soakDates(enough)!.steps[0])).toBe("2026-11-23");
+	});
+
+	it("decides each live refresh: expire on login redirect or 401/403, retry on errors, swap otherwise", () => {
+		expect(liveRefreshAction({ type: "opaqueredirect", status: 0, ok: false, hasTarget: false })).toBe("expire");
+		expect(liveRefreshAction({ type: "basic", status: 401, ok: false, hasTarget: false })).toBe("expire");
+		expect(liveRefreshAction({ type: "basic", status: 403, ok: false, hasTarget: false })).toBe("expire");
+		expect(liveRefreshAction({ type: "basic", status: 502, ok: false, hasTarget: false })).toBe("retry");
+		expect(liveRefreshAction({ type: "basic", status: 200, ok: true, hasTarget: false })).toBe("retry");
+		expect(liveRefreshAction({ type: "basic", status: 200, ok: true, hasTarget: true })).toBe("swap");
+	});
+
+	describe("live refresh script", () => {
+		type Fake = { textContent: string; innerHTML: string; className: string; hidden: boolean; attrs: Record<string, string> };
+		function runScript(response: { type: string; status: number; ok: boolean; body?: string }, nextGenerated = "2026-11-23T21:01:00.000Z") {
+			const report = buildSoakReport(NOW, { daily: [], dailyLatency: [], weekLatency: undefined });
+			const html = renderSoakReport(report, "production");
+			const scripts = [...html.matchAll(/<script>(.*?)<\/script>/gs)].map((m) => m[1]);
+			expect(scripts).toHaveLength(1);
+			const el = (attrs: Record<string, string> = {}): Fake & { getAttribute: (k: string) => string | null; setAttribute: (k: string, v: string) => void; addEventListener: (e: string, f: () => void) => void } => {
+				const e = {
+					textContent: "",
+					innerHTML: "OLD",
+					className: "",
+					hidden: false,
+					attrs,
+					getAttribute: (k: string) => e.attrs[k] ?? null,
+					setAttribute: (k: string, v: string) => {
+						e.attrs[k] = v;
+					},
+					addEventListener: (_e: string, f: () => void) => {
+						clicks.push(f);
+					}
+				};
+				return e;
+			};
+			const clicks: (() => void)[] = [];
+			const box = el({ "data-generated": report.generatedAt });
+			const status = el();
+			const toggle = el();
+			const elements: Record<string, unknown> = { "soak-live": box, "live-status": status, "live-toggle": toggle };
+			const document = { hidden: false, getElementById: (id: string) => elements[id] ?? null, addEventListener: () => {} };
+			const fetchCalls: RequestInit[] = [];
+			const fetch = async (_url: string, init: RequestInit) => {
+				fetchCalls.push(init);
+				return { ...response, text: async () => response.body ?? "" };
+			};
+			class DOMParser {
+				parseFromString(text: string) {
+					return { getElementById: () => (text.includes('id="soak-live"') ? { innerHTML: "NEW", getAttribute: () => nextGenerated } : null) };
+				}
+			}
+			new Function("document", "location", "fetch", "setInterval", "clearInterval", "DOMParser", scripts[0])(
+				document,
+				{ href: "https://api.example/docs/search-shadow-soak" },
+				fetch,
+				() => 1,
+				() => {},
+				DOMParser
+			);
+			// Pause, then resume: resuming refreshes at once.
+			clicks[0]();
+			clicks[0]();
+			return { box, status, toggle, fetchCalls, settle: () => new Promise((r) => setTimeout(r, 0)) };
+		}
+
+		it("swaps in the refetched content and shows the new time", async () => {
+			const run = runScript({ type: "basic", status: 200, ok: true, body: '<div id="soak-live"></div>' });
+			await run.settle();
+			expect(run.fetchCalls[0]).toMatchObject({ redirect: "manual", credentials: "same-origin" });
+			expect(run.box.innerHTML).toBe("NEW");
+			expect(run.status.textContent).toBe("Live · updated 21:01:00 UTC");
+		});
+
+		it("stops with 'Session expired' when the docs session has gone", async () => {
+			const run = runScript({ type: "opaqueredirect", status: 0, ok: false });
+			await run.settle();
+			expect(run.status.innerHTML).toContain("Session expired");
+			expect(run.toggle.hidden).toBe(true);
+			expect(run.box.innerHTML).toBe("OLD");
+		});
+
+		it("keeps the old content and retries when the page comes back without the swap target", async () => {
+			const run = runScript({ type: "basic", status: 502, ok: false, body: "<h2>Soak data unavailable</h2>" });
+			await run.settle();
+			expect(run.status.textContent).toBe("Update failed · retrying in a minute");
+			expect(run.box.innerHTML).toBe("OLD");
+		});
+	});
+
+	it("leads with a plain status, today's cards and no rows for empty days", () => {
+		const report = buildSoakReport(NOW, {
+			daily: [{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 4, browseSamples: 4, browseOk: 4, countSamples: 4, countWithin: 4, bothOk: 4 }) }],
+			dailyLatency: [{ bucket_day: "2026-11-23 00:00:00", azureP50: 600, azureP95: 820, d1P50: 380, d1P95: 570, samples: 4 }],
+			weekLatency: undefined,
+			cacheLatency: []
+		});
+		const html = renderSoakReport(report, "production");
+		expect(html).toContain("Collecting data. Today has 4 of 200 samples needed.");
+		expect(html).toContain("Day 1: <strong>Tue 24 Nov</strong>");
+		expect(html).toContain("Earliest finish:");
+		expect(html.match(/<ol class="tracker"[^>]*>(.*?)<\/ol>/s)?.[1].match(/<li /g)).toHaveLength(SOAK_DAYS);
+		expect(html).toContain('class="hero hero-wait"');
+		expect(html).toContain("570 ms");
+		expect(html).toContain("No complete days with data yet.");
+		expect(html).toContain("No cache data yet");
+		expect(html).toContain("How this works");
+		// No dense legacy text: no AMBER badges, n=, provisional badges or rows of dashes.
+		expect(html).not.toContain("AMBER");
+		expect(html).not.toMatch(/\bn=\d/);
+		expect(html).not.toContain("rag-amber");
+		expect(html).not.toContain("<tbody>");
+		// Live refresh hooks: the swap target, the indicator and its toggle, and one script.
+		expect(html).toContain('id="soak-live"');
+		expect(html).toContain('id="live-status"');
+		expect(html).toContain('id="live-toggle"');
+		expect(html.match(/<script>/g)).toHaveLength(1);
+	});
 });
 
 describe("loadSoakReport", () => {
@@ -396,19 +637,19 @@ describe("GET /docs/search-shadow-soak", () => {
 		expect(resp.status).toBe(200);
 		expect(resp.headers.get("cache-control")).toBe("no-store");
 		const html = await resp.text();
-		expect(html).toContain("Consecutive green days</dt><dd>1 of 7");
-		expect(html).toContain("Day 1 of 7");
-		expect(html).toContain("D1 vs Azure: GREEN");
+		expect(html).toContain("1 of 7 green days.");
+		expect(html).toContain('class="hero hero-pass"');
 		expect(html.match(/<svg /g)?.length).toBeGreaterThanOrEqual(6);
-		expect(html).toContain("Azure edge cache HIT vs MISS");
-		expect(html).toContain("Today by hour (UTC)");
-		expect(html).toContain("2026-11-22");
-		expect(html).toContain("Last 7 days");
-		expect(html).toContain("manual");
-		expect(html).toContain("Verdict");
+		expect(html).toContain("Azure cache hit vs miss");
+		expect(html).toContain("Speed today by hour (UTC)");
+		expect(html).toContain("Sun 22 Nov");
+		expect(html).toContain("All 7 days");
+		expect(html).toContain("How to check drift");
+		expect(html).toContain("<th>Result</th>");
 		expect(html.match(/<th>Day<\/th>/g)).toHaveLength(1);
 		expect(html).toContain('<tr class="week">');
-		expect(html).toContain('<tr class="today">');
+		expect(html).toContain("6 days with no data not shown.");
+		expect(html).toContain('aria-label="Pass"');
 		expect(html).not.toContain("tok-value");
 	});
 

@@ -237,7 +237,8 @@ counts, and the consecutive green-day streak ([Api #304](https://github.com/cult
   not verify (for example Swagger UI's stale saved token), the docs-session cookie is tried, and the
   `admin` check applies to whichever verified ([Api #310](https://github.com/cultpodcasts/Api/issues/310)).
   The page uses the same header as `/docs` (environment banner, version badge, Logout) plus an
-  **API docs** link, without the token menu.
+  **API docs** link, without the token menu. On both pages the header is a normal row at the top
+  of the page: it scrolls away with it and never floats over the content ([Api #312](https://github.com/cultpodcasts/Api/issues/312)).
 - **Data:** every sample is also written as one **Workers Analytics Engine** data point
   (`SearchShadowAnalytics` binding; dataset `search_shadow` on `api`, `search_shadow_preview` on
   `api-preview`, `search_shadow_local` locally). The page reads it with the
@@ -252,15 +253,28 @@ counts, and the consecutive green-day streak ([Api #304](https://github.com/cult
   ends the streak; a day under the minimum sample (200, or 50 browse samples for overlap) has no
   verdict and neither breaks nor extends it. Latency is the weighted p95 over `slo.bothOk` samples.
   The 7-day row judges the 7 complete days together.
-- **Top summary:** the overall D1-vs-Azure RAG, **Day N of 7** (the green streak, capped at 7), the
-  streak, the status (not started / in progress / breached on a date / passed) and the 7-day row.
-- **Charts** (inline SVG, no library, no client script), oldest day first: daily Azure vs D1 latency
-  p50 and p95 with the 300 ms ceiling; today by hour (UTC) p50 and p95; D1 unavailable share and
-  timeouts (`d1.error = "timeout"`) with the 0.1% limit; count agreement; browse overlap; samples per
-  day (all and browse) with the 200 / 50 minimums; and Azure latency on edge-cache `HIT` vs `MISS`
-  samples next to D1's p95 on the same samples (other cache statuses are not charted).
-- **Drift (SLO 5)** is not visible to the Worker (it comes from the RPP reconcile), so the page shows
-  it as **manual** with a link to [§ 5. Drift](#5-drift-not-in-workers-observability). It is not part of
+- **Layout** ([Api #312](https://github.com/cultpodcasts/Api/issues/312)): a status hero (one plain
+  sentence, Day 1 and the earliest finish date, and a 7-step tracker of green days); **Today so far**
+  as cards (samples against the 200 / 50 minimums, D1 p95 vs Azure, D1 errors, counts match, browse
+  overlap), each with a provisional icon against its target; **Past 7 days** as a table with only the
+  days that have data (empty days are collapsed to one line) plus the 7-day total; the charts; and a
+  collapsed **How this works** with the SLO rules. Detail sits in icon tooltips.
+- **Icons** (inline SVG): green check = pass, amber triangle = passes but close to the limit, red
+  cross = over the limit, grey hourglass = not enough data yet. A day with too few samples is grey,
+  not amber: amber is only a real margin. Today's icons apply the same thresholds to the values so
+  far and never count towards the streak. **Earliest finish** assumes every day from Day 1 passes;
+  with no run yet, today is Day 1 if it is on course for 200 samples, otherwise tomorrow.
+- **Live:** while the page is open it refetches itself every 60 s (same URL, same docs session) and
+  swaps the content in place, with a **Live · updated HH:MM:SS UTC** indicator and Pause / Resume. It
+  does not poll while the tab is hidden and refreshes when the tab is shown again. If the session
+  has expired (a redirect to login, 401 or 403) it stops and shows **Session expired · reload**.
+- **Charts** (inline SVG, no library), oldest day first: speed by day (p50 and p95, 300 ms limit);
+  speed today by hour (UTC); samples per day with the 200 / 50 minimums; D1 errors and timeouts
+  (`d1.error = "timeout"`) with the 0.1% limit; counts match; browse overlap; and Azure latency on
+  edge-cache `HIT` vs `MISS` searches next to D1's p95 on the same searches (other cache statuses are
+  not charted). A chart with no values shows **No data yet** instead of empty axes.
+- **Drift (SLO 5)** is not visible to the Worker (it comes from the RPP reconcile), so the page links
+  to [§ 5. Drift](#5-drift-not-in-workers-observability) from **How this works**. It is not part of
   the page's streak.
 
 ### Red / amber / green
@@ -270,7 +284,7 @@ Every SLO cell, every day and the summary carry a RAG on top of the pass / fail 
 | RAG | Meaning |
 |-----|---------|
 | **Red** | Breach (the SLO's verdict is fail) |
-| **Amber** | Passes but within the margin below, **or** no verdict because of too few samples |
+| **Amber** | Passes but within the margin below, **or** no verdict because of too few samples (the page shows this case as a grey hourglass, not amber) |
 | **Green** | Passes with margin |
 
 Margins (named constants in `src/searchShadowSoak.ts`):
@@ -282,7 +296,7 @@ Margins (named constants in `src/searchShadowSoak.ts`):
 | 3. Counts | agree < 99% | agree < 99.5% | `SOAK_RAG_COUNT_WITHIN_AMBER = 0.995` |
 | 4. Browse overlap | ok < 95% | ok < 97% | `SOAK_RAG_OVERLAP_AMBER = 0.97` |
 
-A day's RAG is the worst of its four. Today's is shown as provisional. The **overall** RAG is red when
+A day's RAG is the worst of its four. Today is shown as provisional. The **overall** RAG is red when
 the latest judged complete day failed; otherwise it is the worst RAG of the days in the current run
 (complete days with samples, back to the last fail), plus the 7-day row once the run reaches 7 days,
 so failures before the clock restarted do not keep it red. With nothing judged yet it is amber.

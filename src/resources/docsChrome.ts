@@ -2,7 +2,7 @@ import type { ApiEnvironment } from "../apiEnvironment";
 
 /**
  * Shared header chrome for the admin docs pages (`/docs` and `/docs/search-shadow-soak`, Api #310):
- * the non-production environment banner, the fixed top-right actions (always ending in Logout) and
+ * the non-production environment banner, the top-right actions (always ending in Logout) and
  * a title with a Swagger-style version badge. Each page adds its own extras (the docs page's token
  * hamburger, the soak page's link back to the docs).
  */
@@ -30,7 +30,11 @@ function esc(value: string): string {
 	return value.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 }
 
-/** CSS for the banner, the top actions, the Logout-style buttons and the title + version badge. */
+/**
+ * CSS for the banner, the top actions, the Logout-style buttons and the title + version badge. The
+ * actions are a normal row at the top of the page (Api #312): they scroll away with it and never
+ * float over the content.
+ */
 export function docsChromeStyles(environment: ApiEnvironment): string {
 	const { isNonProd } = docsEnvironmentLabels(environment);
 	return `
@@ -54,13 +58,12 @@ export function docsChromeStyles(environment: ApiEnvironment): string {
 				letter-spacing: 0.04em;
 			}
 			.top-actions {
-				position: fixed;
-				top: ${isNonProd ? "48px" : "12px"};
-				right: 16px;
-				z-index: 10000;
 				display: flex;
+				flex-wrap: wrap;
+				justify-content: flex-end;
 				gap: 8px;
 				align-items: center;
+				padding: 12px 16px 0;
 			}
 			.logout {
 				display: inline-flex;
