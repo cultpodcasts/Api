@@ -79,6 +79,7 @@ try {
         'stagingHostSuffix'
         'auth0ClientId'
         'browserRenderingServices'
+        'cfAnalyticsReadToken'
     )
 
     $mustBeNonEmpty = @(

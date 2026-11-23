@@ -56,5 +56,16 @@ export type Env = {
 	Data: R2Bucket;
 	apiDB: D1Database;
 	Analytics: AnalyticsEngineDataset;
+	/**
+	 * Search shadow soak samples (cultpodcasts/Api#304): one data point per `search shadow` sample,
+	 * read back by `/docs/search-shadow-soak`. Dataset per environment (`searchShadowAnalyticsDataset`).
+	 */
+	SearchShadowAnalytics?: AnalyticsEngineDataset;
+	/** Non-secret: the Analytics Engine dataset name behind `SearchShadowAnalytics` (for the SQL API). */
+	searchShadowAnalyticsDataset?: string;
+	/** Non-secret: Cloudflare account id for the Analytics Engine SQL API. */
+	cloudflareAccountId?: string;
+	/** Secret: Cloudflare account API token with only `Account Analytics: Read` (soak page). */
+	cfAnalyticsReadToken?: string;
 	overrideHost: string | undefined | null;
 };
