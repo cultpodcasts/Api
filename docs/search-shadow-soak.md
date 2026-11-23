@@ -1,7 +1,8 @@
 # D1 search shadow soak: SLOs and dashboard (SP-3.2)
 
 [RPP #1323](https://github.com/cultpodcasts/RedditPodcastPoster/issues/1323), epic
-[RPP #1312](https://github.com/cultpodcasts/RedditPodcastPoster/issues/1312). This is the gate
+[RPP #1312](https://github.com/cultpodcasts/RedditPodcastPoster/issues/1312). Running and passing the soak is gate SP-G3,
+[RPP #1316](https://github.com/cultpodcasts/RedditPodcastPoster/issues/1316). This is the gate
 before production `/search` moves from Azure AI Search to the D1 search Worker. The sync and
 reconcile design is in RPP `docs/search-platform/sync-and-replication.md`. The sampler is
 described in `workers/search/README.md` (`search shadow` log, SP-3.1, Api #228).
@@ -17,12 +18,16 @@ described in `workers/search/README.md` (`search shadow` log, SP-3.1, Api #228).
 - The D1 call is aborted after `searchShadowTimeoutMs` (default **3000** ms; 100–30000). A timed-out
   call is still logged, with `d1.error = "timeout"`, no `d1.status` and `slo.d1Unavailable = true`.
   A hung D1 therefore counts against availability instead of disappearing from the log.
-- **Kill switch:** set `searchShadowEnabled` to `"false"`, or the rate to `"0"`, and deploy from main.
+- **Kill switch:** set `searchShadowEnabled` to `"false"`, or the rate to `"0"`. Like turning it on, this
+  only takes effect after a production deploy of the top-level `api` Worker (`npm run deploy`), which
+  Jon runs by hand: `api` has no Workers Builds trigger (`docs/workers-builds-deploy.md`), so merging
+  to main alone changes nothing in production.
 
 ## The soak
 
-- **Length:** 7 consecutive days with every SLO met. Day 1 starts when the sampler is live in
-  production.
+- **Length:** 7 consecutive days with every SLO met. Day 1 is the first full day after the production
+  `api` deploy that carries this config (merging does not deploy `api`; see the kill switch above), and
+  only once the prerequisites below hold.
 - **Daily check:** evaluate each SLO once a day over the previous 24 hours, plus once over the
   whole 7 days at the end.
 - **Any breach restarts the clock.** A breach is any SLO missed in a daily check, or a drift check
