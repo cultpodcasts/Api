@@ -9,19 +9,38 @@ described in `workers/search/README.md` (`search shadow` log, SP-3.1, Api #228).
 
 ## What runs
 
-- The api Worker samples **10%** of production `POST /search` requests
-  (`wrangler.jsonc`: `searchShadowEnabled: "true"`, `searchShadowSampleRate: "0.1"`,
-  `searchShadowTopN: "10"`). Preview and local stay off.
+```mermaid
+flowchart TD
+  U["User POST /search"] --> API["api Worker"]
+  API --> AZ["Azure AI Search"]
+  AZ --> R["Results returned to user, Azure only, latency unchanged"]
+  API --> S{"searchShadowEnabled = true and random draw under searchShadowSampleRate 0.1?"}
+  S -- "no, 90%" --> X["Nothing else happens"]
+  S -- "yes, 10%" --> W["ctx.waitUntil: send the same query to the D1 search Worker via SEARCH binding"]
+  W --> T{"D1 answers within searchShadowTimeoutMs 3000 ms?"}
+  T -- yes --> C["Compare first searchShadowTopN 10 result ids, Azure vs D1"]
+  T -- no --> TO["Abort, log d1.error = timeout, count as D1 unavailable"]
+  C --> L["One 'search shadow' log line in Workers Observability"]
+  TO --> L
+  L --> SLO["Soak: 7 consecutive days meeting every SLO, RPP #1316"]
+```
+
+| Setting | Production | Meaning |
+|---------|------------|---------|
+| `searchShadowEnabled` | `"true"` | On/off kill switch. `"false"` (or a rate of `"0"`) stops the sampler. |
+| `searchShadowSampleRate` | `"0.1"` | 1 in 10 production searches is also sent to D1. Preview and local use `"0.01"` with the switch off. |
+| `searchShadowTopN` | `"10"` | How many leading result ids from each engine are compared. |
+| `searchShadowTimeoutMs` | `"3000"` | Abort the D1 call after 3 seconds. A timeout is logged as `d1.error = "timeout"` and counted as D1 unavailable (`slo.d1Unavailable = true`). Allowed range: 100–30000. |
+
+These settings, including the kill switch, only take effect after Jon's manual production `api` deploy (`npm run deploy`). Merging to `main` alone does not deploy `api` (`docs/workers-builds-deploy.md`).
+
+- The api Worker samples production `POST /search` requests when the switch is on (see the table). Preview and local stay off.
 - Each sampled request sends the same rewritten body to the D1 search Worker over the `SEARCH`
   binding, on `ctx.waitUntil`. Azure is still the result users get, and their latency is unchanged.
 - Each sample logs one line, `message = "search shadow"`, on the **`api`** Worker.
-- The D1 call is aborted after `searchShadowTimeoutMs` (default **3000** ms; 100–30000). A timed-out
-  call is still logged, with `d1.error = "timeout"`, no `d1.status` and `slo.d1Unavailable = true`.
+- A timed-out D1 call is still logged, with `d1.error = "timeout"`, no `d1.status` and `slo.d1Unavailable = true`.
   A hung D1 therefore counts against availability instead of disappearing from the log.
-- **Kill switch:** set `searchShadowEnabled` to `"false"`, or the rate to `"0"`. Like turning it on, this
-  only takes effect after a production deploy of the top-level `api` Worker (`npm run deploy`), which
-  Jon runs by hand: `api` has no Workers Builds trigger (`docs/workers-builds-deploy.md`), so merging
-  to main alone changes nothing in production.
+- **Kill switch:** set `searchShadowEnabled` to `"false"`, or the rate to `"0"`, then deploy production `api` as above.
 
 ## The soak
 
