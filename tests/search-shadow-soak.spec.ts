@@ -13,7 +13,10 @@ import {
 	buildSoakReport,
 	evaluateSoak,
 	greenStreak,
+	latencyRag,
 	loadSoakReport,
+	soakSummary,
+	worstRag,
 	shadowDataPoint,
 	SOAK_DAYS,
 	SoakQueryError,
@@ -23,6 +26,7 @@ import {
 	type SoakDay
 } from "../src/searchShadowSoak";
 import { SEARCH_SHADOW_SOAK_PATH, searchShadowSoakPage } from "../src/searchShadowSoakPage";
+import { renderChart } from "../src/soakCharts";
 import { buildDocsPageHtml } from "../src/resources/docsPageHtml";
 import { testEnv } from "./honoTestApp";
 import { testEnv as auth0TestEnv } from "./support/honoRoute";
@@ -33,7 +37,7 @@ function counts(partial: Partial<SoakCounts> = {}): SoakCounts {
 	return { samples: 1000, unavailable: 0, bothOk: 1000, countSamples: 1000, countWithin: 1000, browseSamples: 100, browseOk: 100, ...partial };
 }
 
-const goodLatency = { azureP95: 250, d1P95: 120, samples: 1000 };
+const goodLatency = { azureP50: 90, azureP95: 250, d1P50: 40, d1P95: 120, samples: 1000 };
 
 function shadowLog(partial: Partial<SearchShadowLog> = {}): SearchShadowLog {
 	return {
@@ -136,6 +140,11 @@ describe("soakQueries", () => {
 		expect(q.weekLatency).toContain("toDateTime('2026-11-16 00:00:00')");
 		expect(q.weekLatency).toContain("toDateTime('2026-11-23 00:00:00')");
 		expect(q.dailyLatency).toContain("double4 = 1");
+		expect(q.dailyLatency).toContain("quantileExactWeighted(0.5)(double2, _sample_interval) AS d1P50");
+		expect(q.daily).toContain("blob4 = 'timeout'");
+		expect(q.hourlyLatency).toContain("INTERVAL '1' HOUR");
+		expect(q.hourlyLatency).toContain("toDateTime('2026-11-23 00:00:00')");
+		expect(q.cacheLatency).toContain("GROUP BY day, cache");
 	});
 
 	it("refuses a dataset name that is not a plain identifier", () => {
@@ -201,7 +210,7 @@ describe("buildSoakReport", () => {
 			{ day: "2026-11-22 00:00:00", ...goodLatency },
 			{ day: "2026-11-21 00:00:00", ...goodLatency }
 		];
-		const report = buildSoakReport(NOW, daily, latency, { azureP95: "250", d1P95: "130", samples: "2000" });
+		const report = buildSoakReport(NOW, { daily, dailyLatency: latency, weekLatency: { azureP95: "250", d1P95: "130", samples: "2000" } });
 		expect(report.days).toHaveLength(SOAK_DAYS + 1);
 		expect(report.days[0]).toMatchObject({ day: "2026-11-23", inProgress: true, verdict: "no-verdict" });
 		expect(report.days[1].verdict).toBe("pass");
@@ -215,13 +224,122 @@ describe("buildSoakReport", () => {
 	});
 });
 
+describe("RAG", () => {
+	it("is green with margin, amber inside the margin or without a verdict, red on a breach", () => {
+		expect(evaluateSoak("d", counts(), goodLatency).rag).toBe("green");
+		expect(evaluateSoak("d", counts({ unavailable: 1 }), goodLatency).availability.rag).toBe("amber"); // 0.1% > 0.05%
+		expect(evaluateSoak("d", counts({ unavailable: 2 }), goodLatency).availability.rag).toBe("red");
+		expect(evaluateSoak("d", counts({ countWithin: 995 }), goodLatency).countAgreement.rag).toBe("green");
+		expect(evaluateSoak("d", counts({ countWithin: 994 }), goodLatency).countAgreement.rag).toBe("amber");
+		expect(evaluateSoak("d", counts({ countWithin: 989 }), goodLatency).countAgreement.rag).toBe("red");
+		expect(evaluateSoak("d", counts({ browseOk: 97 }), goodLatency).browseOverlap.rag).toBe("green");
+		expect(evaluateSoak("d", counts({ browseOk: 96 }), goodLatency).browseOverlap.rag).toBe("amber");
+		expect(evaluateSoak("d", counts({ samples: 100 }), goodLatency).rag).toBe("amber");
+		expect(evaluateSoak("d", counts({ countWithin: 994 }), goodLatency).rag).toBe("amber");
+	});
+
+	it("puts latency amber near the 300 ms ceiling or near Azure's p95", () => {
+		expect(latencyRag("pass", 250, 200)).toBe("green");
+		expect(latencyRag("pass", 290, 260)).toBe("amber"); // above 250 ms
+		expect(latencyRag("pass", 200, 190)).toBe("amber"); // above 90% of Azure
+		expect(latencyRag("fail", 200, 210)).toBe("red");
+		expect(latencyRag("no-verdict", null, null)).toBe("amber");
+	});
+
+	it("takes the worst RAG", () => {
+		expect(worstRag("green", "amber", "green")).toBe("amber");
+		expect(worstRag("amber", "red")).toBe("red");
+		expect(worstRag()).toBe("green");
+	});
+});
+
+describe("soakSummary", () => {
+	const day = (verdict: SoakDay["verdict"], inProgress = false, samples = 1000) => ({
+		...evaluateSoak("2026-11-2x", counts({ samples }), goodLatency),
+		verdict,
+		inProgress
+	});
+	const week = evaluateSoak("w", counts(), goodLatency);
+
+	it("reports day N of 7 while the streak builds", () => {
+		const s = soakSummary([day("no-verdict", true), day("pass"), day("pass")], week, 2);
+		expect(s).toMatchObject({ status: "in-progress", day: 2, rag: "green", headline: "Day 2 of 7" });
+	});
+
+	it("reports a breach on the latest judged day and goes red", () => {
+		const failed = { ...day("fail"), day: "2026-11-22", rag: "red" as const };
+		const s = soakSummary([day("no-verdict", true), failed, day("pass")], week, 0);
+		expect(s).toMatchObject({ status: "breached", lastBreach: "2026-11-22", rag: "red", day: 0 });
+	});
+
+	it("judges the current run, not older failed days in the 7-day window", () => {
+		const s = soakSummary([day("no-verdict", true), day("pass"), day("pass"), day("fail"), day("fail")], { ...week, rag: "red" }, 2);
+		expect(s).toMatchObject({ status: "in-progress", day: 2, rag: "green" });
+		const amberRun = soakSummary([day("no-verdict", true), { ...day("pass"), rag: "amber" as const }, day("pass")], week, 2);
+		expect(amberRun.rag).toBe("amber");
+	});
+
+	it("reports not started without samples, and passed after 7 green days", () => {
+		const empty = Array.from({ length: 8 }, (_, i) => day("no-verdict", i === 0, 0));
+		expect(soakSummary(empty, evaluateSoak("w", counts({ samples: 0 }), goodLatency), 0).status).toBe("not-started");
+		expect(soakSummary([day("no-verdict", true), ...Array.from({ length: 7 }, () => day("pass"))], week, 7)).toMatchObject({
+			status: "passed",
+			day: 7
+		});
+	});
+
+	it("fills today's hours and the cache split from the query rows", () => {
+		const report = buildSoakReport(NOW, {
+			daily: [],
+			dailyLatency: [],
+			weekLatency: undefined,
+			hourlyLatency: [{ hour: "2026-11-23 20:00:00", ...goodLatency }],
+			cacheLatency: [
+				{ day: "2026-11-22 00:00:00", cache: "HIT", ...goodLatency, azureP95: 20 },
+				{ day: "2026-11-22 00:00:00", cache: "MISS", ...goodLatency, azureP95: 400 },
+				{ day: "2026-11-22 00:00:00", cache: "DYNAMIC", ...goodLatency }
+			]
+		});
+		expect(report.hours).toHaveLength(22); // 00h … 21h
+		expect(report.hours[20].latency.d1P95).toBe(120);
+		expect(report.hours[21].latency.d1P95).toBeNull();
+		expect(report.cache.get("2026-11-22")).toMatchObject({ HIT: { azureP95: 20 }, MISS: { azureP95: 400 } });
+		expect(report.summary.status).toBe("not-started");
+	});
+});
+
+describe("renderChart", () => {
+	it("draws lines with gaps for missing values, bars, thresholds and a legend", () => {
+		const svg = renderChart({
+			title: "Latency <test>",
+			labels: ["a", "b", "c"],
+			series: [
+				{ name: "D1", color: "#f00", values: [10, null, 30] },
+				{ name: "Samples", color: "#999", kind: "bar", values: [5, 6, null] }
+			],
+			thresholds: [{ value: 25, label: "limit" }]
+		});
+		expect(svg).toContain("<svg ");
+		expect(svg).toContain("Latency &lt;test&gt;");
+		expect(svg.match(/<path d="M[^"]*"/g)?.[0].match(/M/g)).toHaveLength(2); // gap → two segments
+		expect(svg.match(/<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" fill="#999">/g)).toHaveLength(2);
+		expect(svg).toContain("stroke-dasharray=\"4 3\"");
+		expect(svg).toContain(">limit</text>");
+	});
+
+	it("renders an empty chart without NaN", () => {
+		const svg = renderChart({ title: "empty", labels: [], series: [{ name: "x", color: "#000", values: [] }] });
+		expect(svg).not.toContain("NaN");
+	});
+});
+
 describe("loadSoakReport", () => {
 	const source = { accountId: "acct", token: "tok-value", dataset: "search_shadow" };
 
-	it("runs three SQL API queries with the bearer token", async () => {
+	it("runs five SQL API queries with the bearer token", async () => {
 		const fetcher = vi.fn(async (_url: string, _init: RequestInit) => new Response(JSON.stringify({ data: [] }), { status: 200 }));
 		const report = await loadSoakReport({ ...source, fetcher: fetcher as unknown as typeof fetch }, NOW);
-		expect(fetcher).toHaveBeenCalledTimes(3);
+		expect(fetcher).toHaveBeenCalledTimes(5);
 		const [url, init] = fetcher.mock.calls[0];
 		expect(url).toBe(ANALYTICS_ENGINE_SQL_URL("acct"));
 		expect(init.method).toBe("POST");
@@ -277,7 +395,12 @@ describe("GET /docs/search-shadow-soak", () => {
 		expect(resp.status).toBe(200);
 		expect(resp.headers.get("cache-control")).toBe("no-store");
 		const html = await resp.text();
-		expect(html).toContain("Consecutive green days: 1 of 7");
+		expect(html).toContain("Consecutive green days</dt><dd>1 of 7");
+		expect(html).toContain("Day 1 of 7");
+		expect(html).toContain("D1 vs Azure: GREEN");
+		expect(html.match(/<svg /g)?.length).toBeGreaterThanOrEqual(6);
+		expect(html).toContain("Azure edge cache HIT vs MISS");
+		expect(html).toContain("Today by hour (UTC)");
 		expect(html).toContain("2026-11-22");
 		expect(html).toContain("Last 7 days");
 		expect(html).toContain("manual");

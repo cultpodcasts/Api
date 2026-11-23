@@ -1,6 +1,6 @@
 {
   "name": "cultpodcasts-api",
-  "version": "2.23.39",
+  "version": "2.23.40",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",

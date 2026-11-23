@@ -237,7 +237,8 @@ counts, and the consecutive green-day streak ([Api #304](https://github.com/cult
   (`SearchShadowAnalytics` binding; dataset `search_shadow` on `api`, `search_shadow_preview` on
   `api-preview`, `search_shadow_local` locally). The page reads it with the
   [Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
-  (3 queries per page load; nothing is cached). Analytics Engine keeps 3 months, so the streak looks
+  (5 queries per page load: daily counts, daily / 7-day / hourly-today latency p50 and p95, and
+  latency split by Azure edge-cache status; nothing is cached). Analytics Engine keeps 3 months, so the streak looks
   back 30 days. Samples are only recorded from the `api` deploy that carries this binding.
 - **Why not the Workers Observability query API:** its telemetry query endpoint only accepts tokens with
   `Workers Observability: Write`, which cannot be scoped read-only, and its range is capped at 7 days.
@@ -246,9 +247,40 @@ counts, and the consecutive green-day streak ([Api #304](https://github.com/cult
   ends the streak; a day under the minimum sample (200, or 50 browse samples for overlap) has no
   verdict and neither breaks nor extends it. Latency is the weighted p95 over `slo.bothOk` samples.
   The 7-day row judges the 7 complete days together.
+- **Top summary:** the overall D1-vs-Azure RAG, **Day N of 7** (the green streak, capped at 7), the
+  streak, the status (not started / in progress / breached on a date / passed) and the 7-day row.
+- **Charts** (inline SVG, no library, no client script), oldest day first: daily Azure vs D1 latency
+  p50 and p95 with the 300 ms ceiling; today by hour (UTC) p50 and p95; D1 unavailable share and
+  timeouts (`d1.error = "timeout"`) with the 0.1% limit; count agreement; browse overlap; samples per
+  day (all and browse) with the 200 / 50 minimums; and Azure latency on edge-cache `HIT` vs `MISS`
+  samples next to D1's p95 on the same samples (other cache statuses are not charted).
 - **Drift (SLO 5)** is not visible to the Worker (it comes from the RPP reconcile), so the page shows
   it as **manual** with a link to [§ 5. Drift](#5-drift-not-in-workers-observability). It is not part of
   the page's streak.
+
+### Red / amber / green
+
+Every SLO cell, every day and the summary carry a RAG on top of the pass / fail / no-verdict verdict:
+
+| RAG | Meaning |
+|-----|---------|
+| **Red** | Breach (the SLO's verdict is fail) |
+| **Amber** | Passes but within the margin below, **or** no verdict because of too few samples |
+| **Green** | Passes with margin |
+
+Margins (named constants in `src/searchShadowSoak.ts`):
+
+| SLO | Red (breach) | Amber when | Constant |
+|-----|--------------|------------|----------|
+| 1. Latency | D1 p95 > Azure p95 or > 300 ms | D1 p95 > 250 ms, or > 90% of Azure's p95 | `SOAK_RAG_LATENCY_MARGIN_MS = 50`, `SOAK_RAG_LATENCY_RATIO = 0.9` |
+| 2. Availability | unavailable > 0.1% | unavailable > 0.05% | `SOAK_RAG_UNAVAILABLE_AMBER = 0.0005` |
+| 3. Counts | agree < 99% | agree < 99.5% | `SOAK_RAG_COUNT_WITHIN_AMBER = 0.995` |
+| 4. Browse overlap | ok < 95% | ok < 97% | `SOAK_RAG_OVERLAP_AMBER = 0.97` |
+
+A day's RAG is the worst of its four. Today's is shown as provisional. The **overall** RAG is red when
+the latest judged complete day failed; otherwise it is the worst RAG of the days in the current run
+(complete days with samples, back to the last fail), plus the 7-day row once the run reaches 7 days,
+so failures before the clock restarted do not keep it red. With nothing judged yet it is amber.
 
 | Data point field | Meaning |
 |------------------|---------|
