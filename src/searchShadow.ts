@@ -1,4 +1,5 @@
 import type { Env } from "./Env";
+import { writeShadowDataPoint } from "./searchShadowSoak";
 
 /** Service-binding origin; the search Worker ignores the host and routes on the path. */
 export const SEARCH_SHADOW_ORIGIN = "https://search";
@@ -266,6 +267,8 @@ export type SearchShadowRun = {
 	/** Abort the D1 call after this long (default {@link DEFAULT_SEARCH_SHADOW_TIMEOUT_MS}). */
 	timeoutMs?: number;
 	log?: (payload: SearchShadowLog) => void;
+	/** Soak dashboard store: one Analytics Engine data point per sample (cultpodcasts/Api#304). */
+	analytics?: AnalyticsEngineDataset;
 };
 
 class ShadowTimeout extends Error {
@@ -349,6 +352,7 @@ export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShad
 	if (args.query) payload.query = args.query;
 	if (args.filter) payload.filter = args.filter;
 	write(payload);
+	writeShadowDataPoint(args.analytics, payload);
 	return payload;
 }
 
