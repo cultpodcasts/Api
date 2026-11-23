@@ -53,6 +53,17 @@ Process environment variables with the same key names override file values if se
 - `BROWSER` — Cloudflare Browser Rendering binding (`wrangler.jsonc` `browser.binding`)
 - `StreamMeta` — KV namespace for prepare meta cache (`stream-meta:v2:<url>`)
 
+## Search shadow soak page
+
+`cfAnalyticsReadToken` — Cloudflare account API token with **only** `Account → Account Analytics → Read`,
+scoped to the cultpodcasts account. Used by `/docs/search-shadow-soak` to read the soak's Analytics
+Engine dataset through the SQL API ([Api #304](https://github.com/cultpodcasts/Api/issues/304)).
+
+- Same key in preview + production `.env.example` and both `set-secrets-*.ps1` lists (not in `$mustBeNonEmpty`: the rest of the Worker works without it).
+- `npx wrangler secret put cfAnalyticsReadToken --env=` (production `api`) and `--env preview` (`api-preview`).
+- Non-secret companions in `wrangler.jsonc` `vars`: `cloudflareAccountId`, `searchShadowAnalyticsDataset`. Binding: `SearchShadowAnalytics` (Analytics Engine).
+- Setup steps: `docs/search-shadow-soak.md` § Dashboard page.
+
 ## Local Wrangler / Pages vars
 
 - `.dev.vars` — local Worker secrets for `wrangler dev` (gitignored). Copy keys from `scripts/local-secrets.preview.env.example` (includes `azureApiOrigin`; Azure Function *paths* are in `src/azureResources.ts`).

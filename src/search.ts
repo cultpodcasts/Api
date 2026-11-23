@@ -142,7 +142,8 @@ function maybeScheduleSearchShadow(
 			timeoutMs: config.timeoutMs,
 			requestId: request.requestId,
 			query: request.query,
-			filter: request.filter
+			filter: request.filter,
+			analytics: c.env.SearchShadowAnalytics
 		})
 	);
 }
