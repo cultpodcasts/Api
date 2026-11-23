@@ -63,14 +63,14 @@ function legend(series: ChartSeries[]): string {
 		.join("")}</ul>`;
 }
 
-/** Round an axis top up so the four gridline steps are 1, 2, 2.5 or 5 × 10^k (e.g. 902 → 1000). */
+/** Round an axis top up to four round gridline steps (e.g. 902 → 1000 in 250s, 431 → 500 in 125s). */
 export function niceCeiling(max: number, min = 0): number {
 	const range = max - min;
 	if (!(range > 0)) return max;
 	const raw = range / 4;
 	const mag = 10 ** Math.floor(Math.log10(raw));
-	const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((st) => st >= raw)!;
-	return min + Math.ceil(range / step - 1e-9) * step;
+	const step = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7.5, 8, 10].map((m) => m * mag).find((st) => st >= raw - 1e-9)!;
+	return Number((min + 4 * step).toPrecision(12));
 }
 
 /** Render one chart. Null values leave a gap (line) or no bar. */

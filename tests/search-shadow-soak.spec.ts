@@ -352,7 +352,8 @@ describe("renderChart", () => {
 	it("rounds the axis top to a readable step", () => {
 		expect(niceCeiling(902)).toBe(1000);
 		expect(niceCeiling(431)).toBe(500);
-		expect(niceCeiling(220)).toBe(250);
+		expect(niceCeiling(220)).toBe(240);
+		expect(niceCeiling(4)).toBe(4);
 		expect(niceCeiling(0)).toBe(0);
 	});
 });
