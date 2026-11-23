@@ -120,8 +120,9 @@ export function soakQueries(dataset: string, nowMs: number): SoakQueries {
 	const weekFrom = sqlTime(today - SOAK_DAYS * MS_PER_DAY);
 	const to = sqlTime(today + MS_PER_DAY);
 	const until = sqlTime(today);
+	// Aliases avoid SQL keywords (DAY / HOUR appear in the INTERVALs): bucket_day, bucket_hour, cache_status.
 	const day = "toStartOfInterval(timestamp, INTERVAL '1' DAY)";
-	const daily = `SELECT ${day} AS day,
+	const daily = `SELECT ${day} AS bucket_day,
  sum(_sample_interval) AS samples,
  sumIf(_sample_interval, double3 = 1) AS unavailable,
  sumIf(_sample_interval, blob4 = 'timeout') AS timeouts,
@@ -132,8 +133,8 @@ export function soakQueries(dataset: string, nowMs: number): SoakQueries {
  sumIf(_sample_interval, double9 = 1 AND double7 = 1 AND double8 = 1) AS browseOk
 FROM ${dataset}
 WHERE timestamp >= toDateTime('${historyFrom}') AND timestamp < toDateTime('${to}')
-GROUP BY day
-ORDER BY day
+GROUP BY bucket_day
+ORDER BY bucket_day
 FORMAT JSON`;
 	const hour = "toStartOfInterval(timestamp, INTERVAL '1' HOUR)";
 	const latency = (from: string, until: string, groupBy: string[]) => {
@@ -150,10 +151,10 @@ FORMAT JSON`;
 	};
 	return {
 		daily,
-		dailyLatency: latency(historyFrom, to, [`${day} AS day`]),
+		dailyLatency: latency(historyFrom, to, [`${day} AS bucket_day`]),
 		weekLatency: latency(weekFrom, until, []),
-		hourlyLatency: latency(sqlTime(today), to, [`${hour} AS hour`]),
-		cacheLatency: latency(weekFrom, to, [`${day} AS day`, "blob2 AS cache"])
+		hourlyLatency: latency(sqlTime(today), to, [`${hour} AS bucket_hour`]),
+		cacheLatency: latency(weekFrom, to, [`${day} AS bucket_day`, "blob2 AS cache_status"])
 	};
 }
 
@@ -427,8 +428,8 @@ export type SoakRows = {
 
 export function buildSoakReport(nowMs: number, rows: SoakRows): SoakReport {
 	const { daily: dailyRows, dailyLatency: dailyLatencyRows, weekLatency: weekLatencyRow } = rows;
-	const counts = new Map(dailyRows.map((r) => [dayKey(r.day), parseCountsRow(r)]));
-	const latency = new Map(dailyLatencyRows.map((r) => [dayKey(r.day), parseLatencyRow(r)]));
+	const counts = new Map(dailyRows.map((r) => [dayKey(r.bucket_day), parseCountsRow(r)]));
+	const latency = new Map(dailyLatencyRows.map((r) => [dayKey(r.bucket_day), parseLatencyRow(r)]));
 	const today = utcDayStart(nowMs);
 	const history: SoakDay[] = [];
 	for (let i = 0; i <= SOAK_HISTORY_DAYS; i++) {
@@ -445,7 +446,7 @@ export function buildSoakReport(nowMs: number, rows: SoakRows): SoakReport {
 	const week = evaluateSoak(`${weekDays[weekDays.length - 1].day} – ${weekDays[0].day}`, weekCounts, parseLatencyRow(weekLatencyRow));
 	const days = history.slice(0, SOAK_DAYS + 1);
 	const streak = greenStreak(history);
-	const hourly = new Map((rows.hourlyLatency ?? []).map((r) => [String(r.hour ?? "").slice(11, 13), parseLatencyRow(r)]));
+	const hourly = new Map((rows.hourlyLatency ?? []).map((r) => [String(r.bucket_hour ?? "").slice(11, 13), parseLatencyRow(r)]));
 	const currentHour = new Date(nowMs).getUTCHours();
 	const hours: SoakHour[] = [];
 	for (let h = 0; h <= currentHour; h++) {
@@ -454,8 +455,8 @@ export function buildSoakReport(nowMs: number, rows: SoakRows): SoakReport {
 	}
 	const cache = new Map<string, SoakCacheLatency>(days.map((d) => [d.day, { HIT: parseLatencyRow(undefined), MISS: parseLatencyRow(undefined) }]));
 	for (const r of rows.cacheLatency ?? []) {
-		const entry = cache.get(dayKey(r.day));
-		const status = String(r.cache ?? "");
+		const entry = cache.get(dayKey(r.bucket_day));
+		const status = String(r.cache_status ?? "");
 		if (entry && (status === "HIT" || status === "MISS")) entry[status] = parseLatencyRow(r);
 	}
 	return {

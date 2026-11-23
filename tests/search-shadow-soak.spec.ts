@@ -144,7 +144,8 @@ describe("soakQueries", () => {
 		expect(q.daily).toContain("blob4 = 'timeout'");
 		expect(q.hourlyLatency).toContain("INTERVAL '1' HOUR");
 		expect(q.hourlyLatency).toContain("toDateTime('2026-11-23 00:00:00')");
-		expect(q.cacheLatency).toContain("GROUP BY day, cache");
+		expect(q.cacheLatency).toContain("GROUP BY bucket_day, cache_status");
+		for (const sql of Object.values(q)) expect(sql).not.toMatch(/ AS (day|hour|cache)\b/);
 	});
 
 	it("refuses a dataset name that is not a plain identifier", () => {
@@ -202,13 +203,13 @@ describe("greenStreak", () => {
 describe("buildSoakReport", () => {
 	it("shows today in progress plus 7 complete days and judges the week together", () => {
 		const daily = [
-			{ day: "2026-11-23 00:00:00", ...counts() },
-			{ day: "2026-11-22 00:00:00", ...counts() },
-			{ day: "2026-11-21 00:00:00", ...counts({ unavailable: "5" as unknown as number }) }
+			{ bucket_day: "2026-11-23 00:00:00", ...counts() },
+			{ bucket_day: "2026-11-22 00:00:00", ...counts() },
+			{ bucket_day: "2026-11-21 00:00:00", ...counts({ unavailable: "5" as unknown as number }) }
 		];
 		const latency = [
-			{ day: "2026-11-22 00:00:00", ...goodLatency },
-			{ day: "2026-11-21 00:00:00", ...goodLatency }
+			{ bucket_day: "2026-11-22 00:00:00", ...goodLatency },
+			{ bucket_day: "2026-11-21 00:00:00", ...goodLatency }
 		];
 		const report = buildSoakReport(NOW, { daily, dailyLatency: latency, weekLatency: { azureP95: "250", d1P95: "130", samples: "2000" } });
 		expect(report.days).toHaveLength(SOAK_DAYS + 1);
@@ -293,11 +294,11 @@ describe("soakSummary", () => {
 			daily: [],
 			dailyLatency: [],
 			weekLatency: undefined,
-			hourlyLatency: [{ hour: "2026-11-23 20:00:00", ...goodLatency }],
+			hourlyLatency: [{ bucket_hour: "2026-11-23 20:00:00", ...goodLatency }],
 			cacheLatency: [
-				{ day: "2026-11-22 00:00:00", cache: "HIT", ...goodLatency, azureP95: 20 },
-				{ day: "2026-11-22 00:00:00", cache: "MISS", ...goodLatency, azureP95: 400 },
-				{ day: "2026-11-22 00:00:00", cache: "DYNAMIC", ...goodLatency }
+				{ bucket_day: "2026-11-22 00:00:00", cache_status: "HIT", ...goodLatency, azureP95: 20 },
+				{ bucket_day: "2026-11-22 00:00:00", cache_status: "MISS", ...goodLatency, azureP95: 400 },
+				{ bucket_day: "2026-11-22 00:00:00", cache_status: "DYNAMIC", ...goodLatency }
 			]
 		});
 		expect(report.hours).toHaveLength(22); // 00h … 21h
@@ -383,9 +384,9 @@ describe("GET /docs/search-shadow-soak", () => {
 			const sql = String(init.body);
 			const data = sql.includes("quantileExactWeighted")
 				? sql.includes("GROUP BY")
-					? [{ day: "2026-11-22 00:00:00", ...goodLatency }]
+					? [{ bucket_day: "2026-11-22 00:00:00", ...goodLatency }]
 					: [goodLatency]
-				: [{ day: "2026-11-22 00:00:00", ...counts() }];
+				: [{ bucket_day: "2026-11-22 00:00:00", ...counts() }];
 			return new Response(JSON.stringify({ data }), { status: 200 });
 		});
 		const resp = await pageApp(
