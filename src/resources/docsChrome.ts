@@ -11,16 +11,18 @@ export type DocsEnvironmentLabels = {
 	isNonProd: boolean;
 	bannerLabel: string;
 	bannerText: string;
+	/** Appended to each page's `<title>`: "", " (Preview)" or " (Local)". */
+	titleSuffix: string;
 };
 
 export function docsEnvironmentLabels(environment: ApiEnvironment): DocsEnvironmentLabels {
 	switch (environment) {
 		case "preview":
-			return { isNonProd: true, bannerLabel: "PREVIEW", bannerText: "Staging Worker — not production" };
+			return { isNonProd: true, bannerLabel: "PREVIEW", bannerText: "Staging Worker — not production", titleSuffix: " (Preview)" };
 		case "local":
-			return { isNonProd: true, bannerLabel: "LOCAL", bannerText: "Local Wrangler — not production" };
+			return { isNonProd: true, bannerLabel: "LOCAL", bannerText: "Local Wrangler — not production", titleSuffix: " (Local)" };
 		default:
-			return { isNonProd: false, bannerLabel: "", bannerText: "" };
+			return { isNonProd: false, bannerLabel: "", bannerText: "", titleSuffix: "" };
 	}
 }
 

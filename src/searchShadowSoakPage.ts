@@ -27,7 +27,7 @@ import {
 } from "./searchShadowSoak";
 import { renderChart, type ChartSeries } from "./soakCharts";
 import { openApiDocumentVersion, resolveApiEnvironment, type ApiEnvironment } from "./apiEnvironment";
-import { docsChromeStyles, docsEnvBanner, docsTitle, docsTopActions } from "./resources/docsChrome";
+import { docsChromeStyles, docsEnvBanner, docsEnvironmentLabels, docsTitle, docsTopActions } from "./resources/docsChrome";
 
 export { SEARCH_SHADOW_SOAK_PATH } from "./searchShadowSoak";
 
@@ -80,8 +80,6 @@ ${sloCell(d.browseOverlap, pct(d.browseOverlap.value))}
 </tr>`;
 }
 
-const TITLE_SUFFIX: Record<ApiEnvironment, string> = { production: "", preview: " (Preview)", local: " (Local)" };
-
 function page(body: string, environment: ApiEnvironment = "production"): string {
 	return `<!doctype html>
 <html lang="en">
@@ -89,7 +87,7 @@ function page(body: string, environment: ApiEnvironment = "production"): string 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Search shadow soak${TITLE_SUFFIX[environment]}</title>
+<title>Search shadow soak${docsEnvironmentLabels(environment).titleSuffix}</title>
 <style>
 ${docsChromeStyles(environment)}
 body { font: 14px system-ui, sans-serif; margin: 0; color: #111827; }

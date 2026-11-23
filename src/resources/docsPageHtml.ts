@@ -1,5 +1,5 @@
 import { SEARCH_SHADOW_SOAK_PATH } from "../searchShadowSoak";
-import { docsChromeStyles, docsEnvBanner, docsTopActions } from "./docsChrome";
+import { docsChromeStyles, docsEnvBanner, docsEnvironmentLabels, docsTopActions } from "./docsChrome";
 
 type DocsAuthConfig = {
 	auth0Issuer?: string;
@@ -14,12 +14,7 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 	const auth0ClientId = config.auth0ClientId ?? '';
 	const auth0Enabled = !!(auth0Domain && auth0Audience && auth0ClientId);
 	const apiEnvironment = config.apiEnvironment ?? 'production';
-	const pageTitle =
-		apiEnvironment === 'preview'
-			? 'Cult Podcasts API Docs (Preview)'
-			: apiEnvironment === 'local'
-				? 'Cult Podcasts API Docs (Local)'
-				: 'Cult Podcasts API Docs';
+	const pageTitle = `Cult Podcasts API Docs${docsEnvironmentLabels(apiEnvironment).titleSuffix}`;
 
 	return `<!doctype html>
 <html>

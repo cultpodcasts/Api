@@ -47,4 +47,11 @@ describe("shared docs header (Api #310)", () => {
 		expect(html).toContain('<a class="logout" href="/docs/logout">Logout</a>');
 		expect(buildDocsPageHtml({ apiEnvironment: "production" })).not.toContain('class="env-banner"');
 	});
+
+	it("titles both pages from the same environment suffix", async () => {
+		expect(buildDocsPageHtml({ apiEnvironment: "preview" })).toContain("<title>Cult Podcasts API Docs (Preview)</title>");
+		expect(buildDocsPageHtml({ apiEnvironment: "local" })).toContain("<title>Cult Podcasts API Docs (Local)</title>");
+		expect(buildDocsPageHtml({ apiEnvironment: "production" })).toContain("<title>Cult Podcasts API Docs</title>");
+		expect(await soakHtml("local.cultpodcasts.com", { apiEnvironment: "local" })).toContain("<title>Search shadow soak (Local)</title>");
+	});
 });
