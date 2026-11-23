@@ -200,9 +200,15 @@ const requireOpenApiAuth = async (c: any, next: () => Promise<void>) => {
 		return;
 	}
 
+	// Each credential is verified on its own. A stale bearer (Swagger UI's saved token, sent on its
+	// /openapi.json fetch) must not hide a valid docs-session cookie, or /docs loads but its API
+	// definition 401s (Api #310). Either way the admin check below applies to whichever verified.
 	const bearerToken = getBearerToken(c);
 	const cookieToken = getCookie(c, OPENAPI_AUTH_COOKIE);
-	const payload = await tryGetPayload(c, bearerToken ?? cookieToken);
+	let payload = await tryGetPayload(c, bearerToken);
+	if (!payload && cookieToken && cookieToken !== bearerToken) {
+		payload = await tryGetPayload(c, cookieToken);
+	}
 	if (!payload) {
 		if (pathname.startsWith('/docs')) {
 			return c.redirect('/docs/login');

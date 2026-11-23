@@ -26,6 +26,8 @@ import {
 	type Verdict
 } from "./searchShadowSoak";
 import { renderChart, type ChartSeries } from "./soakCharts";
+import { openApiDocumentVersion, resolveApiEnvironment, type ApiEnvironment } from "./apiEnvironment";
+import { docsChromeStyles, docsEnvBanner, docsEnvironmentLabels, docsTitle, docsTopActions } from "./resources/docsChrome";
 
 export { SEARCH_SHADOW_SOAK_PATH } from "./searchShadowSoak";
 
@@ -78,16 +80,18 @@ ${sloCell(d.browseOverlap, pct(d.browseOverlap.value))}
 </tr>`;
 }
 
-function page(body: string, environment?: string): string {
+function page(body: string, environment: ApiEnvironment = "production"): string {
 	return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Search shadow soak${environment ? ` (${escapeHtml(environment)})` : ""}</title>
+<title>Search shadow soak${docsEnvironmentLabels(environment).titleSuffix}</title>
 <style>
-body { font: 14px system-ui, sans-serif; margin: 24px; color: #111827; }
+${docsChromeStyles(environment)}
+body { font: 14px system-ui, sans-serif; margin: 0; color: #111827; }
+main { padding: 24px; }
 table { border-collapse: collapse; margin: 16px 0; }
 th, td { border: 1px solid #d1d5db; padding: 6px 10px; text-align: left; vertical-align: top; }
 thead th { background: #f3f4f6; }
@@ -114,13 +118,16 @@ td.cell-red { border-left: 4px solid #dc2626; }
 figure.chart { margin: 0; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; }
 figure.chart svg { max-width: 100%; height: auto; }
 figcaption { font-size: 12px; color: #374151; text-align: center; }
-nav a { margin-right: 12px; }
 </style>
 </head>
 <body>
-<nav><a href="/docs">← API docs</a><a href="${SOAK_DOC_URL}">Soak runbook</a><a href="/docs/logout">Logout</a></nav>
-<h1>D1 search shadow soak</h1>
+${docsEnvBanner(environment)}
+${docsTopActions({ links: [{ href: "/docs", label: "API docs" }] })}
+<main>
+${docsTitle("D1 search shadow soak", openApiDocumentVersion)}
+<p><a href="${SOAK_DOC_URL}">Soak runbook</a></p>
 ${body}
+</main>
 </body>
 </html>`;
 }
@@ -237,7 +244,7 @@ export function renderSoakCharts(report: SoakReport): string {
 	return `<section class="charts" aria-label="Charts">${charts.join("")}</section>`;
 }
 
-export function renderSoakReport(report: SoakReport, environment?: string): string {
+export function renderSoakReport(report: SoakReport, environment?: ApiEnvironment): string {
 	const [today, ...complete] = report.days;
 	const rows = [row(today, `${today.day} (today, UTC)`, "today"), ...complete.map((d) => row(d, d.day, "day"))].join("\n");
 	const body = `${summaryBlock(report)}
@@ -262,13 +269,13 @@ ${renderSoakCharts(report)}`;
 	return page(body, environment);
 }
 
-function messagePage(title: string, detail: string, environment?: string): string {
+function messagePage(title: string, detail: string, environment?: ApiEnvironment): string {
 	return page(`<h2>${escapeHtml(title)}</h2><p>${detail}</p><p>Setup: <a href="${SOAK_DOC_URL}#dashboard-page">docs/search-shadow-soak.md § Dashboard page</a>.</p>`, environment);
 }
 
 /** GET /docs/search-shadow-soak. Auth is the `/docs/*` middleware (Auth0 docs session, `admin`). */
 export async function searchShadowSoakPage(c: Context<{ Bindings: Env }>, fetcher?: typeof fetch, nowMs?: number): Promise<Response> {
-	const environment = c.env.apiEnvironment;
+	const environment = resolveApiEnvironment(c.env.apiEnvironment, new URL(c.req.url).hostname);
 	const source = soakSourceFromEnv(c.env, fetcher);
 	const headers = { "cache-control": "no-store" };
 	const missing = missingSoakConfig(source);
