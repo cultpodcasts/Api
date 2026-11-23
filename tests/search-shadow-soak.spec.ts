@@ -25,8 +25,16 @@ import {
 	type SoakCounts,
 	type SoakDay
 } from "../src/searchShadowSoak";
-import { SEARCH_SHADOW_SOAK_PATH, searchShadowSoakPage } from "../src/searchShadowSoakPage";
-import { renderChart } from "../src/soakCharts";
+import {
+	fmtPct,
+	provisionalLatency,
+	renderSoakReport,
+	SEARCH_SHADOW_SOAK_PATH,
+	searchShadowSoakPage,
+	showFor,
+	soakDates
+} from "../src/searchShadowSoakPage";
+import { niceCeiling, renderChart } from "../src/soakCharts";
 import { buildDocsPageHtml } from "../src/resources/docsPageHtml";
 import { testEnv } from "./honoTestApp";
 import { testEnv as auth0TestEnv } from "./support/honoRoute";
@@ -332,6 +340,97 @@ describe("renderChart", () => {
 		const svg = renderChart({ title: "empty", labels: [], series: [{ name: "x", color: "#000", values: [] }] });
 		expect(svg).not.toContain("NaN");
 	});
+
+	it("shows a 'No data yet' placeholder instead of empty axes when no series has a value", () => {
+		const html = renderChart({ title: "Cache", labels: ["a", "b"], series: [{ name: "x", color: "#000", values: [null, null] }], format: (v) => `${v} ms` });
+		expect(html).toContain("No data yet");
+		expect(html).not.toContain("<svg");
+		expect(html).not.toContain(" ms");
+		expect(renderChart({ title: "c", labels: ["a"], series: [{ name: "x", color: "#000", values: [null] }], emptyText: "No cache data yet" })).toContain("No cache data yet");
+	});
+
+	it("rounds the axis top to a readable step", () => {
+		expect(niceCeiling(902)).toBe(1000);
+		expect(niceCeiling(431)).toBe(500);
+		expect(niceCeiling(220)).toBe(250);
+		expect(niceCeiling(0)).toBe(0);
+	});
+});
+
+describe("soak page display helpers", () => {
+	it("formats percentages without trailing zeros", () => {
+		expect(fmtPct(0)).toBe("0%");
+		expect(fmtPct(1)).toBe("100%");
+		expect(fmtPct(0.99512)).toBe("99.5%");
+		expect(fmtPct(0.001)).toBe("0.1%");
+		expect(fmtPct(0.0005)).toBe("0.05%");
+		expect(fmtPct(null)).toBe("–");
+	});
+
+	it("shows too few samples as grey 'wait', never as a warning", () => {
+		expect(showFor("no-verdict", "amber")).toBe("wait");
+		expect(showFor("pass", "green")).toBe("pass");
+		expect(showFor("pass", "amber")).toBe("margin");
+		expect(showFor("fail", "red")).toBe("breach");
+	});
+
+	it("judges today's provisional speed with the same thresholds", () => {
+		expect(provisionalLatency(820, 570)).toBe("breach"); // over 300 ms
+		expect(provisionalLatency(250, 260)).toBe("breach"); // slower than Azure
+		expect(provisionalLatency(300, 270)).toBe("margin"); // above 250 ms and 90% of Azure
+		expect(provisionalLatency(300, 120)).toBe("pass");
+		expect(provisionalLatency(null, 120)).toBe("wait");
+	});
+
+	it("dates Day 1 and the earliest finish", () => {
+		const quiet = buildSoakReport(NOW, { daily: [{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 4 }) }], dailyLatency: [], weekLatency: undefined });
+		const d = soakDates(quiet)!;
+		// 4 samples by 21:00 is not on course for 200: Day 1 is tomorrow.
+		expect(new Date(d.day1Ms).toISOString().slice(0, 10)).toBe("2026-11-24");
+		expect(new Date(d.finishMs).toISOString().slice(0, 10)).toBe("2026-11-30");
+		const busy = buildSoakReport(NOW, {
+			daily: [
+				{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 300 }) },
+				{ bucket_day: "2026-11-22 00:00:00", ...counts() }
+			],
+			dailyLatency: [{ bucket_day: "2026-11-22 00:00:00", ...goodLatency }],
+			weekLatency: goodLatency
+		});
+		expect(busy.streak).toBe(1);
+		const b = soakDates(busy)!;
+		expect(new Date(b.day1Ms).toISOString().slice(0, 10)).toBe("2026-11-22");
+		expect(new Date(b.finishMs).toISOString().slice(0, 10)).toBe("2026-11-28");
+	});
+
+	it("leads with a plain status, today's cards and no rows for empty days", () => {
+		const report = buildSoakReport(NOW, {
+			daily: [{ bucket_day: "2026-11-23 00:00:00", ...counts({ samples: 4, browseSamples: 4, browseOk: 4, countSamples: 4, countWithin: 4, bothOk: 4 }) }],
+			dailyLatency: [{ bucket_day: "2026-11-23 00:00:00", azureP50: 600, azureP95: 820, d1P50: 380, d1P95: 570, samples: 4 }],
+			weekLatency: undefined,
+			cacheLatency: []
+		});
+		const html = renderSoakReport(report, "production");
+		expect(html).toContain("Collecting data. Today has 4 of 200 samples needed.");
+		expect(html).toContain("Day 1: <strong>Tue 24 Nov</strong>");
+		expect(html).toContain("Earliest finish:");
+		expect(html.match(/<ol class="tracker"[^>]*>(.*?)<\/ol>/s)?.[1].match(/<li /g)).toHaveLength(SOAK_DAYS);
+		expect(html).toContain('class="hero hero-wait"');
+		expect(html).toContain("570 ms");
+		expect(html).toContain("No complete days with data yet.");
+		expect(html).toContain("No cache data yet");
+		expect(html).toContain("How this works");
+		// No dense legacy text: no AMBER badges, n=, provisional badges or rows of dashes.
+		expect(html).not.toContain("AMBER");
+		expect(html).not.toMatch(/\bn=\d/);
+		expect(html).not.toContain("rag-amber");
+		expect(html).not.toContain("<tbody>");
+		// Live refresh: indicator, pause toggle and the swap target.
+		expect(html).toContain('id="soak-live"');
+		expect(html).toContain('id="live-toggle"');
+		expect(html).toContain('redirect: "manual"');
+		expect(html).toContain("Session expired");
+		expect(html).toContain("visibilitychange");
+	});
 });
 
 describe("loadSoakReport", () => {
@@ -396,19 +495,19 @@ describe("GET /docs/search-shadow-soak", () => {
 		expect(resp.status).toBe(200);
 		expect(resp.headers.get("cache-control")).toBe("no-store");
 		const html = await resp.text();
-		expect(html).toContain("Consecutive green days</dt><dd>1 of 7");
-		expect(html).toContain("Day 1 of 7");
-		expect(html).toContain("D1 vs Azure: GREEN");
+		expect(html).toContain("1 of 7 green days.");
+		expect(html).toContain('class="hero hero-pass"');
 		expect(html.match(/<svg /g)?.length).toBeGreaterThanOrEqual(6);
-		expect(html).toContain("Azure edge cache HIT vs MISS");
-		expect(html).toContain("Today by hour (UTC)");
-		expect(html).toContain("2026-11-22");
-		expect(html).toContain("Last 7 days");
-		expect(html).toContain("manual");
-		expect(html).toContain("Verdict");
+		expect(html).toContain("Azure cache hit vs miss");
+		expect(html).toContain("Speed today by hour (UTC)");
+		expect(html).toContain("Sun 22 Nov");
+		expect(html).toContain("All 7 days");
+		expect(html).toContain("How to check drift");
+		expect(html).toContain("<th>Result</th>");
 		expect(html.match(/<th>Day<\/th>/g)).toHaveLength(1);
 		expect(html).toContain('<tr class="week">');
-		expect(html).toContain('<tr class="today">');
+		expect(html).toContain("6 days with no data not shown.");
+		expect(html).toContain('aria-label="Pass"');
 		expect(html).not.toContain("tok-value");
 	});
 
