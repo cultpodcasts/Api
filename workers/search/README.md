@@ -425,14 +425,19 @@ handled twice, and responses never contain `podcastName`.
 flowchart LR
   C["stale client<br/>filter / facets / orderby / select<br/>with podcastName"] --> A["api Worker /search<br/>searchLog keeps the original<br/>rewriteLegacyPodcastNameInSearchRequest"]
   A -->|"seriesName"| Z["Azure AI Search<br/>(served today)"]
-  A -->|"same body, seriesName<br/>(shadow now, served after SP-4.x)"| D["search Worker (D1)<br/>FIELD_MAP: podcastName = series_name"]
+  A -->|"same body, seriesName<br/>(shadow now; served on preview after SP-4.1,<br/>production after SP-4.2)"| D["search Worker (D1)<br/>FIELD_MAP: podcastName = series_name"]
 ```
+
+D1 serves preview after SP-4.1 ([Api#230](https://github.com/cultpodcasts/Api/issues/230)) and production after
+SP-4.2 ([Api#231](https://github.com/cultpodcasts/Api/issues/231)). Until then it only answers the shadow query.
 
 1. **api Worker (primary).** `src/rewriteLegacyPodcastNameInSearchRequest.ts` rewrites
    `podcastName` to `seriesName` in `filter`, `orderby`, `select` and `facets` before the body
    goes anywhere. Azure and the D1 shadow query (and, after the switch, the D1 engine) get the same
    rewritten body. The inbound body is logged first, so the `search` log still shows which
-   requests came from stale clients.
+   requests came from stale clients. It is a word-boundary text rewrite (`/\bpodcastName\b/g`) over
+   those four strings, not an OData parse, so a quoted filter value spelled exactly `podcastName`
+   would change too. That is accepted: no catalogue value is that token.
 2. **search Worker (defence in depth).** `src/odata.ts` maps `podcastName` to the same column as
    `seriesName` in filters, and `parseFacet` accepts a `podcastName` facet, returned under the name
    the client asked for (`@search.facets.podcastName`) with the `seriesName` buckets. A request
