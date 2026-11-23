@@ -237,6 +237,11 @@ export async function search(c: ActionContext): Promise<Response> {
 	}
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	body["@odata.context"] = null;
+	// Azure is the served engine today. When cutover forwards the D1 worker body, that
+	// envelope already carries @search.engine "d1" — keep it.
+	if (body["@search.engine"] !== "d1") {
+		body["@search.engine"] = "azure";
+	}
 	maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body, undefined, response.headers.get("cf-cache-status"));
 	if (searchLog.error) {
 		searchLog.emitError();
@@ -271,6 +276,7 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 function createLeachResponse(c: ActionContext, searchLog: searchLogCollector) {
 	const leechResponse = {
 		"@odata.context": null,
+		"@search.engine": "azure",
 		"@odata.count": 1,
 		"@search.facets": {
 			"subjects": [],

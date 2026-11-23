@@ -165,6 +165,7 @@ export function toAzureSearchEnvelope(
 ): Record<string, unknown> {
 	const body: Record<string, unknown> = {
 		"@odata.context": null,
+		"@search.engine": "d1",
 		value: documents
 	};
 	if (options.count !== undefined) body["@odata.count"] = options.count;
