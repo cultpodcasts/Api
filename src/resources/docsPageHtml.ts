@@ -1,4 +1,5 @@
 import { SEARCH_SHADOW_SOAK_PATH } from "../searchShadowSoak";
+import { docsChromeStyles, docsEnvBanner, docsTopActions } from "./docsChrome";
 
 type DocsAuthConfig = {
 	auth0Issuer?: string;
@@ -13,25 +14,12 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 	const auth0ClientId = config.auth0ClientId ?? '';
 	const auth0Enabled = !!(auth0Domain && auth0Audience && auth0ClientId);
 	const apiEnvironment = config.apiEnvironment ?? 'production';
-	const isNonProd = apiEnvironment !== 'production';
 	const pageTitle =
 		apiEnvironment === 'preview'
 			? 'Cult Podcasts API Docs (Preview)'
 			: apiEnvironment === 'local'
 				? 'Cult Podcasts API Docs (Local)'
 				: 'Cult Podcasts API Docs';
-	const bannerLabel =
-		apiEnvironment === 'preview'
-			? 'PREVIEW'
-			: apiEnvironment === 'local'
-				? 'LOCAL'
-				: '';
-	const bannerText =
-		apiEnvironment === 'preview'
-			? 'Staging Worker — not production'
-			: apiEnvironment === 'local'
-				? 'Local Wrangler — not production'
-				: '';
 
 	return `<!doctype html>
 <html>
@@ -43,34 +31,7 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 		<style>
 			html, body { margin: 0; padding: 0; }
 			#swagger-ui { min-height: 100vh; }
-			.env-banner {
-				display: ${isNonProd ? 'flex' : 'none'};
-				align-items: center;
-				gap: 10px;
-				padding: 8px 16px;
-				background: #92400e;
-				color: #fffbeb;
-				font: 600 13px/1.3 system-ui, sans-serif;
-				border-bottom: 1px solid #78350f;
-			}
-			.env-banner .env-pill {
-				display: inline-block;
-				padding: 2px 8px;
-				border-radius: 999px;
-				background: #fbbf24;
-				color: #78350f;
-				font: 700 11px/1.4 system-ui, sans-serif;
-				letter-spacing: 0.04em;
-			}
-			.top-actions {
-				position: fixed;
-				top: ${isNonProd ? '48px' : '12px'};
-				right: 16px;
-				z-index: 10000;
-				display: flex;
-				gap: 8px;
-				align-items: center;
-			}
+${docsChromeStyles(apiEnvironment)}
 			.hamburger {
 				display: inline-flex;
 				align-items: center;
@@ -124,25 +85,14 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 				background: #ffffff;
 				color: #111827;
 			}
-			.logout {
-				display: inline-flex;
-				align-items: center;
-				background: #111827;
-				color: #ffffff;
-				padding: 8px 12px;
-				border-radius: 6px;
-				text-decoration: none;
-				font: 600 13px system-ui, sans-serif;
-			}
 		</style>
 	</head>
 	<body>
-		${isNonProd ? `<div class="env-banner" role="status"><span class="env-pill">${bannerLabel}</span><span>${bannerText}</span></div>` : ''}
-		<div class="top-actions">
-			<button id="token-toggle" class="hamburger" type="button" aria-label="Toggle token controls" title="Token controls">☰</button>
-			<a class="logout" href="${SEARCH_SHADOW_SOAK_PATH}">Search shadow soak</a>
-			<a class="logout" href="/docs/logout">Logout</a>
-		</div>
+		${docsEnvBanner(apiEnvironment)}
+		${docsTopActions({
+			leading: '<button id="token-toggle" class="hamburger" type="button" aria-label="Toggle token controls" title="Token controls">☰</button>',
+			links: [{ href: SEARCH_SHADOW_SOAK_PATH, label: 'Search shadow soak' }]
+		})}
 		<div id="token-overlay" class="token-overlay">
 			<label for="api-token">Bearer token</label>
 			<input id="api-token" class="token-input" type="password" placeholder="Paste Auth0 access token" autocomplete="off" />
