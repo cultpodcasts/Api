@@ -471,6 +471,24 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		expect(body["@search.facets"].seriesName[0]).toEqual({ value: "Cult Stories", count: 2 });
 	});
 
+	it("treats legacy podcastName in filter and facets as seriesName (SP-4.3 stale clients)", async () => {
+		// Old clients still send Azure's pre-rename field (cultpodcasts/Api#232). The api Worker
+		// rewrites it first, but the engine tolerates it too, so the cutover needs no extra alias.
+		const legacy = await post({ filter: "podcastName eq 'Cult Stories'", facets: ["podcastName,count:1000"], count: true });
+		const current = await post({ filter: "seriesName eq 'Cult Stories'", facets: ["seriesName,count:1000"], count: true });
+		expect(legacy.status).toBe(200);
+		expect(ids(legacy.body)).toEqual(ids(current.body));
+		expect(legacy.body["@odata.count"]).toBe(2);
+		// The facet comes back under the name the client asked for, with the seriesName buckets.
+		expect(legacy.body["@search.facets"].podcastName).toEqual(current.body["@search.facets"].seriesName);
+		expect(legacy.body["@search.facets"]).not.toHaveProperty("seriesName");
+		// Hits never carry podcastName: the live index has no such field.
+		for (const hit of legacy.body.value) {
+			expect(hit).not.toHaveProperty("podcastName");
+			expect(hit.seriesName).toBe("Cult Stories");
+		}
+	});
+
 	it("projects select to the named fields plus @search.score", async () => {
 		const { body } = await post({ search: "familie", select: "id, title" });
 		expect(body.value).toEqual([{ "@search.score": expect.any(Number), id: "film-1", title: "The Source Family" }]);

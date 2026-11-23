@@ -47,6 +47,73 @@ describe("rewriteLegacyPodcastNameInSearchRequest", () => {
 	});
 });
 
+const searchHost = "https://search.example/indexes/test/docs/search";
+
+function app() {
+	const hono = new Hono<{ Bindings: Env }>();
+	hono.post("/search", (c) => search(c as unknown as ActionContext));
+	return hono;
+}
+
+/** Collects `waitUntil` work (the D1 shadow query) so a test can await it. */
+function executionCtx() {
+	const tasks: Promise<unknown>[] = [];
+	const ctx = {
+		waitUntil(promise: Promise<unknown>) {
+			tasks.push(promise);
+		},
+		passThroughOnException() {},
+		props: {}
+	} as unknown as ExecutionContext;
+	return { ctx, flush: () => Promise.all(tasks) };
+}
+
+function jsonResponse(body: unknown) {
+	return new Response(JSON.stringify(body), {
+		status: 200,
+		headers: { "content-type": "application/json" }
+	});
+}
+
+/** An empty search result that records each request body it was sent. */
+function recordingSearch(bodies: string[]) {
+	return vi.fn(async (_url: unknown, init?: RequestInit) => {
+		bodies.push(String(init?.body));
+		return jsonResponse({ value: [], "@odata.count": 0 });
+	});
+}
+
+function envWith(overrides: Partial<Env> = {}): Env {
+	return testEnv({
+		apihost: searchHost,
+		apikey: "test-search-key",
+		Data: { get: async () => null } as unknown as R2Bucket,
+		...overrides
+	} as Partial<Env>);
+}
+
+/** What a stale client sends: Azure's pre-rename field in the filter and a facet. */
+const staleClientBody = JSON.stringify({
+	search: "*",
+	filter: "(podcastName eq 'Associated Press')",
+	facets: ["podcastName,count:1000"]
+});
+
+function postSearch(env: Env, ctx?: ExecutionContext) {
+	return app().request(
+		"/search",
+		{ method: "POST", headers: { "content-type": "application/json" }, body: staleClientBody },
+		env,
+		ctx
+	);
+}
+
+function expectRewritten(body: string) {
+	const sent = JSON.parse(body) as { filter: string; facets: string[] };
+	expect(sent.filter).toBe("(seriesName eq 'Associated Press')");
+	expect(sent.facets).toEqual(["seriesName,count:1000"]);
+}
+
 describe("POST /search legacy podcastName alias", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
@@ -54,40 +121,34 @@ describe("POST /search legacy podcastName alias", () => {
 	});
 
 	it("forwards seriesName to Azure when the client still sends podcastName", async () => {
-		const bodies: string[] = [];
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (_url: unknown, init?: RequestInit) => {
-				bodies.push(String(init?.body));
-				return new Response(JSON.stringify({ value: [], "@odata.count": 0 }), {
-					status: 200,
-					headers: { "content-type": "application/json" }
-				});
-			})
-		);
-		const hono = new Hono<{ Bindings: Env }>();
-		hono.post("/search", (c) => search(c as unknown as ActionContext));
-		const resp = await hono.request(
-			"/search",
-			{
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					search: "*",
-					filter: "(podcastName eq 'Associated Press')",
-					facets: ["podcastName,count:1000"]
-				})
-			},
-			testEnv({
-				apihost: "https://search.example/indexes/test/docs/search",
-				apikey: "test-search-key",
-				Data: { get: async () => null } as unknown as R2Bucket
-			} as Partial<Env>)
+		const azureBodies: string[] = [];
+		vi.stubGlobal("fetch", recordingSearch(azureBodies));
+		const resp = await postSearch(envWith());
+		expect(resp.status).toBe(200);
+		expect(azureBodies).toHaveLength(1);
+		expectRewritten(azureBodies[0]);
+	});
+
+	it("sends seriesName to the D1 shadow query as well as to Azure", async () => {
+		const azureBodies: string[] = [];
+		const d1Bodies: string[] = [];
+		vi.stubGlobal("fetch", recordingSearch(azureBodies));
+		vi.spyOn(console, "info").mockImplementation(() => {});
+		const { ctx, flush } = executionCtx();
+		const resp = await postSearch(
+			envWith({
+				searchShadowEnabled: "true",
+				searchShadowSampleRate: "1",
+				SEARCH: { fetch: recordingSearch(d1Bodies) } as unknown as Fetcher
+			}),
+			ctx
 		);
 		expect(resp.status).toBe(200);
-		expect(bodies).toHaveLength(1);
-		const sent = JSON.parse(bodies[0]) as { filter: string; facets: string[] };
-		expect(sent.filter).toBe("(seriesName eq 'Associated Press')");
-		expect(sent.facets).toEqual(["seriesName,count:1000"]);
+		await flush();
+		expect(azureBodies).toHaveLength(1);
+		expect(d1Bodies).toHaveLength(1);
+		// Both engines get the same rewritten body (SP-4.3): nothing downstream sees podcastName.
+		expect(d1Bodies[0]).toBe(azureBodies[0]);
+		expectRewritten(d1Bodies[0]);
 	});
 });
