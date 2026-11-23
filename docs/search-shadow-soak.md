@@ -233,6 +233,11 @@ counts, and the consecutive green-day streak ([Api #304](https://github.com/cult
 
 - **Auth:** the same Auth0 docs session as `/docs` (`requireOpenApiAuth` on `/docs/*`): log in at
   `/docs/login`, and the token must carry the **`admin`** permission. No new auth path.
+  `/docs`, `/docs/*` and `/openapi.json` share that one gate. A bearer header is tried first; if it does
+  not verify (for example Swagger UI's stale saved token), the docs-session cookie is tried, and the
+  `admin` check applies to whichever verified ([Api #310](https://github.com/cultpodcasts/Api/issues/310)).
+  The page uses the same header as `/docs` (environment banner, version badge, Logout) plus an
+  **API docs** link, without the token menu.
 - **Data:** every sample is also written as one **Workers Analytics Engine** data point
   (`SearchShadowAnalytics` binding; dataset `search_shadow` on `api`, `search_shadow_preview` on
   `api-preview`, `search_shadow_local` locally). The page reads it with the
