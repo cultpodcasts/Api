@@ -224,6 +224,66 @@ traces
 | order by timestamp desc
 ```
 
+## Dashboard page
+
+**`/docs/search-shadow-soak`** on the api Worker (linked from the `/docs` header) shows the soak
+without the Query Builder: today (in progress) and the last 7 complete **UTC** days, plus a
+7-day total, with each SLO's value against its target, pass / fail / no verdict, the sample
+counts, and the consecutive green-day streak ([Api #304](https://github.com/cultpodcasts/Api/issues/304)).
+
+- **Auth:** the same Auth0 docs session as `/docs` (`requireOpenApiAuth` on `/docs/*`): log in at
+  `/docs/login`, and the token must carry the **`admin`** permission. No new auth path.
+- **Data:** every sample is also written as one **Workers Analytics Engine** data point
+  (`SearchShadowAnalytics` binding; dataset `search_shadow` on `api`, `search_shadow_preview` on
+  `api-preview`, `search_shadow_local` locally). The page reads it with the
+  [Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
+  (3 queries per page load; nothing is cached). Analytics Engine keeps 3 months, so the streak looks
+  back 30 days. Samples are only recorded from the `api` deploy that carries this binding.
+- **Why not the Workers Observability query API:** its telemetry query endpoint only accepts tokens with
+  `Workers Observability: Write`, which cannot be scoped read-only, and its range is capped at 7 days.
+  The Analytics Engine SQL API needs only `Account Analytics: Read`.
+- **Verdicts:** the SLO rules above. A day passes only when SLOs 1–4 all pass; any fail is a fail and
+  ends the streak; a day under the minimum sample (200, or 50 browse samples for overlap) has no
+  verdict and neither breaks nor extends it. Latency is the weighted p95 over `slo.bothOk` samples.
+  The 7-day row judges the 7 complete days together.
+- **Drift (SLO 5)** is not visible to the Worker (it comes from the RPP reconcile), so the page shows
+  it as **manual** with a link to [§ 5. Drift](#5-drift-not-in-workers-observability). It is not part of
+  the page's streak.
+
+| Data point field | Meaning |
+|------------------|---------|
+| `index1` | `search-shadow` |
+| `blob1` … `blob4` | `queryKind`, `azure.cacheStatus`, `d1.status`, `d1.error` (no query text) |
+| `double1`, `double2` | `azure.latencyMs`, `d1.latencyMs` |
+| `double3`, `double4` | `slo.d1Unavailable`, `slo.bothOk` (1/0) |
+| `double5`, `double6` | `slo.countWithin` present, `slo.countWithin` |
+| `double7`, `double8` | `slo.overlapOk` present, `slo.overlapOk` |
+| `double9`, `double10` | browse sample (1/0), `overlap.matched` |
+
+### Setup (Jon)
+
+1. **Create the token.** Cloudflare dashboard → My Profile → API Tokens → Create Token → Custom token
+   (an account API token under Manage Account → API Tokens works too):
+   - Permissions: **Account → Account Analytics → Read**. Nothing else.
+   - Account resources: **Include → the cultpodcasts account** (`bae3f835f19899c6eee1ec48f2d658cf`) only.
+   - No zone resources. Leave Client IP Address Filtering empty (the Worker calls from Cloudflare's network). An expiry is optional.
+2. **Set the secret** (it is prompted for, never on the command line; from the Api repo root):
+
+   ```powershell
+   # production: top-level Worker `api` (not --env production)
+   npx wrangler secret put cfAnalyticsReadToken --env=
+   # preview: `api-preview`
+   npx wrangler secret put cfAnalyticsReadToken --env preview
+   ```
+
+   Or add `cfAnalyticsReadToken=` to `scripts/local-secrets.*.env` and run `set-secrets-*.ps1`.
+   Locally, put it in `.dev.vars`.
+3. **No other setup.** `cloudflareAccountId` and `searchShadowAnalyticsDataset` are plain `vars` in
+   `wrangler.jsonc`, and Analytics Engine creates each dataset on its first write. Both take effect with
+   the next manual `api` / `api-preview` deploy.
+
+Until the token is set the page answers 503 "Not configured" and names the missing setting.
+
 ## Evaluating a day
 
 1. Run queries 1–4 over the last 24 hours, and record the numbers on RPP #1323 (one comment a day).

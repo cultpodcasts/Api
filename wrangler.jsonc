@@ -63,6 +63,11 @@
   "analytics_engine_datasets": [
     {
       "binding": "Analytics"
+    },
+    {
+      // Search shadow soak samples, read by /docs/search-shadow-soak (Api #304).
+      "binding": "SearchShadowAnalytics",
+      "dataset": "search_shadow"
     }
   ],
   "observability": {
@@ -79,7 +84,11 @@
     "searchShadowEnabled": "true",
     "searchShadowSampleRate": "0.1",
     "searchShadowTopN": "10",
-    "searchShadowTimeoutMs": "3000"
+    "searchShadowTimeoutMs": "3000",
+    // Soak page (Api #304): dataset + account for the Analytics Engine SQL API. Token is the
+    // cfAnalyticsReadToken secret (Account Analytics: Read).
+    "searchShadowAnalyticsDataset": "search_shadow",
+    "cloudflareAccountId": "bae3f835f19899c6eee1ec48f2d658cf"
   },
   "durable_objects": {
     "bindings": [
@@ -167,7 +176,9 @@
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
         "searchShadowTopN": "10",
-        "searchShadowTimeoutMs": "3000"
+        "searchShadowTimeoutMs": "3000",
+        "searchShadowAnalyticsDataset": "search_shadow_preview",
+        "cloudflareAccountId": "bae3f835f19899c6eee1ec48f2d658cf"
       },
       "r2_buckets": [
         {
@@ -221,6 +232,10 @@
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
+        },
+        {
+          "binding": "SearchShadowAnalytics",
+          "dataset": "search_shadow_preview"
         }
       ],
       "durable_objects": {
@@ -341,6 +356,10 @@
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
+        },
+        {
+          "binding": "SearchShadowAnalytics",
+          "dataset": "search_shadow_production_env"
         }
       ],
       "durable_objects": {
@@ -402,7 +421,9 @@
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
         "searchShadowTopN": "10",
-        "searchShadowTimeoutMs": "3000"
+        "searchShadowTimeoutMs": "3000",
+        "searchShadowAnalyticsDataset": "search_shadow_local",
+        "cloudflareAccountId": "bae3f835f19899c6eee1ec48f2d658cf"
       },
       "r2_buckets": [
         {
@@ -456,6 +477,10 @@
       "analytics_engine_datasets": [
         {
           "binding": "Analytics"
+        },
+        {
+          "binding": "SearchShadowAnalytics",
+          "dataset": "search_shadow_local"
         }
       ],
       "durable_objects": {

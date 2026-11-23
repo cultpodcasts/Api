@@ -13,6 +13,7 @@ import { HeroCurationDurableObject } from './HeroCurationDurableObject';
 import { DiscoveryCurationDurableObject } from './DiscoveryCurationDurableObject';
 import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
+import { SEARCH_SHADOW_SOAK_PATH, searchShadowSoakPage } from './searchShadowSoakPage';
 import { openApiDocumentVersion, openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
 import { registerBearerAuthScheme } from './openapiRouteFactory';
 import {
@@ -351,6 +352,9 @@ app.get('/docs/logout', (c) => {
 	});
 	return c.json({ message: 'Logged out from docs session' });
 });
+
+// Admin-only via requireOpenApiAuth on /docs/* (cultpodcasts/Api#304).
+app.get(SEARCH_SHADOW_SOAK_PATH, (c) => searchShadowSoakPage(c));
 
 app.get('/docs', (c) => {
 	return c.html(buildDocsPageHtml({

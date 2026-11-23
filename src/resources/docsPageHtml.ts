@@ -138,6 +138,7 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 		${isNonProd ? `<div class="env-banner" role="status"><span class="env-pill">${bannerLabel}</span><span>${bannerText}</span></div>` : ''}
 		<div class="top-actions">
 			<button id="token-toggle" class="hamburger" type="button" aria-label="Toggle token controls" title="Token controls">☰</button>
+			<a class="logout" href="/docs/search-shadow-soak">Search shadow soak</a>
 			<a class="logout" href="/docs/logout">Logout</a>
 		</div>
 		<div id="token-overlay" class="token-overlay">
