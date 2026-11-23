@@ -19,8 +19,7 @@ import {
 	type Verdict
 } from "./searchShadowSoak";
 
-/** Admin-only (requireOpenApiAuth on `/docs/*`), linked from the `/docs` header. */
-export const SEARCH_SHADOW_SOAK_PATH = "/docs/search-shadow-soak";
+export { SEARCH_SHADOW_SOAK_PATH } from "./searchShadowSoak";
 
 export const SOAK_DOC_URL = "https://github.com/cultpodcasts/Api/blob/main/docs/search-shadow-soak.md";
 const DRIFT_DOC_URL = `${SOAK_DOC_URL}#5-drift-not-in-workers-observability`;
@@ -51,9 +50,11 @@ function sloCell(result: SloResult, value: string): string {
 	return `<td>${value}<br><small>n=${int(result.samples)}</small> ${badge(result.verdict)}</td>`;
 }
 
-function row(d: SoakDay, label: string): string {
+type RowKind = "day" | "today" | "week";
+
+function row(d: SoakDay, label: string, kind: RowKind): string {
 	const lat = d.latency;
-	return `<tr${d.inProgress ? ' class="today"' : ""}>
+	return `<tr${kind === "day" ? "" : ` class="${kind}"`}>
 <th scope="row">${escapeHtml(label)}</th>
 <td>${int(d.counts.samples)}<br><small>browse ${int(d.counts.browseSamples)}</small></td>
 <td>D1 ${ms(lat.d1P95)} / Azure ${ms(lat.azureP95)}<br><small>n=${int(lat.samples)}</small> ${badge(lat.verdict)}</td>
@@ -61,7 +62,7 @@ ${sloCell(d.availability, pct(d.availability.value, 3))}
 ${sloCell(d.countAgreement, pct(d.countAgreement.value))}
 ${sloCell(d.browseOverlap, pct(d.browseOverlap.value))}
 <td><a href="${DRIFT_DOC_URL}">manual</a></td>
-<td>${d.inProgress ? badge("no-verdict", "in progress") : badge(d.verdict)}</td>
+<td>${kind === "today" ? badge("no-verdict", "in progress") : badge(d.verdict)}</td>
 </tr>`;
 }
 
@@ -99,7 +100,7 @@ ${body}
 
 export function renderSoakReport(report: SoakReport, environment?: string): string {
 	const [today, ...complete] = report.days;
-	const rows = [row(today, `${today.day} (today, UTC)`), ...complete.map((d) => row(d, d.day))].join("\n");
+	const rows = [row(today, `${today.day} (today, UTC)`, "today"), ...complete.map((d) => row(d, d.day, "day"))].join("\n");
 	const body = `<p class="streak">Consecutive green days: ${report.streak} of ${SOAK_DAYS}</p>
 <p><small>Generated ${escapeHtml(report.generatedAt)}. Days are UTC. A day passes only when SLOs 1–4 all pass; any fail breaks the streak; a day with fewer than ${SOAK_MIN_SAMPLES} samples (or fewer than ${SOAK_MIN_BROWSE_SAMPLES} browse samples for overlap) has no verdict and neither breaks nor extends it. Drift (SLO 5) is checked by hand with <code>D1SearchReconcile --full</code>, so it is not part of the streak.</small></p>
 <table>
@@ -110,11 +111,11 @@ export function renderSoakReport(report: SoakReport, environment?: string): stri
 <th>3. Counts agree<br><small>≥ ${pct(SOAK_COUNT_WITHIN_MIN, 0)}</small></th>
 <th>4. Browse overlap<br><small>≥ ${pct(SOAK_OVERLAP_MIN, 0)}</small></th>
 <th>5. Drift<br><small>≤ ${pct(SOAK_DRIFT_MAX, 1)}</small></th>
-<th>Day</th>
+<th>Verdict<br><small>SLOs 1–4</small></th>
 </tr></thead>
 <tbody>
 ${rows}
-${row(report.week, `Last ${SOAK_DAYS} days`).replace("<tr>", '<tr class="week">')}
+${row(report.week, `Last ${SOAK_DAYS} days`, "week")}
 </tbody>
 </table>`;
 	return page(body, environment);

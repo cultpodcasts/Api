@@ -12,6 +12,9 @@ import type { SearchShadowLog } from "./searchShadow";
  * read-only token. The Analytics Engine SQL API needs only `Account Analytics: Read`.
  */
 
+/** The dashboard page: admin-only (requireOpenApiAuth on `/docs/*`), linked from the `/docs` header. */
+export const SEARCH_SHADOW_SOAK_PATH = "/docs/search-shadow-soak";
+
 /** Index on every soak data point (one dataset per environment, so this is only a label). */
 export const SOAK_INDEX = "search-shadow";
 

@@ -23,6 +23,7 @@ import {
 	type SoakDay
 } from "../src/searchShadowSoak";
 import { SEARCH_SHADOW_SOAK_PATH, searchShadowSoakPage } from "../src/searchShadowSoakPage";
+import { buildDocsPageHtml } from "../src/resources/docsPageHtml";
 import { testEnv } from "./honoTestApp";
 import { testEnv as auth0TestEnv } from "./support/honoRoute";
 
@@ -280,7 +281,16 @@ describe("GET /docs/search-shadow-soak", () => {
 		expect(html).toContain("2026-11-22");
 		expect(html).toContain("Last 7 days");
 		expect(html).toContain("manual");
+		expect(html).toContain("Verdict");
+		expect(html.match(/<th>Day<\/th>/g)).toHaveLength(1);
+		expect(html).toContain('<tr class="week">');
+		expect(html).toContain('<tr class="today">');
 		expect(html).not.toContain("tok-value");
+	});
+
+	it("is linked from the /docs page header", () => {
+		const html = buildDocsPageHtml({ apiEnvironment: "production" });
+		expect(html).toContain(`href="${SEARCH_SHADOW_SOAK_PATH}"`);
 	});
 
 	it("explains a refused token as a 502 page", async () => {
