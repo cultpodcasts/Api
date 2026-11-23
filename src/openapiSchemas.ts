@@ -1586,6 +1586,12 @@ export const episodeSearchHitSchema = z.object({
 /** Azure Search POST response (worker strips @odata.context). */
 export const searchResponseSchema = z.object({
 	"@odata.count": z.number().optional(),
+	/**
+	 * Which index served this response. "azure" on the live Azure path; "d1" on the
+	 * search Worker envelope (and after the SP-4 cutover). Omitted on older deploys;
+	 * clients should treat a missing value as Azure.
+	 */
+	"@search.engine": z.enum(["azure", "d1"]).optional(),
 	value: z.array(episodeSearchHitSchema)
 });
 

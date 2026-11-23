@@ -180,6 +180,25 @@ describe("POST /search upstream errors", () => {
 		expect(resp.status).toBe(200);
 		const body = (await resp.json()) as Record<string, unknown>;
 		expect(body["@odata.context"]).toBeNull();
+		expect(body["@search.engine"]).toBe("azure");
+		expect(body.value).toEqual([{ id: "1" }]);
+	});
+
+	it("keeps @search.engine d1 when the upstream body already has it, so cutover can forward the D1 envelope", async () => {
+		const ok = { value: [{ id: "1" }], "@odata.count": 1, "@search.engine": "d1" };
+		stubUpstream(200, JSON.stringify(ok));
+		const resp = await app().request(
+			"/search",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ search: "*" })
+			},
+			env()
+		);
+		expect(resp.status).toBe(200);
+		const body = (await resp.json()) as Record<string, unknown>;
+		expect(body["@search.engine"]).toBe("d1");
 		expect(body.value).toEqual([{ id: "1" }]);
 	});
 

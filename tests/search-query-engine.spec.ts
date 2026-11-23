@@ -275,9 +275,10 @@ describe("Azure document shape (SP-0.2) over the SP-1.1 columns", () => {
 	});
 
 	it("keeps @odata.context null and adds count / facets only when asked", () => {
-		expect(toAzureSearchEnvelope([])).toEqual({ "@odata.context": null, value: [] });
+		expect(toAzureSearchEnvelope([])).toEqual({ "@odata.context": null, "@search.engine": "d1", value: [] });
 		expect(toAzureSearchEnvelope([], { count: 3, facets: { lang: [] } })).toEqual({
 			"@odata.context": null,
+			"@search.engine": "d1",
 			value: [],
 			"@odata.count": 3,
 			"@search.facets": { lang: [] }
@@ -408,6 +409,7 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		const { headers, body } = await post({ search: "scientology" });
 		expect(headers.get("cache-control")).toBe("no-store");
 		expect(body["@odata.context"]).toBeNull();
+		expect(body["@search.engine"]).toBe("d1");
 		expect(body).not.toHaveProperty("@odata.count");
 		expect(body.value.length).toBe(2);
 		for (const d of body.value) expect(d["@search.score"]).toBeGreaterThan(0);
