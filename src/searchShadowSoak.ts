@@ -269,7 +269,22 @@ export function latencyRag(verdict: Verdict, azureP95: number | null, d1P95: num
 	return ragFor(verdict, near);
 }
 
-function ratioSlo(part: number, whole: number, pass: (ratio: number) => boolean, near: (ratio: number) => boolean, enough: boolean): SloResult {
+/** SLO 1 met: D1's p95 no slower than Azure's and within the 300 ms ceiling. */
+export function latencyWithinSlo(azureP95: number, d1P95: number): boolean {
+	return d1P95 <= azureP95 && d1P95 <= SOAK_LATENCY_MAX_MS;
+}
+
+/** A ratio SLO's rule: `pass` meets the target, `near` is inside the amber margin. */
+export type RatioRule = { pass: (ratio: number) => boolean; near: (ratio: number) => boolean };
+
+/** SLOs 2–4, one place for the thresholds (verdicts here, today's provisional icons on the page). */
+export const SLO_RATIO_RULES = {
+	availability: { pass: (r) => r <= SOAK_UNAVAILABLE_MAX, near: (r) => r > SOAK_RAG_UNAVAILABLE_AMBER },
+	countAgreement: { pass: (r) => r >= SOAK_COUNT_WITHIN_MIN, near: (r) => r < SOAK_RAG_COUNT_WITHIN_AMBER },
+	browseOverlap: { pass: (r) => r >= SOAK_OVERLAP_MIN, near: (r) => r < SOAK_RAG_OVERLAP_AMBER }
+} satisfies Record<"availability" | "countAgreement" | "browseOverlap", RatioRule>;
+
+function ratioSlo(part: number, whole: number, { pass, near }: RatioRule, enough: boolean): SloResult {
 	if (whole <= 0) return { value: null, samples: whole, verdict: "no-verdict", rag: "amber" };
 	const value = part / whole;
 	const verdict: Verdict = enough ? (pass(value) ? "pass" : "fail") : "no-verdict";
@@ -281,27 +296,14 @@ export function evaluateSoak(day: string, counts: SoakCounts, latency: SoakLaten
 	const enough = counts.samples >= SOAK_MIN_SAMPLES;
 	let latencyVerdict: Verdict = "no-verdict";
 	if (enough && latency.azureP95 !== null && latency.d1P95 !== null && latency.samples > 0) {
-		latencyVerdict = latency.d1P95 <= latency.azureP95 && latency.d1P95 <= SOAK_LATENCY_MAX_MS ? "pass" : "fail";
+		latencyVerdict = latencyWithinSlo(latency.azureP95, latency.d1P95) ? "pass" : "fail";
 	}
-	const availability = ratioSlo(
-		counts.unavailable,
-		counts.samples,
-		(r) => r <= SOAK_UNAVAILABLE_MAX,
-		(r) => r > SOAK_RAG_UNAVAILABLE_AMBER,
-		enough
-	);
-	const countAgreement = ratioSlo(
-		counts.countWithin,
-		counts.countSamples,
-		(r) => r >= SOAK_COUNT_WITHIN_MIN,
-		(r) => r < SOAK_RAG_COUNT_WITHIN_AMBER,
-		enough
-	);
+	const availability = ratioSlo(counts.unavailable, counts.samples, SLO_RATIO_RULES.availability, enough);
+	const countAgreement = ratioSlo(counts.countWithin, counts.countSamples, SLO_RATIO_RULES.countAgreement, enough);
 	const browseOverlap = ratioSlo(
 		counts.browseOk,
 		counts.browseSamples,
-		(r) => r >= SOAK_OVERLAP_MIN,
-		(r) => r < SOAK_RAG_OVERLAP_AMBER,
+		SLO_RATIO_RULES.browseOverlap,
 		enough && counts.browseSamples >= SOAK_MIN_BROWSE_SAMPLES
 	);
 	const latencyRagValue = latencyRag(latencyVerdict, latency.azureP95, latency.d1P95);

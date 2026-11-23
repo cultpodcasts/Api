@@ -41,7 +41,7 @@ ${docsChromeStyles(apiEnvironment)}
 				font: 700 18px/1 system-ui, sans-serif;
 			}
 			.token-overlay {
-				position: fixed;
+				position: absolute;
 				z-index: 10001;
 				display: none;
 				gap: 8px;
@@ -116,9 +116,10 @@ ${docsChromeStyles(apiEnvironment)}
 				if (!tokenOverlay.classList.contains('open')) {
 					return;
 				}
+				// The header is in the page flow (Api #312), so anchor the menu to the page, not the viewport.
 				const rect = tokenToggleButton.getBoundingClientRect();
-				tokenOverlay.style.top = rect.top + 'px';
-				tokenOverlay.style.left = Math.max(8, rect.left - tokenOverlay.offsetWidth - 8) + 'px';
+				tokenOverlay.style.top = rect.top + window.scrollY + 'px';
+				tokenOverlay.style.left = Math.max(8, rect.left + window.scrollX - tokenOverlay.offsetWidth - 8) + 'px';
 			};
 
 			tokenToggleButton.addEventListener('click', () => {

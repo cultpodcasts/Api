@@ -48,6 +48,22 @@ describe("shared docs header (Api #310)", () => {
 		expect(buildDocsPageHtml({ apiEnvironment: "production" })).not.toContain('class="env-banner"');
 	});
 
+	it("keeps the header actions in the page flow on both pages, so they never float over content (Api #312)", async () => {
+		const pages = [
+			buildDocsPageHtml({ apiEnvironment: "production" }),
+			buildDocsPageHtml({ apiEnvironment: "preview" }),
+			await soakHtml("api.cultpodcasts.com", { apiEnvironment: "production" }),
+			await soakHtml("api-preview.cultpodcasts.com", { apiEnvironment: "preview" })
+		];
+		for (const html of pages) {
+			const rule = html.match(/\.top-actions\s*\{([^}]*)\}/)?.[1];
+			expect(rule).toBeDefined();
+			expect(rule).not.toMatch(/position\s*:\s*(fixed|sticky|absolute)/);
+			// The actions come before the page content in document order.
+			expect(html.indexOf('class="top-actions"')).toBeLessThan(Math.max(html.indexOf('id="swagger-ui"'), html.indexOf('class="docs-title"')));
+		}
+	});
+
 	it("titles both pages from the same environment suffix", async () => {
 		expect(buildDocsPageHtml({ apiEnvironment: "preview" })).toContain("<title>Cult Podcasts API Docs (Preview)</title>");
 		expect(buildDocsPageHtml({ apiEnvironment: "local" })).toContain("<title>Cult Podcasts API Docs (Local)</title>");

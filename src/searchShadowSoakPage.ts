@@ -1,6 +1,8 @@
 import type { Context } from "hono";
 import type { Env } from "./Env";
 import {
+	latencyRag,
+	latencyWithinSlo,
 	loadSoakReport,
 	missingSoakConfig,
 	SOAK_COUNT_WITHIN_MIN,
@@ -16,7 +18,11 @@ import {
 	SOAK_RAG_OVERLAP_AMBER,
 	SOAK_RAG_UNAVAILABLE_AMBER,
 	SOAK_UNAVAILABLE_MAX,
+	SLO_RATIO_RULES,
 	SoakQueryError,
+	ragFor,
+	utcDayStart,
+	type RatioRule,
 	type Rag,
 	type SoakLatency,
 	type SloResult,
@@ -82,19 +88,19 @@ export function showFor(verdict: Verdict, rag: Rag): Show {
 }
 
 /**
- * Today's provisional icons: the same thresholds as the verdicts, applied to the value so far, so a
- * partial day still shows how it is tracking. Display only; the streak never uses them.
+ * Today's provisional icons: the verdict rules from `searchShadowSoak.ts` applied to the values so
+ * far, so a partial day shows how it is tracking. Display only; the streak never uses them.
  */
 export function provisionalLatency(azureP95: number | null, d1P95: number | null): Show {
 	if (azureP95 === null || d1P95 === null) return "wait";
-	if (d1P95 > azureP95 || d1P95 > SOAK_LATENCY_MAX_MS) return "breach";
-	if (d1P95 > SOAK_LATENCY_MAX_MS - SOAK_RAG_LATENCY_MARGIN_MS || d1P95 > SOAK_RAG_LATENCY_RATIO * azureP95) return "margin";
-	return "pass";
+	const verdict: Verdict = latencyWithinSlo(azureP95, d1P95) ? "pass" : "fail";
+	return showFor(verdict, latencyRag(verdict, azureP95, d1P95));
 }
 
-function provisionalRatio(value: number | null, breach: (v: number) => boolean, margin: (v: number) => boolean): Show {
+export function provisionalRatio(value: number | null, rule: RatioRule): Show {
 	if (value === null) return "wait";
-	return breach(value) ? "breach" : margin(value) ? "margin" : "pass";
+	const verdict: Verdict = rule.pass(value) ? "pass" : "fail";
+	return showFor(verdict, ragFor(verdict, rule.near(value)));
 }
 
 const ICON_SVG: Record<Show, string> = {
@@ -110,7 +116,32 @@ export function icon(show: Show, detail?: string, size = 22): string {
 	return `<span class="ic ic-${show}" role="img" aria-label="${label}" title="${label}"><svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">${ICON_SVG[show]}</svg></span>`;
 }
 
-const LIVE_SCRIPT = `(() => {
+/** What the live refresh sees from one refetch of the page. */
+export type LiveResponse = {
+	/** `Response.type`: `opaqueredirect` when the docs gate redirects to login (`redirect: "manual"`). */
+	type: string;
+	status: number;
+	ok: boolean;
+	/** The refetched page has the `#soak-live` swap target (the error pages do not). */
+	hasTarget: boolean;
+};
+
+export type LiveAction = "expire" | "retry" | "swap";
+
+/**
+ * The live refresh's decision. Runs in the browser: it is embedded in the page with `toString()`,
+ * so it must stay self-contained (no imports, no closures, no nested functions).
+ */
+export function liveRefreshAction(r: LiveResponse): LiveAction {
+	if (r.type === "opaqueredirect" || r.status === 401 || r.status === 403) return "expire";
+	if (!r.ok || !r.hasTarget) return "retry";
+	return "swap";
+}
+
+/** The page's only script: refetch every 60 s while visible, swap `#soak-live`, stop on expiry. */
+export function liveScript(): string {
+	return `(() => {
+	const decide = ${liveRefreshAction.toString()};
 	const box = document.getElementById("soak-live");
 	const status = document.getElementById("live-status");
 	const toggle = document.getElementById("live-toggle");
@@ -118,6 +149,7 @@ const LIVE_SCRIPT = `(() => {
 	let paused = false;
 	let stopped = false;
 	let busy = false;
+	let timer = 0;
 	const stamp = () => {
 		const g = box.getAttribute("data-generated");
 		return g ? new Date(g).toISOString().slice(11, 19) + " UTC" : "";
@@ -139,9 +171,10 @@ const LIVE_SCRIPT = `(() => {
 		busy = true;
 		try {
 			const r = await fetch(location.href, { credentials: "same-origin", redirect: "manual", cache: "no-store", headers: { accept: "text/html" } });
-			if (r.type === "opaqueredirect" || r.status === 401 || r.status === 403 || r.redirected) return expire();
 			const next = r.ok ? new DOMParser().parseFromString(await r.text(), "text/html").getElementById("soak-live") : null;
-			if (!next) {
+			const action = decide({ type: r.type, status: r.status, ok: r.ok, hasTarget: !!next });
+			if (action === "expire") return expire();
+			if (action === "retry" || !next) {
 				status.textContent = "Update failed · retrying in a minute";
 				return;
 			}
@@ -154,7 +187,7 @@ const LIVE_SCRIPT = `(() => {
 			busy = false;
 		}
 	}
-	const timer = setInterval(tick, 60000);
+	timer = setInterval(tick, 60000);
 	toggle.addEventListener("click", () => {
 		paused = !paused;
 		show();
@@ -165,10 +198,11 @@ const LIVE_SCRIPT = `(() => {
 	});
 	show();
 })();`;
+}
 
 const STYLES = `
 body { font: 17px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; color: #111827; background: #f8fafc; }
-main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+main { padding: 8px 24px 24px; max-width: 1200px; margin: 0 auto; }
 h2 { font-size: 22px; margin: 32px 0 12px; }
 h3 { font-size: 17px; margin: 0 0 8px; }
 a { color: #1d4ed8; }
@@ -217,7 +251,7 @@ figure.chart svg { width: 100%; height: auto; display: block; }
 .chart-legend li { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .chart-legend svg { width: 22px !important; flex: none; }
 @media (max-width: 640px) {
-	main { padding: 64px 14px 24px; }
+	main { padding: 16px 14px 24px; }
 	.docs-title { font-size: 28px !important; }
 	.hero { padding: 16px; }
 	.hero-status { font-size: 20px; }
@@ -247,26 +281,54 @@ ${docsTitle("D1 search shadow soak", openApiDocumentVersion)}
 <p class="meta"><a href="${SOAK_DOC_URL}">Soak runbook</a>${live}</p>
 ${body}
 </main>
-${live ? `<script>${LIVE_SCRIPT}</script>` : ""}
+${live ? `<script>${liveScript()}</script>` : ""}
 </body>
 </html>`;
 }
 
-/** When Day 1 is (or would be) and the earliest finish, assuming every day from Day 1 passes. */
-export function soakDates(report: SoakReport): { day1Ms: number; finishMs: number } | null {
+/** Before this share of the UTC day has passed, today's sample rate is too noisy to project. */
+const PROJECT_AFTER_DAY_FRACTION = 0.25;
+
+export type SoakDates = {
+	/** UTC midnight of each of the 7 steps, Day 1 first; `null` for a pass older than the report's days. */
+	steps: (number | null)[];
+	/** The last step: the earliest the soak can finish if every remaining day passes. */
+	finishMs: number;
+};
+
+/**
+ * The tracker's dates. Done steps are the days that actually passed (the same walk as `greenStreak`:
+ * newest first, skipping today and no-verdict days, stopping at a fail), so a quiet day inside the
+ * run is never labelled as a green step. Remaining steps start today while a run is going; with no
+ * run, today is Day 1 only if it already has the minimum sample or, after the first quarter of the
+ * day, is on course for it; otherwise tomorrow is.
+ */
+export function soakDates(report: SoakReport): SoakDates | null {
 	const s = report.summary;
 	if (s.status === "passed") return null;
 	const nowMs = Date.parse(report.generatedAt);
-	const todayMs = Math.floor(nowMs / DAY_MS) * DAY_MS;
-	const today = report.days[0];
-	if (s.streak > 0) {
-		return { day1Ms: todayMs - s.streak * DAY_MS, finishMs: todayMs + (SOAK_DAYS - s.streak - 1) * DAY_MS };
+	const todayMs = utcDayStart(nowMs);
+	const passes: number[] = [];
+	for (const d of report.days) {
+		if (d.inProgress || d.verdict === "no-verdict") continue;
+		if (d.verdict === "fail") break;
+		passes.push(Date.parse(`${d.day}T00:00:00Z`));
 	}
-	// No run yet: today can be Day 1 if it is on course for the minimum sample.
-	const elapsed = (nowMs - todayMs) / DAY_MS;
-	const projected = elapsed > 0 ? today.counts.samples / elapsed : 0;
-	const day1Ms = projected >= SOAK_MIN_SAMPLES ? todayMs : todayMs + DAY_MS;
-	return { day1Ms, finishMs: day1Ms + (SOAK_DAYS - 1) * DAY_MS };
+	const done = passes.slice(0, s.streak).reverse();
+	let nextMs = todayMs;
+	if (s.streak === 0) {
+		const samples = report.days[0].counts.samples;
+		const elapsed = (nowMs - todayMs) / DAY_MS;
+		const onCourse = samples >= SOAK_MIN_SAMPLES || (elapsed >= PROJECT_AFTER_DAY_FRACTION && samples / elapsed >= SOAK_MIN_SAMPLES);
+		if (!onCourse) nextMs += DAY_MS;
+	}
+	const remaining = SOAK_DAYS - s.streak;
+	const steps: (number | null)[] = [
+		...Array.from({ length: s.streak - done.length }, () => null),
+		...done,
+		...Array.from({ length: remaining }, (_, k) => nextMs + k * DAY_MS)
+	];
+	return { steps, finishMs: nextMs + (remaining - 1) * DAY_MS };
 }
 
 function heroTone(report: SoakReport): Show {
@@ -298,13 +360,15 @@ function hero(report: SoakReport): string {
 	const s = report.summary;
 	const tone = heroTone(report);
 	const dates = soakDates(report);
+	const day1 = dates?.steps[0];
 	const sub = dates
-		? `<p class="hero-sub">Day 1: <strong>${dayName(dates.day1Ms)}</strong> · Earliest finish: <strong title="If every day from Day 1 passes. A day with too few samples does not count and pushes this back.">${dayName(dates.finishMs)}</strong></p>`
+		? `<p class="hero-sub">${day1 != null ? `Day 1: <strong>${dayName(day1)}</strong> · ` : ""}Earliest finish: <strong title="If every day from Day 1 passes. A day with too few samples does not count and pushes this back.">${dayName(dates.finishMs)}</strong></p>`
 		: "";
 	const steps = Array.from({ length: SOAK_DAYS }, (_, i) => {
 		const n = i + 1;
 		const state = n <= s.streak ? "done" : n === s.streak + 1 && s.status !== "not-started" ? "next" : "todo";
-		const date = dates ? `<small>${dayName(dates.day1Ms + i * DAY_MS, false)}</small>` : "";
+		const stepMs = dates?.steps[i];
+		const date = stepMs != null ? `<small>${dayName(stepMs, false)}</small>` : "";
 		const label = state === "done" ? `Day ${n}: green` : state === "next" ? `Day ${n}: next` : `Day ${n}: to come`;
 		return `<li class="${state}" title="${label}" aria-label="${label}">${n}${date}</li>`;
 	}).join("");
@@ -343,21 +407,21 @@ function todayCards(report: SoakReport): string {
 		),
 		card(
 			"D1 errors",
-			provisionalRatio(t.availability.value, (v) => v > SOAK_UNAVAILABLE_MAX, (v) => v > SOAK_RAG_UNAVAILABLE_AMBER),
+			provisionalRatio(t.availability.value, SLO_RATIO_RULES.availability),
 			`share of searches D1 could not answer (timeouts ${int(c.timeouts)}); ${note}`,
 			fmtPct(t.availability.value),
 			`target ≤ ${fmtPct(SOAK_UNAVAILABLE_MAX)}`
 		),
 		card(
 			"Counts match",
-			provisionalRatio(t.countAgreement.value, (v) => v < SOAK_COUNT_WITHIN_MIN, (v) => v < SOAK_RAG_COUNT_WITHIN_AMBER),
+			provisionalRatio(t.countAgreement.value, SLO_RATIO_RULES.countAgreement),
 			`D1 and Azure return about the same number of results; ${note}`,
 			fmtPct(t.countAgreement.value),
 			`target ≥ ${fmtPct(SOAK_COUNT_WITHIN_MIN)}`
 		),
 		card(
 			"Browse overlap",
-			provisionalRatio(t.browseOverlap.value, (v) => v < SOAK_OVERLAP_MIN, (v) => v < SOAK_RAG_OVERLAP_AMBER),
+			provisionalRatio(t.browseOverlap.value, SLO_RATIO_RULES.browseOverlap),
 			`9 of Azure's top 10 also in D1's; ${note}`,
 			fmtPct(t.browseOverlap.value),
 			`target ≥ ${fmtPct(SOAK_OVERLAP_MIN)}`
