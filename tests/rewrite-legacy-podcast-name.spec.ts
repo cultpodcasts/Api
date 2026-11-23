@@ -90,4 +90,67 @@ describe("POST /search legacy podcastName alias", () => {
 		expect(sent.filter).toBe("(seriesName eq 'Associated Press')");
 		expect(sent.facets).toEqual(["seriesName,count:1000"]);
 	});
+
+	it("sends seriesName to the D1 shadow query as well as to Azure", async () => {
+		const azureBodies: string[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (_url: unknown, init?: RequestInit) => {
+				azureBodies.push(String(init?.body));
+				return new Response(JSON.stringify({ value: [], "@odata.count": 0 }), {
+					status: 200,
+					headers: { "content-type": "application/json" }
+				});
+			})
+		);
+		const d1Bodies: string[] = [];
+		const searchFetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+			d1Bodies.push(String(init?.body));
+			return new Response(JSON.stringify({ value: [], "@odata.count": 0 }), {
+				status: 200,
+				headers: { "content-type": "application/json" }
+			});
+		});
+		const tasks: Promise<unknown>[] = [];
+		const ctx = {
+			waitUntil(promise: Promise<unknown>) {
+				tasks.push(promise);
+			},
+			passThroughOnException() {},
+			props: {}
+		} as unknown as ExecutionContext;
+		vi.spyOn(console, "info").mockImplementation(() => {});
+		const hono = new Hono<{ Bindings: Env }>();
+		hono.post("/search", (c) => search(c as unknown as ActionContext));
+		const resp = await hono.request(
+			"/search",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					search: "*",
+					filter: "(podcastName eq 'Associated Press')",
+					facets: ["podcastName,count:1000"]
+				})
+			},
+			testEnv({
+				apihost: "https://search.example/indexes/test/docs/search",
+				apikey: "test-search-key",
+				Data: { get: async () => null } as unknown as R2Bucket,
+				searchShadowEnabled: "true",
+				searchShadowSampleRate: "1",
+				SEARCH: { fetch: searchFetch } as unknown as Fetcher
+			} as Partial<Env>),
+			ctx
+		);
+		expect(resp.status).toBe(200);
+		await Promise.all(tasks);
+		expect(azureBodies).toHaveLength(1);
+		expect(d1Bodies).toHaveLength(1);
+		// Both engines get the same rewritten body (SP-4.3): nothing downstream sees podcastName.
+		expect(d1Bodies[0]).toBe(azureBodies[0]);
+		const sent = JSON.parse(d1Bodies[0]) as { filter: string; facets: string[] };
+		expect(sent.filter).toBe("(seriesName eq 'Associated Press')");
+		expect(sent.facets).toEqual(["seriesName,count:1000"]);
+	});
 });

@@ -414,6 +414,35 @@ Tests: `tests/search-query-engine.spec.ts` (translator, OData, response shape, a
 the migrated schema in `node:sqlite`); `tests/search-d1-session.spec.ts` (Sessions API read path,
 `served_by_region` log, read replication on in Terraform).
 
+### Legacy `podcastName` (stale clients, SP-4.3)
+
+The Azure index renamed `podcastName` to `seriesName` ([Api#216](https://github.com/cultpodcasts/Api/issues/216)),
+but old website and app builds still send `podcastName` (about 2 requests a week). Nothing extra is
+needed for the D1 cutover ([Api#232](https://github.com/cultpodcasts/Api/issues/232)): the alias is
+handled twice, and responses never contain `podcastName`.
+
+```mermaid
+flowchart LR
+  C["stale client<br/>filter / facets / orderby / select<br/>with podcastName"] --> A["api Worker /search<br/>searchLog keeps the original<br/>rewriteLegacyPodcastNameInSearchRequest"]
+  A -->|"seriesName"| Z["Azure AI Search<br/>(served today)"]
+  A -->|"same body, seriesName<br/>(shadow now, served after SP-4.x)"| D["search Worker (D1)<br/>FIELD_MAP: podcastName = series_name"]
+```
+
+1. **api Worker (primary).** `src/rewriteLegacyPodcastNameInSearchRequest.ts` rewrites
+   `podcastName` to `seriesName` in `filter`, `orderby`, `select` and `facets` before the body
+   goes anywhere. Azure and the D1 shadow query (and, after the switch, the D1 engine) get the same
+   rewritten body. The inbound body is logged first, so the `search` log still shows which
+   requests came from stale clients.
+2. **search Worker (defence in depth).** `src/odata.ts` maps `podcastName` to the same column as
+   `seriesName` in filters, and `parseFacet` accepts a `podcastName` facet, returned under the name
+   the client asked for (`@search.facets.podcastName`) with the `seriesName` buckets. A request
+   that reaches the engine without the rewrite still works.
+
+Hits carry `seriesName` only, never `podcastName`, as in Azure today. `orderby` other than
+`release asc|desc` is ignored by the engine (relevance or newest first), and a `select` naming a
+field the index doesn't return, `podcastName` included, just leaves it out. Tests:
+`tests/rewrite-legacy-podcast-name.spec.ts` (rewrite, plus the Azure and shadow bodies) and
+`tests/search-query-engine.spec.ts` (the engine on its own).
 ### Running the parity harness locally
 
 The `search-demo/harness` cases (on the prototype branch, [Api#214](https://github.com/cultpodcasts/Api/pull/214))
