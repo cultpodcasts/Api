@@ -84,8 +84,3 @@ export const LIVE_REFRESH_SCRIPT = `(() => {
 	show();
 })();`;
 
-/** The shipped `decide` function, evaluated from the same source the page embeds. */
-export function liveRefreshAction(r: LiveResponse): LiveAction {
-	const decide = new Function(`${LIVE_REFRESH_DECIDE_JS}; return decide;`)() as (x: LiveResponse) => LiveAction;
-	return decide(r);
-}

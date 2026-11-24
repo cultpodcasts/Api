@@ -36,7 +36,7 @@ import {
 	showFor,
 	soakDates
 } from "../src/searchShadowSoakPage";
-import { LIVE_REFRESH_DECIDE_JS } from "../src/searchShadowSoakLive";
+import { LIVE_REFRESH_DECIDE_JS, type LiveAction, type LiveResponse } from "../src/searchShadowSoakLive";
 import { niceCeiling, renderChart } from "../src/soakCharts";
 import { buildDocsPageHtml } from "../src/resources/docsPageHtml";
 import { testEnv } from "./honoTestApp";
@@ -47,6 +47,11 @@ const NOW = Date.UTC(2026, 10, 23, 21, 0, 0); // 23 Nov 2026 21:00 UTC
 function counts(partial: Partial<SoakCounts> = {}): SoakCounts {
 	return { samples: 1000, unavailable: 0, bothOk: 1000, countSamples: 1000, countWithin: 1000, browseSamples: 100, browseOk: 100, ...partial };
 }
+
+function liveRefreshDecide(r: LiveResponse): LiveAction {
+	return new Function(`${LIVE_REFRESH_DECIDE_JS}; return decide;`)()(r);
+}
+
 
 const goodLatency = { azureP50: 90, azureP95: 250, d1P50: 40, d1P95: 120, samples: 1000 };
 
@@ -460,13 +465,12 @@ describe("soak page display helpers", () => {
 	});
 
 	it("decides each live refresh: expire on login redirect or 401/403, retry on errors, swap otherwise", () => {
-		const decide = new Function(`${LIVE_REFRESH_DECIDE_JS}; return decide;`)();
-		expect(decide({ type: "opaqueredirect", status: 0, ok: false, hasTarget: false })).toBe("expire");
-		expect(decide({ type: "basic", status: 401, ok: false, hasTarget: false })).toBe("expire");
-		expect(decide({ type: "basic", status: 403, ok: false, hasTarget: false })).toBe("expire");
-		expect(decide({ type: "basic", status: 502, ok: false, hasTarget: false })).toBe("retry");
-		expect(decide({ type: "basic", status: 200, ok: true, hasTarget: false })).toBe("retry");
-		expect(decide({ type: "basic", status: 200, ok: true, hasTarget: true })).toBe("swap");
+		expect(liveRefreshDecide({ type: "opaqueredirect", status: 0, ok: false, hasTarget: false })).toBe("expire");
+		expect(liveRefreshDecide({ type: "basic", status: 401, ok: false, hasTarget: false })).toBe("expire");
+		expect(liveRefreshDecide({ type: "basic", status: 403, ok: false, hasTarget: false })).toBe("expire");
+		expect(liveRefreshDecide({ type: "basic", status: 502, ok: false, hasTarget: false })).toBe("retry");
+		expect(liveRefreshDecide({ type: "basic", status: 200, ok: true, hasTarget: false })).toBe("retry");
+		expect(liveRefreshDecide({ type: "basic", status: 200, ok: true, hasTarget: true })).toBe("swap");
 	});
 
 	describe("live refresh script", () => {
