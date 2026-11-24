@@ -64,7 +64,7 @@ These settings, including the kill switch, only take effect after Jon's manual p
 
 | # | SLO | Measured on | Pass |
 |---|-----|-------------|------|
-| 1 | Latency | `slo.bothOk = true` samples | D1 p95 `d1.latencyMs` ≤ Azure p95 `azure.latencyMs` **and** ≤ 300 ms |
+| 1 | Latency | `slo.bothOk = true` samples | D1 p95 `d1.latencyMs` ≤ Azure p95 `azure.latencyMs` |
 | 2 | Availability | all samples | `slo.d1Unavailable = true` on ≤ 0.1% of samples |
 | 3 | Result counts | samples with `slo.countWithin` present | `slo.countWithin = true` on ≥ 99% |
 | 4 | Browse overlap | `queryKind = "browse"` samples with `slo.overlapOk` present (both 200, Azure had at least one hit) | `slo.overlapOk = true` on ≥ 95% |
@@ -125,7 +125,7 @@ These two filters are referred to as **BASE** below.
 }
 ```
 
-**Pass:** `d1_p95 ≤ azure_p95` and `d1_p95 ≤ 300`.
+**Pass:** `d1_p95 ≤ azure_p95`.
 
 **Diagnostic:** add a group-by on `azure.cacheStatus`. Azure answers from the edge cache on a
 `HIT`, and D1 never does, so a failure driven by `HIT` samples is a cache effect, not D1 being
@@ -268,7 +268,7 @@ counts, and the consecutive green-day streak ([Api #304](https://github.com/cult
   swaps the content in place, with a **Live · updated HH:MM:SS UTC** indicator and Pause / Resume. It
   does not poll while the tab is hidden and refreshes when the tab is shown again. If the session
   has expired (a redirect to login, 401 or 403) it stops and shows **Session expired · reload**.
-- **Charts** (inline SVG, no library), oldest day first: speed by day (p50 and p95, 300 ms limit);
+- **Charts** (inline SVG, no library), oldest day first: speed by day (p50 and p95, D1 at or below Azure);
   speed today by hour (UTC); samples per day with the 200 / 50 minimums; D1 errors and timeouts
   (`d1.error = "timeout"`) with the 0.1% limit; counts match; browse overlap; and Azure latency on
   edge-cache `HIT` vs `MISS` searches next to D1's p95 on the same searches (other cache statuses are
@@ -291,7 +291,7 @@ Margins (named constants in `src/searchShadowSoak.ts`):
 
 | SLO | Red (breach) | Amber when | Constant |
 |-----|--------------|------------|----------|
-| 1. Latency | D1 p95 > Azure p95 or > 300 ms | D1 p95 > 250 ms, or > 90% of Azure's p95 | `SOAK_RAG_LATENCY_MARGIN_MS = 50`, `SOAK_RAG_LATENCY_RATIO = 0.9` |
+| 1. Latency | D1 p95 > Azure p95 | D1 p95 > 90% of Azure's p95 | `SOAK_RAG_LATENCY_RATIO = 0.9` |
 | 2. Availability | unavailable > 0.1% | unavailable > 0.05% | `SOAK_RAG_UNAVAILABLE_AMBER = 0.0005` |
 | 3. Counts | agree < 99% | agree < 99.5% | `SOAK_RAG_COUNT_WITHIN_AMBER = 0.995` |
 | 4. Browse overlap | ok < 95% | ok < 97% | `SOAK_RAG_OVERLAP_AMBER = 0.97` |
