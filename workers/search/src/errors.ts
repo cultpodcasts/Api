@@ -45,12 +45,16 @@ export function classifyD1Error(message: string): SearchWorkerErrorClass {
 	return SearchWorkerErrorClass.D1Error;
 }
 
-/** 400 in Azure's own envelope: `code` empty, the reason in `message`. */
+/**
+ * 400 in Azure's own envelope: `code` empty, the reason in `message`.
+ * Missing `route` is `unknown`. Callers pass their own route; a default of `docs/search`
+ * would log admin 400s as search (#319).
+ */
 export function badRequest(e: unknown, context: SearchWorkerErrorContext = {}): Response {
 	const errorMessage = (e instanceof Error ? e.message : "bad request").slice(0, ERROR_LOG_LIMIT);
 	console.warn("search: bad request", {
 		requestId: context.requestId,
-		route: context.route ?? SearchWorkerRoute.DocsSearch,
+		route: context.route ?? SearchWorkerRoute.Unknown,
 		engine: SearchWorkerEngine.D1,
 		status: 400,
 		sessionConstraint: context.sessionConstraint ?? READ_SESSION_CONSTRAINT,
@@ -74,7 +78,7 @@ export function d1Unavailable(e: unknown, context: SearchWorkerErrorContext = {}
 		message,
 		name,
 		requestId: context.requestId,
-		route: context.route ?? SearchWorkerRoute.DocsSearch,
+		route: context.route ?? SearchWorkerRoute.Unknown,
 		engine: SearchWorkerEngine.D1,
 		status: 503,
 		upstreamStatus: 503,

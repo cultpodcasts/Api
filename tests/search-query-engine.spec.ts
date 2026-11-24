@@ -9,9 +9,10 @@ import {
 	toAzureSearchEnvelope,
 	type AzureSearchDocRow
 } from "../workers/search/src/azure-response";
-import { parseRequest } from "../workers/search/src/docs-search";
-import { SERVICE_UNAVAILABLE } from "../workers/search/src/errors";
+import { parseRequest, prepareSearch } from "../workers/search/src/docs-search";
+import { badRequest, d1Unavailable, SERVICE_UNAVAILABLE } from "../workers/search/src/errors";
 import { SearchRequestError } from "../workers/search/src/errors";
+import { SearchWorkerRoute } from "../workers/search/src/d1-session";
 import { parseFacet, parseODataFilter } from "../workers/search/src/odata";
 import { MAX_OPERATOR_CHANGES, MAX_QUERY_ATOMS, toMatch } from "../workers/search/src/query";
 import { d1, migratedSearchDb, upsertSearchDoc } from "./support/searchD1";
@@ -433,6 +434,36 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 
 	it("filters by subject, series and lang (NULL = English)", async () => {
 		expect(ids((await post({ filter: "subjects/any(s: s eq 'Religion')" })).body)).toEqual(["news-1", "ep-scn-1"]);
+		expect(
+			ids(
+				(
+					await post({
+						filter: "subjects/any(s: s eq 'Scientology') and (lang eq null or lang eq 'en')",
+						orderby: "release desc",
+						count: true
+					})
+				).body
+			)
+		).toEqual(["ep-scn-1"]);
+		expect(
+			ids(
+				(
+					await post({
+						filter: "subjects/any(s: s eq 'Religion') or contentKind eq 'Film'",
+						orderby: "release desc"
+					})
+				).body
+			)
+		).toEqual(["news-1", "ep-scn-1", "film-1"]);
+		expect(
+			ids(
+				(
+					await post({
+						filter: "subjects/any(s: s eq 'Scientology') and subjects/any(s: s eq 'Religion')"
+					})
+				).body
+			)
+		).toEqual(["ep-scn-1"]);
 		expect(ids((await post({ filter: "seriesName eq 'Cult Stories'", orderby: "release asc" })).body)).toEqual([
 			"ep-scn-2",
 			"ep-scn-1"
@@ -677,7 +708,19 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 });
 
 describe("subjects/any query plan avoids full-table scans (#319)", () => {
-	it("drives count and facet queries from idx_doc_subjects_subject instead of scanning search_docs or doc_subjects", () => {
+	function explain(db: DatabaseSync, sql: string, binds: unknown[]): string {
+		const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(binds as never[])) as { detail: string }[];
+		return rows.map((r) => r.detail).join("\n");
+	}
+
+	/** The subject index drives the statement. A lang-index walk or a search_docs scan fails. */
+	function expectSubjectDriven(plan: string) {
+		expect(plan).toContain("idx_doc_subjects_subject");
+		expect(plan).not.toContain("idx_search_docs_lang");
+		expect(plan).not.toMatch(/SCAN (?:d|search_docs)\b/);
+	}
+
+	function seededDocs(): DatabaseSync {
 		const db = migratedSearchDb();
 		for (let i = 0; i < 200; i++) {
 			upsertSearchDoc(
@@ -686,27 +729,53 @@ describe("subjects/any query plan avoids full-table scans (#319)", () => {
 					id: `doc-${i}`,
 					title: `Episode ${i}`,
 					series_name: `Show ${i % 10}`,
-					release: `2026-11-01T00:00:${String(i % 60).padStart(2, "0")}Z`
+					release: `2026-11-01T00:00:${String(i % 60).padStart(2, "0")}Z`,
+					lang: i % 50 === 0 ? "fr" : null
 				},
 				i < 5 ? ["Synanon"] : [`Other-${i % 20}`]
 			);
 		}
-		const filter = parseODataFilter("subjects/any(s: s eq 'Synanon')");
-		const countPlan = db
-			.prepare(`EXPLAIN QUERY PLAN SELECT COUNT(*) AS n FROM search_docs d WHERE (${filter.sql})`)
-			.all(...(filter.binds as never[])) as { detail: string }[];
-		const subjectFacetPlan = db
-			.prepare(
-				`EXPLAIN QUERY PLAN SELECT s.subject AS value, COUNT(*) AS count FROM search_docs d JOIN doc_subjects s ON s.rowid_ref = d.rowid WHERE (${filter.sql}) GROUP BY s.subject ORDER BY count DESC, value ASC LIMIT 10`
-			)
-			.all(...(filter.binds as never[])) as { detail: string }[];
+		return db;
+	}
 
-		const countDetails = countPlan.map((r) => r.detail).join("\n");
-		const facetDetails = subjectFacetPlan.map((r) => r.detail).join("\n");
-		expect(countDetails).toContain("idx_doc_subjects_subject");
-		expect(countDetails).not.toMatch(/SCAN d USING COVERING INDEX/);
-		expect(facetDetails).toContain("idx_doc_subjects_subject");
-		expect(facetDetails).not.toMatch(/SCAN s USING COVERING INDEX idx_doc_subjects_subject/);
+	it("drives a bare subjects/any count and subject facet from idx_doc_subjects_subject", () => {
+		const db = seededDocs();
+		const prepared = prepareSearch({
+			filter: "subjects/any(s: s eq 'Synanon')",
+			count: true,
+			facets: ["subjects,count:10"]
+		});
+		expect(prepared.count).not.toBeNull();
+		expectSubjectDriven(explain(db, prepared.count!.sql, prepared.count!.binds));
+		const facet = prepared.facets.find((f) => f.field === "subjects");
+		expect(facet).toBeDefined();
+		const facetPlan = explain(db, facet!.statement.sql, facet!.statement.binds);
+		expectSubjectDriven(facetPlan);
+		expect(facetPlan).not.toMatch(/SCAN s USING COVERING INDEX idx_doc_subjects_subject/);
+	});
+
+	it("drives the subject page (subjects/any AND English lang) from the subject index when sqlite_stat1 is empty", () => {
+		const db = seededDocs();
+		expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'sqlite_stat1'").all()).toEqual([]);
+		const filters = [
+			"subjects/any(s: s eq 'Synanon') and (lang eq null or lang eq 'en')",
+			"subjects/any(s: search.in(s, 'Synanon', '£')) and (lang eq null or lang eq 'en')"
+		];
+		for (const filter of filters) {
+			const prepared = prepareSearch({
+				filter,
+				count: true,
+				orderby: "release desc",
+				facets: ["subjects,count:10"]
+			});
+			expect(prepared.page.sql).toContain("ORDER BY d.release DESC, d.id ASC");
+			expectSubjectDriven(explain(db, prepared.page.sql, prepared.page.binds));
+			expect(prepared.count).not.toBeNull();
+			expectSubjectDriven(explain(db, prepared.count!.sql, prepared.count!.binds));
+			const facet = prepared.facets.find((f) => f.field === "subjects");
+			expect(facet).toBeDefined();
+			expectSubjectDriven(explain(db, facet!.statement.sql, facet!.statement.binds));
+		}
 	});
 });
 
@@ -777,6 +846,50 @@ describe("search worker structured logging for non-2xx and headers (#319)", () =
 			);
 		} finally {
 			warn.mockRestore();
+		}
+	});
+
+	it("logs an admin 400 on the admin route, and a context-free failure as unknown, never docs/search", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const env: SearchEnv = { SEARCH_DB: d1(migratedSearchDb()) };
+			const admin400s: [string, string, string | undefined, string][] = [
+				["https://search.internal/admin/docs/inventory?limit=0", "GET", undefined, SearchWorkerRoute.AdminInventory],
+				["https://search.internal/admin/docs", "POST", "{", SearchWorkerRoute.AdminDocs],
+				["https://search.internal/admin/rebuild/start", "POST", "{", SearchWorkerRoute.AdminRebuild]
+			];
+			for (const [url, method, body, route] of admin400s) {
+				const resp = await searchWorker.fetch(
+					new Request(url, { method, headers: { "x-request-id": `ray-${route}` }, body }),
+					env
+				);
+				expect(resp.status).toBe(400);
+				expect(warn).toHaveBeenCalledWith(
+					"search: bad request",
+					expect.objectContaining({ requestId: `ray-${route}`, route, errorClass: "bad_request" })
+				);
+			}
+			const routes = warn.mock.calls.filter((call) => call[0] === "search: bad request").map((call) => (call[1] as { route: string }).route);
+			expect(routes).not.toContain(SearchWorkerRoute.DocsSearch);
+
+			badRequest(new Error("no route"));
+			d1Unavailable(new Error("D1 is overloaded"));
+			expect(warn).toHaveBeenCalledWith(
+				"search: bad request",
+				expect.objectContaining({ route: SearchWorkerRoute.Unknown, errorClass: "bad_request" })
+			);
+			expect(error).toHaveBeenCalledWith(
+				"search: D1 failure",
+				expect.objectContaining({
+					route: SearchWorkerRoute.Unknown,
+					errorClass: "d1_overloaded",
+					status: 503
+				})
+			);
+		} finally {
+			warn.mockRestore();
+			error.mockRestore();
 		}
 	});
 
