@@ -172,15 +172,16 @@ describe("wrangler.search.jsonc", () => {
 	it.each([
 		["production (top level)", apiConfig, "search"],
 		["production env", apiConfig.env.production, "search"],
-		["preview", apiConfig.env.preview, "search-preview"],
+		["preview", apiConfig.env.preview, "search"],
 		["local", apiConfig.env.local, localSearchName]
 	])("api %s binds SEARCH to the %s Worker over a service binding (SP-1.3)", (_label, env, service) => {
 		const bindings = (env.services ?? []).filter((s: any) => s.binding === "SEARCH");
 		expect(bindings).toEqual([{ binding: "SEARCH", service }]);
 	});
 
-	it("api-preview never binds the production search Worker", () => {
-		expect(JSON.stringify(apiConfig.env.preview.services)).not.toMatch(/"service":"search"/);
+	it("api-preview also binds SEARCH_PREVIEW to search-preview (SP-4.1, switchable index)", () => {
+		const bindings = (apiConfig.env.preview.services ?? []).filter((s: any) => s.binding === "SEARCH_PREVIEW");
+		expect(bindings).toEqual([{ binding: "SEARCH_PREVIEW", service: "search-preview" }]);
 	});
 
 	it("api SEARCH targets are the search Worker names in wrangler.search.jsonc", () => {

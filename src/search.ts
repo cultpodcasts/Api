@@ -16,6 +16,13 @@ import {
 	snapshotSearchResponse,
 	type SearchEngineSnapshot
 } from "./searchShadow";
+import {
+	SearchPrimaryEngine,
+	d1PrimaryIsUnavailable,
+	d1SearchFetcher,
+	fetchD1Search,
+	parseSearchPrimaryConfig
+} from "./searchEngine";
 
 /** Forward Azure AI Search error statuses: keep 4xx/5xx (incl. 429); other non-200 → 502. */
 export function upstreamSearchErrorStatus(status: number): ContentfulStatusCode {
@@ -108,8 +115,9 @@ type ShadowRequest = {
 
 /**
  * If the soak sampler is on and this request is in the sample, query the D1 search Worker
- * via the SEARCH binding after the Azure response is already on its way. `waitUntil` keeps
- * that work off the user-visible path; Azure stays the served result (SP-3.1, #228).
+ * via the selected D1 binding after the Azure response is already on its way. `waitUntil` keeps
+ * that work off the user-visible path (SP-3.1, #228). Skipped when primary is D1 so
+ * we do not shadow D1 against itself (SP-4.1).
  */
 function maybeScheduleSearchShadow(
 	c: ActionContext,
@@ -120,7 +128,9 @@ function maybeScheduleSearchShadow(
 	azureError?: string,
 	azureCacheStatus?: string | null
 ): void {
-	if (!c.env.SEARCH) return;
+	if (parseSearchPrimaryConfig(c.env).engine === SearchPrimaryEngine.D1) return;
+	const fetcher = d1SearchFetcher(c.env);
+	if (!fetcher) return;
 	const config = parseSearchShadowConfig(c.env);
 	if (!shouldSampleShadow(config)) return;
 	const azure: SearchEngineSnapshot = snapshotSearchResponse(
@@ -134,7 +144,7 @@ function maybeScheduleSearchShadow(
 	scheduleSearchShadow(
 		executionCtxOf(c),
 		runSearchShadow({
-			fetcher: c.env.SEARCH,
+			fetcher,
 			url: searchShadowUrl(c.env.apihost),
 			requestBody: request.requestBody,
 			azure,
@@ -187,6 +197,10 @@ export async function search(c: ActionContext): Promise<Response> {
 		requestId: searchLog.requestId
 	};
 	const azureStarted = Date.now();
+	if (parseSearchPrimaryConfig(c.env).engine === SearchPrimaryEngine.D1) {
+		const d1Response = await tryServeD1Primary(c, searchLog, requestBody);
+		if (d1Response) return d1Response;
+	}
 	let response: Response;
 	try {
 		response = await fetch(c.env.apihost, {
@@ -258,6 +272,69 @@ export async function search(c: ActionContext): Promise<Response> {
 	return c.json(body, 200);
 }
 
+
+/**
+ * When searchPrimaryEngine is d1, try the selected D1 Worker first. Returns a Response
+ * to send as-is (success or a D1 4xx). Returns null to fall back to Azure (unavailable D1:
+ * timeout, missing binding, 429/5xx, unreadable body).
+ */
+async function tryServeD1Primary(
+	c: ActionContext,
+	searchLog: searchLogCollector,
+	requestBody: string
+): Promise<Response | null> {
+	const { index } = parseSearchPrimaryConfig(c.env);
+	const fetcher = d1SearchFetcher(c.env);
+	const timeoutMs = parseSearchShadowConfig(c.env).timeoutMs;
+	if (!fetcher) {
+		console.warn({ message: "search d1 primary fallback", error: "missing_binding", index });
+		return null;
+	}
+	const result = await fetchD1Search({
+		fetcher,
+		url: searchShadowUrl(c.env.apihost),
+		requestBody,
+		timeoutMs
+	});
+	if (result.ok) {
+		const body = result.body;
+		AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
+		body["@odata.context"] = null;
+		body["@search.engine"] = "d1";
+		searchLog.add({ searchStatus: result.status });
+		if (searchLog.error) {
+			searchLog.emitError();
+		} else if (
+			(searchLog.mode == searchMode.shortnerFallback || searchLog.mode == searchMode.episode) &&
+			Array.isArray(body.value) &&
+			body.value.length == 1
+		) {
+			searchLog.add({ searchResult: body.value[0] });
+			searchLog.emit();
+		} else {
+			searchLog.add({ results: Array.isArray(body.value) ? body.value.length : undefined });
+			searchLog.emit();
+		}
+		return c.json(body, 200);
+	}
+	if (d1PrimaryIsUnavailable(result)) {
+		console.warn({
+			message: "search d1 primary fallback",
+			error: result.error,
+			status: result.status,
+			index
+		});
+		return null;
+	}
+	const status = result.status ?? 502;
+	searchLog.add({ searchStatus: status });
+	let errorBody: object = GENERIC_UPSTREAM_ERROR;
+	if (result.body !== null && typeof result.body === "object" && !Array.isArray(result.body)) {
+		errorBody = result.body as object;
+	}
+	searchLog.emitError({ message: "search d1 primary error: " + result.error });
+	return searchError(c, upstreamSearchErrorStatus(status), errorBody);
+}
 async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string | undefined): Promise<boolean> {
 	let isLeech: boolean = false;
 	if (leechHandlingActive && ipAddress) {

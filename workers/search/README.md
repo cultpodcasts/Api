@@ -434,8 +434,14 @@ flowchart LR
   A -->|"same body, seriesName<br/>(shadow now; served on preview after SP-4.1,<br/>production after SP-4.2)"| D["search Worker (D1)<br/>FIELD_MAP: podcastName = series_name"]
 ```
 
-D1 serves preview after SP-4.1 ([Api#230](https://github.com/cultpodcasts/Api/issues/230)) and production after
-SP-4.2 ([Api#231](https://github.com/cultpodcasts/Api/issues/231)). Until then it only answers the shadow query.
+D1 is the served `/search` engine on api-preview when `searchPrimaryEngine` is `d1` (SP-4.1,
+[Api#230](https://github.com/cultpodcasts/Api/issues/230); preview wrangler default). `searchD1Index` chooses
+which Worker: `production` (default today, Worker `search` / `cultpodcasts-search`) or `preview`
+(`search-preview` / `cultpodcasts-search-preview`). Production `api` stays on Azure until SP-4.2
+([Api#231](https://github.com/cultpodcasts/Api/issues/231)). When primary is D1, the shadow sampler is skipped
+so D1 is not compared with itself. If the D1 Worker is unavailable (timeout, 429/5xx, missing binding,
+unreadable body), `/search` falls back to Azure and logs `search d1 primary fallback`. A D1 4xx is forwarded
+and does not fall back.
 
 1. **api Worker (primary).** `src/rewriteLegacyPodcastNameInSearchRequest.ts` rewrites
    `podcastName` to `seriesName` in `filter`, `orderby`, `select` and `facets` before the body
