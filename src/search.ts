@@ -17,8 +17,12 @@ import {
 	type SearchEngineSnapshot
 } from "./searchShadow";
 import {
+	D1PrimaryGiveUpStatus,
 	D1SearchFetchError,
+	SEARCH_PRIMARY_MAX_ATTEMPTS,
+	SEARCH_PRIMARY_TIMEOUT_MS,
 	SearchEngine,
+	d1PrimaryIsRetriable,
 	d1SearchFetchErrorMessage,
 	d1SearchFetcher,
 	fetchD1Search,
@@ -283,50 +287,70 @@ function serveSearchSuccess(
 	return c.json(body, 200);
 }
 
-function d1PrimaryUnavailable(
+function d1PrimaryGiveUp(
 	c: ActionContext,
 	searchLog: searchLogCollector,
-	result: D1SearchFetchFailure
+	result: D1SearchFetchFailure,
+	attempts: number
 ): Response {
-	searchLog.add({ searchStatus: 502, engine: SearchEngine.D1 });
+	const timedOut = result.error === D1SearchFetchError.Timeout;
+	const status = timedOut ? D1PrimaryGiveUpStatus.Timeout : D1PrimaryGiveUpStatus.Unavailable;
+	const message = timedOut ? "Upstream search timed out" : "Upstream search unavailable";
+	searchLog.add({ searchStatus: status, engine: SearchEngine.D1, attempts });
 	searchLog.addMessage("upstream_error");
 	searchLog.emitError({ message: "search d1 primary error: " + d1SearchFetchErrorMessage(result) });
-	return searchError(c, 502, stampSearchEngine(
-		{ error: { code: "UpstreamSearchError", message: "Upstream search unavailable" } },
+	return searchError(c, status, stampSearchEngine(
+		{ error: { code: "UpstreamSearchError", message } },
 		SearchEngine.D1
 	));
 }
 
 /**
- * When searchPrimaryEngine is d1, the selected D1 Worker is the only served engine.
- * HTTP responses from D1 (including error statuses) are returned to the client.
- * A thrown call or unreadable / non-JSON body is a 502, same envelope as other
- * upstream unavailability — never Azure. The D1 service binding is required.
+ * When searchPrimaryEngine is d1, the selected D1 Worker is the only served engine
+ * (never Azure). Each attempt uses {@link SEARCH_PRIMARY_TIMEOUT_MS} via
+ * {@link fetchD1Search}. Transient failures (timeout, thrown fetch, HTTP 5xx) are
+ * retried once ({@link SEARCH_PRIMARY_MAX_ATTEMPTS}); 400 and other 4xx are not.
+ * After that: 504 on timeout, 502 otherwise, both as `UpstreamSearchError` stamped
+ * `@search.engine` d1. D1 4xx responses are forwarded (429 includes `Retry-After`).
  */
 async function tryServeD1Primary(
 	c: ActionContext,
 	searchLog: searchLogCollector,
 	requestBody: string
 ): Promise<Response> {
-	const result = await fetchD1Search({
-		fetcher: d1SearchFetcher(c.env),
-		url: searchShadowUrl(c.env.apihost),
-		requestBody
-	});
-	if (result.ok) {
-		return serveSearchSuccess(c, searchLog, result.body, SearchEngine.D1);
-	}
-	if (result.error === D1SearchFetchError.Status) {
-		const status = upstreamSearchErrorStatus(result.status ?? 502);
-		searchLog.add({ searchStatus: status, engine: SearchEngine.D1 });
-		let errorBody: object = GENERIC_UPSTREAM_ERROR;
-		if (result.body !== null && typeof result.body === "object" && !Array.isArray(result.body)) {
-			errorBody = result.body as object;
+	const fetcher = d1SearchFetcher(c.env);
+	const url = searchShadowUrl(c.env.apihost);
+	let lastFailure: D1SearchFetchFailure | undefined;
+	for (let attempt = 1; attempt <= SEARCH_PRIMARY_MAX_ATTEMPTS; attempt++) {
+		const result = await fetchD1Search({
+			fetcher,
+			url,
+			requestBody,
+			timeoutMs: SEARCH_PRIMARY_TIMEOUT_MS
+		});
+		if (result.ok) {
+			return serveSearchSuccess(c, searchLog, result.body, SearchEngine.D1);
 		}
-		searchLog.emitError({ message: "search d1 primary error: " + d1SearchFetchErrorMessage(result) });
-		return searchError(c, status, stampSearchEngine(errorBody, SearchEngine.D1));
+		lastFailure = result;
+		if (d1PrimaryIsRetriable(result) && attempt < SEARCH_PRIMARY_MAX_ATTEMPTS) {
+			continue;
+		}
+		if (result.error === D1SearchFetchError.Status && !d1PrimaryIsRetriable(result)) {
+			const status = upstreamSearchErrorStatus(result.status ?? 502);
+			searchLog.add({ searchStatus: status, engine: SearchEngine.D1, attempts: attempt });
+			let errorBody: object = GENERIC_UPSTREAM_ERROR;
+			if (result.body !== null && typeof result.body === "object" && !Array.isArray(result.body)) {
+				errorBody = result.body as object;
+			}
+			if (result.retryAfter) {
+				c.header("retry-after", result.retryAfter);
+			}
+			searchLog.emitError({ message: "search d1 primary error: " + d1SearchFetchErrorMessage(result) });
+			return searchError(c, status, stampSearchEngine(errorBody, SearchEngine.D1));
+		}
+		return d1PrimaryGiveUp(c, searchLog, result, attempt);
 	}
-	return d1PrimaryUnavailable(c, searchLog, result);
+	return d1PrimaryGiveUp(c, searchLog, lastFailure!, SEARCH_PRIMARY_MAX_ATTEMPTS);
 }
 
 async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string | undefined): Promise<boolean> {

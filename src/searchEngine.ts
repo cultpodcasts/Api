@@ -27,6 +27,40 @@ export type SearchPrimaryConfig = {
 	index: SearchD1Index;
 };
 
+/**
+ * In-code safety timeout for a D1 *primary* `/search` call. Not an env var — soak
+ * tuning of `searchShadowTimeoutMs` must not change served latency. Passed to
+ * {@link fetchD1Search} so shadow and primary share one timeout implementation.
+ */
+export const SEARCH_PRIMARY_TIMEOUT_MS = 3000;
+
+/** Initial attempt plus one retry for transient D1 primary failures. */
+export const SEARCH_PRIMARY_MAX_ATTEMPTS = 2;
+
+/** HTTP status when the D1 primary path gives up after retries. */
+export enum D1PrimaryGiveUpStatus {
+	/** Every attempt timed out. */
+	Timeout = 504,
+	/** Thrown fetch, exhausted 5xx, or an unreadable / non-JSON body. */
+	Unavailable = 502
+}
+
+/**
+ * Whether a failed D1 *primary* attempt should be retried once. Retries are for
+ * transient faults: timeout, a thrown binding call, or HTTP 5xx. Client errors
+ * (400, 404, 429, other 4xx) and unreadable / non-JSON bodies are not retried —
+ * 400 is a request/syntax error, 429 asks the client to wait (`Retry-After`),
+ * and a bad body is not improved by sending the same request again.
+ */
+export function d1PrimaryIsRetriable(result: D1SearchFetchFailure): boolean {
+	if (result.error === D1SearchFetchError.Timeout) return true;
+	if (result.error === D1SearchFetchError.RequestFailed) return true;
+	return result.error === D1SearchFetchError.Status
+		&& typeof result.status === "number"
+		&& result.status >= 500
+		&& result.status <= 599;
+}
+
 /** Allowed range for the shadow sampler timeout (100–30000). */
 export function parseSearchTimeoutMs(value: string | undefined, defaultValue: number): number {
 	if (value === undefined || value.trim() === "") return defaultValue;
@@ -83,6 +117,8 @@ export type D1SearchFetchFailure = {
 	body?: unknown;
 	/** Present when {@link D1SearchFetchError.RequestFailed}: the thrown Error message. */
 	message?: string;
+	/** `Retry-After` from the D1 Worker, when present (forwarded on a served 429). */
+	retryAfter?: string;
 };
 
 export type D1SearchFetchResult = D1SearchFetchSuccess | D1SearchFetchFailure;
@@ -96,7 +132,8 @@ class D1SearchTimeout extends Error {
 
 /**
  * Query the D1 search Worker over a service binding. Never throws.
- * `timeoutMs` is used only by the shadow sampler; the D1 primary path does not pass one.
+ * `timeoutMs` is used by the shadow sampler (`searchShadowTimeoutMs`) and by the
+ * D1 primary path ({@link SEARCH_PRIMARY_TIMEOUT_MS}).
  */
 export async function fetchD1Search(args: {
 	fetcher: Fetcher;
@@ -115,32 +152,34 @@ export async function fetchD1Search(args: {
 			signal: controller.signal
 		});
 		const latencyMs = Math.max(0, Math.round(Date.now() - started));
+		const retryAfter = response.headers.get("retry-after") ?? undefined;
 		let raw: string;
 		try {
 			raw = await response.text();
 		} catch {
-			return { ok: false, error: D1SearchFetchError.UnreadableBody, status: response.status, latencyMs };
+			return { ok: false, error: D1SearchFetchError.UnreadableBody, status: response.status, latencyMs, retryAfter };
 		}
 		let parsed: unknown;
 		if (raw) {
 			try {
 				parsed = JSON.parse(raw);
 			} catch {
-				return { ok: false, error: D1SearchFetchError.NonJsonBody, status: response.status, latencyMs };
+				return { ok: false, error: D1SearchFetchError.NonJsonBody, status: response.status, latencyMs, retryAfter };
 			}
 		}
 		if (response.status === 200) {
 			if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
 				return { ok: true, status: 200, body: parsed as Record<string, unknown>, latencyMs };
 			}
-			return { ok: false, error: D1SearchFetchError.NonObjectBody, status: 200, latencyMs, body: parsed };
+			return { ok: false, error: D1SearchFetchError.NonObjectBody, status: 200, latencyMs, body: parsed, retryAfter };
 		}
 		return {
 			ok: false,
 			error: D1SearchFetchError.Status,
 			status: response.status,
 			latencyMs,
-			body: parsed
+			body: parsed,
+			retryAfter
 		};
 	};
 	try {

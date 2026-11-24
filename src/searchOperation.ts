@@ -28,4 +28,6 @@ export interface searchOperation {
     results?: number | null | undefined;
     /** Served engine for this request. */
     engine?: SearchEngine;
+    /** D1 primary attempts used (1 = no retry; 2 = retried once). */
+    attempts?: number;
 }

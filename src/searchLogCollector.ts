@@ -186,6 +186,9 @@ export class searchLogCollector implements searchOperation {
 		if (props.hasOwnProperty("engine")) {
 			this.engine = props.engine;
 		}
+		if (props.hasOwnProperty("attempts")) {
+			this.attempts = props.attempts;
+		}
 	}
 
 	/**
@@ -260,6 +263,9 @@ export class searchLogCollector implements searchOperation {
 		}
 		if (this.engine) {
 			searchLog.engine = this.engine;
+		}
+		if (this.attempts != null) {
+			searchLog.attempts = this.attempts;
 		}
 		if (this.error) {
 			searchLog.errors = {
@@ -337,6 +343,7 @@ export class searchLogCollector implements searchOperation {
 	searchResult?: ISearchResult;
 	results?: number | undefined | null;
 	engine?: SearchEngine;
+	attempts?: number;
 	message?: string;
 	requestId?: string;
 	messages?: string[];

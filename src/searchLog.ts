@@ -25,5 +25,7 @@ export interface searchLog {
 	results?: number | undefined | null;
 	/** Served engine. */
 	engine?: SearchEngine;
+	/** D1 primary attempts used (1 = no retry; 2 = retried once). */
+	attempts?: number;
 	request: searchLogQueryRequest;
 }

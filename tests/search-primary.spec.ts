@@ -9,8 +9,13 @@ import type { Env } from "../src/Env";
 import type { ActionContext } from "../src/ActionContext";
 import { search } from "../src/search";
 import {
+	D1PrimaryGiveUpStatus,
+	D1SearchFetchError,
+	SEARCH_PRIMARY_MAX_ATTEMPTS,
+	SEARCH_PRIMARY_TIMEOUT_MS,
 	SearchD1Index,
 	SearchEngine,
+	d1PrimaryIsRetriable,
 	d1SearchFetcher,
 	parseSearchD1Index,
 	parseSearchPrimaryConfig,
@@ -47,16 +52,40 @@ function stubAzure(body: unknown, status = 200) {
 	return fetchMock;
 }
 
-function d1Fetcher(body: unknown, status = 200) {
+function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { "content-type": "application/json", ...headers }
+	});
+}
+
+function d1Fetcher(body: unknown, status = 200, headers: Record<string, string> = {}) {
 	return {
-		fetch: vi.fn(async () =>
-			new Response(JSON.stringify(body), {
-				status,
-				headers: { "content-type": "application/json" }
-			})
-		)
+		fetch: vi.fn(async () => jsonResponse(body, status, headers))
 	} as unknown as Fetcher;
 }
+
+function d1Sequence(...responses: Array<Response | Promise<Response>>) {
+	const fetch = vi.fn();
+	for (const response of responses) {
+		fetch.mockImplementationOnce(async () => response);
+	}
+	return { fetch } as unknown as Fetcher;
+}
+
+function hungResponse(): Promise<Response> {
+	return new Promise(() => { });
+}
+
+const upstreamUnavailable = {
+	error: { code: "UpstreamSearchError", message: "Upstream search unavailable" },
+	"@search.engine": SearchEngine.D1
+};
+
+const upstreamTimedOut = {
+	error: { code: "UpstreamSearchError", message: "Upstream search timed out" },
+	"@search.engine": SearchEngine.D1
+};
 
 function d1Raw(body: string, status = 200, contentType = "text/plain") {
 	return {
@@ -139,6 +168,21 @@ describe("parseSearchPrimaryConfig", () => {
 		expect(d1SearchFetcher({ SEARCH: production, SEARCH_PREVIEW: preview, searchD1Index: "production" })).toBe(production);
 		expect(d1SearchFetcher({ SEARCH: production, SEARCH_PREVIEW: preview, searchD1Index: "preview" })).toBe(preview);
 	});
+
+	it("retries only timeout, thrown fetch, and 5xx — not 400 or 429", () => {
+		expect(SEARCH_PRIMARY_TIMEOUT_MS).toBe(3000);
+		expect(SEARCH_PRIMARY_MAX_ATTEMPTS).toBe(2);
+		expect(D1PrimaryGiveUpStatus.Timeout).toBe(504);
+		expect(D1PrimaryGiveUpStatus.Unavailable).toBe(502);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.Timeout, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.RequestFailed, latencyMs: 10, message: "boom" })).toBe(true);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.Status, status: 503, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.Status, status: 500, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.Status, status: 400, latencyMs: 10 })).toBe(false);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.Status, status: 429, latencyMs: 10 })).toBe(false);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.Status, status: 404, latencyMs: 10 })).toBe(false);
+		expect(d1PrimaryIsRetriable({ ok: false, error: D1SearchFetchError.NonJsonBody, status: 200, latencyMs: 10 })).toBe(false);
+	});
 });
 
 describe("wrangler SP-4.1 switches", () => {
@@ -164,6 +208,7 @@ describe("wrangler SP-4.1 switches", () => {
 
 describe("POST /search primary engine (SP-4.1)", () => {
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.unstubAllGlobals();
 		vi.restoreAllMocks();
 	});
@@ -232,27 +277,84 @@ describe("POST /search primary engine (SP-4.1)", () => {
 		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 	});
 
-	it("returns a D1 503 with @search.engine d1 and does not call Azure", async () => {
+	it("retries once after a D1 timeout and serves success, without calling Azure", async () => {
+		vi.useFakeTimers();
 		const azure = stubAzure(envelope(["azure-1"]));
-		vi.spyOn(console, "error").mockImplementation(() => { });
-		const d1Error = { error: { message: "unavailable" } };
-		const d1 = d1Fetcher(d1Error, 503);
-		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
-		expect(resp.status).toBe(503);
+		const d1 = d1Sequence(hungResponse(), jsonResponse(envelope(["d1-1"], SearchEngine.D1)));
+		const pending = postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
+		await vi.advanceTimersByTimeAsync(SEARCH_PRIMARY_TIMEOUT_MS);
+		const resp = await pending;
+		expect(resp.status).toBe(200);
 		expectCors(resp);
-		expect(await resp.json()).toEqual({ ...d1Error, "@search.engine": SearchEngine.D1 });
+		expect((await resp.json() as { value: { id: string }[] }).value[0].id).toBe("d1-1");
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
 		expect(azure).not.toHaveBeenCalled();
 	});
 
-	it("returns a D1 429 with @search.engine d1 and does not call Azure", async () => {
+	it("gives up with 504 after a timeout and one retried timeout, and logs requestId and attempts", async () => {
+		vi.useFakeTimers();
+		const azure = stubAzure(envelope(["azure-1"]));
+		const errors: unknown[] = [];
+		vi.spyOn(console, "error").mockImplementation((row: unknown) => { errors.push(row); });
+		const d1 = d1Sequence(hungResponse(), hungResponse());
+		const pending = postSearch(
+			env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }),
+			{ headers: { "cf-ray": "ray-timeout" } }
+		);
+		await vi.advanceTimersByTimeAsync(SEARCH_PRIMARY_TIMEOUT_MS);
+		await vi.advanceTimersByTimeAsync(SEARCH_PRIMARY_TIMEOUT_MS);
+		const resp = await pending;
+		expect(resp.status).toBe(D1PrimaryGiveUpStatus.Timeout);
+		expectCors(resp);
+		expect(await resp.json()).toEqual(upstreamTimedOut);
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
+		expect(azure).not.toHaveBeenCalled();
+		expect(errors).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				engine: SearchEngine.D1,
+				attempts: 2,
+				requestId: "ray-timeout",
+				errors: expect.objectContaining({ searchStatus: D1PrimaryGiveUpStatus.Timeout })
+			})
+		]));
+	});
+
+	it("retries a D1 503 once and serves success, without calling Azure", async () => {
+		const azure = stubAzure(envelope(["azure-1"]));
+		const d1 = d1Sequence(
+			jsonResponse({ error: { message: "unavailable" } }, 503),
+			jsonResponse(envelope(["d1-1"], SearchEngine.D1))
+		);
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
+		expect(resp.status).toBe(200);
+		expect((await resp.json() as { value: { id: string }[] }).value[0].id).toBe("d1-1");
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
+		expect(azure).not.toHaveBeenCalled();
+	});
+
+	it("gives up with 502 after a retried D1 503", async () => {
+		const azure = stubAzure(envelope(["azure-1"]));
+		vi.spyOn(console, "error").mockImplementation(() => { });
+		const d1 = d1Fetcher({ error: { message: "unavailable" } }, 503);
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
+		expect(resp.status).toBe(D1PrimaryGiveUpStatus.Unavailable);
+		expectCors(resp);
+		expect(await resp.json()).toEqual(upstreamUnavailable);
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
+		expect(azure).not.toHaveBeenCalled();
+	});
+
+	it("forwards a D1 429 with Retry-After, stamps @search.engine d1, and does not retry or call Azure", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
 		vi.spyOn(console, "error").mockImplementation(() => { });
 		const d1Error = { error: { message: "rate limited" } };
-		const d1 = d1Fetcher(d1Error, 429);
+		const d1 = d1Fetcher(d1Error, 429, { "retry-after": "7" });
 		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
 		expect(resp.status).toBe(429);
 		expectCors(resp);
+		expect(resp.headers.get("retry-after")).toBe("7");
 		expect(await resp.json()).toEqual({ ...d1Error, "@search.engine": SearchEngine.D1 });
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 		expect(azure).not.toHaveBeenCalled();
 	});
 
@@ -263,10 +365,8 @@ describe("POST /search primary engine (SP-4.1)", () => {
 		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
 		expect(resp.status).toBe(502);
 		expectCors(resp);
-		expect(await resp.json()).toEqual({
-			error: { code: "UpstreamSearchError", message: "Upstream search unavailable" },
-			"@search.engine": SearchEngine.D1
-		});
+		expect(await resp.json()).toEqual(upstreamUnavailable);
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 		expect(azure).not.toHaveBeenCalled();
 	});
 
@@ -279,25 +379,25 @@ describe("POST /search primary engine (SP-4.1)", () => {
 		expect(resp.status).toBe(404);
 		expectCors(resp);
 		expect(await resp.json()).toEqual({ ...d1Error, "@search.engine": SearchEngine.D1 });
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 		expect(azure).not.toHaveBeenCalled();
 	});
 
-	it("returns 502 when the D1 fetch throws and does not call Azure", async () => {
+	it("retries once when the D1 fetch throws, then gives up with 502", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
 		vi.spyOn(console, "error").mockImplementation(() => { });
 		const d1 = { fetch: vi.fn(async () => { throw new Error("binding failed"); }) } as unknown as Fetcher;
 		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
-		expect(resp.status).toBe(502);
+		expect(resp.status).toBe(D1PrimaryGiveUpStatus.Unavailable);
 		expectCors(resp);
-		expect(await resp.json()).toEqual({
-			error: { code: "UpstreamSearchError", message: "Upstream search unavailable" },
-			"@search.engine": SearchEngine.D1
-		});
+		expect(await resp.json()).toEqual(upstreamUnavailable);
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
 		expect(azure).not.toHaveBeenCalled();
 	});
 
-	it("forwards a D1 400 with CORS, stamps @search.engine d1, and does not call Azure", async () => {
+	it("forwards a D1 400 with CORS, stamps @search.engine d1, and does not retry or call Azure", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
+		vi.spyOn(console, "error").mockImplementation(() => { });
 		const d1Error = { error: { message: "filter is invalid" } };
 		const d1 = d1Fetcher(d1Error, 400);
 		const resp = await postSearch(
@@ -307,6 +407,7 @@ describe("POST /search primary engine (SP-4.1)", () => {
 		expect(resp.status).toBe(400);
 		expectCors(resp);
 		expect(await resp.json()).toEqual({ ...d1Error, "@search.engine": SearchEngine.D1 });
+		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 		expect(azure).not.toHaveBeenCalled();
 	});
 
