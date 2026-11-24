@@ -28,7 +28,6 @@ import {
 } from "../src/searchShadowSoak";
 import {
 	fmtPct,
-	liveRefreshAction,
 	provisionalLatency,
 	provisionalRatio,
 	renderSoakReport,
@@ -37,6 +36,7 @@ import {
 	showFor,
 	soakDates
 } from "../src/searchShadowSoakPage";
+import { LIVE_REFRESH_DECIDE_JS } from "../src/searchShadowSoakLive";
 import { niceCeiling, renderChart } from "../src/soakCharts";
 import { buildDocsPageHtml } from "../src/resources/docsPageHtml";
 import { testEnv } from "./honoTestApp";
@@ -459,17 +459,18 @@ describe("soak page display helpers", () => {
 	});
 
 	it("decides each live refresh: expire on login redirect or 401/403, retry on errors, swap otherwise", () => {
-		expect(liveRefreshAction({ type: "opaqueredirect", status: 0, ok: false, hasTarget: false })).toBe("expire");
-		expect(liveRefreshAction({ type: "basic", status: 401, ok: false, hasTarget: false })).toBe("expire");
-		expect(liveRefreshAction({ type: "basic", status: 403, ok: false, hasTarget: false })).toBe("expire");
-		expect(liveRefreshAction({ type: "basic", status: 502, ok: false, hasTarget: false })).toBe("retry");
-		expect(liveRefreshAction({ type: "basic", status: 200, ok: true, hasTarget: false })).toBe("retry");
-		expect(liveRefreshAction({ type: "basic", status: 200, ok: true, hasTarget: true })).toBe("swap");
+		const decide = new Function(`${LIVE_REFRESH_DECIDE_JS}; return decide;`)();
+		expect(decide({ type: "opaqueredirect", status: 0, ok: false, hasTarget: false })).toBe("expire");
+		expect(decide({ type: "basic", status: 401, ok: false, hasTarget: false })).toBe("expire");
+		expect(decide({ type: "basic", status: 403, ok: false, hasTarget: false })).toBe("expire");
+		expect(decide({ type: "basic", status: 502, ok: false, hasTarget: false })).toBe("retry");
+		expect(decide({ type: "basic", status: 200, ok: true, hasTarget: false })).toBe("retry");
+		expect(decide({ type: "basic", status: 200, ok: true, hasTarget: true })).toBe("swap");
 	});
 
 	describe("live refresh script", () => {
 		type Fake = { textContent: string; innerHTML: string; className: string; hidden: boolean; attrs: Record<string, string> };
-		function runScript(response: { type: string; status: number; ok: boolean; body?: string }, nextGenerated = "2026-11-23T21:01:00.000Z") {
+		function runScript(response: { type: string; status: number; ok: boolean; body?: string; fail?: boolean }, nextGenerated = "2026-11-23T21:01:00.000Z") {
 			const report = buildSoakReport(NOW, { daily: [], dailyLatency: [], weekLatency: undefined });
 			const html = renderSoakReport(report, "production");
 			const scripts = [...html.matchAll(/<script>(.*?)<\/script>/gs)].map((m) => m[1]);
@@ -500,6 +501,7 @@ describe("soak page display helpers", () => {
 			const fetchCalls: RequestInit[] = [];
 			const fetch = async (_url: string, init: RequestInit) => {
 				fetchCalls.push(init);
+				if (response.fail) throw new Error("network");
 				return { ...response, text: async () => response.body ?? "" };
 			};
 			class DOMParser {
@@ -541,6 +543,28 @@ describe("soak page display helpers", () => {
 			const run = runScript({ type: "basic", status: 502, ok: false, body: "<h2>Soak data unavailable</h2>" });
 			await run.settle();
 			expect(run.status.textContent).toBe("Update failed · retrying in a minute");
+			expect(run.box.innerHTML).toBe("OLD");
+		});
+
+		it("expires on 401 from the served script", async () => {
+			const run = runScript({ type: "basic", status: 401, ok: false });
+			await run.settle();
+			expect(run.status.innerHTML).toContain("Session expired");
+			expect(run.toggle.hidden).toBe(true);
+			expect(run.box.innerHTML).toBe("OLD");
+		});
+
+		it("retries when a 200 response has no swap target", async () => {
+			const run = runScript({ type: "basic", status: 200, ok: true, body: "<h2>Not configured</h2>" });
+			await run.settle();
+			expect(run.status.textContent).toBe("Update failed · retrying in a minute");
+			expect(run.box.innerHTML).toBe("OLD");
+		});
+
+		it("stays on the old content when the refetch throws", async () => {
+			const run = runScript({ type: "basic", status: 200, ok: true, body: "<div id=\"soak-live\"></div>", fail: true });
+			await run.settle();
+			expect(run.status.textContent).toBe("Offline · retrying in a minute");
 			expect(run.box.innerHTML).toBe("OLD");
 		});
 	});

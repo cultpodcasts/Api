@@ -34,6 +34,7 @@ import {
 import { renderChart, type ChartSeries } from "./soakCharts";
 import { openApiDocumentVersion, resolveApiEnvironment, type ApiEnvironment } from "./apiEnvironment";
 import { docsChromeStyles, docsEnvBanner, docsEnvironmentLabels, docsTitle, docsTopActions } from "./resources/docsChrome";
+import { LIVE_REFRESH_SCRIPT } from "./searchShadowSoakLive";
 
 export { SEARCH_SHADOW_SOAK_PATH } from "./searchShadowSoak";
 
@@ -114,90 +115,6 @@ const ICON_SVG: Record<Show, string> = {
 export function icon(show: Show, detail?: string, size = 22): string {
 	const label = escapeHtml(detail ? `${SHOW_LABEL[show]}: ${detail}` : SHOW_LABEL[show]);
 	return `<span class="ic ic-${show}" role="img" aria-label="${label}" title="${label}"><svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">${ICON_SVG[show]}</svg></span>`;
-}
-
-/** What the live refresh sees from one refetch of the page. */
-export type LiveResponse = {
-	/** `Response.type`: `opaqueredirect` when the docs gate redirects to login (`redirect: "manual"`). */
-	type: string;
-	status: number;
-	ok: boolean;
-	/** The refetched page has the `#soak-live` swap target (the error pages do not). */
-	hasTarget: boolean;
-};
-
-export type LiveAction = "expire" | "retry" | "swap";
-
-/**
- * The live refresh's decision. Runs in the browser: it is embedded in the page with `toString()`,
- * so it must stay self-contained (no imports, no closures, no nested functions).
- */
-export function liveRefreshAction(r: LiveResponse): LiveAction {
-	if (r.type === "opaqueredirect" || r.status === 401 || r.status === 403) return "expire";
-	if (!r.ok || !r.hasTarget) return "retry";
-	return "swap";
-}
-
-/** The page's only script: refetch every 60 s while visible, swap `#soak-live`, stop on expiry. */
-export function liveScript(): string {
-	return `(() => {
-	const decide = ${liveRefreshAction.toString()};
-	const box = document.getElementById("soak-live");
-	const status = document.getElementById("live-status");
-	const toggle = document.getElementById("live-toggle");
-	if (!box || !status || !toggle) return;
-	let paused = false;
-	let stopped = false;
-	let busy = false;
-	let timer = 0;
-	const stamp = () => {
-		const g = box.getAttribute("data-generated");
-		return g ? new Date(g).toISOString().slice(11, 19) + " UTC" : "";
-	};
-	const show = () => {
-		status.textContent = (paused ? "Paused" : "Live") + " · updated " + stamp();
-		status.className = paused ? "live-dot paused" : "live-dot";
-		toggle.textContent = paused ? "Resume" : "Pause";
-	};
-	const expire = () => {
-		stopped = true;
-		clearInterval(timer);
-		status.className = "live-dot stopped";
-		status.innerHTML = 'Session expired · <a href="">reload</a>';
-		toggle.hidden = true;
-	};
-	async function tick() {
-		if (paused || stopped || busy || document.hidden) return;
-		busy = true;
-		try {
-			const r = await fetch(location.href, { credentials: "same-origin", redirect: "manual", cache: "no-store", headers: { accept: "text/html" } });
-			const next = r.ok ? new DOMParser().parseFromString(await r.text(), "text/html").getElementById("soak-live") : null;
-			const action = decide({ type: r.type, status: r.status, ok: r.ok, hasTarget: !!next });
-			if (action === "expire") return expire();
-			if (action === "retry" || !next) {
-				status.textContent = "Update failed · retrying in a minute";
-				return;
-			}
-			box.innerHTML = next.innerHTML;
-			box.setAttribute("data-generated", next.getAttribute("data-generated") || "");
-			show();
-		} catch (e) {
-			status.textContent = "Offline · retrying in a minute";
-		} finally {
-			busy = false;
-		}
-	}
-	timer = setInterval(tick, 60000);
-	toggle.addEventListener("click", () => {
-		paused = !paused;
-		show();
-		if (!paused) tick();
-	});
-	document.addEventListener("visibilitychange", () => {
-		if (!document.hidden) tick();
-	});
-	show();
-})();`;
 }
 
 const STYLES = `
@@ -281,7 +198,7 @@ ${docsTitle("D1 search shadow soak", openApiDocumentVersion)}
 <p class="meta"><a href="${SOAK_DOC_URL}">Soak runbook</a>${live}</p>
 ${body}
 </main>
-${live ? `<script>${liveScript()}</script>` : ""}
+${live ? `<script>${LIVE_REFRESH_SCRIPT}</script>` : ""}
 </body>
 </html>`;
 }
