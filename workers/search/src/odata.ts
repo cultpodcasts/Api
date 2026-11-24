@@ -174,7 +174,7 @@ function clause(p: P, binds: unknown[]): string {
 		}
 		if (!lit(p, ")")) throw new SearchRequestError("any: expected )");
 		binds.push(...subBinds);
-		return `EXISTS (SELECT 1 FROM doc_subjects s WHERE s.rowid_ref = d.rowid AND ${valueSql})`; // pragma: allowlist secret
+		return `d.rowid IN (SELECT s.rowid_ref FROM doc_subjects s WHERE ${valueSql})`; // pragma: allowlist secret
 	}
 	if (lit(p, "eq")) {
 		if (lit(p, "null")) return eqSql(name, null, binds);

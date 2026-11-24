@@ -92,11 +92,17 @@ describe("Sessions API read path", () => {
 		expect(log).toHaveBeenCalledWith(D1_READ_LOG, {
 			route: "docs/search",
 			environment: "preview",
+			engine: "d1",
+			sessionConstraint: "first-unconstrained",
 			servedByRegion: "ENAM",
 			servedByPrimary: false,
 			servedByColo: "EWR",
 			sqlDurationMs: 0.75,
-			queries: 3
+			queries: 3,
+			status: 200,
+			durationMs: expect.any(Number),
+			attempts: 1,
+			retryCount: 0
 		});
 	});
 

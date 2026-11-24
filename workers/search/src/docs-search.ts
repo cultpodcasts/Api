@@ -1,5 +1,12 @@
 import { DOC_COLUMNS, toAzureSearchDocument, toAzureSearchEnvelope, type AzureSearchDocRow } from "./azure-response";
-import { logServedBy, readSession } from "./d1-session";
+import {
+	logServedBy,
+	READ_SESSION_CONSTRAINT,
+	readSession,
+	requestIdFromRequest,
+	SearchWorkerRoute,
+	servedBy
+} from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
 import { json } from "./health";
@@ -53,17 +60,25 @@ export const MAX_FILTER_LENGTH = 32 * 1024;
 export const MAX_BODY_LENGTH = 256 * 1024;
 
 export async function docsSearch(request: Request, env: SearchEnv, ranking: RankingConfig = DEFAULT_RANKING): Promise<Response> {
+	const started = Date.now();
+	const requestId = requestIdFromRequest(request);
+	const logCtx = {
+		requestId,
+		route: SearchWorkerRoute.DocsSearch,
+		sessionConstraint: READ_SESSION_CONSTRAINT
+	};
 	let req: ODataSearchRequest;
 	try {
 		req = parseRequest(await request.text());
 	} catch (e) {
-		return badRequest(e);
+		return badRequest(e, { ...logCtx, durationMs: Date.now() - started });
 	}
 	try {
-		return await runSearch(req, env, readSession(env), ranking);
+		return await runSearch(req, env, readSession(env), ranking, started, requestId);
 	} catch (e) {
-		if (e instanceof SearchRequestError) return badRequest(e);
-		return d1Unavailable(e);
+		const durationMs = Date.now() - started;
+		if (e instanceof SearchRequestError) return badRequest(e, { ...logCtx, durationMs });
+		return d1Unavailable(e, { ...logCtx, durationMs, attempts: 1, retryCount: 0 });
 	}
 }
 
@@ -140,7 +155,9 @@ async function runSearch(
 	req: ODataSearchRequest,
 	env: SearchEnv,
 	db: D1DatabaseSession,
-	ranking: RankingConfig
+	ranking: RankingConfig,
+	started: number,
+	requestId?: string
 ): Promise<Response> {
 	const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
 	// The api Worker rewrites unquoted queries for Azure (`"q"^10 OR (q)`); D1 ranks the original natively.
@@ -254,6 +271,19 @@ async function runSearch(
 			...(facetSpecs.length ? { facets } : {})
 		}
 	);
-	logServedBy("docs/search", env, reads);
-	return json(body, 200);
+	const summary = servedBy(reads);
+	logServedBy(SearchWorkerRoute.DocsSearch, env, reads, {
+		requestId,
+		status: 200,
+		durationMs: Date.now() - started,
+		attempts: 1,
+		retryCount: 0
+	});
+	const headers: Record<string, string> = {
+		"x-search-session-constraint": READ_SESSION_CONSTRAINT
+	};
+	if (summary.servedByRegion) {
+		headers["x-search-served-by-region"] = summary.servedByRegion;
+	}
+	return json(body, 200, headers);
 }

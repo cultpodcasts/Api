@@ -134,3 +134,59 @@ describe("searchLogCollector", () => {
 		});
 	});
 });
+
+describe("searchLogCollector compound subject & structured diagnostics (#319)", () => {
+	it("extracts subject cleanly when followed by language or kind clauses", () => {
+		const compound = new searchLogCollector();
+		compound.collectSearchRequest({
+			filter: "subjects/any(s: s eq 'Synanon') and (lang eq 'en' or lang eq null)"
+		});
+		expect(compound.toSearchLog().query).toMatchObject({
+			mode: "subject",
+			subject: "Synanon"
+		});
+
+		const escaped = new searchLogCollector();
+		escaped.collectSearchRequest({
+			filter: "subjects/any(s: s eq 'Heaven''s Gate') and contentKind ne 'Film'"
+		});
+		expect(escaped.toSearchLog().query).toMatchObject({
+			mode: "subject",
+			subject: "Heaven's Gate"
+		});
+	});
+
+	it("includes route, engine, upstreamStatus, attempts, retryCount, durationMs and error cause", async () => {
+		const { SearchEngine, SearchErrorClass, SearchRoute } = await import("../src/searchEngine");
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const collector = new searchLogCollector();
+		const payload = collector.emitError({
+			requestId: "ray-1",
+			route: SearchRoute.Search,
+			engine: SearchEngine.Azure,
+			searchStatus: 502,
+			upstreamStatus: 503,
+			errorClass: SearchErrorClass.UpstreamHttpError,
+			errorMessage: "ServiceUnavailable",
+			attempts: 1,
+			retryCount: 0,
+			durationMs: 42
+		});
+		expect(payload).toMatchObject({
+			requestId: "ray-1",
+			route: "/search",
+			engine: "azure",
+			upstreamStatus: 503,
+			attempts: 1,
+			retryCount: 0,
+			durationMs: 42,
+			errors: {
+				searchStatus: 502,
+				upstreamStatus: 503,
+				errorClass: "upstream_http_error",
+				errorMessage: "ServiceUnavailable"
+			}
+		});
+		expect(errorSpy).toHaveBeenCalledOnce();
+	});
+});

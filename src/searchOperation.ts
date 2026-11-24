@@ -1,9 +1,21 @@
 import { ISearchResult } from "./ISearchResult";
+import type { SearchEngine, SearchErrorClass, SearchRoute } from "./searchEngine";
 import { searchMode } from "./searchMode";
 
 export interface searchOperation {
+    requestId?: string;
     leech?: boolean;
     searchStatus?: number;
+    upstreamStatus?: number;
+    errorClass?: SearchErrorClass;
+    errorMessage?: string;
+    route?: SearchRoute;
+    engine?: SearchEngine;
+    servedByRegion?: string | null;
+    sessionConstraint?: string;
+    attempts?: number;
+    retryCount?: number;
+    durationMs?: number;
     orderBy?: string;
     skip?: number;
     subject?: string;

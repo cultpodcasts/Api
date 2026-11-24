@@ -1,5 +1,23 @@
 import type { SearchEnv } from "./env";
 
+export enum D1SessionConstraintMode {
+	FirstUnconstrained = "first-unconstrained",
+	FirstPrimary = "first-primary"
+}
+
+export enum SearchWorkerEngine {
+	D1 = "d1"
+}
+
+export enum SearchWorkerRoute {
+	Health = "/health",
+	DocsSearch = "docs/search",
+	AdminInventory = "/admin/docs/inventory",
+	AdminDocs = "/admin/docs",
+	AdminRebuild = "/admin/rebuild",
+	Unknown = "unknown"
+}
+
 /**
  * D1 Sessions API read path (SP-1.2, cultpodcasts/Api#220).
  *
@@ -16,7 +34,13 @@ import type { SearchEnv } from "./env";
  * Search requests carry no bookmark: readers never write, and a page that is a few seconds behind
  * the primary is fine for search. Writes (the SP-1.4 admin route) stay on the primary.
  */
-export const READ_SESSION_CONSTRAINT: D1SessionConstraint = "first-unconstrained";
+export const READ_SESSION_CONSTRAINT: D1SessionConstraint = D1SessionConstraintMode.FirstUnconstrained;
+
+export function requestIdFromRequest(request: Request): string | undefined {
+	const value = request.headers.get("x-request-id") ?? request.headers.get("cf-ray");
+	const trimmed = value?.trim();
+	return trimmed ? trimmed : undefined;
+}
 
 /** A read session on the search database for one request. */
 export function readSession(env: SearchEnv): D1DatabaseSession {
@@ -70,12 +94,37 @@ export function servedBy(results: readonly { meta?: Meta }[]): ServedBy {
 /** Log line name; filter on it in Workers Observability (`message = "search: d1 read"`). */
 export const D1_READ_LOG = "search: d1 read";
 
+export type SearchReadLogContext = {
+	requestId?: string;
+	status?: number;
+	durationMs?: number;
+	attempts?: number;
+	retryCount?: number;
+};
+
 /**
  * One structured log line per successful search request: which region and colo served it and
  * whether that was the primary. The soak (SP-3.2) charts replica use and latency by region from it.
  * Search traffic only (`/health` returns the region in its body instead). Unsampled; if volume ever
  * matters, set `observability.head_sampling_rate` in wrangler.search.jsonc rather than gating here.
  */
-export function logServedBy(route: string, env: SearchEnv, results: readonly { meta?: Meta }[]): void {
-	console.log(D1_READ_LOG, { route, environment: env.searchEnvironment ?? "unknown", ...servedBy(results) });
+export function logServedBy(
+	route: string,
+	env: SearchEnv,
+	results: readonly { meta?: Meta }[],
+	context: SearchReadLogContext = {}
+): void {
+	const payload: Record<string, unknown> = {
+		route,
+		environment: env.searchEnvironment ?? "unknown",
+		engine: SearchWorkerEngine.D1,
+		sessionConstraint: READ_SESSION_CONSTRAINT,
+		...servedBy(results)
+	};
+	if (context.requestId !== undefined) payload.requestId = context.requestId;
+	if (context.status !== undefined) payload.status = context.status;
+	if (context.durationMs !== undefined) payload.durationMs = context.durationMs;
+	if (context.attempts !== undefined) payload.attempts = context.attempts;
+	if (context.retryCount !== undefined) payload.retryCount = context.retryCount;
+	console.log(D1_READ_LOG, payload);
 }

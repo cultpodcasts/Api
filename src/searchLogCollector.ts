@@ -1,14 +1,41 @@
 import { ActionContext } from "./ActionContext";
 import { ISearchResult } from "./ISearchResult";
 import { oDataSearchModel } from "./oDataSearchModel";
+import { SearchEngine, SearchErrorClass, SearchRoute } from "./searchEngine";
 import { searchLog } from "./searchLog";
 import { searchMode } from "./searchMode";
 import { searchOperation } from "./searchOperation";
 
-export type SearchLogLevel = "info" | "warn" | "error";
+export enum SearchLogLevel {
+	Info = "info",
+	Warn = "warn",
+	Error = "error"
+}
 
 /** Optional fields applied on terminal emit (search stays query/results-shaped). */
 export type SearchLogEmitProps = Partial<searchOperation> & { message?: string };
+
+/**
+ * Extracts a single-quoted OData string value immediately following `prefix`,
+ * unescaping doubled single quotes (`''` -> `'`).
+ */
+export function extractODataSingleQuotedValue(filter: string, prefix: string): string | undefined {
+	if (!filter.startsWith(prefix)) return undefined;
+	let out = "";
+	for (let i = prefix.length; i < filter.length; i++) {
+		const c = filter[i];
+		if (c === "'") {
+			if (filter[i + 1] === "'") {
+				out += "'";
+				i++;
+				continue;
+			}
+			return out;
+		}
+		out += c;
+	}
+	return undefined;
+}
 
 /**
  * Search-specific per-request log accumulator. Same emit conventions as
@@ -23,6 +50,7 @@ export class searchLogCollector implements searchOperation {
 	private flushedPayload?: searchLog;
 
 	collectRequest(c: ActionContext) {
+		this.route = SearchRoute.Search;
 		const cfRay = c.req.header("cf-ray");
 		if (cfRay) {
 			this.requestId = cfRay;
@@ -57,21 +85,20 @@ export class searchLogCollector implements searchOperation {
 			let filter: string = data.filter;
 			if (filter.indexOf("(podcastName eq '") == 0) {
 				const idFilter = "') and (id eq ";
-				let filterCutoff = -2;
-				let query = filter.slice(17, filterCutoff);
 				if (filter.indexOf(idFilter) >= 0) {
-					filterCutoff = filter.indexOf(idFilter);
+					const filterCutoff = filter.indexOf(idFilter);
 					const episodeId = filter.slice(filterCutoff + idFilter.length + 1, -2);
 					this.add({ mode: searchMode.episode, episodeId: episodeId, filter: filter });
 				} else {
-					this.add({ podcastName: query, mode: searchMode.podcast, filter: filter });
+					const podcastName = extractODataSingleQuotedValue(filter, "(podcastName eq '") ?? filter.slice(17, -2);
+					this.add({ podcastName, mode: searchMode.podcast, filter: filter });
 				}
 			} else if (filter.indexOf("subjects/any(s: s eq '") == 0) {
-				let query = filter.slice(22, -2);
-				this.add({ subject: query, mode: searchMode.subject });
+				const subject = extractODataSingleQuotedValue(filter, "subjects/any(s: s eq '") ?? filter.slice(22, -2);
+				this.add({ subject, mode: searchMode.subject });
 			} else if (filter.indexOf("(id eq '") == 0) {
-				let query = filter.slice(8, -2);
-				this.add({ episodeId: query, mode: searchMode.shortnerFallback, filter: filter });
+				const episodeId = extractODataSingleQuotedValue(filter, "(id eq '") ?? filter.slice(8, -2);
+				this.add({ episodeId, mode: searchMode.shortnerFallback, filter: filter });
 			} else if (
 				filter.indexOf("search.in(podcastName, '") == 0 ||
 				filter.indexOf("subjects/any(s: search.in(s, '") == 0
@@ -101,6 +128,9 @@ export class searchLogCollector implements searchOperation {
 	}
 
 	add(props: SearchLogEmitProps): void {
+		if (props.hasOwnProperty("requestId")) {
+			this.requestId = props.requestId;
+		}
 		if (props.hasOwnProperty("leech")) {
 			this.leech = props.leech;
 			this.error = true;
@@ -110,6 +140,42 @@ export class searchLogCollector implements searchOperation {
 			if (this.searchStatus != 200) {
 				this.error = true;
 			}
+		}
+		if (props.hasOwnProperty("upstreamStatus")) {
+			this.upstreamStatus = props.upstreamStatus;
+		}
+		if (props.hasOwnProperty("errorClass")) {
+			this.errorClass = props.errorClass;
+			if (props.errorClass !== undefined) {
+				this.error = true;
+			}
+		}
+		if (props.hasOwnProperty("errorMessage")) {
+			this.errorMessage = props.errorMessage;
+			if (props.errorMessage !== undefined) {
+				this.error = true;
+			}
+		}
+		if (props.hasOwnProperty("route")) {
+			this.route = props.route;
+		}
+		if (props.hasOwnProperty("engine")) {
+			this.engine = props.engine;
+		}
+		if (props.hasOwnProperty("servedByRegion")) {
+			this.servedByRegion = props.servedByRegion;
+		}
+		if (props.hasOwnProperty("sessionConstraint")) {
+			this.sessionConstraint = props.sessionConstraint;
+		}
+		if (props.hasOwnProperty("attempts")) {
+			this.attempts = props.attempts;
+		}
+		if (props.hasOwnProperty("retryCount")) {
+			this.retryCount = props.retryCount;
+		}
+		if (props.hasOwnProperty("durationMs")) {
+			this.durationMs = props.durationMs;
 		}
 		if (props.hasOwnProperty("orderBy")) {
 			this.orderBy = props.orderBy;
@@ -246,6 +312,30 @@ export class searchLogCollector implements searchOperation {
 		if (this.requestId) {
 			searchLog.requestId = this.requestId;
 		}
+		if (this.route) {
+			searchLog.route = this.route;
+		}
+		if (this.engine) {
+			searchLog.engine = this.engine;
+		}
+		if (this.servedByRegion !== undefined) {
+			searchLog.servedByRegion = this.servedByRegion;
+		}
+		if (this.sessionConstraint) {
+			searchLog.sessionConstraint = this.sessionConstraint;
+		}
+		if (this.upstreamStatus != null) {
+			searchLog.upstreamStatus = this.upstreamStatus;
+		}
+		if (this.attempts != null) {
+			searchLog.attempts = this.attempts;
+		}
+		if (this.retryCount != null) {
+			searchLog.retryCount = this.retryCount;
+		}
+		if (this.durationMs != null) {
+			searchLog.durationMs = this.durationMs;
+		}
 		if (this.messages && this.messages.length > 0) {
 			searchLog.messages = this.messages;
 		}
@@ -257,6 +347,9 @@ export class searchLogCollector implements searchOperation {
 		if (this.error) {
 			searchLog.errors = {
 				searchStatus: this.searchStatus,
+				upstreamStatus: this.upstreamStatus,
+				errorClass: this.errorClass,
+				errorMessage: this.errorMessage,
 				leech: this.leech,
 				unrecognisedSearchFilter: this.unrecognisedSearchFilter,
 				missingSearch: this.missingSearch
@@ -269,17 +362,17 @@ export class searchLogCollector implements searchOperation {
 	 * Terminal success/info write (`console.info`). Call once at end of request.
 	 */
 	emit(props?: SearchLogEmitProps): searchLog {
-		return this.flush("info", props);
+		return this.flush(SearchLogLevel.Info, props);
 	}
 
 	/** Terminal warning write (`console.warn`). Call once at end of request. */
 	emitWarn(props?: SearchLogEmitProps): searchLog {
-		return this.flush("warn", props);
+		return this.flush(SearchLogLevel.Warn, props);
 	}
 
 	/** Terminal error write (`console.error`). Call once at end of request. */
 	emitError(props?: SearchLogEmitProps): searchLog {
-		return this.flush("error", props);
+		return this.flush(SearchLogLevel.Error, props);
 	}
 
 	hasFlushed(): boolean {
@@ -296,9 +389,9 @@ export class searchLogCollector implements searchOperation {
 		const payload = this.toSearchLog();
 		this.flushed = true;
 		this.flushedPayload = payload;
-		if (level === "error") {
+		if (level === SearchLogLevel.Error) {
 			console.error(payload);
-		} else if (level === "warn") {
+		} else if (level === SearchLogLevel.Warn) {
 			console.warn(payload);
 		} else {
 			console.info(payload);
@@ -309,6 +402,16 @@ export class searchLogCollector implements searchOperation {
 	error: boolean = false;
 	leech?: boolean;
 	searchStatus?: number;
+	upstreamStatus?: number;
+	errorClass?: SearchErrorClass;
+	errorMessage?: string;
+	route?: SearchRoute;
+	engine?: SearchEngine;
+	servedByRegion?: string | null;
+	sessionConstraint?: string;
+	attempts?: number;
+	retryCount?: number;
+	durationMs?: number;
 	orderBy?: string;
 	skip?: number;
 	subject?: string;

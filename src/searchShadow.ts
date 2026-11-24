@@ -37,6 +37,8 @@ export type SearchEngineSnapshot = {
 	error?: string;
 	/** Azure only: the edge cache's `cf-cache-status` (HIT/MISS/…); D1 is never edge-cached. */
 	cacheStatus?: string;
+	servedByRegion?: string;
+	sessionConstraint?: string;
 };
 
 /** `browse`: no free text (empty or `*`), only a podcast/subject filter; `text`: a typed search. */
@@ -298,9 +300,15 @@ export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShad
 		}, timeoutMs);
 	});
 	const call = async (): Promise<SearchEngineSnapshot> => {
+		const headers: Record<string, string> = {
+			"content-type": "application/json;charset=UTF-8"
+		};
+		if (args.requestId) {
+			headers["x-request-id"] = args.requestId;
+		}
 		const response = await args.fetcher.fetch(args.url, {
 			method: "POST",
-			headers: { "content-type": "application/json;charset=UTF-8" },
+			headers,
 			body: args.requestBody,
 			signal: controller.signal
 		});
@@ -321,7 +329,12 @@ export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShad
 		} catch {
 			error = "unreadable_body";
 		}
-		return snapshotSearchResponse(response.status, latencyMs, body, args.topN, error);
+		const snap = snapshotSearchResponse(response.status, latencyMs, body, args.topN, error);
+		const region = response.headers.get("x-search-served-by-region");
+		if (region) snap.servedByRegion = region;
+		const sessionConstraint = response.headers.get("x-search-session-constraint");
+		if (sessionConstraint) snap.sessionConstraint = sessionConstraint;
+		return snap;
 	};
 	let d1: SearchEngineSnapshot;
 	try {

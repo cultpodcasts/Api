@@ -1,4 +1,5 @@
 import { ISearchResult } from "./ISearchResult";
+import type { SearchEngine, SearchRoute } from "./searchEngine";
 import { searchLogQueryDetails } from "./searchLogQueryDetails";
 import { searchLogQueryErrors } from "./searchLogQueryErrors";
 import { searchLogQueryRequest } from "./searchLogQueryRequest";
@@ -16,6 +17,14 @@ export interface searchLog {
 	message: string;
 	/** CF-Ray / request id for correlating with Invocations grouping. */
 	requestId?: string;
+	route?: SearchRoute;
+	engine?: SearchEngine;
+	servedByRegion?: string | null;
+	sessionConstraint?: string;
+	upstreamStatus?: number;
+	attempts?: number;
+	retryCount?: number;
+	durationMs?: number;
 	/** Step breadcrumbs accumulated during the request (no mid-request console). */
 	messages?: string[];
 	errors?: searchLogQueryErrors;
