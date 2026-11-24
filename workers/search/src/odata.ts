@@ -316,7 +316,9 @@ function unwrapClause(raw: string): string {
 }
 
 /**
- * One lifted `subjects/any`. `sql` is the CTE body (`SELECT rowid_ref …`).
+ * One lifted `subjects/any`. `sql` is the CTE body (`SELECT DISTINCT rowid_ref …`).
+ * DISTINCT keeps a document that has several of the `search.in` subjects as one hit:
+ * the CROSS JOIN would otherwise repeat it on the page, in the count, and in every facet.
  * Its binds are the first placeholders in the statement, because the CTE is written before SELECT.
  */
 export interface SubjectHitCte {
@@ -350,7 +352,7 @@ export function applyODataFilter(filter: string): AppliedODataFilter {
 			const alias = subjectHits.length === 0 ? "subject_hits" : `subject_hits_${subjectHits.length + 1}`;
 			subjectHits.push({
 				alias,
-				sql: `SELECT s.rowid_ref FROM doc_subjects s WHERE ${hit.sql}`, // pragma: allowlist secret
+				sql: `SELECT DISTINCT s.rowid_ref FROM doc_subjects s WHERE ${hit.sql}`, // pragma: allowlist secret
 				binds: hit.binds
 			});
 			continue;

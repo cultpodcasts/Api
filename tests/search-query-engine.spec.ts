@@ -473,6 +473,30 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		expect(ids((await post({ search: "scientology", filter: "id ne 'ep-scn-1'" })).body)).toEqual(["ep-scn-2"]);
 	});
 
+	it("returns and counts a document once when search.in matches more than one of its subjects", async () => {
+		const db = migratedSearchDb();
+		upsertSearchDoc(
+			db,
+			{ id: "multi", title: "Tagged twice", release: "2026-11-02T00:00:00Z" },
+			["Alpha", "Beta", "Gamma"]
+		);
+		const { body } = await post(
+			{
+				filter: "subjects/any(s: search.in(s, 'Alpha£Beta', '£'))",
+				count: true,
+				facets: ["subjects,count:10"]
+			},
+			{ SEARCH_DB: d1(db) }
+		);
+		expect(ids(body)).toEqual(["multi"]);
+		expect(body["@odata.count"]).toBe(1);
+		expect(body["@search.facets"].subjects).toEqual([
+			{ value: "Alpha", count: 1 },
+			{ value: "Beta", count: 1 },
+			{ value: "Gamma", count: 1 }
+		]);
+	});
+
 	it("browses by release desc with top / skip / count", async () => {
 		const all = await post({ count: true });
 		expect(ids(all.body)).toEqual(["news-1", "ep-scn-1", "ep-scn-2", "film-1"]);
