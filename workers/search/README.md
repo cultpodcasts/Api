@@ -439,10 +439,11 @@ D1 is the served `/search` engine on api-preview when `searchPrimaryEngine` is `
 which Worker: `production` (default today, Worker `search` / `cultpodcasts-search`) or `preview`
 (`search-preview` / `cultpodcasts-search-preview`). Production `api` stays on Azure until SP-4.2
 ([Api#231](https://github.com/cultpodcasts/Api/issues/231)). When primary is D1, the shadow sampler is skipped
-so D1 is not compared with itself. If the D1 Worker is unavailable (timeout, missing binding, 429/5xx, any non-400
-failure, unreadable body), `/search` falls back to Azure and logs `search d1 primary fallback`.
-Only a D1 HTTP 400 is forwarded (the search Worker uses 400 for unsupported facet/filter syntax;
-see [Api#231](https://github.com/cultpodcasts/Api/issues/231)).
+so D1 is not compared with itself, and Azure is not called. D1 HTTP responses (including errors)
+are returned to the client with `@search.engine: "d1"`. A thrown call or unreadable / non-JSON
+body is a 502 (`UpstreamSearchError`), also stamped `d1`. The `SEARCH` binding is required;
+api-preview also binds `SEARCH_PREVIEW`. The search Worker uses 400 for unsupported facet/filter
+syntax (see [Api#231](https://github.com/cultpodcasts/Api/issues/231)).
 
 1. **api Worker (primary).** `src/rewriteLegacyPodcastNameInSearchRequest.ts` rewrites
    `podcastName` to `seriesName` in `filter`, `orderby`, `select` and `facets` before the body

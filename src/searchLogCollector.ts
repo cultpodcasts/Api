@@ -186,9 +186,6 @@ export class searchLogCollector implements searchOperation {
 		if (props.hasOwnProperty("engine")) {
 			this.engine = props.engine;
 		}
-		if (props.hasOwnProperty("d1Fallback")) {
-			this.d1Fallback = props.d1Fallback;
-		}
 	}
 
 	/**
@@ -263,9 +260,6 @@ export class searchLogCollector implements searchOperation {
 		}
 		if (this.engine) {
 			searchLog.engine = this.engine;
-		}
-		if (this.d1Fallback) {
-			searchLog.d1Fallback = this.d1Fallback;
 		}
 		if (this.error) {
 			searchLog.errors = {
@@ -343,7 +337,6 @@ export class searchLogCollector implements searchOperation {
 	searchResult?: ISearchResult;
 	results?: number | undefined | null;
 	engine?: SearchEngine;
-	d1Fallback?: string;
 	message?: string;
 	requestId?: string;
 	messages?: string[];

@@ -26,8 +26,6 @@ export interface searchOperation {
     asOrganization?: string;
     searchResult?: ISearchResult;
     results?: number | null | undefined;
-    /** Served engine for this request (`SearchEngine`). */
+    /** Served engine for this request. */
     engine?: SearchEngine;
-    /** Set when D1 was primary and we fell back to Azure; the compact error code. */
-    d1Fallback?: string;
 }

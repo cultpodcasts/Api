@@ -1,4 +1,5 @@
 import { ISearchResult } from "./ISearchResult";
+import type { SearchEngine } from "./searchEngine";
 import { searchLogQueryDetails } from "./searchLogQueryDetails";
 import { searchLogQueryErrors } from "./searchLogQueryErrors";
 import { searchLogQueryRequest } from "./searchLogQueryRequest";
@@ -22,9 +23,7 @@ export interface searchLog {
 	query?: searchLogQueryDetails;
 	searchResult?: ISearchResult;
 	results?: number | undefined | null;
-	/** Served engine (`SearchEngine` wire value). */
-	engine?: string;
-	/** Compact D1 error when primary was D1 and Azure was served instead. */
-	d1Fallback?: string;
+	/** Served engine. */
+	engine?: SearchEngine;
 	request: searchLogQueryRequest;
 }

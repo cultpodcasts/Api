@@ -18,11 +18,12 @@ export type Env = {
 	 * `searchPrimaryEngine` (Azure by default). When primary is Azure and
 	 * `searchShadowEnabled` is on, a sampled fraction also query this binding (or
 	 * `SEARCH_PREVIEW` if `searchD1Index` is preview) on `waitUntil` (SP-3.1).
+	 * Required: every wrangler env that runs `POST /search` binds `SEARCH`.
 	 */
-	SEARCH?: Fetcher;
+	SEARCH: Fetcher;
 	/**
-	 * Preview D1 search Worker (`search-preview` / `cultpodcasts-search-preview`). Bound on
-	 * api-preview only (SP-4.1). Used when `searchD1Index` is `preview`.
+	 * Preview D1 search Worker (`search-preview` / `cultpodcasts-search-preview`).
+	 * Required on api-preview (the only env that binds it). Used when `searchD1Index` is `preview`.
 	 */
 	SEARCH_PREVIEW?: Fetcher;
 	auth0Issuer: string;
@@ -42,7 +43,7 @@ export type Env = {
 	/** Non-secret: production | preview | local — drives OpenAPI docs title. */
 	apiEnvironment?: string;
 	/**
-	 * SP-4.1 served-engine switch (`azure` / `d1`, enum SearchPrimaryEngine). Default azure.
+	 * SP-4.1 served-engine switch (`azure` / `d1`, enum SearchEngine). Default azure.
 	 * Preview wrangler sets `d1`; production stays azure until SP-4.2.
 	 */
 	searchPrimaryEngine?: string;
@@ -51,11 +52,6 @@ export type Env = {
 	 * (`production` / `preview`, enum SearchD1Index). Default production.
 	 */
 	searchD1Index?: string;
-	/**
-	 * Timeout in ms for a D1 *primary* `/search` call (100–30000). Default 3000.
-	 * Separate from `searchShadowTimeoutMs` so soak tuning does not change served latency.
-	 */
-	searchPrimaryTimeoutMs?: string;
 	/**
 	 * SP-3.1 shadow-query kill switch (`"true"` / `"false"`). Default off (safe) until
 	 * explicitly enabled. Sample rate and top-N stay in the other `searchShadow*` vars.

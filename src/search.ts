@@ -19,12 +19,10 @@ import {
 import {
 	D1SearchFetchError,
 	SearchEngine,
-	d1PrimaryIsUnavailable,
 	d1SearchFetchErrorMessage,
 	d1SearchFetcher,
 	fetchD1Search,
 	parseSearchPrimaryConfig,
-	parseSearchPrimaryTimeoutMs,
 	type D1SearchFetchFailure
 } from "./searchEngine";
 
@@ -134,7 +132,6 @@ function maybeScheduleSearchShadow(
 ): void {
 	if (parseSearchPrimaryConfig(c.env).engine === SearchEngine.D1) return;
 	const fetcher = d1SearchFetcher(c.env);
-	if (!fetcher) return;
 	const config = parseSearchShadowConfig(c.env);
 	if (!shouldSampleShadow(config)) return;
 	const azure: SearchEngineSnapshot = snapshotSearchResponse(
@@ -200,11 +197,8 @@ export async function search(c: ActionContext): Promise<Response> {
 		filter: shadowFilter,
 		requestId: searchLog.requestId
 	};
-	let d1Fallback: string | undefined;
 	if (parseSearchPrimaryConfig(c.env).engine === SearchEngine.D1) {
-		const d1Attempt = await tryServeD1Primary(c, searchLog, requestBody);
-		if ("served" in d1Attempt) return d1Attempt.served;
-		d1Fallback = d1SearchFetchErrorMessage(d1Attempt.fallback);
+		return tryServeD1Primary(c, searchLog, requestBody);
 	}
 	const azureStarted = Date.now();
 	let response: Response;
@@ -256,23 +250,23 @@ export async function search(c: ActionContext): Promise<Response> {
 		return badGateway(c, searchLog, "non-object 200 body");
 	}
 	maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body, undefined, response.headers.get("cf-cache-status"));
-	return serveSearchSuccess(c, searchLog, body as Record<string, unknown>, SearchEngine.Azure, d1Fallback);
+	return serveSearchSuccess(c, searchLog, body as Record<string, unknown>, SearchEngine.Azure);
 }
 
+function stampSearchEngine(body: object, engine: SearchEngine): object {
+	return { ...body, "@search.engine": engine };
+}
 
 function serveSearchSuccess(
 	c: ActionContext,
 	searchLog: searchLogCollector,
 	body: Record<string, unknown>,
-	engine: SearchEngine,
-	d1Fallback?: string
+	engine: SearchEngine
 ): Response {
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	body["@odata.context"] = null;
 	body["@search.engine"] = engine;
-	const logProps: { engine: SearchEngine; d1Fallback?: string } = { engine };
-	if (d1Fallback !== undefined) logProps.d1Fallback = d1Fallback;
-	searchLog.add(logProps);
+	searchLog.add({ searchStatus: 200, engine });
 	if (searchLog.error) {
 		searchLog.emitError();
 	} else if (
@@ -289,60 +283,50 @@ function serveSearchSuccess(
 	return c.json(body, 200);
 }
 
-function warnD1PrimaryFallback(
+function d1PrimaryUnavailable(
+	c: ActionContext,
 	searchLog: searchLogCollector,
-	result: D1SearchFetchFailure,
-	index: ReturnType<typeof parseSearchPrimaryConfig>["index"]
-): void {
-	console.warn({
-		message: "search d1 primary fallback",
-		error: d1SearchFetchErrorMessage(result),
-		status: result.status,
-		index,
-		requestId: searchLog.requestId,
-		latencyMs: result.latencyMs
-	});
+	result: D1SearchFetchFailure
+): Response {
+	searchLog.add({ searchStatus: 502, engine: SearchEngine.D1 });
+	searchLog.addMessage("upstream_error");
+	searchLog.emitError({ message: "search d1 primary error: " + d1SearchFetchErrorMessage(result) });
+	return searchError(c, 502, stampSearchEngine(
+		{ error: { code: "UpstreamSearchError", message: "Upstream search unavailable" } },
+		SearchEngine.D1
+	));
 }
 
 /**
- * When searchPrimaryEngine is d1, try the selected D1 Worker first. Returns a served
- * Response on success or a forwarded 400. Returns a fallback result so the caller can
- * serve Azure (timeout, missing binding, any non-400 failure).
+ * When searchPrimaryEngine is d1, the selected D1 Worker is the only served engine.
+ * HTTP responses from D1 (including error statuses) are returned to the client.
+ * A thrown call or unreadable / non-JSON body is a 502, same envelope as other
+ * upstream unavailability — never Azure. The D1 service binding is required.
  */
 async function tryServeD1Primary(
 	c: ActionContext,
 	searchLog: searchLogCollector,
 	requestBody: string
-): Promise<{ served: Response } | { fallback: D1SearchFetchFailure }> {
-	const { index } = parseSearchPrimaryConfig(c.env);
-	const fetcher = d1SearchFetcher(c.env);
-	const timeoutMs = parseSearchPrimaryTimeoutMs(c.env.searchPrimaryTimeoutMs);
-	if (!fetcher) {
-		const fallback: D1SearchFetchFailure = { ok: false, error: D1SearchFetchError.MissingBinding, latencyMs: 0 };
-		warnD1PrimaryFallback(searchLog, fallback, index);
-		return { fallback };
-	}
+): Promise<Response> {
 	const result = await fetchD1Search({
-		fetcher,
+		fetcher: d1SearchFetcher(c.env),
 		url: searchShadowUrl(c.env.apihost),
-		requestBody,
-		timeoutMs
+		requestBody
 	});
 	if (result.ok) {
-		return { served: serveSearchSuccess(c, searchLog, result.body, SearchEngine.D1) };
+		return serveSearchSuccess(c, searchLog, result.body, SearchEngine.D1);
 	}
-	if (d1PrimaryIsUnavailable(result)) {
-		warnD1PrimaryFallback(searchLog, result, index);
-		return { fallback: result };
+	if (result.error === D1SearchFetchError.Status) {
+		const status = upstreamSearchErrorStatus(result.status ?? 502);
+		searchLog.add({ searchStatus: status, engine: SearchEngine.D1 });
+		let errorBody: object = GENERIC_UPSTREAM_ERROR;
+		if (result.body !== null && typeof result.body === "object" && !Array.isArray(result.body)) {
+			errorBody = result.body as object;
+		}
+		searchLog.emitError({ message: "search d1 primary error: " + d1SearchFetchErrorMessage(result) });
+		return searchError(c, status, stampSearchEngine(errorBody, SearchEngine.D1));
 	}
-	const status = result.status ?? 400;
-	searchLog.add({ searchStatus: status });
-	let errorBody: object = GENERIC_UPSTREAM_ERROR;
-	if (result.body !== null && typeof result.body === "object" && !Array.isArray(result.body)) {
-		errorBody = result.body as object;
-	}
-	searchLog.emitError({ message: "search d1 primary error: " + d1SearchFetchErrorMessage(result) });
-	return { served: searchError(c, upstreamSearchErrorStatus(status), errorBody) };
+	return d1PrimaryUnavailable(c, searchLog, result);
 }
 
 async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string | undefined): Promise<boolean> {
