@@ -1,4 +1,4 @@
-import { writeDb } from "./d1-session";
+import { requestIdFromRequest, SearchWorkerRoute, writeDb } from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable } from "./errors";
 import { json } from "./health";
@@ -46,7 +46,7 @@ export async function adminInventory(request: Request, env: SearchEnv): Promise<
 	try {
 		query = parseInventoryQuery(new URL(request.url));
 	} catch (e) {
-		return badRequest(e);
+		return badRequest(e, { requestId: requestIdFromRequest(request), route: SearchWorkerRoute.AdminInventory });
 	}
 	let rows: { id: string; modified_at: number }[];
 	try {
@@ -57,7 +57,7 @@ export async function adminInventory(request: Request, env: SearchEnv): Promise<
 			.all<{ id: string; modified_at: number }>();
 		rows = result.results;
 	} catch (e) {
-		return d1Unavailable(e);
+		return d1Unavailable(e, { requestId: requestIdFromRequest(request), route: SearchWorkerRoute.AdminInventory });
 	}
 	const page = rows.slice(0, query.limit);
 	const body: InventoryPage = {

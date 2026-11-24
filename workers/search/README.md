@@ -356,7 +356,7 @@ read-only, against the SP-1.1 schema:
 | File | Role |
 |------|------|
 | `src/query.ts` | Azure "simple" syntax → FTS5 `MATCH`, mirroring `en.lucene` (stopwords, hyphen split, possessives). Every atom is quoted, so user text cannot inject FTS5 syntax. |
-| `src/odata.ts` | The OData subset the website sends: `eq` / `ne` / `null`, `search.in`, `subjects/any`, `and` / `or` / parentheses; facet specs. `lang` NULL means English. |
+| `src/odata.ts` | The OData subset the website sends: `eq` / `ne` / `null`, `search.in`, `subjects/any`, `and` / `or` / parentheses; facet specs. `lang` NULL means English. A top-level `subjects/any` AND conjunct is a materialized `subject_hits` CTE and, on a browse, the left side of a `CROSS JOIN`, so the subject index drives the page, count and facets (including the subject page's English lang clause). `any()` under `or` stays a WHERE predicate. |
 | `src/azure-response.ts` | The live Azure document (25 retrievable keys, Azure order) and envelope (`@odata.context: null`). |
 | `src/docs-search.ts` | The route: body parsing, SQL, facets, `select`, errors. |
 

@@ -9,9 +9,10 @@ import {
 	toAzureSearchEnvelope,
 	type AzureSearchDocRow
 } from "../workers/search/src/azure-response";
-import { parseRequest } from "../workers/search/src/docs-search";
-import { SERVICE_UNAVAILABLE } from "../workers/search/src/errors";
+import { parseRequest, prepareSearch } from "../workers/search/src/docs-search";
+import { badRequest, d1Unavailable, SERVICE_UNAVAILABLE } from "../workers/search/src/errors";
 import { SearchRequestError } from "../workers/search/src/errors";
+import { SearchWorkerRoute } from "../workers/search/src/d1-session";
 import { parseFacet, parseODataFilter } from "../workers/search/src/odata";
 import { MAX_OPERATOR_CHANGES, MAX_QUERY_ATOMS, toMatch } from "../workers/search/src/query";
 import { d1, migratedSearchDb, upsertSearchDoc } from "./support/searchD1";
@@ -132,11 +133,11 @@ describe("parseODataFilter: website OData subset -> SQL", () => {
 
 	it("parses subjects/any with eq and search.in", () => {
 		expect(parseODataFilter("subjects/any(s: s eq 'Scientology')")).toEqual({
-			sql: "EXISTS (SELECT 1 FROM doc_subjects s WHERE s.rowid_ref = d.rowid AND s.subject = ?)", // pragma: allowlist secret
+			sql: "d.rowid IN (SELECT s.rowid_ref FROM doc_subjects s WHERE s.subject = ?)", // pragma: allowlist secret
 			binds: ["Scientology"]
 		});
 		expect(parseODataFilter("subjects/any(x: search.in(x, 'A£B', '£'))")).toEqual({
-			sql: "EXISTS (SELECT 1 FROM doc_subjects s WHERE s.rowid_ref = d.rowid AND s.subject IN (SELECT value FROM json_each(?)))", // pragma: allowlist secret
+			sql: "d.rowid IN (SELECT s.rowid_ref FROM doc_subjects s WHERE s.subject IN (SELECT value FROM json_each(?)))", // pragma: allowlist secret
 			binds: ['["A","B"]']
 		});
 	});
@@ -433,6 +434,36 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 
 	it("filters by subject, series and lang (NULL = English)", async () => {
 		expect(ids((await post({ filter: "subjects/any(s: s eq 'Religion')" })).body)).toEqual(["news-1", "ep-scn-1"]);
+		expect(
+			ids(
+				(
+					await post({
+						filter: "subjects/any(s: s eq 'Scientology') and (lang eq null or lang eq 'en')",
+						orderby: "release desc",
+						count: true
+					})
+				).body
+			)
+		).toEqual(["ep-scn-1"]);
+		expect(
+			ids(
+				(
+					await post({
+						filter: "subjects/any(s: s eq 'Religion') or contentKind eq 'Film'",
+						orderby: "release desc"
+					})
+				).body
+			)
+		).toEqual(["news-1", "ep-scn-1", "film-1"]);
+		expect(
+			ids(
+				(
+					await post({
+						filter: "subjects/any(s: s eq 'Scientology') and subjects/any(s: s eq 'Religion')"
+					})
+				).body
+			)
+		).toEqual(["ep-scn-1"]);
 		expect(ids((await post({ filter: "seriesName eq 'Cult Stories'", orderby: "release asc" })).body)).toEqual([
 			"ep-scn-2",
 			"ep-scn-1"
@@ -440,6 +471,30 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		expect(ids((await post({ search: "scientology", filter: "lang eq 'en'" })).body)).toEqual(["ep-scn-1"]);
 		expect(ids((await post({ filter: "id eq 'film-1'" })).body)).toEqual(["film-1"]);
 		expect(ids((await post({ search: "scientology", filter: "id ne 'ep-scn-1'" })).body)).toEqual(["ep-scn-2"]);
+	});
+
+	it("returns and counts a document once when search.in matches more than one of its subjects", async () => {
+		const db = migratedSearchDb();
+		upsertSearchDoc(
+			db,
+			{ id: "multi", title: "Tagged twice", release: "2026-11-02T00:00:00Z" },
+			["Alpha", "Beta", "Gamma"]
+		);
+		const { body } = await post(
+			{
+				filter: "subjects/any(s: search.in(s, 'Alpha£Beta', '£'))",
+				count: true,
+				facets: ["subjects,count:10"]
+			},
+			{ SEARCH_DB: d1(db) }
+		);
+		expect(ids(body)).toEqual(["multi"]);
+		expect(body["@odata.count"]).toBe(1);
+		expect(body["@search.facets"].subjects).toEqual([
+			{ value: "Alpha", count: 1 },
+			{ value: "Beta", count: 1 },
+			{ value: "Gamma", count: 1 }
+		]);
 	});
 
 	it("browses by release desc with top / skip / count", async () => {
@@ -630,10 +685,23 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 			expect(resp.body).toEqual(SERVICE_UNAVAILABLE);
 			expect(resp.body).toEqual({ error: { code: "ServiceUnavailable", message: "Search is temporarily unavailable." } });
 			expect(JSON.stringify(resp.body)).not.toMatch(/D1_ERROR|overloaded/);
-			expect(logged).toHaveBeenCalledWith("search: D1 failure", {
-				message: expect.stringMatching(/^D1_ERROR: D1 DB is overloaded/),
-				name: "Error"
-			});
+			expect(logged).toHaveBeenCalledWith(
+				"search: D1 failure",
+				expect.objectContaining({
+					message: expect.stringMatching(/^D1_ERROR: D1 DB is overloaded/),
+					name: "Error",
+					route: "docs/search",
+					engine: "d1",
+					status: 503,
+					upstreamStatus: 503,
+					sessionConstraint: "first-unconstrained",
+					servedByRegion: null,
+					errorClass: "d1_overloaded",
+					attempts: 1,
+					retryCount: 0,
+					durationMs: expect.any(Number)
+				})
+			);
 			expect((logged.mock.calls[0][1] as { message: string }).message).toHaveLength(500);
 		} finally {
 			logged.mockRestore();
@@ -660,5 +728,225 @@ describe("POST /indexes/{index}/docs/search against the SP-1.1 schema", () => {
 		const before = db.prepare("SELECT count(*) AS n, total_changes() AS c FROM search_docs").get();
 		await post({ search: "scientology", facets: ["lang"], count: true }, { SEARCH_DB: d1(db) });
 		expect(db.prepare("SELECT count(*) AS n, total_changes() AS c FROM search_docs").get()).toEqual(before);
+	});
+});
+
+describe("subjects/any query plan avoids full-table scans (#319)", () => {
+	function explain(db: DatabaseSync, sql: string, binds: unknown[]): string {
+		const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(binds as never[])) as { detail: string }[];
+		return rows.map((r) => r.detail).join("\n");
+	}
+
+	/** The subject index drives the statement. A lang-index walk or a search_docs scan fails. */
+	function expectSubjectDriven(plan: string) {
+		expect(plan).toContain("idx_doc_subjects_subject");
+		expect(plan).not.toContain("idx_search_docs_lang");
+		expect(plan).not.toMatch(/SCAN (?:d|search_docs)\b/);
+	}
+
+	function seededDocs(): DatabaseSync {
+		const db = migratedSearchDb();
+		for (let i = 0; i < 200; i++) {
+			upsertSearchDoc(
+				db,
+				{
+					id: `doc-${i}`,
+					title: `Episode ${i}`,
+					series_name: `Show ${i % 10}`,
+					release: `2026-11-01T00:00:${String(i % 60).padStart(2, "0")}Z`,
+					lang: i % 50 === 0 ? "fr" : null
+				},
+				i < 5 ? ["Synanon"] : [`Other-${i % 20}`]
+			);
+		}
+		return db;
+	}
+
+	it("drives a bare subjects/any count and subject facet from idx_doc_subjects_subject", () => {
+		const db = seededDocs();
+		const prepared = prepareSearch({
+			filter: "subjects/any(s: s eq 'Synanon')",
+			count: true,
+			facets: ["subjects,count:10"]
+		});
+		expect(prepared.count).not.toBeNull();
+		expectSubjectDriven(explain(db, prepared.count!.sql, prepared.count!.binds));
+		const facet = prepared.facets.find((f) => f.field === "subjects");
+		expect(facet).toBeDefined();
+		const facetPlan = explain(db, facet!.statement.sql, facet!.statement.binds);
+		expectSubjectDriven(facetPlan);
+		expect(facetPlan).not.toMatch(/SCAN s USING COVERING INDEX idx_doc_subjects_subject/);
+	});
+
+	it("drives the subject page (subjects/any AND English lang) from the subject index when sqlite_stat1 is empty", () => {
+		const db = seededDocs();
+		expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'sqlite_stat1'").all()).toEqual([]);
+		const filters = [
+			"subjects/any(s: s eq 'Synanon') and (lang eq null or lang eq 'en')",
+			"subjects/any(s: search.in(s, 'Synanon', '£')) and (lang eq null or lang eq 'en')"
+		];
+		for (const filter of filters) {
+			const prepared = prepareSearch({
+				filter,
+				count: true,
+				orderby: "release desc",
+				facets: ["subjects,count:10"]
+			});
+			expect(prepared.page.sql).toContain("ORDER BY d.release DESC, d.id ASC");
+			expectSubjectDriven(explain(db, prepared.page.sql, prepared.page.binds));
+			expect(prepared.count).not.toBeNull();
+			expectSubjectDriven(explain(db, prepared.count!.sql, prepared.count!.binds));
+			const facet = prepared.facets.find((f) => f.field === "subjects");
+			expect(facet).toBeDefined();
+			expectSubjectDriven(explain(db, facet!.statement.sql, facet!.statement.binds));
+		}
+	});
+});
+
+describe("search worker structured logging for non-2xx and headers (#319)", () => {
+	it("logs bad requests (400), method not allowed (405), and not found (404) with requestId and errorClass", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const env: SearchEnv = { SEARCH_DB: d1(migratedSearchDb()) };
+			const r400 = await searchWorker.fetch(
+				new Request("https://search.internal/indexes/cultpodcasts/docs/search", {
+					method: "POST",
+					headers: { "x-request-id": "ray-400" },
+					body: JSON.stringify({ filter: "guests eq 'x'" })
+				}),
+				env
+			);
+			expect(r400.status).toBe(400);
+			expect(warn).toHaveBeenCalledWith(
+				"search: bad request",
+				expect.objectContaining({
+					requestId: "ray-400",
+					route: "docs/search",
+					engine: "d1",
+					status: 400,
+					sessionConstraint: "first-unconstrained",
+					errorClass: "bad_request",
+					errorMessage: expect.stringContaining("guests"),
+					durationMs: expect.any(Number)
+				})
+			);
+
+			const r405 = await searchWorker.fetch(
+				new Request("https://search.internal/indexes/cultpodcasts/docs/search", {
+					method: "GET",
+					headers: { "x-request-id": "ray-405" }
+				}),
+				env
+			);
+			expect(r405.status).toBe(405);
+			expect(warn).toHaveBeenCalledWith(
+				"search: request rejected",
+				expect.objectContaining({
+					requestId: "ray-405",
+					route: "docs/search",
+					engine: "d1",
+					status: 405,
+					errorClass: "method_not_allowed"
+				})
+			);
+
+			const r404 = await searchWorker.fetch(
+				new Request("https://search.internal/nope", {
+					method: "GET",
+					headers: { "x-request-id": "ray-404" }
+				}),
+				env
+			);
+			expect(r404.status).toBe(404);
+			expect(warn).toHaveBeenCalledWith(
+				"search: request rejected",
+				expect.objectContaining({
+					requestId: "ray-404",
+					route: "unknown",
+					engine: "d1",
+					status: 404,
+					errorClass: "not_found"
+				})
+			);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("logs an admin 400 on the admin route, and a context-free failure as unknown, never docs/search", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const env: SearchEnv = { SEARCH_DB: d1(migratedSearchDb()) };
+			const admin400s: [string, string, string | undefined, string][] = [
+				["https://search.internal/admin/docs/inventory?limit=0", "GET", undefined, SearchWorkerRoute.AdminInventory],
+				["https://search.internal/admin/docs", "POST", "{", SearchWorkerRoute.AdminDocs],
+				["https://search.internal/admin/rebuild/start", "POST", "{", SearchWorkerRoute.AdminRebuild]
+			];
+			for (const [url, method, body, route] of admin400s) {
+				const resp = await searchWorker.fetch(
+					new Request(url, { method, headers: { "x-request-id": `ray-${route}` }, body }),
+					env
+				);
+				expect(resp.status).toBe(400);
+				expect(warn).toHaveBeenCalledWith(
+					"search: bad request",
+					expect.objectContaining({ requestId: `ray-${route}`, route, errorClass: "bad_request" })
+				);
+			}
+			const routes = warn.mock.calls.filter((call) => call[0] === "search: bad request").map((call) => (call[1] as { route: string }).route);
+			expect(routes).not.toContain(SearchWorkerRoute.DocsSearch);
+
+			badRequest(new Error("no route"));
+			d1Unavailable(new Error("D1 is overloaded"));
+			expect(warn).toHaveBeenCalledWith(
+				"search: bad request",
+				expect.objectContaining({ route: SearchWorkerRoute.Unknown, errorClass: "bad_request" })
+			);
+			expect(error).toHaveBeenCalledWith(
+				"search: D1 failure",
+				expect.objectContaining({
+					route: SearchWorkerRoute.Unknown,
+					errorClass: "d1_overloaded",
+					status: 503
+				})
+			);
+		} finally {
+			warn.mockRestore();
+			error.mockRestore();
+		}
+	});
+
+	it("propagates x-request-id to 200 read logs and returns region/session headers", async () => {
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			const env: SearchEnv = {
+				SEARCH_DB: d1(migratedSearchDb(), { meta: { served_by_region: "WEUR", served_by_primary: false } })
+			};
+			const resp = await searchWorker.fetch(
+				new Request("https://search.internal/indexes/cultpodcasts/docs/search", {
+					method: "POST",
+					headers: { "x-request-id": "ray-200" },
+					body: JSON.stringify({ search: "" })
+				}),
+				env
+			);
+			expect(resp.status).toBe(200);
+			expect(resp.headers.get("x-search-session-constraint")).toBe("first-unconstrained");
+			expect(resp.headers.get("x-search-served-by-region")).toBe("WEUR");
+			expect(log).toHaveBeenCalledWith(
+				"search: d1 read",
+				expect.objectContaining({
+					requestId: "ray-200",
+					route: "docs/search",
+					engine: "d1",
+					sessionConstraint: "first-unconstrained",
+					servedByRegion: "WEUR",
+					status: 200
+				})
+			);
+		} finally {
+			log.mockRestore();
+		}
 	});
 });

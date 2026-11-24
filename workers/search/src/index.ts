@@ -1,9 +1,11 @@
 import { adminDocs, ADMIN_DOCS_PATH } from "./admin-docs";
 import { adminInventory, ADMIN_INVENTORY_PATH } from "./admin-inventory";
 import { adminRebuild, rebuildAction } from "./admin-rebuild";
+import { requestIdFromRequest, SearchWorkerRoute } from "./d1-session";
 import { docsSearch, DOCS_SEARCH_PATH } from "./docs-search";
 import type { SearchEnv } from "./env";
-import { health, json } from "./health";
+import { SearchWorkerErrorClass, workerErrorResponse } from "./errors";
+import { health } from "./health";
 
 /**
  * Search platform Worker (SP-1.1, cultpodcasts/Api#219).
@@ -25,28 +27,54 @@ import { health, json } from "./health";
 
 export default {
 	async fetch(request: Request, env: SearchEnv): Promise<Response> {
+		const started = Date.now();
+		const requestId = requestIdFromRequest(request);
 		const url = new URL(request.url);
-		if (url.pathname === "/health") {
+		if (url.pathname === SearchWorkerRoute.Health) {
 			if (request.method !== "GET" && request.method !== "HEAD") {
-				return json({ error: { code: "MethodNotAllowed", message: "GET only" } }, 405);
+				return workerErrorResponse(
+					405,
+					"MethodNotAllowed",
+					"GET only",
+					SearchWorkerErrorClass.MethodNotAllowed,
+					{ requestId, route: SearchWorkerRoute.Health, durationMs: Date.now() - started }
+				);
 			}
 			return health(env);
 		}
 		if (DOCS_SEARCH_PATH.test(url.pathname)) {
 			if (request.method !== "POST") {
-				return json({ error: { code: "MethodNotAllowed", message: "POST only" } }, 405);
+				return workerErrorResponse(
+					405,
+					"MethodNotAllowed",
+					"POST only",
+					SearchWorkerErrorClass.MethodNotAllowed,
+					{ requestId, route: SearchWorkerRoute.DocsSearch, durationMs: Date.now() - started }
+				);
 			}
 			return docsSearch(request, env);
 		}
 		if (url.pathname === ADMIN_INVENTORY_PATH) {
 			if (request.method !== "GET") {
-				return json({ error: { code: "MethodNotAllowed", message: "GET only" } }, 405);
+				return workerErrorResponse(
+					405,
+					"MethodNotAllowed",
+					"GET only",
+					SearchWorkerErrorClass.MethodNotAllowed,
+					{ requestId, route: SearchWorkerRoute.AdminInventory, durationMs: Date.now() - started }
+				);
 			}
 			return adminInventory(request, env);
 		}
 		if (url.pathname === ADMIN_DOCS_PATH) {
 			if (request.method !== "POST") {
-				return json({ error: { code: "MethodNotAllowed", message: "POST only" } }, 405);
+				return workerErrorResponse(
+					405,
+					"MethodNotAllowed",
+					"POST only",
+					SearchWorkerErrorClass.MethodNotAllowed,
+					{ requestId, route: SearchWorkerRoute.AdminDocs, durationMs: Date.now() - started }
+				);
 			}
 			return adminDocs(request, env);
 		}
@@ -54,10 +82,22 @@ export default {
 		if (action !== undefined) {
 			const method = action === null ? "GET" : "POST";
 			if (request.method !== method) {
-				return json({ error: { code: "MethodNotAllowed", message: `${method} only` } }, 405);
+				return workerErrorResponse(
+					405,
+					"MethodNotAllowed",
+					`${method} only`,
+					SearchWorkerErrorClass.MethodNotAllowed,
+					{ requestId, route: SearchWorkerRoute.AdminRebuild, durationMs: Date.now() - started }
+				);
 			}
 			return adminRebuild(request, env, action);
 		}
-		return json({ error: { code: "NotFound", message: "Not found" } }, 404);
+		return workerErrorResponse(
+			404,
+			"NotFound",
+			"Not found",
+			SearchWorkerErrorClass.NotFound,
+			{ requestId, route: SearchWorkerRoute.Unknown, durationMs: Date.now() - started }
+		);
 	}
 } satisfies ExportedHandler<SearchEnv>;

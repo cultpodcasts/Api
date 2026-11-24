@@ -1,9 +1,16 @@
 import { DOC_COLUMNS, toAzureSearchDocument, toAzureSearchEnvelope, type AzureSearchDocRow } from "./azure-response";
-import { logServedBy, readSession } from "./d1-session";
+import {
+	logServedBy,
+	READ_SESSION_CONSTRAINT,
+	readSession,
+	requestIdFromRequest,
+	SearchWorkerRoute,
+	servedBy
+} from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
 import { json } from "./health";
-import { parseFacet, parseODataFilter } from "./odata";
+import { applyODataFilter, parseFacet } from "./odata";
 import { toMatch, type SearchMode } from "./query";
 import { DEFAULT_RANKING, rankingSql, relevanceScore, unwrapAzurePhraseBoost, type RankingConfig } from "./ranking";
 
@@ -53,17 +60,25 @@ export const MAX_FILTER_LENGTH = 32 * 1024;
 export const MAX_BODY_LENGTH = 256 * 1024;
 
 export async function docsSearch(request: Request, env: SearchEnv, ranking: RankingConfig = DEFAULT_RANKING): Promise<Response> {
+	const started = Date.now();
+	const requestId = requestIdFromRequest(request);
+	const logCtx = {
+		requestId,
+		route: SearchWorkerRoute.DocsSearch,
+		sessionConstraint: READ_SESSION_CONSTRAINT
+	};
 	let req: ODataSearchRequest;
 	try {
 		req = parseRequest(await request.text());
 	} catch (e) {
-		return badRequest(e);
+		return badRequest(e, { ...logCtx, durationMs: Date.now() - started });
 	}
 	try {
-		return await runSearch(req, env, readSession(env), ranking);
+		return await runSearch(req, env, readSession(env), ranking, started, requestId);
 	} catch (e) {
-		if (e instanceof SearchRequestError) return badRequest(e);
-		return d1Unavailable(e);
+		const durationMs = Date.now() - started;
+		if (e instanceof SearchRequestError) return badRequest(e, { ...logCtx, durationMs });
+		return d1Unavailable(e, { ...logCtx, durationMs, attempts: 1, retryCount: 0 });
 	}
 }
 
@@ -135,13 +150,26 @@ export function orderBy(orderby: string | undefined, relevance: string | null): 
 	return relevance;
 }
 
-/** `db` is the request's read session: every statement below must use it, never `env.SEARCH_DB`. */
-async function runSearch(
-	req: ODataSearchRequest,
-	env: SearchEnv,
-	db: D1DatabaseSession,
-	ranking: RankingConfig
-): Promise<Response> {
+export type SearchStatement = { sql: string; binds: unknown[] };
+
+export type PreparedSearch = {
+	page: SearchStatement;
+	count: SearchStatement | null;
+	facets: { field: string; statement: SearchStatement }[];
+	/** True when the page is ordered by relevance (`rankingSql`), false for a browse. */
+	scored: boolean;
+};
+
+/**
+ * Page, count and facet SQL for one docs/search body.
+ *
+ * A top-level `subjects/any` AND conjunct is a MATERIALIZED `subject_hits` CTE
+ * (see `applyODataFilter`). On a browse, that CTE is the left side of a CROSS JOIN, so it stays
+ * the outer loop: a reorderable JOIN, or a WHERE `IN`, lets SQLite start at `idx_search_docs_lang`
+ * when `sqlite_stat1` is empty and the subject page's English lang clause is present.
+ * The CTE's binds are the first placeholders in the statement.
+ */
+export function prepareSearch(req: ODataSearchRequest, ranking: RankingConfig = DEFAULT_RANKING): PreparedSearch {
 	const mode: SearchMode = req.searchMode === "all" ? "all" : "any";
 	// The api Worker rewrites unquoted queries for Azure (`"q"^10 OR (q)`); D1 ranks the original natively.
 	const search = unwrapAzurePhraseBoost(req.search, req.queryType) ?? "";
@@ -152,50 +180,64 @@ async function runSearch(
 	const skip = Number(req.skip ?? 0);
 
 	const where: string[] = [];
-	const binds: unknown[] = [];
-	let from: string;
+	const matchBinds: unknown[] = [];
+	const filterBinds: unknown[] = [];
+	let subjectHits: { alias: string; sql: string; binds: unknown[] }[] = [];
 	// Relevance: title/AKA phrase-first tiers, then weighted bm25 (SP-1.8, ranking.ts). Browse: no score.
 	const rank = match ? rankingSql(search, ranking) : null;
 	if (match) {
-		from = "search_fts JOIN search_docs d ON d.rowid = search_fts.rowid";
 		where.push("search_fts MATCH ?");
-		binds.push(match);
-	} else {
-		from = "search_docs d";
-		if (matched.kind === "none") where.push("1 = 0"); // query text was all stopwords
+		matchBinds.push(match);
+	} else if (matched.kind === "none") {
+		where.push("1 = 0"); // query text was all stopwords
 	}
 	if (req.filter?.trim()) {
-		const parsed = parseODataFilter(req.filter);
-		where.push(`(${parsed.sql})`);
-		binds.push(...parsed.binds);
+		const applied = applyODataFilter(req.filter);
+		subjectHits = applied.subjectHits;
+		if (applied.whereSql) {
+			where.push(applied.whereSql);
+			filterBinds.push(...applied.whereBinds);
+		}
 	}
+	// Subject hits lead a browse. CROSS JOIN keeps that order: a plain JOIN is reordered onto the lang index.
+	// A text search stays on search_fts and then keeps the hits that are in the CTE.
+	let from: string;
+	if (!match && subjectHits.length) {
+		const [first, ...rest] = subjectHits;
+		from = `${first.alias} CROSS JOIN search_docs d ON d.rowid = ${first.alias}.rowid_ref`;
+		for (const extra of rest) from += ` CROSS JOIN ${extra.alias} ON ${extra.alias}.rowid_ref = d.rowid`;
+	} else if (match) {
+		from = "search_fts JOIN search_docs d ON d.rowid = search_fts.rowid";
+		for (const hit of subjectHits) from += ` JOIN ${hit.alias} ON ${hit.alias}.rowid_ref = d.rowid`;
+	} else {
+		from = "search_docs d";
+	}
+	const withSql = subjectHits.length
+		? `WITH ${subjectHits.map((hit) => `${hit.alias} AS MATERIALIZED (${hit.sql})`).join(", ")} `
+		: "";
+	const withBinds = subjectHits.flatMap((hit) => hit.binds);
 	// Lists bind as one JSON parameter, so only a filter with ~100 separate comparisons gets here.
-	// The main statement adds LIMIT and OFFSET.
-	// Besides the filter's values the page statement binds the MATCH, the ranking values (at most 5),
-	// LIMIT and OFFSET.
-	const reserved = (match ? 1 : 0) + (rank?.binds.length ?? 0) + 2;
-	const filterValues = binds.length - (match ? 1 : 0);
+	// The page statement also binds the MATCH, the ranking values (at most 5), LIMIT and OFFSET.
+	// CTE binds are first: the WITH clause is written before SELECT.
+	const reserved = matchBinds.length + (rank?.binds.length ?? 0) + 2;
+	const filterValues = withBinds.length + filterBinds.length;
 	if (filterValues + reserved > D1_MAX_BOUND_PARAMETERS) {
 		throw new SearchRequestError(`filter has too many values (at most ${D1_MAX_BOUND_PARAMETERS - reserved} comparisons)`);
 	}
 	const facetSpecs = (req.facets ?? []).map(parseFacet);
 	const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
 	const orderSql = orderBy(req.orderby, rank?.order ?? null);
-
 	const select = `${rank ? rank.select : "3 AS tier, 0 AS bm"}, ${DOC_COLUMNS.map((c) => `d.${c}`).join(", ")}`;
-	const statements = [
-		db.prepare(`SELECT ${select} FROM ${from} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`).bind(
-			...(rank?.binds ?? []),
-			...binds,
-			top,
-			skip
-		)
-	];
-	if (req.count) {
-		statements.push(db.prepare(`SELECT COUNT(*) AS n FROM ${from} ${whereSql}`).bind(...binds));
-	}
-	for (const f of facetSpecs) {
+	const whereBinds = [...matchBinds, ...filterBinds];
+
+	const page: SearchStatement = {
+		sql: `${withSql}SELECT ${select} FROM ${from} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`,
+		binds: [...withBinds, ...(rank?.binds ?? []), ...whereBinds, top, skip]
+	};
+	const count: SearchStatement | null = req.count
+		? { sql: `${withSql}SELECT COUNT(*) AS n FROM ${from} ${whereSql}`, binds: [...withBinds, ...whereBinds] }
+		: null;
+	const facets = facetSpecs.map((f) => {
 		// f.count is a parsed integer (parseFacet), safe to inline. Ties on count end in `value`, so
 		// a LIMIT that cuts a tie returns the same buckets every time (SP-1.7).
 		const facetSql =
@@ -204,14 +246,30 @@ async function runSearch(
 				: f.field === "lang"
 					? `SELECT COALESCE(d.lang, 'en') AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY COALESCE(d.lang, 'en') ORDER BY count DESC, value ASC LIMIT ${f.count}`
 					: `SELECT ${f.field === "contentKind" ? "d.kind" : "d.series_name"} AS value, COUNT(*) AS count FROM ${from} ${whereSql} GROUP BY 1 ORDER BY count DESC, value ASC LIMIT ${f.count}`;
-		statements.push(db.prepare(facetSql).bind(...binds));
-	}
+		return { field: f.field, statement: { sql: `${withSql}${facetSql}`, binds: [...withBinds, ...whereBinds] } };
+	});
+	return { page, count, facets, scored: match !== null };
+}
+
+/** `db` is the request's read session: every statement below must use it, never `env.SEARCH_DB`. */
+async function runSearch(
+	req: ODataSearchRequest,
+	env: SearchEnv,
+	db: D1DatabaseSession,
+	ranking: RankingConfig,
+	started: number,
+	requestId?: string
+): Promise<Response> {
+	const prepared = prepareSearch(req, ranking);
+	const statements = [db.prepare(prepared.page.sql).bind(...prepared.page.binds)];
+	if (prepared.count) statements.push(db.prepare(prepared.count.sql).bind(...prepared.count.binds));
+	for (const facet of prepared.facets) statements.push(db.prepare(facet.statement.sql).bind(...facet.statement.binds));
 
 	const results = await db.batch(statements);
 	const reads: { meta?: D1Meta }[] = [...results];
 	const docs = results[0].results as unknown as (AzureSearchDocRow & { tier: number; bm: number })[];
-	const total = req.count ? (results[1].results[0] as { n: number }).n : undefined;
-	const facetOffset = req.count ? 2 : 1;
+	const total = prepared.count ? (results[1].results[0] as { n: number }).n : undefined;
+	const facetOffset = prepared.count ? 2 : 1;
 
 	const want = req.select
 		? new Set(
@@ -244,16 +302,31 @@ async function runSearch(
 		return out;
 	};
 	const facets: Record<string, unknown> = {};
-	facetSpecs.forEach((f, idx) => {
+	prepared.facets.forEach((f, idx) => {
 		facets[f.field] = results[facetOffset + idx].results;
 	});
 	const body = toAzureSearchEnvelope(
-		docs.map((d) => project(toAzureSearchDocument(d, rank ? relevanceScore(d.tier, d.bm) : 1, subjectsByDoc.get(d.rowid) ?? []))), // pragma: allowlist secret
+		docs.map((d) =>
+			project(toAzureSearchDocument(d, prepared.scored ? relevanceScore(d.tier, d.bm) : 1, subjectsByDoc.get(d.rowid) ?? []))
+		), // pragma: allowlist secret
 		{
 			...(total !== undefined ? { count: total } : {}),
-			...(facetSpecs.length ? { facets } : {})
+			...(prepared.facets.length ? { facets } : {})
 		}
 	);
-	logServedBy("docs/search", env, reads);
-	return json(body, 200);
+	const summary = servedBy(reads);
+	logServedBy(SearchWorkerRoute.DocsSearch, env, reads, {
+		requestId,
+		status: 200,
+		durationMs: Date.now() - started,
+		attempts: 1,
+		retryCount: 0
+	});
+	const headers: Record<string, string> = {
+		"x-search-session-constraint": READ_SESSION_CONSTRAINT
+	};
+	if (summary.servedByRegion) {
+		headers["x-search-served-by-region"] = summary.servedByRegion;
+	}
+	return json(body, 200, headers);
 }
