@@ -9,57 +9,22 @@ import type { Env } from "../src/Env";
 import type { ActionContext } from "../src/ActionContext";
 import { search } from "../src/search";
 import {
+	DEFAULT_SEARCH_PRIMARY_TIMEOUT_MS,
+	D1SearchFetchError,
 	SearchD1Index,
-	SearchPrimaryEngine,
+	SearchEngine,
 	d1PrimaryIsUnavailable,
 	d1SearchFetcher,
 	parseSearchD1Index,
 	parseSearchPrimaryConfig,
-	parseSearchPrimaryEngine
+	parseSearchPrimaryEngine,
+	parseSearchPrimaryTimeoutMs
 } from "../src/searchEngine";
 import { testEnv } from "./honoTestApp";
+import { parseJsonc } from "./jsonc";
+import { AllowedOrigins } from "../src/AllowedOrigins";
 
 const searchHost = "https://search.example/indexes/test/docs/search?api-version=2024-07-01";
-
-function parseJsonc(text: string): any {
-	let out = "";
-	let i = 0;
-	let inString = false;
-	while (i < text.length) {
-		const ch = text[i];
-		if (inString) {
-			out += ch;
-			if (ch === "\\" && i + 1 < text.length) {
-				out += text[i + 1];
-				i += 2;
-				continue;
-			}
-			if (ch === '"') inString = false;
-			i += 1;
-			continue;
-		}
-		if (ch === '"') {
-			inString = true;
-			out += ch;
-			i += 1;
-			continue;
-		}
-		if (ch === "/" && text[i + 1] === "/") {
-			i += 2;
-			while (i < text.length && text[i] !== "\n") i += 1;
-			continue;
-		}
-		if (ch === "/" && text[i + 1] === "*") {
-			i += 2;
-			while (i + 1 < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
-			i += 2;
-			continue;
-		}
-		out += ch;
-		i += 1;
-	}
-	return JSON.parse(out);
-}
 
 function app() {
 	const hono = new Hono<{ Bindings: Env }>();
@@ -67,7 +32,7 @@ function app() {
 	return hono;
 }
 
-function envelope(ids: string[], engine?: "azure" | "d1", count?: number) {
+function envelope(ids: string[], engine?: SearchEngine, count?: number) {
 	return {
 		value: ids.map((id) => ({ id })),
 		"@odata.count": count ?? ids.length,
@@ -97,6 +62,17 @@ function d1Fetcher(body: unknown, status = 200) {
 	} as unknown as Fetcher;
 }
 
+function d1Raw(body: string, status = 200, contentType = "text/plain") {
+	return {
+		fetch: vi.fn(async () =>
+			new Response(body, {
+				status,
+				headers: { "content-type": contentType }
+			})
+		)
+	} as unknown as Fetcher;
+}
+
 function executionCtx() {
 	const tasks: Promise<unknown>[] = [];
 	const ctx = {
@@ -118,23 +94,44 @@ function env(overrides: Partial<Env> = {}): Env {
 	} as Partial<Env>);
 }
 
+function expectCors(resp: Response) {
+	expect(resp.headers.get("access-control-allow-origin")).toBe(AllowedOrigins[0]);
+	expect(resp.headers.get("content-type")).toMatch(/^application\/json/);
+}
+
+async function postSearch(
+	bindings: Env,
+	init: { body?: unknown; headers?: Record<string, string>; executionCtx?: ExecutionContext } = {}
+) {
+	return app().request(
+		"/search",
+		{
+			method: "POST",
+			headers: { "content-type": "application/json", ...init.headers },
+			body: JSON.stringify(init.body ?? { search: "x" })
+		},
+		bindings,
+		init.executionCtx
+	);
+}
+
 describe("parseSearchPrimaryConfig", () => {
 	it("defaults to Azure and the production D1 index", () => {
 		expect(parseSearchPrimaryConfig({})).toEqual({
-			engine: SearchPrimaryEngine.Azure,
+			engine: SearchEngine.Azure,
 			index: SearchD1Index.Production
 		});
-		expect(SearchPrimaryEngine.Azure).toBe("azure");
-		expect(SearchPrimaryEngine.D1).toBe("d1");
+		expect(SearchEngine.Azure).toBe("azure");
+		expect(SearchEngine.D1).toBe("d1");
 		expect(SearchD1Index.Production).toBe("production");
 		expect(SearchD1Index.Preview).toBe("preview");
 	});
 
 	it("accepts only the enum wire values; anything else is the default", () => {
-		expect(parseSearchPrimaryEngine("d1")).toBe(SearchPrimaryEngine.D1);
-		expect(parseSearchPrimaryEngine("azure")).toBe(SearchPrimaryEngine.Azure);
-		expect(parseSearchPrimaryEngine("D1")).toBe(SearchPrimaryEngine.Azure);
-		expect(parseSearchPrimaryEngine("")).toBe(SearchPrimaryEngine.Azure);
+		expect(parseSearchPrimaryEngine("d1")).toBe(SearchEngine.D1);
+		expect(parseSearchPrimaryEngine("azure")).toBe(SearchEngine.Azure);
+		expect(parseSearchPrimaryEngine("D1")).toBe(SearchEngine.Azure);
+		expect(parseSearchPrimaryEngine("")).toBe(SearchEngine.Azure);
 		expect(parseSearchD1Index("preview")).toBe(SearchD1Index.Preview);
 		expect(parseSearchD1Index("production")).toBe(SearchD1Index.Production);
 		expect(parseSearchD1Index("PREVIEW")).toBe(SearchD1Index.Production);
@@ -149,12 +146,21 @@ describe("parseSearchPrimaryConfig", () => {
 		expect(d1SearchFetcher({ SEARCH_PREVIEW: preview })).toBeUndefined();
 	});
 
-	it("treats timeouts, 429/5xx and unreadable bodies as unavailable, but not other 4xx", () => {
-		expect(d1PrimaryIsUnavailable({ ok: false, error: "timeout", latencyMs: 10 })).toBe(true);
-		expect(d1PrimaryIsUnavailable({ ok: false, error: "status_503", status: 503, latencyMs: 10 })).toBe(true);
-		expect(d1PrimaryIsUnavailable({ ok: false, error: "status_429", status: 429, latencyMs: 10 })).toBe(true);
-		expect(d1PrimaryIsUnavailable({ ok: false, error: "non_json_body", status: 200, latencyMs: 10 })).toBe(true);
-		expect(d1PrimaryIsUnavailable({ ok: false, error: "status_400", status: 400, latencyMs: 10, body: { error: "Bad request" } })).toBe(false);
+	it("forwards only a D1 400; every other fetch failure is unavailable", () => {
+		expect(d1PrimaryIsUnavailable({ ok: false, error: D1SearchFetchError.Timeout, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsUnavailable({ ok: false, error: D1SearchFetchError.Status, status: 503, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsUnavailable({ ok: false, error: D1SearchFetchError.Status, status: 429, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsUnavailable({ ok: false, error: D1SearchFetchError.Status, status: 404, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsUnavailable({ ok: false, error: D1SearchFetchError.NonJsonBody, status: 200, latencyMs: 10 })).toBe(true);
+		expect(d1PrimaryIsUnavailable({ ok: false, error: D1SearchFetchError.MissingBinding, latencyMs: 0 })).toBe(true);
+		expect(d1PrimaryIsUnavailable({ ok: false, error: D1SearchFetchError.Status, status: 400, latencyMs: 10, body: { error: "Bad request" } })).toBe(false);
+	});
+
+	it("parses searchPrimaryTimeoutMs independently of the shadow timeout", () => {
+		expect(parseSearchPrimaryTimeoutMs(undefined)).toBe(DEFAULT_SEARCH_PRIMARY_TIMEOUT_MS);
+		expect(parseSearchPrimaryTimeoutMs("5000")).toBe(5000);
+		expect(parseSearchPrimaryTimeoutMs("50")).toBe(DEFAULT_SEARCH_PRIMARY_TIMEOUT_MS);
+		expect(parseSearchPrimaryTimeoutMs("nope")).toBe(DEFAULT_SEARCH_PRIMARY_TIMEOUT_MS);
 	});
 });
 
@@ -162,19 +168,19 @@ describe("wrangler SP-4.1 switches", () => {
 	const config = parseJsonc(readFileSync(resolve(process.cwd(), "wrangler.jsonc"), "utf8"));
 
 	it("leaves production on Azure / production index", () => {
-		expect(config.vars.searchPrimaryEngine).toBe(SearchPrimaryEngine.Azure);
+		expect(config.vars.searchPrimaryEngine).toBe(SearchEngine.Azure);
 		expect(config.vars.searchD1Index).toBe(SearchD1Index.Production);
-		expect(config.env.local.vars.searchPrimaryEngine).toBe(SearchPrimaryEngine.Azure);
+		expect(config.vars.searchPrimaryTimeoutMs).toBe("3000");
+		expect(config.env.local.vars.searchPrimaryEngine).toBe(SearchEngine.Azure);
+		expect(config.env.local.vars.searchPrimaryTimeoutMs).toBe("3000");
 	});
 
 	it("enables D1 as the served engine on api-preview, defaulting to the production index", () => {
-		expect(config.env.preview.vars.searchPrimaryEngine).toBe(SearchPrimaryEngine.D1);
+		expect(config.env.preview.vars.searchPrimaryEngine).toBe(SearchEngine.D1);
 		expect(config.env.preview.vars.searchD1Index).toBe(SearchD1Index.Production);
-		const services = config.env.preview.services;
-		expect(services).toEqual(expect.arrayContaining([
-			expect.objectContaining({ binding: "SEARCH", service: "search" }),
-			expect.objectContaining({ binding: "SEARCH_PREVIEW", service: "search-preview" })
-		]));
+		expect(config.env.preview.vars.searchPrimaryTimeoutMs).toBe("3000");
+		expect(config.env.preview.services?.some((s: { binding: string; service: string }) => s.binding === "SEARCH" && s.service === "search")).toBe(true);
+		expect(config.env.preview.services?.some((s: { binding: string; service: string }) => s.binding === "SEARCH_PREVIEW" && s.service === "search-preview")).toBe(true);
 	});
 });
 
@@ -186,93 +192,99 @@ describe("POST /search primary engine (SP-4.1)", () => {
 
 	it("serves Azure and does not call D1 when the switch is off", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
-		const d1 = d1Fetcher(envelope(["d1-1"], "d1"));
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
-			env({ SEARCH: d1 })
-		);
+		const d1 = d1Fetcher(envelope(["d1-1"], SearchEngine.D1));
+		const resp = await postSearch(env({ SEARCH: d1 }));
 		expect(resp.status).toBe(200);
-		const body = await resp.json() as { "@search.engine": string; value: { id: string }[] };
-		expect(body["@search.engine"]).toBe(SearchPrimaryEngine.Azure);
+		const body = await resp.json() as { "@search.engine": string; "@odata.context": unknown; value: { id: string }[] };
+		expect(body["@search.engine"]).toBe(SearchEngine.Azure);
+		expect(body["@odata.context"]).toBeNull();
 		expect(body.value[0].id).toBe("azure-1");
 		expect(azure).toHaveBeenCalledOnce();
 		expect(d1.fetch as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
 	});
 
-	it("serves the D1 body with @search.engine d1 and does not call Azure", async () => {
+	it("serves the D1 body with @search.engine d1, null @odata.context, CORS, and does not call Azure", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
-		const d1 = d1Fetcher(envelope(["d1-1"], "d1"));
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
-			env({ searchPrimaryEngine: SearchPrimaryEngine.D1, SEARCH: d1 })
-		);
+		const d1 = d1Fetcher({
+			...envelope(["d1-1"], SearchEngine.D1),
+			"@odata.context": "https://example/$metadata"
+		});
+		const infos: unknown[] = [];
+		vi.spyOn(console, "info").mockImplementation((row: unknown) => { infos.push(row); });
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
 		expect(resp.status).toBe(200);
-		const body = await resp.json() as { "@search.engine": string; value: { id: string }[] };
-		expect(body["@search.engine"]).toBe(SearchPrimaryEngine.D1);
+		expectCors(resp);
+		const body = await resp.json() as { "@search.engine": string; "@odata.context": unknown; value: { id: string }[] };
+		expect(body["@search.engine"]).toBe(SearchEngine.D1);
+		expect(body["@odata.context"]).toBeNull();
 		expect(body.value[0].id).toBe("d1-1");
 		expect(azure).not.toHaveBeenCalled();
-		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
+		expect(infos).toEqual(expect.arrayContaining([
+			expect.objectContaining({ engine: SearchEngine.D1 })
+		]));
+		const log = infos.find((row) => typeof row === "object" && row !== null && "engine" in row) as { d1Fallback?: string };
+		expect(log.d1Fallback).toBeUndefined();
 	});
 
 	it("uses SEARCH_PREVIEW when searchD1Index is preview", async () => {
-		stubAzure(envelope(["azure-1"]));
-		const production = d1Fetcher(envelope(["prod-1"], "d1"));
-		const preview = d1Fetcher(envelope(["preview-1"], "d1"));
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
-			env({
-				searchPrimaryEngine: SearchPrimaryEngine.D1,
-				searchD1Index: SearchD1Index.Preview,
-				SEARCH: production,
-				SEARCH_PREVIEW: preview
-			})
-		);
+		const azure = stubAzure(envelope(["azure-1"]));
+		const production = d1Fetcher(envelope(["prod-1"], SearchEngine.D1));
+		const preview = d1Fetcher(envelope(["preview-1"], SearchEngine.D1));
+		const resp = await postSearch(env({
+			searchPrimaryEngine: SearchEngine.D1,
+			searchD1Index: SearchD1Index.Preview,
+			SEARCH: production,
+			SEARCH_PREVIEW: preview
+		}));
 		expect((await resp.json() as { value: { id: string }[] }).value[0].id).toBe("preview-1");
 		expect(preview.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 		expect(production.fetch as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+		expect(azure).not.toHaveBeenCalled();
 	});
 
 	it("does not shadow D1 against itself when primary is D1, even if the sampler is on", async () => {
 		stubAzure(envelope(["azure-1"]));
-		const d1 = d1Fetcher(envelope(["d1-1"], "d1"));
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
-			env({
-				searchPrimaryEngine: SearchPrimaryEngine.D1,
-				searchShadowEnabled: "true",
-				searchShadowSampleRate: "1",
-				SEARCH: d1
-			})
-		);
+		const d1 = d1Fetcher(envelope(["d1-1"], SearchEngine.D1));
+		vi.spyOn(console, "info").mockImplementation(() => { });
+		const resp = await postSearch(env({
+			searchPrimaryEngine: SearchEngine.D1,
+			searchShadowEnabled: "true",
+			searchShadowSampleRate: "1",
+			SEARCH: d1
+		}));
 		expect(resp.status).toBe(200);
 		expect(d1.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 	});
 
-	it("falls back to Azure when D1 times out, and logs the fallback", async () => {
+	it("falls back to Azure when D1 times out, logs requestId, and records engine + d1Fallback", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
 		const warnings: unknown[] = [];
+		const infos: unknown[] = [];
 		vi.spyOn(console, "warn").mockImplementation((row: unknown) => { warnings.push(row); });
+		vi.spyOn(console, "info").mockImplementation((row: unknown) => { infos.push(row); });
 		const hung = { fetch: vi.fn(() => new Promise<Response>(() => {})) } as unknown as Fetcher;
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
+		const resp = await postSearch(
 			env({
-				searchPrimaryEngine: SearchPrimaryEngine.D1,
-				searchShadowTimeoutMs: "50",
+				searchPrimaryEngine: SearchEngine.D1,
+				searchPrimaryTimeoutMs: "50",
 				SEARCH: hung
-			})
+			}),
+			{ headers: { "cf-ray": "ray-timeout" } }
 		);
 		expect(resp.status).toBe(200);
 		const body = await resp.json() as { "@search.engine": string; value: { id: string }[] };
-		expect(body["@search.engine"]).toBe(SearchPrimaryEngine.Azure);
+		expect(body["@search.engine"]).toBe(SearchEngine.Azure);
 		expect(body.value[0].id).toBe("azure-1");
 		expect(azure).toHaveBeenCalledOnce();
 		expect(warnings).toEqual(expect.arrayContaining([
-			expect.objectContaining({ message: "search d1 primary fallback", error: "timeout" })
+			expect.objectContaining({
+				message: "search d1 primary fallback",
+				error: "timeout",
+				requestId: "ray-timeout"
+			})
+		]));
+		expect(infos).toEqual(expect.arrayContaining([
+			expect.objectContaining({ engine: SearchEngine.Azure, d1Fallback: "timeout", requestId: "ray-timeout" })
 		]));
 	});
 
@@ -280,53 +292,78 @@ describe("POST /search primary engine (SP-4.1)", () => {
 		const azure = stubAzure(envelope(["azure-1"]));
 		vi.spyOn(console, "warn").mockImplementation(() => { });
 		const d1 = d1Fetcher({ error: { message: "unavailable" } }, 503);
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
-			env({ searchPrimaryEngine: SearchPrimaryEngine.D1, SEARCH: d1 })
-		);
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
 		const body = await resp.json() as { "@search.engine": string; value: { id: string }[] };
-		expect(body["@search.engine"]).toBe(SearchPrimaryEngine.Azure);
+		expect(body["@search.engine"]).toBe(SearchEngine.Azure);
 		expect(body.value[0].id).toBe("azure-1");
+		expect(azure).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to Azure when D1 returns 429", async () => {
+		const azure = stubAzure(envelope(["azure-1"]));
+		vi.spyOn(console, "warn").mockImplementation(() => { });
+		const d1 = d1Fetcher({ error: { message: "rate limited" } }, 429);
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
+		const body = await resp.json() as { "@search.engine": string; "@odata.context": unknown; value: { id: string }[] };
+		expect(resp.status).toBe(200);
+		expect(body["@search.engine"]).toBe(SearchEngine.Azure);
+		expect(body["@odata.context"]).toBeNull();
+		expect(body.value[0].id).toBe("azure-1");
+		expect(azure).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to Azure when D1 returns a non-JSON 200", async () => {
+		const azure = stubAzure(envelope(["azure-1"]));
+		vi.spyOn(console, "warn").mockImplementation(() => { });
+		const d1 = d1Raw("not-json", 200);
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
+		const body = await resp.json() as { "@search.engine": string; value: { id: string }[] };
+		expect(resp.status).toBe(200);
+		expect(body["@search.engine"]).toBe(SearchEngine.Azure);
+		expect(body.value[0].id).toBe("azure-1");
+		expect(azure).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to Azure when D1 returns 404", async () => {
+		const azure = stubAzure(envelope(["azure-1"]));
+		vi.spyOn(console, "warn").mockImplementation(() => { });
+		const d1 = d1Fetcher({ error: { message: "not found" } }, 404);
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }));
+		expect(resp.status).toBe(200);
+		expect((await resp.json() as { "@search.engine": string })["@search.engine"]).toBe(SearchEngine.Azure);
 		expect(azure).toHaveBeenCalledOnce();
 	});
 
 	it("falls back to Azure when the selected D1 binding is missing", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
 		vi.spyOn(console, "warn").mockImplementation(() => { });
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
-			env({ searchPrimaryEngine: SearchPrimaryEngine.D1, searchD1Index: SearchD1Index.Preview })
-		);
+		const resp = await postSearch(env({ searchPrimaryEngine: SearchEngine.D1, searchD1Index: SearchD1Index.Preview }));
 		const body = await resp.json() as { "@search.engine": string; value: { id: string }[] };
 		expect(body.value[0].id).toBe("azure-1");
 		expect(azure).toHaveBeenCalledOnce();
 	});
 
-	it("forwards a D1 400 and does not fall back to Azure", async () => {
+	it("forwards a D1 400 with CORS and does not fall back to Azure", async () => {
 		const azure = stubAzure(envelope(["azure-1"]));
 		const d1Error = { error: { message: "filter is invalid" } };
 		const d1 = d1Fetcher(d1Error, 400);
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x", filter: "bad" }) },
-			env({ searchPrimaryEngine: SearchPrimaryEngine.D1, SEARCH: d1 })
+		const resp = await postSearch(
+			env({ searchPrimaryEngine: SearchEngine.D1, SEARCH: d1 }),
+			{ body: { search: "x", filter: "bad" } }
 		);
 		expect(resp.status).toBe(400);
+		expectCors(resp);
 		expect(await resp.json()).toEqual(d1Error);
 		expect(azure).not.toHaveBeenCalled();
 	});
 
 	it("when primary is Azure, shadow uses the selected D1 index", async () => {
 		stubAzure(envelope(["azure-1"]));
-		const production = d1Fetcher(envelope(["prod-1"], "d1"));
-		const preview = d1Fetcher(envelope(["preview-1"], "d1"));
+		const production = d1Fetcher(envelope(["prod-1"], SearchEngine.D1));
+		const preview = d1Fetcher(envelope(["preview-1"], SearchEngine.D1));
 		vi.spyOn(console, "info").mockImplementation(() => { });
 		const { ctx, flush } = executionCtx();
-		const resp = await app().request(
-			"/search",
-			{ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ search: "x" }) },
+		const resp = await postSearch(
 			env({
 				searchShadowEnabled: "true",
 				searchShadowSampleRate: "1",
@@ -334,10 +371,10 @@ describe("POST /search primary engine (SP-4.1)", () => {
 				SEARCH: production,
 				SEARCH_PREVIEW: preview
 			}),
-			ctx
+			{ executionCtx: ctx }
 		);
 		expect(resp.status).toBe(200);
-		expect((await resp.json() as { "@search.engine": string })["@search.engine"]).toBe(SearchPrimaryEngine.Azure);
+		expect((await resp.json() as { "@search.engine": string })["@search.engine"]).toBe(SearchEngine.Azure);
 		await flush();
 		expect(preview.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledOnce();
 		expect(production.fetch as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();

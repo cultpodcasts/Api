@@ -82,6 +82,7 @@
     // SP-4.1: served engine. Default azure; production stays azure until SP-4.2.
     "searchPrimaryEngine": "azure",
     "searchD1Index": "production",
+    "searchPrimaryTimeoutMs": "3000",
     // SP-3.1: shadow D1 queries when primary is Azure.
     // Kill switch: set searchShadowEnabled to "false" (or omit). Rate is a 0–1 fraction.
     // SP-3.2 soak (RPP #1323): on in production at 10%; preview and local stay off.
@@ -177,10 +178,14 @@
       },
       "vars": {
         "apiEnvironment": "preview",
-        // SP-4.1 (Api #230): serve D1 on api-preview. Takes effect on the next api-preview deploy.
+        // SP-4.1 (Api #230): serve D1 on api-preview. Workers Builds deploys api-preview
+        // from main (and, as documented in README, from PR branches to the shared host).
+        // Merging to main therefore turns D1 on for api-preview. Keep this "azure" to
+        // merge the code without enabling D1.
         "searchPrimaryEngine": "d1",
         // 24 Nov 2026: api-preview may use the production index; preview index stays available.
         "searchD1Index": "production",
+        "searchPrimaryTimeoutMs": "3000",
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
         "searchShadowTopN": "10",
@@ -437,6 +442,7 @@
         "apiEnvironment": "local",
         "searchPrimaryEngine": "azure",
         "searchD1Index": "production",
+        "searchPrimaryTimeoutMs": "3000",
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
         "searchShadowTopN": "10",

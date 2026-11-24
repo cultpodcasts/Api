@@ -17,11 +17,15 @@ import {
 	type SearchEngineSnapshot
 } from "./searchShadow";
 import {
-	SearchPrimaryEngine,
+	D1SearchFetchError,
+	SearchEngine,
 	d1PrimaryIsUnavailable,
+	d1SearchFetchErrorMessage,
 	d1SearchFetcher,
 	fetchD1Search,
-	parseSearchPrimaryConfig
+	parseSearchPrimaryConfig,
+	parseSearchPrimaryTimeoutMs,
+	type D1SearchFetchFailure
 } from "./searchEngine";
 
 /** Forward Azure AI Search error statuses: keep 4xx/5xx (incl. 429); other non-200 → 502. */
@@ -128,7 +132,7 @@ function maybeScheduleSearchShadow(
 	azureError?: string,
 	azureCacheStatus?: string | null
 ): void {
-	if (parseSearchPrimaryConfig(c.env).engine === SearchPrimaryEngine.D1) return;
+	if (parseSearchPrimaryConfig(c.env).engine === SearchEngine.D1) return;
 	const fetcher = d1SearchFetcher(c.env);
 	if (!fetcher) return;
 	const config = parseSearchShadowConfig(c.env);
@@ -196,11 +200,13 @@ export async function search(c: ActionContext): Promise<Response> {
 		filter: shadowFilter,
 		requestId: searchLog.requestId
 	};
-	const azureStarted = Date.now();
-	if (parseSearchPrimaryConfig(c.env).engine === SearchPrimaryEngine.D1) {
-		const d1Response = await tryServeD1Primary(c, searchLog, requestBody);
-		if (d1Response) return d1Response;
+	let d1Fallback: string | undefined;
+	if (parseSearchPrimaryConfig(c.env).engine === SearchEngine.D1) {
+		const d1Attempt = await tryServeD1Primary(c, searchLog, requestBody);
+		if ("served" in d1Attempt) return d1Attempt.served;
+		d1Fallback = d1SearchFetchErrorMessage(d1Attempt.fallback);
 	}
+	const azureStarted = Date.now();
 	let response: Response;
 	try {
 		response = await fetch(c.env.apihost, {
@@ -249,46 +255,72 @@ export async function search(c: ActionContext): Promise<Response> {
 		maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body, "non-object 200 body");
 		return badGateway(c, searchLog, "non-object 200 body");
 	}
+	maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body, undefined, response.headers.get("cf-cache-status"));
+	return serveSearchSuccess(c, searchLog, body as Record<string, unknown>, SearchEngine.Azure, d1Fallback);
+}
+
+
+function serveSearchSuccess(
+	c: ActionContext,
+	searchLog: searchLogCollector,
+	body: Record<string, unknown>,
+	engine: SearchEngine,
+	d1Fallback?: string
+): Response {
 	AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
 	body["@odata.context"] = null;
-	// Azure is the served engine today. When cutover forwards the D1 worker body, that
-	// envelope already carries @search.engine "d1" — keep it.
-	if (body["@search.engine"] !== "d1") {
-		body["@search.engine"] = "azure";
-	}
-	maybeScheduleSearchShadow(c, shadowRequest, azureStarted, 200, body, undefined, response.headers.get("cf-cache-status"));
+	body["@search.engine"] = engine;
+	const logProps: { engine: SearchEngine; d1Fallback?: string } = { engine };
+	if (d1Fallback !== undefined) logProps.d1Fallback = d1Fallback;
+	searchLog.add(logProps);
 	if (searchLog.error) {
 		searchLog.emitError();
+	} else if (
+		(searchLog.mode == searchMode.shortnerFallback || searchLog.mode == searchMode.episode) &&
+		Array.isArray(body.value) &&
+		body.value.length == 1
+	) {
+		searchLog.add({ searchResult: body.value[0] as { podcastName?: string; episodeTitle?: string } });
+		searchLog.emit();
 	} else {
-		if ((searchLog.mode == searchMode.shortnerFallback ||
-			searchLog.mode == searchMode.episode) &&
-			body.value?.length == 1) {
-			searchLog.add({ searchResult: body.value[0] });
-		} else {
-			searchLog.add({ results: body.value?.length });
-		}
+		searchLog.add({ results: Array.isArray(body.value) ? body.value.length : undefined });
 		searchLog.emit();
 	}
 	return c.json(body, 200);
 }
 
+function warnD1PrimaryFallback(
+	searchLog: searchLogCollector,
+	result: D1SearchFetchFailure,
+	index: ReturnType<typeof parseSearchPrimaryConfig>["index"]
+): void {
+	console.warn({
+		message: "search d1 primary fallback",
+		error: d1SearchFetchErrorMessage(result),
+		status: result.status,
+		index,
+		requestId: searchLog.requestId,
+		latencyMs: result.latencyMs
+	});
+}
 
 /**
- * When searchPrimaryEngine is d1, try the selected D1 Worker first. Returns a Response
- * to send as-is (success or a D1 4xx). Returns null to fall back to Azure (unavailable D1:
- * timeout, missing binding, 429/5xx, unreadable body).
+ * When searchPrimaryEngine is d1, try the selected D1 Worker first. Returns a served
+ * Response on success or a forwarded 400. Returns a fallback result so the caller can
+ * serve Azure (timeout, missing binding, any non-400 failure).
  */
 async function tryServeD1Primary(
 	c: ActionContext,
 	searchLog: searchLogCollector,
 	requestBody: string
-): Promise<Response | null> {
+): Promise<{ served: Response } | { fallback: D1SearchFetchFailure }> {
 	const { index } = parseSearchPrimaryConfig(c.env);
 	const fetcher = d1SearchFetcher(c.env);
-	const timeoutMs = parseSearchShadowConfig(c.env).timeoutMs;
+	const timeoutMs = parseSearchPrimaryTimeoutMs(c.env.searchPrimaryTimeoutMs);
 	if (!fetcher) {
-		console.warn({ message: "search d1 primary fallback", error: "missing_binding", index });
-		return null;
+		const fallback: D1SearchFetchFailure = { ok: false, error: D1SearchFetchError.MissingBinding, latencyMs: 0 };
+		warnD1PrimaryFallback(searchLog, fallback, index);
+		return { fallback };
 	}
 	const result = await fetchD1Search({
 		fetcher,
@@ -297,44 +329,22 @@ async function tryServeD1Primary(
 		timeoutMs
 	});
 	if (result.ok) {
-		const body = result.body;
-		AddResponseHeaders(c, { methods: ["POST", "GET", "OPTIONS"] });
-		body["@odata.context"] = null;
-		body["@search.engine"] = "d1";
-		searchLog.add({ searchStatus: result.status });
-		if (searchLog.error) {
-			searchLog.emitError();
-		} else if (
-			(searchLog.mode == searchMode.shortnerFallback || searchLog.mode == searchMode.episode) &&
-			Array.isArray(body.value) &&
-			body.value.length == 1
-		) {
-			searchLog.add({ searchResult: body.value[0] });
-			searchLog.emit();
-		} else {
-			searchLog.add({ results: Array.isArray(body.value) ? body.value.length : undefined });
-			searchLog.emit();
-		}
-		return c.json(body, 200);
+		return { served: serveSearchSuccess(c, searchLog, result.body, SearchEngine.D1) };
 	}
 	if (d1PrimaryIsUnavailable(result)) {
-		console.warn({
-			message: "search d1 primary fallback",
-			error: result.error,
-			status: result.status,
-			index
-		});
-		return null;
+		warnD1PrimaryFallback(searchLog, result, index);
+		return { fallback: result };
 	}
-	const status = result.status ?? 502;
+	const status = result.status ?? 400;
 	searchLog.add({ searchStatus: status });
 	let errorBody: object = GENERIC_UPSTREAM_ERROR;
 	if (result.body !== null && typeof result.body === "object" && !Array.isArray(result.body)) {
 		errorBody = result.body as object;
 	}
-	searchLog.emitError({ message: "search d1 primary error: " + result.error });
-	return searchError(c, upstreamSearchErrorStatus(status), errorBody);
+	searchLog.emitError({ message: "search d1 primary error: " + d1SearchFetchErrorMessage(result) });
+	return { served: searchError(c, upstreamSearchErrorStatus(status), errorBody) };
 }
+
 async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddress: string | undefined): Promise<boolean> {
 	let isLeech: boolean = false;
 	if (leechHandlingActive && ipAddress) {
@@ -353,7 +363,7 @@ async function evalIsLeech(leechHandlingActive: boolean, data: R2Bucket, ipAddre
 function createLeachResponse(c: ActionContext, searchLog: searchLogCollector) {
 	const leechResponse = {
 		"@odata.context": null,
-		"@search.engine": "azure",
+		"@search.engine": SearchEngine.Azure,
 		"@odata.count": 1,
 		"@search.facets": {
 			"subjects": [],

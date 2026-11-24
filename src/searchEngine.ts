@@ -1,8 +1,7 @@
 import type { Env } from "./Env";
-import { DEFAULT_SEARCH_SHADOW_TIMEOUT_MS } from "./searchShadow";
 
-/** Served `POST /search` engine. Wrangler var `searchPrimaryEngine`. Default Azure. */
-export enum SearchPrimaryEngine {
+/** Which search index served or should serve `POST /search` (`@search.engine` wire values). */
+export enum SearchEngine {
 	Azure = "azure",
 	D1 = "d1"
 }
@@ -13,14 +12,40 @@ export enum SearchD1Index {
 	Preview = "preview"
 }
 
+/** Fixed error codes from a D1 service-binding call. HTTP failures use {@link D1SearchFetchError.Status} plus `status`. */
+export enum D1SearchFetchError {
+	Timeout = "timeout",
+	NonJsonBody = "non_json_body",
+	UnreadableBody = "unreadable_body",
+	NonObjectBody = "non_object_body",
+	MissingBinding = "missing_binding",
+	Status = "status",
+	RequestFailed = "request_failed"
+}
+
 export type SearchPrimaryConfig = {
-	engine: SearchPrimaryEngine;
+	engine: SearchEngine;
 	index: SearchD1Index;
 };
 
+/** Default primary-path timeout; same starting value as the shadow sampler, but a separate var. */
+export const DEFAULT_SEARCH_PRIMARY_TIMEOUT_MS = 3000;
+
+/** Allowed range matches the shadow sampler (100–30000). */
+export function parseSearchTimeoutMs(value: string | undefined, defaultValue: number): number {
+	if (value === undefined || value.trim() === "") return defaultValue;
+	const n = Number(value);
+	if (!Number.isSafeInteger(n) || n < 100 || n > 30000) return defaultValue;
+	return n;
+}
+
+export function parseSearchPrimaryTimeoutMs(value: string | undefined): number {
+	return parseSearchTimeoutMs(value, DEFAULT_SEARCH_PRIMARY_TIMEOUT_MS);
+}
+
 /** Default off (Azure) so production is unchanged unless the var is set to d1. */
-export function parseSearchPrimaryEngine(value: string | undefined): SearchPrimaryEngine {
-	return value === SearchPrimaryEngine.D1 ? SearchPrimaryEngine.D1 : SearchPrimaryEngine.Azure;
+export function parseSearchPrimaryEngine(value: string | undefined): SearchEngine {
+	return value === SearchEngine.D1 ? SearchEngine.D1 : SearchEngine.Azure;
 }
 
 /** Default production index (`SEARCH` / Worker `search`). */
@@ -59,10 +84,12 @@ export type D1SearchFetchSuccess = {
 
 export type D1SearchFetchFailure = {
 	ok: false;
-	error: string;
+	error: D1SearchFetchError;
 	status?: number;
 	latencyMs: number;
 	body?: unknown;
+	/** Present when {@link D1SearchFetchError.RequestFailed}: the thrown Error message. */
+	message?: string;
 };
 
 export type D1SearchFetchResult = D1SearchFetchSuccess | D1SearchFetchFailure;
@@ -75,8 +102,7 @@ class D1SearchTimeout extends Error {
 }
 
 /**
- * Query the D1 search Worker over a service binding, with the same timeout behaviour as
- * the shadow sampler. Never throws.
+ * Query the D1 search Worker over a service binding, with a timeout. Never throws.
  */
 export async function fetchD1Search(args: {
 	fetcher: Fetcher;
@@ -85,7 +111,7 @@ export async function fetchD1Search(args: {
 	timeoutMs?: number;
 }): Promise<D1SearchFetchResult> {
 	const started = Date.now();
-	const timeoutMs = args.timeoutMs ?? DEFAULT_SEARCH_SHADOW_TIMEOUT_MS;
+	const timeoutMs = args.timeoutMs ?? DEFAULT_SEARCH_PRIMARY_TIMEOUT_MS;
 	const controller = new AbortController();
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const timedOut = new Promise<never>((_, reject) => {
@@ -106,25 +132,25 @@ export async function fetchD1Search(args: {
 		try {
 			raw = await response.text();
 		} catch {
-			return { ok: false, error: "unreadable_body", status: response.status, latencyMs };
+			return { ok: false, error: D1SearchFetchError.UnreadableBody, status: response.status, latencyMs };
 		}
 		let parsed: unknown;
 		if (raw) {
 			try {
 				parsed = JSON.parse(raw);
 			} catch {
-				return { ok: false, error: "non_json_body", status: response.status, latencyMs };
+				return { ok: false, error: D1SearchFetchError.NonJsonBody, status: response.status, latencyMs };
 			}
 		}
 		if (response.status === 200) {
 			if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
 				return { ok: true, status: 200, body: parsed as Record<string, unknown>, latencyMs };
 			}
-			return { ok: false, error: "non_object_body", status: 200, latencyMs, body: parsed };
+			return { ok: false, error: D1SearchFetchError.NonObjectBody, status: 200, latencyMs, body: parsed };
 		}
 		return {
 			ok: false,
-			error: `status_${response.status}`,
+			error: D1SearchFetchError.Status,
 			status: response.status,
 			latencyMs,
 			body: parsed
@@ -137,25 +163,36 @@ export async function fetchD1Search(args: {
 	} catch (e) {
 		const latencyMs = Math.max(0, Math.round(Date.now() - started));
 		if (e instanceof D1SearchTimeout) {
-			return { ok: false, error: "timeout", latencyMs };
+			return { ok: false, error: D1SearchFetchError.Timeout, latencyMs };
 		}
-		return { ok: false, error: e instanceof Error ? e.message : String(e), latencyMs };
+		return {
+			ok: false,
+			error: D1SearchFetchError.RequestFailed,
+			latencyMs,
+			message: e instanceof Error ? e.message : String(e)
+		};
 	} finally {
 		clearTimeout(timer);
 	}
 }
 
+/** Compact string for logs and the shadow snapshot `error` field. */
+export function d1SearchFetchErrorMessage(result: D1SearchFetchFailure): string {
+	if (result.error === D1SearchFetchError.Status) {
+		return `status_${result.status ?? "unknown"}`;
+	}
+	if (result.error === D1SearchFetchError.RequestFailed) {
+		return result.message ?? D1SearchFetchError.RequestFailed;
+	}
+	return result.error;
+}
+
 /**
- * Whether a failed D1 primary call should fall back to Azure. Timeouts, missing answers,
- * 429/5xx and unreadable bodies are treated as unavailable. Other 4xx stay on D1 (the
- * request is bad; Azure must not silently replace it).
+ * Whether a failed D1 primary call should fall back to Azure. Only HTTP 400
+ * (the search Worker's `SearchRequestError` contract) is forwarded to the client.
+ * Every other failure — timeout, missing binding, 404/405, 429/5xx, unreadable body —
+ * falls back so a deployment or availability fault does not surface as a client error.
  */
 export function d1PrimaryIsUnavailable(result: D1SearchFetchFailure): boolean {
-	const status = result.status;
-	if (status === undefined) return true;
-	if (status === 429 || status >= 500) return true;
-	if (result.error === "non_json_body" || result.error === "unreadable_body" || result.error === "non_object_body") {
-		return true;
-	}
-	return false;
+	return !(result.error === D1SearchFetchError.Status && result.status === 400);
 }

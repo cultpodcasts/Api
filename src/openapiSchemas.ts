@@ -11,6 +11,7 @@ import {
 	subjectMatchDtoSchema
 } from "@cultpodcasts/contracts/zod";
 import { CatalogueParentKind } from "./catalogueParentKind";
+import { SearchEngine } from "./searchEngine";
 import { DiscoverySubmitOutcomeState } from "./discoverySubmitOutcomeState";
 import { streamingServiceKeys } from "../tests/fixtures/streaming-submit-contract";
 
@@ -1587,11 +1588,11 @@ export const episodeSearchHitSchema = z.object({
 export const searchResponseSchema = z.object({
 	"@odata.count": z.number().optional(),
 	/**
-	 * Which index served this response. "azure" on the live Azure path; "d1" on the
-	 * search Worker envelope (and when `searchPrimaryEngine` is d1, SP-4.1). Omitted on older deploys;
+	 * Which index served this response. `SearchEngine.Azure` on the Azure path;
+	 * `SearchEngine.D1` when `searchPrimaryEngine` is d1 (SP-4.1). Omitted on older deploys;
 	 * clients should treat a missing value as Azure.
 	 */
-	"@search.engine": z.enum(["azure", "d1"]).optional(),
+	"@search.engine": z.nativeEnum(SearchEngine).optional(),
 	value: z.array(episodeSearchHitSchema)
 });
 

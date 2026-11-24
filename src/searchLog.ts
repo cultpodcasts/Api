@@ -22,5 +22,9 @@ export interface searchLog {
 	query?: searchLogQueryDetails;
 	searchResult?: ISearchResult;
 	results?: number | undefined | null;
+	/** Served engine (`SearchEngine` wire value). */
+	engine?: string;
+	/** Compact D1 error when primary was D1 and Azure was served instead. */
+	d1Fallback?: string;
 	request: searchLogQueryRequest;
 }

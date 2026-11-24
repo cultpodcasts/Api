@@ -52,6 +52,11 @@ export type Env = {
 	 */
 	searchD1Index?: string;
 	/**
+	 * Timeout in ms for a D1 *primary* `/search` call (100–30000). Default 3000.
+	 * Separate from `searchShadowTimeoutMs` so soak tuning does not change served latency.
+	 */
+	searchPrimaryTimeoutMs?: string;
+	/**
 	 * SP-3.1 shadow-query kill switch (`"true"` / `"false"`). Default off (safe) until
 	 * explicitly enabled. Sample rate and top-N stay in the other `searchShadow*` vars.
 	 * Shadow is skipped when `searchPrimaryEngine` is d1 (do not shadow D1 against itself).

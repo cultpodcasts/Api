@@ -1,4 +1,5 @@
 import type { Env } from "./Env";
+import { d1SearchFetchErrorMessage, fetchD1Search, parseSearchTimeoutMs } from "./searchEngine";
 import { writeShadowDataPoint } from "./searchShadowSoak";
 
 /** Service-binding origin; the search Worker ignores the host and routes on the path. */
@@ -137,10 +138,7 @@ function parseTopNEnv(value: string | undefined, defaultValue: number): number {
 }
 
 function parseTimeoutEnv(value: string | undefined, defaultValue: number): number {
-	if (value === undefined || value.trim() === "") return defaultValue;
-	const n = Number(value);
-	if (!Number.isSafeInteger(n) || n < 100 || n > 30000) return defaultValue;
-	return n;
+	return parseSearchTimeoutMs(value, defaultValue);
 }
 
 /** Sample rate and kill switch from Worker vars. Defaults are safe and low: off, 1%, top 10, 3 s timeout. */
@@ -271,13 +269,6 @@ export type SearchShadowRun = {
 	analytics?: AnalyticsEngineDataset;
 };
 
-class ShadowTimeout extends Error {
-	constructor() {
-		super("timeout");
-		this.name = "ShadowTimeout";
-	}
-}
-
 /**
  * Query the D1 search Worker with the same rewritten body Azure just saw, then log a compact
  * comparison. Never throws: waitUntil work must not surface as an unhandled rejection.
@@ -285,60 +276,23 @@ class ShadowTimeout extends Error {
  */
 export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShadowLog> {
 	const write = args.log ?? ((payload: SearchShadowLog) => console.info(payload));
-	const started = Date.now();
 	const timeoutMs = args.timeoutMs ?? DEFAULT_SEARCH_SHADOW_TIMEOUT_MS;
-	const controller = new AbortController();
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	// Race the whole call (answer and body) against the timeout, and abort it: a hung binding must
-	// still produce a shadow line (as unavailable) rather than sit in waitUntil until the isolate dies.
-	const timedOut = new Promise<never>((_, reject) => {
-		timer = setTimeout(() => {
-			controller.abort();
-			reject(new ShadowTimeout());
-		}, timeoutMs);
+	const fetched = await fetchD1Search({
+		fetcher: args.fetcher,
+		url: args.url,
+		requestBody: args.requestBody,
+		timeoutMs
 	});
-	const call = async (): Promise<SearchEngineSnapshot> => {
-		const response = await args.fetcher.fetch(args.url, {
-			method: "POST",
-			headers: { "content-type": "application/json;charset=UTF-8" },
-			body: args.requestBody,
-			signal: controller.signal
-		});
-		const latencyMs = Date.now() - started;
-		let body: unknown;
-		let error: string | undefined;
-		try {
-			const raw = await response.text();
-			if (raw) {
-				try {
-					body = JSON.parse(raw);
-				} catch {
-					error = "non_json_body";
-				}
-			} else if (response.status !== 200) {
-				error = `status_${response.status}`;
-			}
-		} catch {
-			error = "unreadable_body";
-		}
-		return snapshotSearchResponse(response.status, latencyMs, body, args.topN, error);
-	};
-	let d1: SearchEngineSnapshot;
-	try {
-		const pending = call();
-		// If the timeout wins, the aborted call rejects later; that rejection is expected and ignored.
-		pending.catch(() => {});
-		d1 = await Promise.race([pending, timedOut]);
-	} catch (e) {
-		d1 = {
-			latencyMs: Math.max(0, Math.round(Date.now() - started)),
-			count: null,
-			topIds: [],
-			error: e instanceof ShadowTimeout ? "timeout" : e instanceof Error ? e.message : String(e)
-		};
-	} finally {
-		clearTimeout(timer);
-	}
+	const d1 = snapshotSearchResponse(
+		fetched.status,
+		fetched.latencyMs,
+		fetched.body,
+		args.topN,
+		fetched.ok
+			? undefined
+			: compactSearchError(fetched.body, fetched.status) ?? d1SearchFetchErrorMessage(fetched)
+	);
+
 	const overlap = compareSearchSnapshots(args.azure.topIds, d1.topIds, args.topN);
 	const payload: SearchShadowLog = {
 		message: "search shadow",

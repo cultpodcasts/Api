@@ -1,4 +1,5 @@
 import { ISearchResult } from "./ISearchResult";
+import type { SearchEngine } from "./searchEngine";
 import { searchMode } from "./searchMode";
 
 export interface searchOperation {
@@ -25,4 +26,8 @@ export interface searchOperation {
     asOrganization?: string;
     searchResult?: ISearchResult;
     results?: number | null | undefined;
+    /** Served engine for this request (`SearchEngine`). */
+    engine?: SearchEngine;
+    /** Set when D1 was primary and we fell back to Azure; the compact error code. */
+    d1Fallback?: string;
 }

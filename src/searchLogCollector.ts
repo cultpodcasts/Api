@@ -3,6 +3,7 @@ import { ISearchResult } from "./ISearchResult";
 import { oDataSearchModel } from "./oDataSearchModel";
 import { searchLog } from "./searchLog";
 import { searchMode } from "./searchMode";
+import type { SearchEngine } from "./searchEngine";
 import { searchOperation } from "./searchOperation";
 
 export type SearchLogLevel = "info" | "warn" | "error";
@@ -182,6 +183,12 @@ export class searchLogCollector implements searchOperation {
 		if (props.hasOwnProperty("message")) {
 			this.message = props.message;
 		}
+		if (props.hasOwnProperty("engine")) {
+			this.engine = props.engine;
+		}
+		if (props.hasOwnProperty("d1Fallback")) {
+			this.d1Fallback = props.d1Fallback;
+		}
 	}
 
 	/**
@@ -253,6 +260,12 @@ export class searchLogCollector implements searchOperation {
 			searchLog.searchResult = this.searchResult;
 		} else if (this.results != null) {
 			searchLog.results = this.results;
+		}
+		if (this.engine) {
+			searchLog.engine = this.engine;
+		}
+		if (this.d1Fallback) {
+			searchLog.d1Fallback = this.d1Fallback;
 		}
 		if (this.error) {
 			searchLog.errors = {
@@ -329,6 +342,8 @@ export class searchLogCollector implements searchOperation {
 	asOrganization?: string;
 	searchResult?: ISearchResult;
 	results?: number | undefined | null;
+	engine?: SearchEngine;
+	d1Fallback?: string;
 	message?: string;
 	requestId?: string;
 	messages?: string[];

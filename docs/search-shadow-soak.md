@@ -30,18 +30,19 @@ flowchart TD
 | `searchShadowEnabled` | `"true"` | On/off kill switch. `"false"` (or a rate of `"0"`) stops the sampler. |
 | `searchShadowSampleRate` | `"0.1"` | 1 in 10 production searches is also sent to D1. Preview and local use `"0.01"` with the switch off. |
 | `searchShadowTopN` | `"10"` | How many leading result ids from each engine are compared. |
-| `searchShadowTimeoutMs` | `"3000"` | Abort the D1 call after 3 seconds. A timeout is logged as `d1.error = "timeout"` and counted as D1 unavailable (`slo.d1Unavailable = true`). Allowed range: 100–30000. Also used as the timeout for a D1 **primary** call (SP-4.1). |
+| `searchShadowTimeoutMs` | `"3000"` | Abort the D1 *shadow* call after 3 seconds. A timeout is logged as `d1.error = "timeout"` and counted as D1 unavailable (`slo.d1Unavailable = true`). Allowed range: 100–30000. The served D1 primary path uses the separate `searchPrimaryTimeoutMs` var. |
 
-SP-4.1 (Api #230) adds two wrangler vars, both TypeScript enums in `src/searchEngine.ts`:
+SP-4.1 (Api #230) adds wrangler vars parsed in `src/searchEngine.ts` (`SearchEngine` and `SearchD1Index` enums, plus a dedicated primary timeout):
 
 | Setting | Production | Preview | Meaning |
 |---------|------------|---------|---------|
-| `searchPrimaryEngine` | `"azure"` | `"d1"` | Served `POST /search` engine. Default `azure` (safe). Preview is set to `d1` in `wrangler.jsonc`; that takes effect only when api-preview is deployed. |
+| `searchPrimaryEngine` | `"azure"` | `"d1"` | Served `POST /search` engine. Default `azure` (safe). Preview is set to `d1` in `wrangler.jsonc`. Workers Builds publishes `api-preview` from `main` (and, as documented in the repo README, from PR branches to the shared host), so merging this change turns D1 on for api-preview. Keep the preview var at `azure` to merge the code without enabling D1. |
 | `searchD1Index` | `"production"` | `"production"` | Which D1 Worker to use: `production` (`SEARCH` → Worker `search` / `cultpodcasts-search`) or `preview` (`SEARCH_PREVIEW` → `search-preview` / `cultpodcasts-search-preview`). api-preview binds both. |
+| `searchPrimaryTimeoutMs` | `"3000"` | `"3000"` | Timeout in ms for a D1 **primary** `/search` call (100–30000). Separate from `searchShadowTimeoutMs` so soak tuning does not change served latency. |
 
-When primary is D1, shadow sampling is skipped (do not shadow D1 against itself). If the D1 primary call is unavailable, `/search` falls back to Azure, stamps `@search.engine: "azure"`, and logs `search d1 primary fallback`. A D1 4xx other than 429 is returned to the client and does not fall back.
+When primary is D1, shadow sampling is skipped (do not shadow D1 against itself). If the D1 primary call is unavailable, `/search` falls back to Azure, stamps `@search.engine: "azure"`, records the served engine and a `d1Fallback` error on the search log, and logs `search d1 primary fallback` (includes `requestId`). Only a D1 HTTP 400 is forwarded to the client (the search Worker uses 400 for unsupported facet/filter syntax; see Api #231). Every other D1 failure (timeout, missing binding, 404/405, 429/5xx, unreadable or non-JSON body) falls back to Azure.
 
-These settings, including the kill switch and the SP-4.1 engine/index vars, only take effect after the matching Worker is deployed. Merging to `main` does not by itself publish api-preview; Jon deploys api-preview when he wants the preview site to serve D1.
+These settings, including the kill switch and the SP-4.1 engine/index/timeout vars, take effect when the matching Worker is published. Workers Builds is connected for `api-preview` and deploys it from `main` (and from PR branches to the shared `api-preview` host). Merging this PR to `main` therefore publishes api-preview with D1 primary on, unless the preview `searchPrimaryEngine` var is left at `azure`.
 
 - The api Worker samples production `POST /search` requests when the switch is on (see the table). Preview and local stay off.
 - Each sampled request sends the same rewritten body to the D1 search Worker over the `SEARCH`
