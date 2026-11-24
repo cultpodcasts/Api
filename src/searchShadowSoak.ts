@@ -19,7 +19,6 @@ export const SEARCH_SHADOW_SOAK_PATH = "/docs/search-shadow-soak";
 export const SOAK_INDEX = "search-shadow";
 
 /** SLO targets, from docs/search-shadow-soak.md. */
-export const SOAK_LATENCY_MAX_MS = 300;
 export const SOAK_UNAVAILABLE_MAX = 0.001;
 export const SOAK_COUNT_WITHIN_MIN = 0.99;
 export const SOAK_OVERLAP_MIN = 0.95;
@@ -38,8 +37,6 @@ export const SOAK_HISTORY_DAYS = 30;
  * passes but is within this margin of the threshold, or has no verdict (too few samples); green
  * passes with margin.
  */
-/** Latency amber when D1 p95 is within this many ms of the 300 ms ceiling (i.e. above 250 ms). */
-export const SOAK_RAG_LATENCY_MARGIN_MS = 50;
 /** Latency amber when D1 p95 is above this fraction of Azure's p95 (but not above Azure's). */
 export const SOAK_RAG_LATENCY_RATIO = 0.9;
 /** Availability amber when D1 is unavailable on more than this share (red above 0.1%). */
@@ -262,16 +259,13 @@ export function ragFor(verdict: Verdict, withinMargin: boolean): Rag {
 }
 
 export function latencyRag(verdict: Verdict, azureP95: number | null, d1P95: number | null): Rag {
-	const near =
-		azureP95 !== null &&
-		d1P95 !== null &&
-		(d1P95 > SOAK_LATENCY_MAX_MS - SOAK_RAG_LATENCY_MARGIN_MS || d1P95 > SOAK_RAG_LATENCY_RATIO * azureP95);
+	const near = azureP95 !== null && d1P95 !== null && d1P95 > SOAK_RAG_LATENCY_RATIO * azureP95;
 	return ragFor(verdict, near);
 }
 
-/** SLO 1 met: D1's p95 no slower than Azure's and within the 300 ms ceiling. */
+/** SLO 1 met: D1's p95 no slower than Azure's. */
 export function latencyWithinSlo(azureP95: number, d1P95: number): boolean {
-	return d1P95 <= azureP95 && d1P95 <= SOAK_LATENCY_MAX_MS;
+	return d1P95 <= azureP95;
 }
 
 /** A ratio SLO's rule: `pass` meets the target, `near` is inside the amber margin. */

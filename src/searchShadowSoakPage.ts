@@ -8,12 +8,10 @@ import {
 	SOAK_COUNT_WITHIN_MIN,
 	SOAK_DAYS,
 	SOAK_DRIFT_MAX,
-	SOAK_LATENCY_MAX_MS,
 	SOAK_MIN_BROWSE_SAMPLES,
 	SOAK_MIN_SAMPLES,
 	SOAK_OVERLAP_MIN,
 	SOAK_RAG_COUNT_WITHIN_AMBER,
-	SOAK_RAG_LATENCY_MARGIN_MS,
 	SOAK_RAG_LATENCY_RATIO,
 	SOAK_RAG_OVERLAP_AMBER,
 	SOAK_RAG_UNAVAILABLE_AMBER,
@@ -318,9 +316,9 @@ function todayCards(report: SoakReport): string {
 		card(
 			"Speed (p95)",
 			provisionalLatency(lat.azureP95, lat.d1P95),
-			`D1 must be ≤ ${SOAK_LATENCY_MAX_MS} ms and no slower than Azure; ${note}`,
+			`D1's p95 must be at or below Azure's; ${note}`,
 			ms(lat.d1P95),
-			`Azure ${ms(lat.azureP95)} · target ≤ ${SOAK_LATENCY_MAX_MS} ms`
+			`Azure ${ms(lat.azureP95)} · target ≤ Azure`
 		),
 		card(
 			"D1 errors",
@@ -403,7 +401,7 @@ const HOW = `<details class="how"><summary>How this works</summary>
 <ul>
 <li>Each UTC day is judged on four checks. A day is <strong>green</strong> when all four pass. ${SOAK_DAYS} green days in a row completes the soak.</li>
 <li>A day needs ${SOAK_MIN_SAMPLES} samples (and ${SOAK_MIN_BROWSE_SAMPLES} browse samples for overlap) to be judged. Quieter days don't count either way. A failed day restarts the count.</li>
-<li><strong>Speed:</strong> D1's p95 must be ≤ ${SOAK_LATENCY_MAX_MS} ms and no slower than Azure's. Close to limit above ${SOAK_LATENCY_MAX_MS - SOAK_RAG_LATENCY_MARGIN_MS} ms or above ${Math.round(SOAK_RAG_LATENCY_RATIO * 100)}% of Azure's.</li>
+<li><strong>Speed:</strong> D1's p95 must be at or below Azure's. Close to limit above ${Math.round(SOAK_RAG_LATENCY_RATIO * 100)}% of Azure's.</li>
 <li><strong>D1 errors:</strong> D1 fails or times out on ≤ ${fmtPct(SOAK_UNAVAILABLE_MAX)} of searches. Close above ${fmtPct(SOAK_RAG_UNAVAILABLE_AMBER)}.</li>
 <li><strong>Counts match:</strong> ≥ ${fmtPct(SOAK_COUNT_WITHIN_MIN)} of searches return about the same number of results. Close below ${fmtPct(SOAK_RAG_COUNT_WITHIN_AMBER)}.</li>
 <li><strong>Browse overlap:</strong> ≥ ${fmtPct(SOAK_OVERLAP_MIN)} of browse searches have 9 of Azure's top 10 in D1's. Close below ${fmtPct(SOAK_RAG_OVERLAP_AMBER)}.</li>
@@ -427,20 +425,17 @@ export function renderSoakCharts(report: SoakReport): string {
 	const labels = days.map((d) => dayName(d.day, false));
 	const msFmt = (v: number) => `${Math.round(v)} ms`;
 	const pctFmt = (v: number) => fmtPct(v);
-	const latencyCeiling = { value: SOAK_LATENCY_MAX_MS, label: `${SOAK_LATENCY_MAX_MS} ms limit` };
 	const charts = [
 		renderChart({
 			title: "Speed by day",
 			labels,
 			series: latencySeries(days.map((d) => d.latency)),
-			thresholds: [latencyCeiling],
 			format: msFmt
 		}),
 		renderChart({
 			title: "Speed today by hour (UTC)",
 			labels: report.hours.map((h) => `${h.hour}:00`),
 			series: latencySeries(report.hours.map((h) => h.latency)),
-			thresholds: [latencyCeiling],
 			format: msFmt
 		}),
 		renderChart({

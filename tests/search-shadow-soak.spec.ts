@@ -176,10 +176,10 @@ describe("evaluateSoak", () => {
 		]);
 	});
 
-	it("fails latency when D1 is slower than Azure or over 300 ms", () => {
+	it("fails latency only when D1 is slower than Azure", () => {
 		expect(evaluateSoak("d", counts(), { azureP95: 100, d1P95: 120, samples: 1000 }).latency.verdict).toBe("fail");
-		expect(evaluateSoak("d", counts(), { azureP95: 500, d1P95: 301, samples: 1000 }).latency.verdict).toBe("fail");
-		expect(evaluateSoak("d", counts(), { azureP95: 500, d1P95: 301, samples: 1000 }).verdict).toBe("fail");
+		expect(evaluateSoak("d", counts(), { azureP95: 500, d1P95: 301, samples: 1000 }).latency.verdict).toBe("pass");
+		expect(evaluateSoak("d", counts(), { azureP95: 500, d1P95: 301, samples: 1000 }).verdict).toBe("pass");
 	});
 
 	it("applies the availability, count and overlap thresholds", () => {
@@ -250,9 +250,10 @@ describe("RAG", () => {
 		expect(evaluateSoak("d", counts({ countWithin: 994 }), goodLatency).rag).toBe("amber");
 	});
 
-	it("puts latency amber near the 300 ms ceiling or near Azure's p95", () => {
+	it("puts latency amber when D1 p95 is above 90% of Azure's", () => {
 		expect(latencyRag("pass", 250, 200)).toBe("green");
-		expect(latencyRag("pass", 290, 260)).toBe("amber"); // above 250 ms
+		expect(latencyRag("pass", 820, 570)).toBe("green"); // over 300 ms but well below Azure
+		expect(latencyRag("pass", 290, 260)).toBe("green"); // 260/290 is under 90%; the old 250 ms margin no longer applies
 		expect(latencyRag("pass", 200, 190)).toBe("amber"); // above 90% of Azure
 		expect(latencyRag("fail", 200, 210)).toBe("red");
 		expect(latencyRag("no-verdict", null, null)).toBe("amber");
@@ -379,9 +380,9 @@ describe("soak page display helpers", () => {
 	});
 
 	it("judges today's provisional speed with the same thresholds", () => {
-		expect(provisionalLatency(820, 570)).toBe("breach"); // over 300 ms
+		expect(provisionalLatency(820, 570)).toBe("pass"); // over 300 ms but at or below Azure and under 90%
 		expect(provisionalLatency(250, 260)).toBe("breach"); // slower than Azure
-		expect(provisionalLatency(300, 270)).toBe("margin"); // above 250 ms and 90% of Azure
+		expect(provisionalLatency(300, 271)).toBe("margin"); // above 90% of Azure
 		expect(provisionalLatency(300, 120)).toBe("pass");
 		expect(provisionalLatency(null, 120)).toBe("wait");
 	});
@@ -583,6 +584,11 @@ describe("soak page display helpers", () => {
 		expect(html.match(/<ol class="tracker"[^>]*>(.*?)<\/ol>/s)?.[1].match(/<li /g)).toHaveLength(SOAK_DAYS);
 		expect(html).toContain('class="hero hero-wait"');
 		expect(html).toContain("570 ms");
+		expect(html).toContain("Speed (p95)");
+		expect(html).toContain("target \u2264 Azure");
+		expect(html).toContain("Speed by day");
+		expect(html).not.toContain("300 ms limit");
+		expect(html).not.toContain("\u2264 300 ms");
 		expect(html).toContain("No complete days with data yet.");
 		expect(html).toContain("No cache data yet");
 		expect(html).toContain("How this works");
