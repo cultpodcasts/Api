@@ -38,6 +38,8 @@ export type SearchEngineSnapshot = {
 	error?: string;
 	/** Azure only: the edge cache's `cf-cache-status` (HIT/MISS/…); D1 is never edge-cached. */
 	cacheStatus?: string;
+	servedByRegion?: string;
+	sessionConstraint?: string;
 };
 
 /** `browse`: no free text (empty or `*`), only a podcast/subject filter; `text`: a typed search. */
@@ -281,7 +283,8 @@ export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShad
 		fetcher: args.fetcher,
 		url: args.url,
 		requestBody: args.requestBody,
-		timeoutMs
+		timeoutMs,
+		requestId: args.requestId
 	});
 	const d1 = snapshotSearchResponse(
 		fetched.status,
@@ -292,7 +295,8 @@ export async function runSearchShadow(args: SearchShadowRun): Promise<SearchShad
 			? undefined
 			: compactSearchError(fetched.body, fetched.status) ?? d1SearchFetchErrorMessage(fetched)
 	);
-
+	if (fetched.servedByRegion) d1.servedByRegion = fetched.servedByRegion;
+	if (fetched.sessionConstraint) d1.sessionConstraint = fetched.sessionConstraint;
 	const overlap = compareSearchSnapshots(args.azure.topIds, d1.topIds, args.topN);
 	const payload: SearchShadowLog = {
 		message: "search shadow",

@@ -13,6 +13,13 @@
  * seriesName and legacy podcastName are the same column. lang NULL = English.
  * Unknown fields or syntax throw SearchRequestError; the route returns 400 like Azure does.
  *
+ * `parseODataFilter` always emits a boolean predicate. A top-level `subjects/any`
+ * joined with `and` is not left in that predicate: {@link applyODataFilter} lifts it
+ * into a `subject_hits` join so the subject index drives the plan. `any()` under `or`
+ * stays a predicate, because a join would drop rows that disjunct should keep.
+ * Search migrations never ANALYZE, so a WHERE `IN` plus `(lang eq null or lang eq 'en')`
+ * is planned as a walk of `idx_search_docs_lang` (#319).
+ *
  * Ported from the `search-demo/` prototype (SP-1.9, cultpodcasts/Api#269).
  */
 
@@ -151,30 +158,9 @@ function clause(p: P, binds: unknown[]): string {
 	if (lit(p, "/any")) {
 		// subjects/any(s: s eq 'X')  or  subjects/any(s: search.in(s, 'a£b', '£')) // pragma: allowlist secret
 		if (name !== "subjects") throw new SearchRequestError(`unsupported collection: ${name}`); // pragma: allowlist secret
-		if (!lit(p, "(")) throw new SearchRequestError("any: expected (");
-		const varName = identifier(p);
-		if (!lit(p, ":")) throw new SearchRequestError("any: expected :");
-		let valueSql: string;
-		const subBinds: unknown[] = [];
-		if (lit(p, "search.in(")) {
-			const v = identifier(p);
-			if (v !== varName) throw new SearchRequestError("any: variable mismatch");
-			const values = parseSearchInArgs(p);
-			if (values.length) {
-				valueSql = "s.subject IN (SELECT value FROM json_each(?))";
-				subBinds.push(JSON.stringify(values));
-			} else valueSql = "0 = 1";
-		} else {
-			const v = identifier(p);
-			if (v !== varName) throw new SearchRequestError("any: variable mismatch");
-			if (!lit(p, "eq")) throw new SearchRequestError("any: expected eq");
-			const value = quoted(p);
-			valueSql = "s.subject = ?";
-			subBinds.push(value);
-		}
-		if (!lit(p, ")")) throw new SearchRequestError("any: expected )");
-		binds.push(...subBinds);
-		return `EXISTS (SELECT 1 FROM doc_subjects s WHERE s.rowid_ref = d.rowid AND ${valueSql})`; // pragma: allowlist secret
+		const value = anyValueSql(p);
+		binds.push(...value.binds);
+		return `d.rowid IN (SELECT s.rowid_ref FROM doc_subjects s WHERE ${value.sql})`; // pragma: allowlist secret
 	}
 	if (lit(p, "eq")) {
 		if (lit(p, "null")) return eqSql(name, null, binds);
@@ -195,6 +181,187 @@ function expr(p: P, binds: unknown[]): string {
 		else if (lit(p, "or ")) left = `${left} OR ${clause(p, binds)}`;
 		else return left;
 	}
+}
+
+/** The predicate inside `subjects/any(...)`, with `s` as the doc_subjects alias. */
+function anyValueSql(p: P): SqlFilter {
+	if (!lit(p, "(")) throw new SearchRequestError("any: expected (");
+	const varName = identifier(p);
+	if (!lit(p, ":")) throw new SearchRequestError("any: expected :");
+	let valueSql: string;
+	const subBinds: unknown[] = [];
+	if (lit(p, "search.in(")) {
+		const v = identifier(p);
+		if (v !== varName) throw new SearchRequestError("any: variable mismatch");
+		const values = parseSearchInArgs(p);
+		if (values.length) {
+			valueSql = "s.subject IN (SELECT value FROM json_each(?))";
+			subBinds.push(JSON.stringify(values));
+		} else valueSql = "0 = 1";
+	} else {
+		const v = identifier(p);
+		if (v !== varName) throw new SearchRequestError("any: variable mismatch");
+		if (!lit(p, "eq")) throw new SearchRequestError("any: expected eq");
+		const value = quoted(p);
+		valueSql = "s.subject = ?";
+		subBinds.push(value);
+	}
+	if (!lit(p, ")")) throw new SearchRequestError("any: expected )");
+	return { sql: valueSql, binds: subBinds };
+}
+
+/**
+ * `text` is exactly one `subjects/any` call (optional surrounding parentheses already removed).
+ * Returns the inner subject predicate. Null when `text` is some other clause, including an
+ * `any()` that is only the start of a larger expression (`any() or …`).
+ */
+function subjectHitValue(text: string): SqlFilter | null {
+	const p: P = { s: text.trim(), i: 0, depth: 0 };
+	if (!lit(p, "subjects/any")) return null; // pragma: allowlist secret
+	ws(p);
+	if (p.s[p.i] !== "(") return null;
+	const value = anyValueSql(p);
+	ws(p);
+	if (p.i !== p.s.length) return null;
+	return value;
+}
+
+type BoolOp = "and" | "or";
+
+/** Top-level `and` / `or` only. Operators inside parentheses or quotes stay in a part. */
+function splitTopLevel(filter: string): { parts: string[]; ops: BoolOp[] } {
+	const parts: string[] = [];
+	const ops: BoolOp[] = [];
+	let start = 0;
+	let depth = 0;
+	let i = 0;
+	while (i < filter.length) {
+		const c = filter[i];
+		if (c === "'") {
+			i++;
+			while (i < filter.length) {
+				if (filter[i] === "'") {
+					if (filter[i + 1] === "'") {
+						i += 2;
+						continue;
+					}
+					i++;
+					break;
+				}
+				i++;
+			}
+			continue;
+		}
+		if (c === "(") {
+			depth++;
+			i++;
+			continue;
+		}
+		if (c === ")") {
+			depth--;
+			i++;
+			continue;
+		}
+		if (depth === 0) {
+			const op = /^\s+(and|or)\s+/i.exec(filter.slice(i));
+			if (op) {
+				parts.push(filter.slice(start, i));
+				ops.push(op[1].toLowerCase() as BoolOp);
+				i += op[0].length;
+				start = i;
+				continue;
+			}
+		}
+		i++;
+	}
+	parts.push(filter.slice(start));
+	return { parts, ops };
+}
+
+/** Unwrap parentheses that surround the whole clause, so `(subjects/any(...))` can be lifted. */
+function unwrapClause(raw: string): string {
+	let text = raw.trim();
+	for (;;) {
+		if (!text.startsWith("(") || !text.endsWith(")")) return text;
+		let depth = 0;
+		let closedEarly = false;
+		for (let i = 0; i < text.length; i++) {
+			const c = text[i];
+			if (c === "'") {
+				i++;
+				while (i < text.length) {
+					if (text[i] === "'") {
+						if (text[i + 1] === "'") {
+							i++;
+							continue;
+						}
+						break;
+					}
+					i++;
+				}
+				continue;
+			}
+			if (c === "(") depth++;
+			else if (c === ")") {
+				depth--;
+				if (depth === 0 && i < text.length - 1) {
+					closedEarly = true;
+					break;
+				}
+			}
+		}
+		if (closedEarly || depth !== 0) return text;
+		text = text.slice(1, -1).trim();
+	}
+}
+
+/**
+ * One lifted `subjects/any`. `sql` is the CTE body (`SELECT DISTINCT rowid_ref …`).
+ * DISTINCT keeps a document that has several of the `search.in` subjects as one hit:
+ * the CROSS JOIN would otherwise repeat it on the page, in the count, and in every facet.
+ * Its binds are the first placeholders in the statement, because the CTE is written before SELECT.
+ */
+export interface SubjectHitCte {
+	alias: string;
+	sql: string;
+	binds: unknown[];
+}
+
+/**
+ * Filter SQL for docs/search. Top-level `subjects/any` AND conjuncts become
+ * {@link SubjectHitCte}s. Everything else, including `any()` under `or`, stays in `whereSql`.
+ */
+export interface AppliedODataFilter {
+	whereSql: string;
+	whereBinds: unknown[];
+	subjectHits: SubjectHitCte[];
+}
+
+export function applyODataFilter(filter: string): AppliedODataFilter {
+	const split = splitTopLevel(filter);
+	if (split.ops.includes("or")) {
+		const parsed = parseODataFilter(filter);
+		return { whereSql: `(${parsed.sql})`, whereBinds: parsed.binds, subjectHits: [] };
+	}
+	const predicates: string[] = [];
+	const whereBinds: unknown[] = [];
+	const subjectHits: SubjectHitCte[] = [];
+	for (const part of split.parts) {
+		const hit = subjectHitValue(unwrapClause(part));
+		if (hit) {
+			const alias = subjectHits.length === 0 ? "subject_hits" : `subject_hits_${subjectHits.length + 1}`;
+			subjectHits.push({
+				alias,
+				sql: `SELECT DISTINCT s.rowid_ref FROM doc_subjects s WHERE ${hit.sql}`, // pragma: allowlist secret
+				binds: hit.binds
+			});
+			continue;
+		}
+		const parsed = parseODataFilter(part);
+		predicates.push(`(${parsed.sql})`);
+		whereBinds.push(...parsed.binds);
+	}
+	return { whereSql: predicates.join(" AND "), whereBinds, subjectHits };
 }
 
 /** Throws SearchRequestError on unsupported syntax; the route maps that to a 400 like Azure. */

@@ -1,4 +1,4 @@
-import { writeDb } from "./d1-session";
+import { requestIdFromRequest, SearchWorkerRoute, writeDb } from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
 import { json } from "./health";
@@ -208,7 +208,7 @@ export async function adminDocs(request: Request, env: SearchEnv): Promise<Respo
 	try {
 		req = parseAdminDocsRequest(await request.text());
 	} catch (e) {
-		return badRequest(e);
+		return badRequest(e, { requestId: requestIdFromRequest(request), route: SearchWorkerRoute.AdminDocs });
 	}
 	try {
 		const db = writeDb(env);
@@ -233,7 +233,7 @@ export async function adminDocs(request: Request, env: SearchEnv): Promise<Respo
 			console.error(ADMIN_WRITE_LOG, { environment: env.searchEnvironment ?? "unknown", refused: e.message });
 			return json({ error: { code: "RebuildStateUnreadable", message: e.message } }, 503);
 		}
-		return d1Unavailable(e);
+		return d1Unavailable(e, { requestId: requestIdFromRequest(request), route: SearchWorkerRoute.AdminDocs });
 	}
 }
 

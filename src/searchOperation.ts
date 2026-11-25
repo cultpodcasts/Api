@@ -1,10 +1,21 @@
 import { ISearchResult } from "./ISearchResult";
-import type { SearchEngine } from "./searchEngine";
+import type { SearchEngine, SearchErrorClass, SearchRoute } from "./searchEngine";
 import { searchMode } from "./searchMode";
 
 export interface searchOperation {
+    requestId?: string;
     leech?: boolean;
     searchStatus?: number;
+    upstreamStatus?: number;
+    errorClass?: SearchErrorClass;
+    errorMessage?: string;
+    route?: SearchRoute;
+    engine?: SearchEngine;
+    servedByRegion?: string | null;
+    sessionConstraint?: string;
+    attempts?: number;
+    retryCount?: number;
+    durationMs?: number;
     orderBy?: string;
     skip?: number;
     subject?: string;
@@ -26,8 +37,4 @@ export interface searchOperation {
     asOrganization?: string;
     searchResult?: ISearchResult;
     results?: number | null | undefined;
-    /** Served engine for this request. */
-    engine?: SearchEngine;
-    /** D1 primary attempts used (1 = no retry; 2 = retried once). */
-    attempts?: number;
 }

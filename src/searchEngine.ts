@@ -107,6 +107,8 @@ export type D1SearchFetchSuccess = {
 	status: number;
 	body: Record<string, unknown>;
 	latencyMs: number;
+	servedByRegion?: string;
+	sessionConstraint?: string;
 };
 
 export type D1SearchFetchFailure = {
@@ -119,6 +121,8 @@ export type D1SearchFetchFailure = {
 	message?: string;
 	/** `Retry-After` from the D1 Worker, when present (forwarded on a served 429). */
 	retryAfter?: string;
+	servedByRegion?: string;
+	sessionConstraint?: string;
 };
 
 export type D1SearchFetchResult = D1SearchFetchSuccess | D1SearchFetchFailure;
@@ -140,38 +144,43 @@ export async function fetchD1Search(args: {
 	url: string;
 	requestBody: string;
 	timeoutMs?: number;
+	requestId?: string;
 }): Promise<D1SearchFetchResult> {
 	const started = Date.now();
 	const controller = new AbortController();
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const call = async (): Promise<D1SearchFetchResult> => {
+		const headers: Record<string, string> = { "content-type": "application/json;charset=UTF-8" };
+		if (args.requestId) headers["x-request-id"] = args.requestId;
 		const response = await args.fetcher.fetch(args.url, {
 			method: "POST",
-			headers: { "content-type": "application/json;charset=UTF-8" },
+			headers,
 			body: args.requestBody,
 			signal: controller.signal
 		});
 		const latencyMs = Math.max(0, Math.round(Date.now() - started));
 		const retryAfter = response.headers.get("retry-after") ?? undefined;
+		const servedByRegion = response.headers.get("x-search-served-by-region") ?? undefined;
+		const sessionConstraint = response.headers.get("x-search-session-constraint") ?? undefined;
 		let raw: string;
 		try {
 			raw = await response.text();
 		} catch {
-			return { ok: false, error: D1SearchFetchError.UnreadableBody, status: response.status, latencyMs, retryAfter };
+			return { ok: false, error: D1SearchFetchError.UnreadableBody, status: response.status, latencyMs, retryAfter, servedByRegion, sessionConstraint };
 		}
 		let parsed: unknown;
 		if (raw) {
 			try {
 				parsed = JSON.parse(raw);
 			} catch {
-				return { ok: false, error: D1SearchFetchError.NonJsonBody, status: response.status, latencyMs, retryAfter };
+				return { ok: false, error: D1SearchFetchError.NonJsonBody, status: response.status, latencyMs, retryAfter, servedByRegion, sessionConstraint };
 			}
 		}
 		if (response.status === 200) {
 			if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-				return { ok: true, status: 200, body: parsed as Record<string, unknown>, latencyMs };
+				return { ok: true, status: 200, body: parsed as Record<string, unknown>, latencyMs, servedByRegion, sessionConstraint };
 			}
-			return { ok: false, error: D1SearchFetchError.NonObjectBody, status: 200, latencyMs, body: parsed, retryAfter };
+			return { ok: false, error: D1SearchFetchError.NonObjectBody, status: 200, latencyMs, body: parsed, retryAfter, servedByRegion, sessionConstraint };
 		}
 		return {
 			ok: false,
@@ -179,7 +188,9 @@ export async function fetchD1Search(args: {
 			status: response.status,
 			latencyMs,
 			body: parsed,
-			retryAfter
+			retryAfter,
+			servedByRegion,
+			sessionConstraint
 		};
 	};
 	try {
@@ -220,4 +231,40 @@ export function d1SearchFetchErrorMessage(result: D1SearchFetchFailure): string 
 		return result.message ?? D1SearchFetchError.RequestFailed;
 	}
 	return result.error;
+}
+
+/** Route identifiers for structured search logs. */
+export enum SearchRoute {
+	Search = "/search"
+}
+
+/** Classified failure causes for non-2xx search responses. */
+export enum SearchErrorClass {
+	BadRequest = "bad_request",
+	UpstreamHttpError = "upstream_http_error",
+	UpstreamFetchError = "upstream_fetch_error",
+	UpstreamUnreadableBody = "upstream_unreadable_body",
+	UpstreamInvalidBody = "upstream_invalid_body",
+	UpstreamUnexpectedStatus = "upstream_unexpected_status",
+	UnexpectedError = "unexpected_error"
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Extracts a concise error message from an upstream JSON error envelope, bounded to `limit`. */
+export function extractSearchErrorMessage(body: unknown, limit: number): string | undefined {
+	if (!isRecord(body) || !("error" in body)) return undefined;
+	const err = body.error;
+	if (typeof err === "string" && err.trim()) {
+		return err.trim().slice(0, limit);
+	}
+	if (isRecord(err)) {
+		const code = typeof err.code === "string" ? err.code.trim() : "";
+		const message = typeof err.message === "string" ? err.message.trim() : "";
+		const combined = [code, message].filter(Boolean).join(": ");
+		if (combined) return combined.slice(0, limit);
+	}
+	return undefined;
 }

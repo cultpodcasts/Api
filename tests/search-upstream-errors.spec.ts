@@ -336,3 +336,94 @@ function post(body: unknown) {
 		env()
 	);
 }
+
+describe("POST /search structured logging on every non-2xx and 200 (#319)", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it("logs route, engine, upstreamStatus, errorClass, errorMessage, attempts, retryCount, durationMs on upstream JSON 503", async () => {
+		stubUpstream(503, JSON.stringify({ error: { code: "ServiceUnavailable", message: "D1 overloaded" } }));
+		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await app().request(
+			"/search",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json", "cf-ray": "ray-503" },
+				body: JSON.stringify({ search: "synanon" })
+			},
+			env()
+		);
+		expect(resp.status).toBe(503);
+		expect(errorLog).toHaveBeenCalledTimes(1);
+		expect(errorLog.mock.calls[0][0]).toMatchObject({
+			requestId: "ray-503",
+			route: "/search",
+			engine: "azure",
+			upstreamStatus: 503,
+			attempts: 1,
+			retryCount: 0,
+			durationMs: expect.any(Number),
+			errors: {
+				searchStatus: 503,
+				upstreamStatus: 503,
+				errorClass: "upstream_http_error",
+				errorMessage: "ServiceUnavailable: D1 overloaded"
+			}
+		});
+	});
+
+	it("logs errorClass=bad_request on 400 malformed JSON", async () => {
+		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await app().request(
+			"/search",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json", "cf-ray": "ray-400" },
+				body: "{bad"
+			},
+			env()
+		);
+		expect(resp.status).toBe(400);
+		expect(errorLog).toHaveBeenCalledTimes(1);
+		expect(errorLog.mock.calls[0][0]).toMatchObject({
+			requestId: "ray-400",
+			route: "/search",
+			durationMs: expect.any(Number),
+			errors: {
+				searchStatus: 400,
+				errorClass: "bad_request"
+			}
+		});
+	});
+
+	it("logs errorClass=upstream_fetch_error on 502 fetch throw", async () => {
+		vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Network connection lost."); }));
+		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const resp = await app().request(
+			"/search",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json", "cf-ray": "ray-502" },
+				body: JSON.stringify({ search: "synanon" })
+			},
+			env()
+		);
+		expect(resp.status).toBe(502);
+		expect(errorLog).toHaveBeenCalledTimes(1);
+		expect(errorLog.mock.calls[0][0]).toMatchObject({
+			requestId: "ray-502",
+			route: "/search",
+			engine: "azure",
+			attempts: 1,
+			retryCount: 0,
+			durationMs: expect.any(Number),
+			errors: {
+				searchStatus: 502,
+				errorClass: "upstream_fetch_error",
+				errorMessage: "Network connection lost."
+			}
+		});
+	});
+});
