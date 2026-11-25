@@ -762,7 +762,7 @@ export const SearchAdminDocsRoute = createOpenApiRoute(searchAdminDocs, {
             "SP-1.4. Server-to-server only: an Auth0 M2M (client_credentials) token with `write:search-index`, the search-index writer's own permission; a person's token is 403 even with it. " +
             "Upserts and deletes are applied in one D1 transaction by the search Worker (service binding). " +
             "An upsert whose `modifiedAt` is older than the stored document is dropped and listed in `stale`; an equal one applies (safe replay). " +
-            "Not the live search index yet: Azure AI Search stays the default until cutover (SP-4.x).",
+            "The served `/search` engine is `searchPrimaryEngine` (Azure by default; D1 on api-preview after SP-4.1). This admin route writes the D1 index.",
         request: { body: jsonBody(searchAdminDocsRequestSchema) },
         responses: {
             200: { description: "Command outcome", ...contentJson(searchAdminDocsOutcomeSchema) },
@@ -821,7 +821,7 @@ export const SearchAdminRebuildRoute = createOpenApiRoute(searchAdminRebuild, {
             "Driven by the RPP `D1SearchReconcile --rebuild` console: start creates shadow tables; docs loads them (pushes during the load go to both); " +
             "swap verifies the shadow (counts, full-text rows and structure) and swaps it in with one transaction, parking the previous index; " +
             "check reports the new index's full-text integrity, counts and sample hits; finish drops the parked index; swap-back restores it; abort drops the shadow. " +
-            "Not the live search index yet: Azure AI Search stays the default until cutover (SP-4.x).",
+            "The served `/search` engine is `searchPrimaryEngine` (Azure by default; D1 on api-preview after SP-4.1). This admin route writes the D1 index.",
         request: { params: searchRebuildActionParam, body: jsonBody(searchRebuildRequestSchema) },
         responses: {
             200: { description: "Action outcome", ...contentJson(searchRebuildOutcomeSchema) },

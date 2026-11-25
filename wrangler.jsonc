@@ -54,8 +54,9 @@
     },
     {
       // Search platform Worker (SP-1.3, cultpodcasts/Api#221). Service-binding only: zone Bot
-      // Fight Mode challenges server POSTs to public hostnames. Azure AI Search stays the
-      // default; nothing routes search here until an opt-in flag (soak) or cutover (SP-4.x).
+      // Fight Mode challenges server POSTs to public hostnames. Azure is the served /search
+      // result unless searchPrimaryEngine is "d1" (SP-4.1). When primary is Azure,
+      // searchShadowEnabled can still sample D1 (SP-3.1 soak).
       "binding": "SEARCH",
       "service": "search"
     }
@@ -78,7 +79,10 @@
   },
   "vars": {
     "apiEnvironment": "production",
-    // SP-3.1: shadow D1 queries (Azure stays the served result).
+    // SP-4.1: served engine. Default azure; production stays azure until SP-4.2.
+    "searchPrimaryEngine": "azure",
+    "searchD1Index": "production",
+    // SP-3.1: shadow D1 queries when primary is Azure.
     // Kill switch: set searchShadowEnabled to "false" (or omit). Rate is a 0–1 fraction.
     // SP-3.2 soak (RPP #1323): on in production at 10%; preview and local stay off.
     "searchShadowEnabled": "true",
@@ -173,6 +177,12 @@
       },
       "vars": {
         "apiEnvironment": "preview",
+        // SP-4.1 (Api #230): serve D1 on api-preview. Workers Builds redeploys the
+        // shared api-preview host on every push to this PR's branch, and also when
+        // the branch merges to main. Keep this "azure" to merge without enabling D1.
+        "searchPrimaryEngine": "d1",
+        // 24 Nov 2026: api-preview may use the production index; preview index stays available.
+        "searchD1Index": "production",
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
         "searchShadowTopN": "10",
@@ -224,8 +234,17 @@
           "service": "streaming-scrape-us-preview"
         },
         {
-          // Preview api must never read the production search index (Jon, 16 Nov 2026).
+          // SP-4.1 (Api #230, Jon 24 Nov 2026): api-preview may use the production
+          // search index (Worker search / cultpodcasts-search). SEARCH is that
+          // production Worker. The 16 Nov rule is superseded for this preview flip;
+          // the choice is switchable via searchD1Index (preview default: production).
           "binding": "SEARCH",
+          "service": "search"
+        },
+        {
+          // Preview index (search-preview / cultpodcasts-search-preview). Used when
+          // searchD1Index is "preview". Not the preview default today.
+          "binding": "SEARCH_PREVIEW",
           "service": "search-preview"
         }
       ],
@@ -418,6 +437,8 @@
     "local": {
       "vars": {
         "apiEnvironment": "local",
+        "searchPrimaryEngine": "azure",
+        "searchD1Index": "production",
         "searchShadowEnabled": "false",
         "searchShadowSampleRate": "0.01",
         "searchShadowTopN": "10",

@@ -1,5 +1,5 @@
 import { applyAdminDocs, CONTENT_KINDS, parseAdminDocsRequest, type AdminDocsOutcome } from "./admin-docs";
-import { writeDb } from "./d1-session";
+import { requestIdFromRequest, SearchWorkerRoute, writeDb } from "./d1-session";
 import type { SearchEnv } from "./env";
 import { badRequest, d1Unavailable, SearchRequestError } from "./errors";
 import { json, SEARCH_SCHEMA_VERSION } from "./health";
@@ -106,7 +106,7 @@ export async function adminRebuild(request: Request, env: SearchEnv, action: Reb
 		try {
 			body = parseBody(await request.text());
 		} catch (e) {
-			return badRequest(e);
+			return badRequest(e, { requestId: requestIdFromRequest(request), route: SearchWorkerRoute.AdminRebuild });
 		}
 	}
 	try {
@@ -114,7 +114,7 @@ export async function adminRebuild(request: Request, env: SearchEnv, action: Reb
 		console.log(REBUILD_LOG, { environment: env.searchEnvironment ?? "unknown", action: action ?? "status", ...summary(result) });
 		return json(result, 200);
 	} catch (e) {
-		if (e instanceof SearchRequestError) return badRequest(e);
+		if (e instanceof SearchRequestError) return badRequest(e, { requestId: requestIdFromRequest(request), route: SearchWorkerRoute.AdminRebuild });
 		if (e instanceof RebuildStateUnreadable) {
 			console.error(REBUILD_LOG, { environment: env.searchEnvironment ?? "unknown", action, unreadable: e.message });
 			return json({ error: { code: "RebuildStateUnreadable", message: e.message } }, 409);
@@ -127,7 +127,7 @@ export async function adminRebuild(request: Request, env: SearchEnv, action: Reb
 			console.warn(REBUILD_LOG, { environment: env.searchEnvironment ?? "unknown", action, failures: e.verification.failures });
 			return json({ error: { code: "VerificationFailed", message: e.message }, verification: e.verification }, 409);
 		}
-		return d1Unavailable(e);
+		return d1Unavailable(e, { requestId: requestIdFromRequest(request), route: SearchWorkerRoute.AdminRebuild });
 	}
 }
 

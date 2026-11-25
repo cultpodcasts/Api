@@ -30,9 +30,18 @@ flowchart TD
 | `searchShadowEnabled` | `"true"` | On/off kill switch. `"false"` (or a rate of `"0"`) stops the sampler. |
 | `searchShadowSampleRate` | `"0.1"` | 1 in 10 production searches is also sent to D1. Preview and local use `"0.01"` with the switch off. |
 | `searchShadowTopN` | `"10"` | How many leading result ids from each engine are compared. |
-| `searchShadowTimeoutMs` | `"3000"` | Abort the D1 call after 3 seconds. A timeout is logged as `d1.error = "timeout"` and counted as D1 unavailable (`slo.d1Unavailable = true`). Allowed range: 100–30000. |
+| `searchShadowTimeoutMs` | `"3000"` | Abort the D1 *shadow* call after 3 seconds. A timeout is logged as `d1.error = "timeout"` and counted as D1 unavailable (`slo.d1Unavailable = true`). Allowed range: 100–30000. The D1 primary path uses a separate in-code constant, `SEARCH_PRIMARY_TIMEOUT_MS` (3000), not this var, and does not fall back to Azure. |
 
-These settings, including the kill switch, only take effect after Jon's manual production `api` deploy (`npm run deploy`). Merging to `main` alone does not deploy `api` (`docs/workers-builds-deploy.md`).
+SP-4.1 (Api #230) adds wrangler vars parsed in `src/searchEngine.ts` (`SearchEngine` and `SearchD1Index` enums):
+
+| Setting | Production | Preview | Meaning |
+|---------|------------|---------|---------|
+| `searchPrimaryEngine` | `"azure"` | `"d1"` | Served `POST /search` engine. Default `azure` (safe). Preview is set to `d1` in `wrangler.jsonc`. |
+| `searchD1Index` | `"production"` | `"production"` | Which D1 Worker to use: `production` (`SEARCH` → Worker `search` / `cultpodcasts-search`) or `preview` (`SEARCH_PREVIEW` → `search-preview` / `cultpodcasts-search-preview`). api-preview binds both. Every wrangler env that runs `POST /search` binds `SEARCH`; api-preview also binds `SEARCH_PREVIEW` (required there). |
+
+When primary is D1, shadow sampling is skipped (do not shadow D1 against itself) and Azure is not called. Each D1 primary attempt uses the in-code constant `SEARCH_PRIMARY_TIMEOUT_MS` (3000 ms; not an env var) via the shared `fetchD1Search` helper. Transient failures (timeout, a thrown binding call, or HTTP 5xx) are retried once; 400 and other 4xx are not (400 is unsupported facet/filter syntax — see Api #231; 429 is forwarded with `Retry-After`). After the retry is exhausted, a timeout is **504** and other give-ups are **502**, both as `{ error: { code: "UpstreamSearchError", ... } }` stamped `@search.engine: "d1"`, logged with `requestId` and `attempts`. Other D1 HTTP error responses are returned to the client with the same stamp. The `SEARCH` service binding is required (there is no missing-binding fallback).
+
+These settings, including the kill switch and the SP-4.1 engine/index vars, take effect when the matching Worker is published. Workers Builds is connected for `api-preview`. **Pushes to this PR's branch redeploy the shared `api-preview` host**, and merging to `main` publishes api-preview as well. This PR's preview default is `searchPrimaryEngine=d1`, so those publishes serve D1 unless the preview var is left at `azure`.
 
 - The api Worker samples production `POST /search` requests when the switch is on (see the table). Preview and local stay off.
 - Each sampled request sends the same rewritten body to the D1 search Worker over the `SEARCH`

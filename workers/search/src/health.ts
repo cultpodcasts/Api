@@ -16,10 +16,14 @@ type Health = {
 	error?: string;
 };
 
-export function json(body: unknown, status: number): Response {
+export function json(body: unknown, status: number, extraHeaders?: Record<string, string>): Response {
 	return new Response(JSON.stringify(body), {
 		status,
-		headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
+		headers: {
+			"content-type": "application/json; charset=utf-8",
+			"cache-control": "no-store",
+			...extraHeaders
+		}
 	});
 }
 

@@ -504,3 +504,36 @@ describe("POST /search shadow sampler", () => {
 		expect(logs[0].d1.topIds).toEqual([]);
 	});
 });
+
+describe("runSearchShadow request correlation & D1 headers (#319)", () => {
+	it("forwards x-request-id and captures servedByRegion and sessionConstraint headers", async () => {
+		let seenHeaders: Record<string, string> | undefined;
+		const fetcher = {
+			fetch: vi.fn(async (_url: string, init?: RequestInit) => {
+				seenHeaders = init?.headers as Record<string, string>;
+				return new Response(JSON.stringify({ value: [{ id: "1" }], "@odata.count": 1 }), {
+					status: 200,
+					headers: {
+						"content-type": "application/json",
+						"x-search-served-by-region": "WEUR",
+						"x-search-session-constraint": "first-unconstrained"
+					}
+				});
+			})
+		} as unknown as Fetcher;
+
+		const payload = await runSearchShadow({
+			fetcher,
+			url: "https://search/indexes/test/docs/search",
+			requestBody: "{}",
+			azure: snapshotSearchResponse(200, 10, { value: [{ id: "1" }], "@odata.count": 1 }, 10),
+			topN: 10,
+			requestId: "ray-shadow-1",
+			log: () => {}
+		});
+
+		expect(seenHeaders?.["x-request-id"]).toBe("ray-shadow-1");
+		expect(payload.d1.servedByRegion).toBe("WEUR");
+		expect(payload.d1.sessionConstraint).toBe("first-unconstrained");
+	});
+});

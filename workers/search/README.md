@@ -356,7 +356,7 @@ read-only, against the SP-1.1 schema:
 | File | Role |
 |------|------|
 | `src/query.ts` | Azure "simple" syntax → FTS5 `MATCH`, mirroring `en.lucene` (stopwords, hyphen split, possessives). Every atom is quoted, so user text cannot inject FTS5 syntax. |
-| `src/odata.ts` | The OData subset the website sends: `eq` / `ne` / `null`, `search.in`, `subjects/any`, `and` / `or` / parentheses; facet specs. `lang` NULL means English. |
+| `src/odata.ts` | The OData subset the website sends: `eq` / `ne` / `null`, `search.in`, `subjects/any`, `and` / `or` / parentheses; facet specs. `lang` NULL means English. A top-level `subjects/any` AND conjunct is a materialized `subject_hits` CTE and, on a browse, the left side of a `CROSS JOIN`, so the subject index drives the page, count and facets (including the subject page's English lang clause). `any()` under `or` stays a WHERE predicate. |
 | `src/azure-response.ts` | The live Azure document (25 retrievable keys, Azure order) and envelope (`@odata.context: null`). |
 | `src/docs-search.ts` | The route: body parsing, SQL, facets, `select`, errors. |
 
@@ -434,8 +434,19 @@ flowchart LR
   A -->|"same body, seriesName<br/>(shadow now; served on preview after SP-4.1,<br/>production after SP-4.2)"| D["search Worker (D1)<br/>FIELD_MAP: podcastName = series_name"]
 ```
 
-D1 serves preview after SP-4.1 ([Api#230](https://github.com/cultpodcasts/Api/issues/230)) and production after
-SP-4.2 ([Api#231](https://github.com/cultpodcasts/Api/issues/231)). Until then it only answers the shadow query.
+D1 is the served `/search` engine on api-preview when `searchPrimaryEngine` is `d1` (SP-4.1,
+[Api#230](https://github.com/cultpodcasts/Api/issues/230); preview wrangler default). `searchD1Index` chooses
+which Worker: `production` (default today, Worker `search` / `cultpodcasts-search`) or `preview`
+(`search-preview` / `cultpodcasts-search-preview`). Production `api` stays on Azure until SP-4.2
+([Api#231](https://github.com/cultpodcasts/Api/issues/231)). When primary is D1, the shadow sampler is skipped
+so D1 is not compared with itself, and Azure is not called. Each D1 primary attempt uses the
+in-code constant `SEARCH_PRIMARY_TIMEOUT_MS` (3000 ms, not an env var) via shared `fetchD1Search`.
+Timeout, a thrown call, or HTTP 5xx is retried once; 400 is not retried; 429 is forwarded with
+`Retry-After`. After giving up, a timeout is 504 and other failures are 502 (`UpstreamSearchError`),
+stamped `@search.engine: "d1"` and logged with `requestId` and `attempts`. Other D1 HTTP errors
+are returned to the client with the same stamp. The `SEARCH` binding is required; api-preview also
+binds `SEARCH_PREVIEW`. The search Worker uses 400 for unsupported facet/filter syntax
+(see [Api#231](https://github.com/cultpodcasts/Api/issues/231)).
 
 1. **api Worker (primary).** `src/rewriteLegacyPodcastNameInSearchRequest.ts` rewrites
    `podcastName` to `seriesName` in `filter`, `orderby`, `select` and `facets` before the body

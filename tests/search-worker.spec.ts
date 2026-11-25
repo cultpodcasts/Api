@@ -8,50 +8,12 @@ import { SEARCH_SCHEMA_VERSION } from "../workers/search/src/health";
 import type { SearchEnv } from "../workers/search/src/env";
 // @ts-ignore - plain .mjs CLI helper (SP-1.10)
 import { applyIds } from "../infra/terraform/scripts/sync-wrangler-ids.mjs";
+import { parseJsonc } from "./jsonc";
 
 /** SP-1.1 (cultpodcasts/Api#219): dedicated search D1 database, bindings and schema. */
 
 const root = process.cwd();
 const migrationsDir = searchMigrationsDir;
-
-/** Strip // and /* *\/ comments from JSONC without touching string contents. */
-function parseJsonc(text: string): any {
-	let out = "";
-	let i = 0;
-	let inString = false;
-	while (i < text.length) {
-		const ch = text[i];
-		const next = text[i + 1];
-		if (inString) {
-			out += ch;
-			if (ch === "\\") {
-				out += next;
-				i += 2;
-				continue;
-			}
-			if (ch === '"') inString = false;
-			i++;
-			continue;
-		}
-		if (ch === '"') {
-			inString = true;
-			out += ch;
-			i++;
-			continue;
-		}
-		if (ch === "/" && next === "/") {
-			while (i < text.length && text[i] !== "\n") i++;
-			continue;
-		}
-		if (ch === "/" && next === "*") {
-			i = text.indexOf("*/", i + 2) + 2;
-			continue;
-		}
-		out += ch;
-		i++;
-	}
-	return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
-}
 
 const migratedDb = migratedSearchDb;
 
@@ -172,15 +134,16 @@ describe("wrangler.search.jsonc", () => {
 	it.each([
 		["production (top level)", apiConfig, "search"],
 		["production env", apiConfig.env.production, "search"],
-		["preview", apiConfig.env.preview, "search-preview"],
+		["preview", apiConfig.env.preview, "search"],
 		["local", apiConfig.env.local, localSearchName]
 	])("api %s binds SEARCH to the %s Worker over a service binding (SP-1.3)", (_label, env, service) => {
 		const bindings = (env.services ?? []).filter((s: any) => s.binding === "SEARCH");
 		expect(bindings).toEqual([{ binding: "SEARCH", service }]);
 	});
 
-	it("api-preview never binds the production search Worker", () => {
-		expect(JSON.stringify(apiConfig.env.preview.services)).not.toMatch(/"service":"search"/);
+	it("api-preview also binds SEARCH_PREVIEW to search-preview (SP-4.1, switchable index)", () => {
+		const bindings = (apiConfig.env.preview.services ?? []).filter((s: any) => s.binding === "SEARCH_PREVIEW");
+		expect(bindings).toEqual([{ binding: "SEARCH_PREVIEW", service: "search-preview" }]);
 	});
 
 	it("api SEARCH targets are the search Worker names in wrangler.search.jsonc", () => {
