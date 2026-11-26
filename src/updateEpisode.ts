@@ -16,7 +16,7 @@ export async function updatePodcastEpisode(c: Auth0ActionContext): Promise<Respo
 		pathSuffix: `/${encodeURIComponent(podcastId)}/${encodeURIComponent(episodeId)}`,
 		body,
 		successStatuses: [202],
-		forwardStatuses: [400, 404, 500, 502, 504],
+		forwardStatuses: [400, 404, 409, 500, 502, 504],
 		logName: "secure-episode-endpoint"
 	});
 }

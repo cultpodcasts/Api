@@ -13,7 +13,7 @@ import {
 	UpdateTvShowEpisodeRoute,
 	UpdateTvShowRoute
 } from "../src/openapiRoutes";
-import { serviceIdConflictSchema, tvShowEpisodeChangeRequestSchema } from "../src/openapiSchemas";
+import { serviceIdConflictSchema, staleAdditionalYouTubeConflictSchema, tvShowEpisodeChangeRequestSchema } from "../src/openapiSchemas";
 import { getTvShow } from "../src/getTvShow";
 import { getTvShowEpisode } from "../src/getTvShowEpisode";
 import { updateFilm } from "../src/updateFilm";
@@ -288,13 +288,13 @@ describe("catalogue Azure proxies", () => {
 		}
 	});
 
-	it("PATCH /tvshow/:id passes the RPP #1053 service-id 409 {message, ids} through; PATCH /film/:id passes 409 through; episode PATCH maps an unexpected 409 to 500", async () => {
+	it("PATCH /tvshow/:id passes the RPP #1053 service-id 409 {message, ids} through; PATCH /film/:id and PATCH /tvshowepisode/:id pass 409 through", async () => {
 		const conflict = { message: "spotifyId is already used", ids: [ambiguousIds[1]] };
 		const patchBody = JSON.stringify({ spotifyId: "syntheticSpotifyId" });
 		for (const [route, requestPath, handler, expected] of [
 			["/tvshow/:id", `/tvshow/${id}`, updateTvShow, 409],
 			["/film/:id", `/film/${id}`, updateFilm, 409],
-			["/tvshowepisode/:id", `/tvshowepisode/${id}`, updateTvShowEpisode, 500]
+			["/tvshowepisode/:id", `/tvshowepisode/${id}`, updateTvShowEpisode, 409]
 		] as const) {
 			vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(conflict), { status: 409 })));
 			const app = appFor(route, "patch", handler, ["curate"]);
@@ -405,7 +405,7 @@ describe("catalogue OpenAPI contracts", () => {
 		expect(description).toMatch(/no flag defaults/);
 	});
 
-	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, the film stale-trailer 409, and no 409 on episode PATCH", () => {
+	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, the film stale-trailer 409, and the TV-episode additional-YouTube 409", () => {
 		const responses = UpdateTvShowRoute.openApiSchema.responses;
 		const conflict = responses?.[409] as { description?: string; content?: { "application/json"?: { schema?: unknown } } } | undefined;
 		expect(conflict?.content?.["application/json"]?.schema).toBe(serviceIdConflictSchema);
@@ -414,6 +414,10 @@ describe("catalogue OpenAPI contracts", () => {
 		const filmConflict = UpdateFilmRoute.openApiSchema.responses?.[409] as { description?: string } | undefined;
 		expect(filmConflict?.description).toMatch(/expectedTrailerIds/);
 		expect(filmConflict?.description).toMatch(/expectedAdditionalYouTubeIds/);
-		expect(UpdateTvShowEpisodeRoute.openApiSchema.responses?.[409]).toBeUndefined();
+		const episodeConflict = UpdateTvShowEpisodeRoute.openApiSchema.responses?.[409] as
+			| { description?: string; content?: { "application/json"?: { schema?: unknown } } }
+			| undefined;
+		expect(episodeConflict?.description).toMatch(/unexpectedAdditionalYouTubeIds/);
+		expect(episodeConflict?.content?.["application/json"]?.schema).toBe(staleAdditionalYouTubeConflictSchema);
 	});
 });

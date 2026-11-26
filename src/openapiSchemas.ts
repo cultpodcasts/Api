@@ -688,6 +688,44 @@ export const subjectTypeSchema = z.enum(["Unset", "Canonical", "Meta"]);
 /** Api.Models.ApprovalDecision (RPP #1484): a curator's decision on an episode held for approval. */
 export const approvalDecisionSchema = z.enum(["Approve", "Reject"]);
 
+/** Api.Dtos.YouTubeAlternateDto: one additional YouTube upload (RPP #1411). */
+export const youTubeAlternateDtoSchema = z.object({
+	youTubeId: z.string(),
+	url: z.string().url(),
+	image: z.string().url().optional().nullable(),
+	title: z.string().optional().nullable(),
+	channelId: z.string().optional().nullable(),
+	channelName: z.string().optional().nullable(),
+	release: z.string().optional().nullable(),
+	duration: z.string().optional().nullable(),
+	sourceEpisodeId: z.string().uuid().optional().nullable()
+});
+
+/** Api.Dtos.YouTubeAlternateChangeRequest: keep an existing upload or add one from a YouTube url. */
+export const youTubeAlternateChangeSchema = z.object({
+	youTubeId: z.string().optional().nullable(),
+	url: z.string().optional().nullable(),
+	title: z.string().optional().nullable(),
+	channelName: z.string().optional().nullable()
+});
+
+/**
+ * Additional YouTube keep-list on a playable PATCH (film already inlines the same fields; news report, TV episode
+ * and podcast episode share this shape, RPP #1526).
+ */
+const additionalYouTubeChangeShape = {
+	additionalYouTube: z.array(youTubeAlternateChangeSchema).optional().nullable()
+		.describe("Additional YouTube uploads to keep, in display order (RPP #1411). Existing entries are identified by youTubeId; a new entry is added from a YouTube url. Omitted entries are removed; [] removes all. Send expectedAdditionalYouTubeIds with this field."),
+	expectedAdditionalYouTubeIds: z.array(z.string()).optional().nullable()
+		.describe("Additional YouTube ids the client last saw. When additionalYouTube is sent, a stored id not in this list is a 409 and nothing is saved."),
+	promoteYouTubeId: z.string().optional().nullable()
+		.describe("The YouTube id of an additional upload to swap into the primary services.youtube link. The previous primary becomes an additional upload.")
+};
+
+/** Extra YouTube uploads on a playable GET. Omitted when there are none. */
+const additionalYouTubeDtoField = z.array(youTubeAlternateDtoSchema).optional().nullable()
+	.describe("Extra YouTube uploads in display order (RPP #1411). Omitted when there are none.");
+
 /** Api.Models.EpisodeChangeRequest */
 export const episodeChangeRequestSchema = z.object({
 	title: z.string().optional().nullable(),
@@ -715,7 +753,8 @@ export const episodeChangeRequestSchema = z.object({
 		.describe(
 			"Curator decision on an episode held for approval, e.g. a split-off (RPP #1484). `Approve` clears its `approvalStatus` (absent means approved): it becomes public and the posting jobs may post it under their usual rules (an old release falls outside the posting window and is not posted); approving an episode that is not held changes nothing. `Reject` sets `approvalStatus: Rejected`: it stays hidden, is never posted, and its search entry is removed. " +
 			"400 when rejecting an episode that is not held, or when the decision contradicts `removed` (Approve with `removed: true`, Reject with `removed: false`). An episode held for approval cannot be made public with `removed: false`: approve it instead (400)."
-		)
+		),
+	...additionalYouTubeChangeShape
 });
 
 /** Api.Models.PersonChangeRequest */
@@ -799,7 +838,7 @@ export const peopleListResponseSchema = z.array(personDtoSchema);
 
 /**
  * Api.Dtos.EpisodeDto (generated). TimeSpan `duration` serialises as a string (e.g. "01:30:00"); `release` is a UTC
- * instant ending in `Z`. Only OpenAPI descriptions are added here.
+ * instant ending in `Z`. OpenAPI descriptions are added here, plus `additionalYouTube` (RPP #1526) until the generated contract includes it.
  */
 export const episodeDtoSchema = generatedEpisodeDtoSchema.extend({
 	contentKind: generatedEpisodeDtoSchema.shape.contentKind
@@ -815,7 +854,8 @@ export const episodeDtoSchema = generatedEpisodeDtoSchema.extend({
 	approvalStatus: generatedEpisodeDtoSchema.shape.approvalStatus
 		.describe("Only on an episode held for curator approval (RPP #1484): `AwaitingApproval` or `Rejected`, both hidden and never posted. Omitted means approved (every ordinary episode, and a split-off once approved)."),
 	alternativeTitles: generatedEpisodeDtoSchema.shape.alternativeTitles
-		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film.")
+		.describe("Film only: other titles the film is known by (RedditPodcastPoster#1431). Omitted when the film has none or when the playable is not a film."),
+	additionalYouTube: additionalYouTubeDtoField
 });
 
 export const episodeListResponseSchema = z.array(episodeDtoSchema);
@@ -1894,7 +1934,8 @@ const playableFieldsDtoShape = {
 	guests: z.array(z.string()).optional().nullable(),
 	guestPeople: z.array(personDtoSchema).optional().nullable(),
 	guestSuggestions: z.array(episodeDtoPersonMatchSchema).optional().nullable(),
-	services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable()
+	services: z.record(z.string(), serviceLinkDtoSchema).optional().nullable(),
+	additionalYouTube: additionalYouTubeDtoField
 };
 
 /** Guests, as in the episode edit API: replaces the list; `[]` clears (stored null); blank names dropped, names trimmed. */
@@ -1947,7 +1988,8 @@ const playableFieldsChangeShape = {
 		.nullable()
 		.describe(
 			"Per key, as the episode / film edit: the key is resolved from the URL (youtube, bbcIplayer, internetArchive, …); blank url and image removes the key. Absolute http(s) only."
-		)
+		),
+	...additionalYouTubeChangeShape
 };
 
 /**
@@ -2142,27 +2184,6 @@ export const filmTrailerChangeSchema = z.object({
 	title: z.string().optional().nullable()
 });
 
-/** Api.Dtos.YouTubeAlternateDto: one additional YouTube upload (RPP #1411). */
-export const youTubeAlternateDtoSchema = z.object({
-	youTubeId: z.string(),
-	url: z.string().url(),
-	image: z.string().url().optional().nullable(),
-	title: z.string().optional().nullable(),
-	channelId: z.string().optional().nullable(),
-	channelName: z.string().optional().nullable(),
-	release: z.string().optional().nullable(),
-	duration: z.string().optional().nullable(),
-	sourceEpisodeId: z.string().uuid().optional().nullable()
-});
-
-/** Api.Dtos.YouTubeAlternateChangeRequest: keep an existing upload or add one from a YouTube url. */
-export const youTubeAlternateChangeSchema = z.object({
-	youTubeId: z.string().optional().nullable(),
-	url: z.string().optional().nullable(),
-	title: z.string().optional().nullable(),
-	channelName: z.string().optional().nullable()
-});
-
 export const episodeYouTubeAlternateAttachRequestSchema = z.object({
 	targetKind: z.enum(["Film", "NewsReport", "TvShowEpisode", "Episode"]),
 	targetId: z.string().uuid()
@@ -2249,6 +2270,12 @@ export const filmChangeRequestSchema = z.object({
 export const filmStaleTrailersConflictSchema = z.object({
 	message: z.string().optional(),
 	unexpectedTrailerIds: z.array(z.string().uuid()).optional(),
+	unexpectedAdditionalYouTubeIds: z.array(z.string()).optional()
+});
+
+/** PATCH 409 for a news report, TV episode or podcast episode: stored additional YouTube ids were not in expectedAdditionalYouTubeIds. Nothing was saved. */
+export const staleAdditionalYouTubeConflictSchema = z.object({
+	message: z.string().optional(),
 	unexpectedAdditionalYouTubeIds: z.array(z.string()).optional()
 });
 

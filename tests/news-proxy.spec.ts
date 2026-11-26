@@ -18,7 +18,8 @@ import {
 	episodeUpdateResponseSchema,
 	newsOrganisationChangeRequestSchema,
 	newsReportChangeRequestSchema,
-	serviceIdConflictSchema
+	serviceIdConflictSchema,
+	staleAdditionalYouTubeConflictSchema
 } from "../src/openapiSchemas";
 import { updateNewsOrganisation } from "../src/updateNewsOrganisation";
 import { updateNewsReport } from "../src/updateNewsReport";
@@ -226,7 +227,7 @@ describe("news curation Azure proxies", () => {
 		}
 	});
 
-	it("PATCH /newsorganisation/:id passes the RPP #1053 service-id 409 {message, ids} through, while PATCH /newsreport/:id maps an unexpected 409 to 500", async () => {
+	it("PATCH /newsorganisation/:id passes the RPP #1053 service-id 409 {message, ids} through, and PATCH /newsreport/:id passes 409 through", async () => {
 		const conflict = { message: "youTubeChannelId UCsyntheticChannel0000001 is already used", ids: [ambiguousIds[0]] };
 		stubFetch(409, conflict);
 		const orgApp = appWithPermissions("/newsorganisation/:id", "patch", updateNewsOrganisation, ["curate"]);
@@ -246,7 +247,8 @@ describe("news curation Azure proxies", () => {
 			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify({ release: "2026-10-03" }) },
 			testEnv()
 		);
-		expect(report.status).toBe(500);
+		expect(report.status).toBe(409);
+		expect(await report.json()).toEqual(conflict);
 	});
 
 	it.each(patchRoutes)("PATCH %s does not forward a resource-returning 200 (only 202 acknowledges)", async (route, path, handler, _p, body) => {
@@ -434,13 +436,15 @@ describe("news curation OpenAPI contracts", () => {
 		expect(reportAccepted?.content?.["application/json"]?.schema).toBe(episodeUpdateResponseSchema);
 	});
 
-	it("documents the service-id 409 and a retryable 500 on the organisation PATCH only", () => {
+	it("documents the service-id 409 and a retryable 500 on the organisation PATCH, and the additional-YouTube 409 on the report PATCH", () => {
 		const responses = UpdateNewsOrganisationRoute.openApiSchema.responses;
 		const conflict = responses?.[409] as (JsonContent & { description?: string }) | undefined;
 		expect(conflict?.content?.["application/json"]?.schema).toBe(serviceIdConflictSchema);
 		expect(conflict?.description).toMatch(/youTubeChannelId/);
 		expect(responses?.[500]?.description).toMatch(/retry/i);
-		expect(UpdateNewsReportRoute.openApiSchema.responses?.[409]).toBeUndefined();
+		const reportConflict = UpdateNewsReportRoute.openApiSchema.responses?.[409] as (JsonContent & { description?: string }) | undefined;
+		expect(reportConflict?.description).toMatch(/unexpectedAdditionalYouTubeIds/);
+		expect(reportConflict?.content?.["application/json"]?.schema).toBe(staleAdditionalYouTubeConflictSchema);
 		expect(serviceIdConflictSchema.parse({ message: "m", ids: [id] })).toEqual({ message: "m", ids: [id] });
 		expect(() => serviceIdConflictSchema.parse({ ids: ["not-a-guid"] })).toThrow();
 	});

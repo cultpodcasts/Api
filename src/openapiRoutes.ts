@@ -180,6 +180,7 @@ import {
 	tvShowEpisodeDtoSchema,
 	filmChangeRequestSchema,
 	filmStaleTrailersConflictSchema,
+	staleAdditionalYouTubeConflictSchema,
 	filmDtoSchema,
 	newsOrganisationChangeRequestSchema,
 	newsOrganisationPatchBadRequestSchema,
@@ -297,7 +298,8 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 		summary: "Patch TV-show episode fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
 			"`id` is the episode guid. Omitted or null fields are unchanged. Same playable fields and rules as `PATCH /newsreport/{id}`, " +
-			"including `guests` and `services` (per-key link patch; blank url+image removes the key; absolute http(s) only), " +
+			"including `guests`, `services` (per-key link patch; blank url+image removes the key; absolute http(s) only), " +
+			"`additionalYouTube`, `expectedAdditionalYouTubeIds` and `promoteYouTubeId` (RPP #1526, same keep-list as `PATCH /film/{id}`), " +
 			"plus `imdbId` / `tvdbId` / `tmdbId`. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the episode's search document (RPP #1053)." +
 			" When the episode has an IMDb or TheTVDB id, its empty name, overview, air date, runtime and still are filled from TMDB; values already set are never overwritten (RedditPodcastPoster#1430)." +
@@ -309,6 +311,11 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 				description:
 					"Invalid URL (incl. non-absolute `services.*.url` / `services.*.image`), release (yyyy-MM-dd only) or duration (non-negative h:mm:ss); nothing applied",
 				...contentJson(errorSchema)
+			},
+			409: {
+				description:
+					"Stored additional YouTube ids were not in expectedAdditionalYouTubeIds (`unexpectedAdditionalYouTubeIds`). The keep-list was not applied.",
+				...contentJson(staleAdditionalYouTubeConflictSchema)
 			},
 			...notFoundResponse,
 			...serverErrorResponse,
@@ -518,8 +525,9 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 			"`id` is the report guid. Omitted or null fields are unchanged. The request is validated before anything is applied. " +
 			"`removed: true` also deletes the report's search document. `guests` follows the episode rule: it replaces the list, `[]` clears it, " +
 			"blank names are dropped and names trimmed. `services` follows the film / episode link patch: per-key url/image; " +
-			"blank url+image removes the key; absolute http(s) only (RPP #1130)." +
-			" Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
+			"blank url+image removes the key; absolute http(s) only (RPP #1130). " +
+			"`additionalYouTube` lists extra YouTube uploads to keep, in display order (RPP #1526, same rules as `PATCH /film/{id}`). Existing entries are identified by `youTubeId`; a new entry is added from a YouTube url. Omitted entries are removed; `[]` removes all. Send `expectedAdditionalYouTubeIds` with this field. `promoteYouTubeId` swaps that upload into the primary YouTube link. GET returns `additionalYouTube` (omitted when there are none). " +
+			"Post status follows the episode edit API: `posted` sets the flag; `tweeted` true → false deletes the tweet; `blueskyPosted` mirrors tweeted (true marks; true → false deletes); `unBluesky: true` is a backward-compat delete alias. The 202 body is the episode `EpisodeUpdateResponse` (`tweetDeleted`, `blueskyPostDeleted`).",
 		request: { params: idParam, body: jsonBody(newsReportChangeRequestSchema) },
 		responses: {
 			202: { description: "News report updated; social-retraction outcome", ...contentJson(episodeUpdateResponseSchema) },
@@ -527,6 +535,11 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 				description:
 					"Invalid release (yyyy-MM-dd only), duration (non-negative h:mm:ss), or non-absolute `services.*.url` / `services.*.image`; nothing applied",
 				...contentJson(errorSchema)
+			},
+			409: {
+				description:
+					"Stored additional YouTube ids were not in expectedAdditionalYouTubeIds (`unexpectedAdditionalYouTubeIds`). The keep-list was not applied.",
+				...contentJson(staleAdditionalYouTubeConflictSchema)
 			},
 			...newsNotFoundIdResponse,
 			...serverErrorResponse,
@@ -874,13 +887,19 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
         tags: ["Episodes"],
         summary: "Patch podcast episode by podcast id and episode id",
         description:
-            "Omitted or null fields are unchanged. `approvalDecision` approves or rejects an episode held for approval, e.g. a split-off (RPP #1484); a held episode is made public only by approving it.",
+            "Omitted or null fields are unchanged. `approvalDecision` approves or rejects an episode held for approval, e.g. a split-off (RPP #1484); a held episode is made public only by approving it. " +
+            "`additionalYouTube`, `expectedAdditionalYouTubeIds` and `promoteYouTubeId` follow the film keep-list (RPP #1526): existing entries by `youTubeId`, new entries from a YouTube url, omitted entries removed, `[]` clears. A stored id missing from `expectedAdditionalYouTubeIds` is 409 (`unexpectedAdditionalYouTubeIds`) and nothing is saved. GET returns `additionalYouTube`.",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeChangeRequestSchema) },
         responses: {
             202: { description: "Accepted", ...contentJson(episodeUpdateResponseSchema) },
             400: {
                 description: "Invalid request, e.g. an invalid split-off review (`message` says why, RPP #1484); nothing applied",
                 ...contentJson(errorSchema)
+            },
+            409: {
+                description:
+                    "Stored additional YouTube ids were not in expectedAdditionalYouTubeIds (`unexpectedAdditionalYouTubeIds`). The keep-list was not applied.",
+                ...contentJson(staleAdditionalYouTubeConflictSchema)
             },
             ...notFoundResponse,
             ...serverErrorResponse,

@@ -82,6 +82,7 @@ import {
 	newsOrganisationDtoSchema,
 	newsReportChangeRequestSchema,
 	newsReportDtoSchema,
+	staleAdditionalYouTubeConflictSchema,
 	notFoundIdSchema,
 	personDtoSchema,
 	searchIndexerStateSchema
@@ -761,7 +762,10 @@ describe("openapi Zod schemas", () => {
 		expect(episodeUpdateResponseSchema).toBe(generated.episodeUpdateResponseSchema);
 		expect(personDtoSchema).toBe(generated.personDtoSchema);
 		expect(searchIndexerStateSchema).toBe(generated.searchIndexerStateSchema);
-		expect(Object.keys(episodeDtoSchema.shape)).toEqual(Object.keys(generated.episodeDtoSchema.shape));
+		expect(Object.keys(episodeDtoSchema.shape)).toEqual([
+			...Object.keys(generated.episodeDtoSchema.shape),
+			"additionalYouTube"
+		]);
 	});
 
 	it("accepts PublicEpisodeDto", () => {
@@ -1389,6 +1393,59 @@ describe("openapi Zod schemas", () => {
 		});
 		expect(hit.value[0]?.trailers).toHaveLength(1);
 		expect(hit.value[0]?.youTubeAlternates).toEqual(["GSIPAfDO_ec|2024-03-01|True Crime Fix"]);
+	});
+
+	it("parses additional YouTube keep-list fields on news report, TV episode and podcast episode GET and PATCH (RPP #1526)", () => {
+		const upload = {
+			youTubeId: "GSIPAfDO_ec",
+			url: "https://www.youtube.com/watch?v=GSIPAfDO_ec",
+			channelName: "Synthetic Channel"
+		};
+		const change = {
+			additionalYouTube: [{ youTubeId: "GSIPAfDO_ec" }, { url: "https://www.youtube.com/watch?v=VCRf_qazO9s" }],
+			expectedAdditionalYouTubeIds: ["GSIPAfDO_ec"],
+			promoteYouTubeId: "GSIPAfDO_ec"
+		};
+		expect(newsReportChangeRequestSchema.parse(change).promoteYouTubeId).toBe("GSIPAfDO_ec");
+		expect(tvShowEpisodeChangeRequestSchema.parse(change).expectedAdditionalYouTubeIds).toEqual(["GSIPAfDO_ec"]);
+		expect(episodeChangeRequestSchema.parse(change).additionalYouTube).toHaveLength(2);
+		expect(newsReportChangeRequestSchema.parse({ additionalYouTube: [] }).additionalYouTube).toEqual([]);
+		expect(newsReportChangeRequestSchema.shape.expectedAdditionalYouTubeIds.description).toMatch(/409/);
+		expect(episodeChangeRequestSchema.shape.promoteYouTubeId.description).toMatch(/services\.youtube/);
+
+		const news = newsReportDtoSchema.parse({
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			newsOrganisationId: "550e8400-e29b-41d4-a716-446655440000",
+			title: "Synthetic report",
+			description: "",
+			duration: "0:06:30",
+			explicit: false,
+			ignored: false,
+			removed: false,
+			posted: false,
+			tweeted: false,
+			blueskyPosted: false,
+			subjects: [],
+			additionalYouTube: [upload]
+		});
+		expect(news.additionalYouTube?.[0]?.youTubeId).toBe("GSIPAfDO_ec");
+
+		const tv = tvShowEpisodeDtoSchema.parse({
+			id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			tvShowId: "550e8400-e29b-41d4-a716-446655440000",
+			title: "Synthetic Episode",
+			additionalYouTube: [upload]
+		});
+		expect(tv.additionalYouTube?.[0]?.url).toContain("youtube.com");
+
+		const episode = episodeDtoSchema.parse(wireEpisodeDto({ additionalYouTube: [upload] }));
+		expect(episode.additionalYouTube?.[0]?.channelName).toBe("Synthetic Channel");
+		expect(episodeDtoSchema.parse(wireEpisodeDto()).additionalYouTube).toBeUndefined();
+
+		expect(staleAdditionalYouTubeConflictSchema.parse({
+			message: "The keep-list is stale.",
+			unexpectedAdditionalYouTubeIds: ["VCRf_qazO9s"]
+		}).unexpectedAdditionalYouTubeIds).toEqual(["VCRf_qazO9s"]);
 	});
 
 	it("parses the attach-as-trailer request and command outcome and requires a film id", () => {
