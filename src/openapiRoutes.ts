@@ -69,6 +69,7 @@ import {
 import { getEpisode, getPodcastEpisode } from "./getEpisode";
 import { getFlairs } from "./getFlairs";
 import { getLanguages } from "./getLanguages";
+import { getAwaitingApproval } from "./getAwaitingApproval";
 import { getOutgoing } from "./getOutgoing";
 import { getPageDetails } from "./getPageDetails";
 import { getOgShareImage } from "./ogShareImage";
@@ -995,6 +996,22 @@ export const PublishTvShowEpisodeRoute = createOpenApiRoute(publishTvShowEpisode
         description: "Proxies Azure `POST /tvshowepisode/{id}/publish`. Outcome DTO only — GET `/tvshowepisode/{id}` for the resource.",
         request: { params: idParam, body: jsonBody(episodePublishRequestSchema) },
         responses: kindPublishResponses
+    }
+});
+
+export const GetAwaitingApprovalRoute = createOpenApiRoute(getAwaitingApproval, {
+    auth: curateAuth,
+    schema: {
+        tags: ["Episodes"],
+        summary: "List split-offs awaiting approval",
+        description:
+            "Curate query (RPP #1491). Episodes whose approval status is `AwaitingApproval` (a split-off held after a submit overwrite), newest release first. " +
+            "A rejected or approved episode is not included. Each item is the curator episode read model; approve or reject it with PATCH `approvalDecision`.",
+        responses: {
+            200: { description: "Episodes awaiting approval", ...contentJson(episodeListResponseSchema) },
+            ...serverErrorResponse,
+            ...authResponses
+        }
     }
 });
 
