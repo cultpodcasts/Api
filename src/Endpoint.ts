@@ -7,6 +7,7 @@ export enum Endpoint {
     episode,
     publicEpisode,
     outgoingEpisodes,
+    awaitingApprovalEpisodes,
     podcast,
     subject,
     people,

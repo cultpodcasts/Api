@@ -12,6 +12,7 @@ export const AzureResourcePaths = {
 	[Endpoint.episode]: "/api/episode",
 	[Endpoint.publicEpisode]: "/api/public/episode",
 	[Endpoint.outgoingEpisodes]: "/api/episodes/outgoing",
+	[Endpoint.awaitingApprovalEpisodes]: "/api/episodes/awaiting-approval",
 	[Endpoint.podcast]: "/api/podcast",
 	[Endpoint.subject]: "/api/subject",
 	[Endpoint.people]: "/api/people",

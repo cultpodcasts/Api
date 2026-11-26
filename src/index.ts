@@ -29,6 +29,7 @@ import {
 	GetEpisodeRoute,
 	GetFlairsRoute,
 	GetLanguagesRoute,
+	GetAwaitingApprovalRoute,
 	GetOutgoingRoute,
 	GetOgShareImageRoute,
 	GetPageDetailsRoute,
@@ -428,6 +429,7 @@ openapi.get('/episode/:id', GetEpisodeRoute);
 // \Old Episode Endpoints
 
 openapi.get('/episodes/outgoing', GetOutgoingRoute);
+openapi.get('/episodes/awaiting-approval', GetAwaitingApprovalRoute);
 openapi.get('/podcast/:name', GetPodcastByNameRoute);
 openapi.get('/podcast/:name/:id', GetPodcastByNameAndEpisodeIdRoute);
 openapi.post('/podcast/:id/kind', TransferPodcastKindRoute);
