@@ -12,8 +12,8 @@
 //      common, so the merge was textually clean and needed no hand resolution;
 //   4. the merge delta (P1..M) is exactly the base side (merge-base..P2): same files, same
 //      status, same resulting blob SHAs. Anything extra (an "evil merge") or missing fails;
-//   5. no compare listing was truncated (GitHub caps compare file lists), so a hidden file
-//      can never ride along.
+//   5. no compare listing was truncated (GitHub returns at most 300 files per compare, on
+//      page 1 only, and does not page them), so a hidden file can never ride along.
 // A chain is a run of such hops following FIRST parents, at most MAX_HOPS long, ending at a
 // commit the caller classifies as an anchor (a reviewed or already-green commit).
 // Everything fails closed: an unexpected shape or an API error is "not merge-only".
@@ -21,9 +21,10 @@
 // Mirrored byte-identical across RedditPodcastPoster, Api and website. Tests: merge-only-tip.test.cjs.
 
 const MAX_HOPS = 10;
-const COMPARE_PAGE_SIZE = 100;
-// GitHub caps a compare file list at 300; reaching the cap means the list may be truncated.
-const COMPARE_MAX_PAGES = 3;
+// GitHub returns at most 300 files for a compare, on page 1 only: `per_page` and `page` page the
+// commits list, never `files` (page 2 onwards come back with no files). A listing of 300 may
+// therefore be clipped, so it counts as truncated.
+const COMPARE_FILE_CAP = 300;
 const SHA_RE = /^[0-9a-f]{40}$/i;
 const BASE_ANCESTOR_STATUSES = new Set(['behind', 'identical']);
 
@@ -63,24 +64,15 @@ function deltaMatchesBaseSide(deltaFiles, baseFiles) {
   return a.length === b.length && a.every((k, i) => k === b[i]);
 }
 
-// All files of a compare, or `truncated: true` when the listing may be incomplete (page cap
-// reached, or the API ignored paging and repeated entries).
+// All files of a compare, or `truncated: true` when the listing may be incomplete: it reached
+// GitHub's 300 file cap (a single request, since files are not paged), or it has no files array
+// although the compare is not `identical`. Fails closed: an unknown listing is never complete.
 async function listCompareFiles(github, owner, repo, basehead) {
-  const files = [];
-  const seen = new Set();
-  for (let page = 1; page <= COMPARE_MAX_PAGES; page++) {
-    const { data } = await github.rest.repos.compareCommitsWithBasehead({
-      owner, repo, basehead, per_page: COMPARE_PAGE_SIZE, page,
-    });
-    const batch = (data && data.files) || [];
-    for (const f of batch) {
-      if (seen.has(f.filename)) return { files, truncated: true };
-      seen.add(f.filename);
-      files.push(f);
-    }
-    if (batch.length < COMPARE_PAGE_SIZE) return { files, truncated: false };
+  const { data } = await github.rest.repos.compareCommitsWithBasehead({ owner, repo, basehead });
+  if (!data || !Array.isArray(data.files)) {
+    return { files: [], truncated: !(data && data.status === 'identical') };
   }
-  return { files, truncated: true };
+  return { files: data.files, truncated: data.files.length >= COMPARE_FILE_CAP };
 }
 
 // Assess one merge commit. Resolves { ok: true, firstParent, secondParent, files } or
@@ -147,6 +139,6 @@ async function walkMergeOnlyChain({ github, owner, repo, baseRef, headSha, class
 }
 
 module.exports = {
-  MAX_HOPS, COMPARE_PAGE_SIZE, COMPARE_MAX_PAGES, touchedPaths, filesOverlap, fileKeys,
+  MAX_HOPS, COMPARE_FILE_CAP, touchedPaths, filesOverlap, fileKeys,
   deltaMatchesBaseSide, listCompareFiles, assessMergeOnlyHop, walkMergeOnlyChain,
 };
