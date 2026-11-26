@@ -14,6 +14,10 @@
 //      status, same resulting blob SHAs. Anything extra (an "evil merge") or missing fails;
 //   5. no compare listing was truncated (GitHub returns at most 300 files per compare, on
 //      page 1 only, and does not page them), so a hidden file can never ride along.
+// Known residual: compare entries carry no file mode or type, so a merge that only flips a mode
+// (100644 -> 100755) or swaps a file for a symlink with the SAME blob, on a file the base side also
+// changed, has an identical key and passes. Blob content is still verified. Accepted: closing it
+// needs a tree read per hop (git.getTree, comparing mode as well as sha) and would complicate the mirror.
 // A chain is a run of such hops following FIRST parents, at most MAX_HOPS long, ending at a
 // commit the caller classifies as an anchor (a reviewed or already-green commit).
 // Everything fails closed: an unexpected shape or an API error is "not merge-only".
@@ -106,7 +110,10 @@ async function assessMergeOnlyHop({ github, owner, repo, baseRef, sha }) {
   if (!deltaMatchesBaseSide(delta.files, baseSide.files)) {
     return notMergeOnly('merge changes differ from the base side');
   }
-  return { ok: true, firstParent: first, secondParent: second, files: delta.files.length };
+  return {
+    ok: true, firstParent: first, secondParent: second, files: delta.files.length,
+    paths: [...touchedPaths(delta.files)].sort(),
+  };
 }
 
 // Walk first-parent merge-only hops from headSha until `classify(sha)` returns 'stop'
@@ -124,7 +131,7 @@ async function walkMergeOnlyChain({ github, owner, repo, baseRef, headSha, class
       return { ok: false, apiError: true, reason: `API error while checking merge-only tip: ${err.message || err}`, hops };
     }
     if (!hop.ok) return { ok: false, reason: hop.reason, hops };
-    hops.push({ sha: current, firstParent: hop.firstParent, secondParent: hop.secondParent });
+    hops.push({ sha: current, firstParent: hop.firstParent, secondParent: hop.secondParent, paths: hop.paths });
     current = hop.firstParent;
     let verdict;
     try {

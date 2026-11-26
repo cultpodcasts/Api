@@ -92,7 +92,7 @@ test('assessMergeOnlyHop: a clean merge of main into the PR branch is merge-only
   const { repo, feature, main1 } = scenario();
   const merge = repo.merge(feature, main1);
   const r = await m.assessMergeOnlyHop(hopArgs(repo, merge));
-  assert.deepEqual(r, { ok: true, firstParent: feature, secondParent: main1, files: 1 });
+  assert.deepEqual(r, { ok: true, firstParent: feature, secondParent: main1, files: 1, paths: ['src/a.txt'] });
 });
 
 test('assessMergeOnlyHop: a merge that brings in several main commits and deletions and additions is merge-only', async () => {
@@ -105,6 +105,27 @@ test('assessMergeOnlyHop: a merge that brings in several main commits and deleti
   assert.equal(r.files, 3);
 });
 
+test('assessMergeOnlyHop: reports the merged-in paths (renames under both names), sorted; an empty merge has none', async () => {
+  const { repo, feature, main1 } = scenario();
+  const main2 = repo.commit(main1, { 'src/b.txt': null, 'docs/new.md': 'n' });
+  repo.branches.main = main2;
+  const merge = repo.merge(feature, main2);
+  const r = await m.assessMergeOnlyHop(hopArgs(repo, merge));
+  assert.deepEqual(r.paths, ['docs/new.md', 'src/a.txt', 'src/b.txt']);
+  const again = await m.assessMergeOnlyHop(hopArgs(repo, repo.merge(merge, main2)));
+  assert.deepEqual(again.paths, []);
+});
+
+test('walkMergeOnlyChain: every hop carries its merged-in paths', async () => {
+  const { repo, feature, main1 } = scenario();
+  const first = repo.merge(feature, main1);
+  const main2 = repo.commit(main1, { 'docs/new.md': 'n' });
+  repo.branches.main = main2;
+  const second = repo.merge(first, main2);
+  const r = await m.walkMergeOnlyChain({ ...hopArgs(repo, second), headSha: second, classify: (sha) => (sha === feature ? 'stop' : null) });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.hops.map((h) => h.paths), [['docs/new.md'], ['src/a.txt']]);
+});
 test('assessMergeOnlyHop: merging main when the PR already contains it (empty merge) is merge-only', async () => {
   const { repo, feature, main1 } = scenario();
   const first = repo.merge(feature, main1);
