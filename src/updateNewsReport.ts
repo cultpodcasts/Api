@@ -6,7 +6,7 @@ import { proxyToAzure } from "./proxyToAzure";
 /**
  * Curator PATCH of a news report (command): 202 on success, forwarding the episode-style
  * `EpisodeUpdateResponse` body (tweetDeleted / blueskyPostDeleted / searchIndexerState) as-is.
- * Forwards 400/401/404/500 bodies.
+ * Forwards 400/401/404/409/500 bodies. 409 is a stale additional-YouTube keep-list.
  */
 export async function updateNewsReport(c: Auth0ActionContext): Promise<Response> {
 	const id = c.req.param("id");
@@ -20,7 +20,7 @@ export async function updateNewsReport(c: Auth0ActionContext): Promise<Response>
 		pathSuffix: `/${encodeURIComponent(id)}`,
 		body,
 		successStatuses: [202],
-		forwardStatuses: [400, 401, 404, 500],
+		forwardStatuses: [400, 401, 404, 409, 500],
 		logName: "secure-newsreport-update-endpoint"
 	});
 }

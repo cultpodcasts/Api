@@ -62,4 +62,27 @@ describe("PATCH /episode/:podcastId/:episodeId", () => {
 		const init = fetchMock.mock.calls[0][1] as { method?: string };
 		expect(init.method).toBe("PATCH");
 	});
+
+	it("forwards a stale additional-YouTube 409 body (RPP #1526)", async () => {
+		const payload = {
+			additionalYouTube: [{ youTubeId: "GSIPAfDO_ec" }],
+			expectedAdditionalYouTubeIds: ["GSIPAfDO_ec"]
+		};
+		const conflict = {
+			message: "The episode's additional YouTube links changed after this edit was loaded.",
+			unexpectedAdditionalYouTubeIds: ["VCRf_qazO9s"]
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(conflict), { status: 409 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appWithPermissions(route, "patch", updatePodcastEpisode, ["curate"]);
+		const resp = await app.request(
+			requestPath,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(payload) },
+			episodeEnv()
+		);
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflict);
+		const init = fetchMock.mock.calls[0][1] as { body?: string };
+		expect(JSON.parse(String(init.body))).toEqual(payload);
+	});
 });
