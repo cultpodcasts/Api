@@ -14,7 +14,6 @@ export async function getAwaitingApproval(c: Auth0ActionContext): Promise<Respon
 		endpoint: Endpoint.awaitingApprovalEpisodes,
 		method: "GET",
 		successStatuses: [200],
-		forwardStatuses: [400],
 		logName: "secure-episodes-awaiting-approval-endpoint"
 	});
 }
