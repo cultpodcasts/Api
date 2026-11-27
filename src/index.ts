@@ -15,6 +15,7 @@ import { pruneHeroCurationScheduled } from './pruneHeroCurationScheduled';
 import { buildDocsPageHtml } from './resources/docsPageHtml';
 import { SEARCH_SHADOW_SOAK_PATH, searchShadowSoakPage } from './searchShadowSoakPage';
 import { openApiDocumentVersion, openApiInfoForEnvironment, resolveApiEnvironment } from './apiEnvironment';
+import { openApiTagDefinitions } from './openapiTags';
 import { registerBearerAuthScheme } from './openapiRouteFactory';
 import {
 	AddBookmarkRoute,
@@ -382,7 +383,8 @@ const openapi = fromHono(app, {
 		info: {
 			title: 'Cult Podcasts API',
 			version: openApiDocumentVersion
-		}
+		},
+		tags: openApiTagDefinitions
 	}
 });
 registerBearerAuthScheme(

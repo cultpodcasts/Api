@@ -1,3 +1,4 @@
+import { OPENAPI_TAG_ORDER } from "../openapiTags";
 import { SEARCH_SHADOW_SOAK_PATH } from "../searchShadowSoak";
 import { docsChromeStyles, docsEnvBanner, docsEnvironmentLabels, docsTopActions } from "./docsChrome";
 
@@ -15,6 +16,7 @@ export const buildDocsPageHtml = (config: DocsAuthConfig): string => {
 	const auth0Enabled = !!(auth0Domain && auth0Audience && auth0ClientId);
 	const apiEnvironment = config.apiEnvironment ?? 'production';
 	const pageTitle = `Cult Podcasts API Docs${docsEnvironmentLabels(apiEnvironment).titleSuffix}`;
+	const tagOrderJson = JSON.stringify(OPENAPI_TAG_ORDER);
 
 	return `<!doctype html>
 <html>
@@ -197,12 +199,20 @@ ${docsChromeStyles(apiEnvironment)}
 				setSavedToken('');
 			});
 
+			const openApiTagOrder = ${tagOrderJson};
 			window.ui = SwaggerUIBundle({
 				url: '/openapi.json',
 				dom_id: '#swagger-ui',
 				deepLinking: true,
 				presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
 				layout: 'BaseLayout',
+				tagsSorter: (a, b) => {
+					const ia = openApiTagOrder.indexOf(a);
+					const ib = openApiTagOrder.indexOf(b);
+					const ra = ia === -1 ? openApiTagOrder.length : ia;
+					const rb = ib === -1 ? openApiTagOrder.length : ib;
+					return ra - rb || String(a).localeCompare(String(b));
+				},
 				requestInterceptor: (request) => {
 					const token = tokenInput.value.trim() || getSavedToken();
 					if (token) {

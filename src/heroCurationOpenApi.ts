@@ -9,8 +9,9 @@ import {
 	heroCurationUpdateRequestSchema,
 	jsonBody
 } from "./openapiSchemas";
+import { OpenApiTags } from "./openapiTags";
 
-const heroTag = ["Hero curation"];
+const heroTag = [OpenApiTags.Hero];
 const heroReadModel = "The stored document is GET /hero-curation.";
 
 /** OpenAPI for GET /hero-curation. Public query. */

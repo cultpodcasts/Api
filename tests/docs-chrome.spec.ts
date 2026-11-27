@@ -5,6 +5,7 @@ vi.mock("workers-og", () => ({ ImageResponse: class ImageResponse {} }));
 
 import type { Env } from "../src/Env";
 import { openApiDocumentVersion } from "../src/apiEnvironment";
+import { OPENAPI_TAG_ORDER } from "../src/openapiTags";
 import { buildDocsPageHtml } from "../src/resources/docsPageHtml";
 import { docsEnvBanner } from "../src/resources/docsChrome";
 import { SEARCH_SHADOW_SOAK_PATH, searchShadowSoakPage } from "../src/searchShadowSoakPage";
@@ -69,5 +70,11 @@ describe("shared docs header (Api #310)", () => {
 		expect(buildDocsPageHtml({ apiEnvironment: "local" })).toContain("<title>Cult Podcasts API Docs (Local)</title>");
 		expect(buildDocsPageHtml({ apiEnvironment: "production" })).toContain("<title>Cult Podcasts API Docs</title>");
 		expect(await soakHtml("local.cultpodcasts.com", { apiEnvironment: "local" })).toContain("<title>Search shadow soak (Local)</title>");
+	});
+
+	it("sorts Swagger UI tags with the OpenAPI tag order (Api #254)", () => {
+		const html = buildDocsPageHtml({ apiEnvironment: "production" });
+		expect(html).toContain("tagsSorter:");
+		expect(html).toContain(`const openApiTagOrder = ${JSON.stringify(OPENAPI_TAG_ORDER)}`);
 	});
 });

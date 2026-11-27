@@ -79,7 +79,7 @@ Challenge HTML / `cf-mitigated: challenge` = still blocked at the edge.
 
 A compare-and-swap loss on PUT is **409 with an empty body**. The current lists and `updatedAt` are `GET /hero-curation`. A non-null `expectedUpdatedAt` is compared. Omitting the field, or sending JSON `null`, writes without compare-and-swap.
 
-OpenAPI tags these four routes **Hero curation**. Each command description states the permission, whether compare-and-swap applies, and that the stored document is the GET. Response lines use the same shape as the other empty acknowledgements on this API (`Schedule updated (empty body)`).
+OpenAPI tags these four routes **Hero**. Each command description states the permission, whether compare-and-swap applies, and that the stored document is the GET. Response lines use the same shape as the other empty acknowledgements on this API (`Schedule updated (empty body)`).
 
 Indexer auto-promote treats POST 202 as success.
 

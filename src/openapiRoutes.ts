@@ -253,6 +253,7 @@ import { getNewsOrganisation } from "./getNewsOrganisation";
 import { updateNewsOrganisation } from "./updateNewsOrganisation";
 import { deleteNewsOrganisation } from "./deleteNewsOrganisation";
 import { moveNewsOrganisationReports } from "./moveNewsOrganisationReports";
+import { OpenApiTags, type OpenApiTag } from "./openapiTags";
 import { getNewsReport } from "./getNewsReport";
 import { updateNewsReport } from "./updateNewsReport";
 
@@ -261,7 +262,7 @@ export { GetPodcastByNameAndEpisodeIdRoute, GetPodcastByNameRoute, SubmitLookupR
 export const GetTvShowRoute = createOpenApiRoute(getTvShow, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.TvShows],
 		summary: "Get TV show by id or name",
 		description:
 			"`identifier` is a guid, or a name in route form (case-insensitive). Names may contain `/` and must be percent-encoded (`%2F`); the Worker matches with `:identifier{.+}`.",
@@ -279,7 +280,7 @@ export const GetTvShowRoute = createOpenApiRoute(getTvShow, {
 export const GetTvShowEpisodeRoute = createOpenApiRoute(getTvShowEpisode, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.TvShows],
 		summary: "Get TV-show episode by id",
 		request: { params: idParam },
 		responses: {
@@ -294,7 +295,7 @@ export const GetTvShowEpisodeRoute = createOpenApiRoute(getTvShowEpisode, {
 export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.TvShows],
 		summary: "Patch TV-show episode fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
 			"`id` is the episode guid. Omitted or null fields are unchanged. Same playable fields and rules as `PATCH /newsreport/{id}`, " +
@@ -327,7 +328,7 @@ export const UpdateTvShowEpisodeRoute = createOpenApiRoute(updateTvShowEpisode, 
 export const DeleteTvShowEpisodeRoute = createOpenApiRoute(deleteTvShowEpisode, {
 	auth: adminAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.TvShows],
 		summary: "Delete TV-show episode by id",
 		description:
 			"`id` is the episode guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
@@ -345,7 +346,7 @@ export const DeleteTvShowEpisodeRoute = createOpenApiRoute(deleteTvShowEpisode, 
 export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.TvShows],
 		summary: "Patch TV show publisher fields and IMDb/TheTVDB/TMDB identity ids",
 		description:
 			"`id` is the show guid. Omitted or null fields are unchanged. Same publisher fields, service ids and rules as `PATCH /newsorganisation/{id}` except `additionalYouTubeChannels` / `additionalYouTubeChannelIds` (news organisations only, RPP #1370), " +
@@ -374,7 +375,7 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 export const GetFilmRoute = createOpenApiRoute(getFilm, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.Films],
 		summary: "Get film by id or name",
 		description:
 			"`identifier` is a guid, or a name in route form (case-insensitive). Names may contain `/` and must be percent-encoded (`%2F`); the Worker matches with `:identifier{.+}`.",
@@ -392,7 +393,7 @@ export const GetFilmRoute = createOpenApiRoute(getFilm, {
 export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.Films],
 		summary: "Patch film publisher and playable fields and IMDb/TMDB identity ids",
 		description:
 			"`id` is the film guid. Omitted or null fields are unchanged. Accepts the publisher fields of `PATCH /newsorganisation/{id}` " +
@@ -422,7 +423,7 @@ export const UpdateFilmRoute = createOpenApiRoute(updateFilm, {
 export const DeleteFilmRoute = createOpenApiRoute(deleteFilm, {
 	auth: adminAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.Films],
 		summary: "Delete film by id",
 		description:
 			"`id` is the film guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
@@ -445,7 +446,7 @@ const newsNotFoundIdResponse = {
 export const GetNewsOrganisationRoute = createOpenApiRoute(getNewsOrganisation, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.NewsOrganisations],
 		summary: "Get news organisation by id or name",
 		description:
 			"`identifier` is a guid, or a name in route form (case-insensitive match, like `/tvshow/{name}`). " +
@@ -464,7 +465,7 @@ export const GetNewsOrganisationRoute = createOpenApiRoute(getNewsOrganisation, 
 export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisation, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.NewsOrganisations],
 		summary: "Patch news organisation fields",
 		description:
 			"`id` is the organisation guid. Omitted or null fields are unchanged; `\"\"` clears a string and `[]` clears a list. " +
@@ -504,7 +505,7 @@ export const UpdateNewsOrganisationRoute = createOpenApiRoute(updateNewsOrganisa
 export const GetNewsReportRoute = createOpenApiRoute(getNewsReport, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.NewsReports],
 		summary: "Get news report by id",
 		request: { params: idParam },
 		responses: {
@@ -519,7 +520,7 @@ export const GetNewsReportRoute = createOpenApiRoute(getNewsReport, {
 export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.NewsReports],
 		summary: "Patch news report fields",
 		description:
 			"`id` is the report guid. Omitted or null fields are unchanged. The request is validated before anything is applied. " +
@@ -551,7 +552,7 @@ export const UpdateNewsReportRoute = createOpenApiRoute(updateNewsReport, {
 export const MoveNewsOrganisationReportsRoute = createOpenApiRoute(moveNewsOrganisationReports, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.NewsOrganisations],
 		summary: "Move news reports from this news organisation into another (merge; keeps the guids)",
 		description:
 			"Curator command (RPP #1397). `id` is the source news organisation guid. Every requested id is planned before any write: " +
@@ -580,7 +581,7 @@ export const MoveNewsOrganisationReportsRoute = createOpenApiRoute(moveNewsOrgan
 export const DeleteNewsOrganisationRoute = createOpenApiRoute(deleteNewsOrganisation, {
 	auth: adminAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.NewsOrganisations],
 		summary: "Delete an empty news organisation by id",
 		description:
 			"`id` is the news organisation guid (RPP #1397). Hard-deletes the organisation and releases its file key, so its name can be reused. " +
@@ -603,7 +604,7 @@ export const DeleteNewsOrganisationRoute = createOpenApiRoute(deleteNewsOrganisa
 export const DeleteNewsReportRoute = createOpenApiRoute(deleteNewsReport, {
 	auth: adminAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.NewsReports],
 		summary: "Delete news report by id",
 		description:
 			"`id` is the report guid. Same admin hard-delete as a podcast episode: blocked when tweeted; removes Cosmos, search, and short link.",
@@ -620,7 +621,7 @@ export const DeleteNewsReportRoute = createOpenApiRoute(deleteNewsReport, {
 
 export const HomepageRoute = createOpenApiRoute(homepage, {
     schema: {
-        tags: ["Public"],
+        tags: [OpenApiTags.Public],
         summary: "Get homepage payload",
         responses: {
             200: { description: "Homepage JSON (R2)", ...contentJson(homepageResponseSchema) },
@@ -631,7 +632,7 @@ export const HomepageRoute = createOpenApiRoute(homepage, {
 
 export const HomepageSsrRoute = createOpenApiRoute(homepageSsr, {
     schema: {
-        tags: ["Public"],
+        tags: [OpenApiTags.Public],
         summary: "Get pre-processed homepage JSON",
         description:
             "Returns R2 key `homepage-ssr` (ContentOptions.PreProcessedHomepageKey): " +
@@ -649,7 +650,7 @@ export const HomepageSsrRoute = createOpenApiRoute(homepageSsr, {
 
 export const SearchSuggestionsRoute = createOpenApiRoute(searchSuggestions, {
     schema: {
-        tags: ["Public"],
+        tags: [OpenApiTags.Public],
         summary: "Get search typeahead match index",
         description:
             "Returns R2 key `search-suggestions` (ContentOptions.SearchSuggestionsKey): " +
@@ -668,7 +669,7 @@ export const SearchSuggestionsRoute = createOpenApiRoute(searchSuggestions, {
 export const GetSubjectsRoute = createOpenApiRoute(getSubjects, {
     auth: curatePermissionsClaimAuth,
     schema: {
-        tags: ["Subjects"],
+        tags: [OpenApiTags.Subjects],
         summary: "List subjects",
         responses: {
             200: { description: "Subjects (R2 name list)", ...contentJson(subjectsNameListResponseSchema) },
@@ -681,7 +682,7 @@ export const GetSubjectsRoute = createOpenApiRoute(getSubjects, {
 export const GetPeopleRoute = createOpenApiRoute(getPeople, {
     auth: curatePermissionsClaimAuth,
     schema: {
-        tags: ["People"],
+        tags: [OpenApiTags.People],
         summary: "List people",
         responses: {
             200: { description: "People", ...contentJson(peopleListResponseSchema) },
@@ -695,7 +696,7 @@ export const GetPeopleRoute = createOpenApiRoute(getPeople, {
 export const GetPersonByNameRoute = createOpenApiRoute(getPersonByName, {
     auth: curateAuth,
     schema: {
-        tags: ["People"],
+        tags: [OpenApiTags.People],
         summary: "Get person by name",
         request: { params: nameParam },
         responses: {
@@ -710,7 +711,7 @@ export const GetPersonByNameRoute = createOpenApiRoute(getPersonByName, {
 export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
     auth: curateAuth,
     schema: {
-        tags: ["People"],
+        tags: [OpenApiTags.People],
         summary: "Patch person by id",
         request: { params: idParam, body: jsonBody(personChangeRequestSchema) },
         responses: {
@@ -725,7 +726,7 @@ export const UpdatePersonRoute = createOpenApiRoute(updatePerson, {
 export const CreatePersonRoute = createOpenApiRoute(createPerson, {
     auth: curateAuth,
     schema: {
-        tags: ["People"],
+        tags: [OpenApiTags.People],
         summary: "Create person",
         request: { body: jsonBody(personChangeRequestSchema) },
         responses: {
@@ -741,7 +742,7 @@ export const CreatePersonRoute = createOpenApiRoute(createPerson, {
 export const GetFlairsRoute = createOpenApiRoute(getFlairs, {
     auth: curatePermissionsClaimAuth,
     schema: {
-        tags: ["Subjects"],
+        tags: [OpenApiTags.Subjects],
         summary: "List flairs",
         responses: {
             200: { description: "Flairs", ...contentJson(flairsResponseSchema) },
@@ -753,7 +754,7 @@ export const GetFlairsRoute = createOpenApiRoute(getFlairs, {
 
 export const SearchRoute = createOpenApiRoute(search, {
     schema: {
-        tags: ["Search"],
+        tags: [OpenApiTags.Search],
         summary: "Search episodes",
         request: { body: jsonBody(searchRequestSchema) },
         description: "Proxies an OData search to the search service. Errors: 400 for a request body the Worker cannot read, or Azure's 400 forwarded (its message names the bad field). Upstream 4xx/5xx statuses are forwarded with their body and Retry-After; 502 means the upstream could not be reached or answered unreadably. 429, 502 and 503 are retryable.",
@@ -770,7 +771,7 @@ export const SearchRoute = createOpenApiRoute(search, {
 export const SearchAdminDocsRoute = createOpenApiRoute(searchAdminDocs, {
     auth: searchIndexWriteAuth,
     schema: {
-        tags: ["Search"],
+        tags: [OpenApiTags.Search],
         summary: "Write documents to the D1 search index",
         description:
             "SP-1.4. Server-to-server only: an Auth0 M2M (client_credentials) token with `write:search-index`, the search-index writer's own permission; a person's token is 403 even with it. " +
@@ -791,7 +792,7 @@ export const SearchAdminDocsRoute = createOpenApiRoute(searchAdminDocs, {
 export const SearchAdminInventoryRoute = createOpenApiRoute(searchAdminInventory, {
     auth: searchIndexWriteAuth,
     schema: {
-        tags: ["Search"],
+        tags: [OpenApiTags.Search],
         summary: "Page through the D1 search index's id inventory",
         description:
             "SP-2.2. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
@@ -811,7 +812,7 @@ export const SearchAdminInventoryRoute = createOpenApiRoute(searchAdminInventory
 export const SearchAdminRebuildStatusRoute = createOpenApiRoute(searchAdminRebuildStatus, {
     auth: searchIndexWriteAuth,
     schema: {
-        tags: ["Search"],
+        tags: [OpenApiTags.Search],
         summary: "State of a D1 search index rebuild",
         description:
             "SP-2.3. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
@@ -828,7 +829,7 @@ export const SearchAdminRebuildStatusRoute = createOpenApiRoute(searchAdminRebui
 export const SearchAdminRebuildRoute = createOpenApiRoute(searchAdminRebuild, {
     auth: searchIndexWriteAuth,
     schema: {
-        tags: ["Search"],
+        tags: [OpenApiTags.Search],
         summary: "Rebuild the D1 search index into shadow tables and swap it in",
         description:
             "SP-2.3. Server-to-server only, with the same auth as `POST /search/admin/docs`: an Auth0 M2M token with `write:search-index`. " +
@@ -852,7 +853,7 @@ export const SearchAdminRebuildRoute = createOpenApiRoute(searchAdminRebuild, {
 export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
     auth: curateAuth,
     schema: {
-        tags: ["Episodes"],
+        tags: [OpenApiTags.Episodes],
         summary: "Get episode by id (any kind)",
         description: "Resolves a podcast episode, news report, TV episode or film by id (curators also see removed items). The body is EpisodeDto plus contentKind, parentId, parentName, slug and path.",
         request: { params: idParam },
@@ -868,7 +869,7 @@ export const GetEpisodeRoute = createOpenApiRoute(getEpisode, {
 export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
     auth: curateAuth,
     schema: {
-        tags: ["Episodes"],
+        tags: [OpenApiTags.Episodes],
         summary: "Get podcast episode by podcast name and episode id",
         description: "Same Azure lookup as GET /episode/:id: when no podcast episode has the id (for example after the catalogue migration) it resolves the news report, TV episode or film by id. The body is EpisodeDto plus contentKind, parentId, parentName, slug and path.",
         request: { params: podcastAndEpisodeParam },
@@ -884,7 +885,7 @@ export const GetPodcastEpisodeRoute = createOpenApiRoute(getPodcastEpisode, {
 export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode, {
     auth: curateAuth,
     schema: {
-        tags: ["Episodes"],
+        tags: [OpenApiTags.Episodes],
         summary: "Patch podcast episode by podcast id and episode id",
         description:
             "Omitted or null fields are unchanged. `approvalDecision` approves or rejects an episode held for approval, e.g. a split-off (RPP #1484); a held episode is made public only by approving it. " +
@@ -911,7 +912,7 @@ export const UpdatePodcastEpisodeRoute = createOpenApiRoute(updatePodcastEpisode
 export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode, {
     auth: adminAuth,
     schema: {
-        tags: ["Episodes"],
+        tags: [OpenApiTags.Episodes],
         summary: "Delete podcast episode by podcast id and episode id",
         request: { params: podcastIdAndEpisodeParam },
         responses: {
@@ -928,7 +929,7 @@ export const DeletePodcastEpisodeRoute = createOpenApiRoute(deletePodcastEpisode
 export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpisode, {
     auth: curateAuth,
     schema: {
-        tags: ["Publishing"],
+        tags: [OpenApiTags.Episodes],
         summary: "Publish podcast episode by podcast id and episode id",
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodePublishRequestSchema) },
         responses: {
@@ -944,7 +945,7 @@ export const PublishPodcastEpisodeRoute = createOpenApiRoute(publishPodcastEpiso
 export const PublishEpisodeRoute = createOpenApiRoute(publishEpisode, {
     auth: curateAuth,
     schema: {
-        tags: ["Publishing"],
+        tags: [OpenApiTags.Episodes],
         summary: "Publish by guid (podcast episode, or catalogue fallback)",
         description:
             "Prefer `POST /film|newsreport|tvshowepisode/{id}/publish` for catalogue playables. " +
@@ -969,7 +970,7 @@ const kindPublishResponses = {
 export const PublishFilmRoute = createOpenApiRoute(publishFilm, {
     auth: curateAuth,
     schema: {
-        tags: ["Publishing"],
+        tags: [OpenApiTags.Films],
         summary: "Publish film by id",
         description: "Proxies Azure `POST /film/{id}/publish`. Outcome DTO only — GET `/film/{id}` for the resource.",
         request: { params: idParam, body: jsonBody(episodePublishRequestSchema) },
@@ -980,7 +981,7 @@ export const PublishFilmRoute = createOpenApiRoute(publishFilm, {
 export const PublishNewsReportRoute = createOpenApiRoute(publishNewsReport, {
     auth: curateAuth,
     schema: {
-        tags: ["Publishing"],
+        tags: [OpenApiTags.NewsReports],
         summary: "Publish news report by id",
         description: "Proxies Azure `POST /newsreport/{id}/publish`. Outcome DTO only — GET `/newsreport/{id}` for the resource.",
         request: { params: idParam, body: jsonBody(episodePublishRequestSchema) },
@@ -991,7 +992,7 @@ export const PublishNewsReportRoute = createOpenApiRoute(publishNewsReport, {
 export const PublishTvShowEpisodeRoute = createOpenApiRoute(publishTvShowEpisode, {
     auth: curateAuth,
     schema: {
-        tags: ["Publishing"],
+        tags: [OpenApiTags.TvShows],
         summary: "Publish TV show episode by id",
         description: "Proxies Azure `POST /tvshowepisode/{id}/publish`. Outcome DTO only — GET `/tvshowepisode/{id}` for the resource.",
         request: { params: idParam, body: jsonBody(episodePublishRequestSchema) },
@@ -1002,7 +1003,7 @@ export const PublishTvShowEpisodeRoute = createOpenApiRoute(publishTvShowEpisode
 export const GetAwaitingApprovalRoute = createOpenApiRoute(getAwaitingApproval, {
     auth: curateAuth,
     schema: {
-        tags: ["Episodes"],
+        tags: [OpenApiTags.Episodes],
         summary: "List split-offs awaiting approval",
         description:
             "Curate query (RPP #1491). Episodes whose approval status is `AwaitingApproval` (a split-off held after a submit overwrite), newest release first. " +
@@ -1018,7 +1019,7 @@ export const GetAwaitingApprovalRoute = createOpenApiRoute(getAwaitingApproval, 
 export const GetOutgoingRoute = createOpenApiRoute(getOutgoing, {
     auth: curateAuth,
     schema: {
-        tags: ["Episodes"],
+        tags: [OpenApiTags.Episodes],
         summary: "Get outgoing episodes",
         responses: {
             200: { description: "Outgoing episodes", ...contentJson(episodeListResponseSchema) },
@@ -1031,7 +1032,7 @@ export const GetOutgoingRoute = createOpenApiRoute(getOutgoing, {
 export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, {
     auth: curateAuth,
     schema: {
-        tags: ["Podcasts"],
+        tags: [OpenApiTags.Podcasts],
         summary: "Enqueue a podcast → TV show / news organisation transfer (keeps guids)",
         description:
             "Curate command. Enqueues the transfer and returns 202 immediately with status Queued and statusPath. " +
@@ -1058,7 +1059,7 @@ export const TransferPodcastKindRoute = createOpenApiRoute(transferPodcastKind, 
 export const GetPodcastKindTransferStatusRoute = createOpenApiRoute(getPodcastKindTransferStatus, {
     auth: curateAuth,
     schema: {
-        tags: ["Podcasts"],
+        tags: [OpenApiTags.Podcasts],
         summary: "Get podcast kind-transfer job status",
         description:
             "Curate query. Returns Idle / Queued / Running / Completed / Failed / Incomplete for the latest " +
@@ -1076,7 +1077,7 @@ export const GetPodcastKindTransferStatusRoute = createOpenApiRoute(getPodcastKi
 export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
     auth: curateAuth,
     schema: {
-        tags: ["Catalogue"],
+        tags: [OpenApiTags.Films],
         summary: "Move one podcast episode into a new film (keeps the guid)",
         description:
             "Curator command. Maps the episode with the catalogue migrator's film mapping (services, subjects, posted/tweeted/Bluesky state), " +
@@ -1101,7 +1102,7 @@ export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
 export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTrailer, {
     auth: curateAuth,
     schema: {
-        tags: ["Catalogue"],
+        tags: [OpenApiTags.Films],
         summary: "Attach one podcast episode to a film as a trailer (optionally creating the film)",
         description:
             "Curator command. Adds a trailer (id = episode guid; YouTube link first, otherwise a video link, otherwise an audio link) to the film, " +
@@ -1138,7 +1139,7 @@ export const AttachEpisodeAsTrailerRoute = createOpenApiRoute(attachEpisodeAsTra
 export const AttachEpisodeYouTubeAlternateRoute = createOpenApiRoute(attachEpisodeYouTubeAlternate, {
     auth: curateAuth,
     schema: {
-        tags: ["Catalogue"],
+        tags: [OpenApiTags.Episodes],
         summary: "Attach one podcast episode as an additional YouTube upload on an existing catalogue item",
         description:
             "Curator command (RPP #1411). Body `{ targetKind, targetId }` where targetKind is Film, NewsReport, " +
@@ -1161,7 +1162,7 @@ export const AttachEpisodeYouTubeAlternateRoute = createOpenApiRoute(attachEpiso
 export const MoveEpisodeToTvShowRoute = createOpenApiRoute(moveEpisodeToTvShow, {
     auth: curateAuth,
     schema: {
-        tags: ["Catalogue"],
+        tags: [OpenApiTags.TvShows],
         summary: "Move one podcast episode into a TV show (keeps the guid)",
         description:
             "Curator command. Target is exactly one of tvShowId or tvShowName (case-insensitive); createShow with tvShowName creates the show " +
@@ -1206,7 +1207,7 @@ const newsMoveResponses = {
 export const MoveEpisodeToNewsRoute = createOpenApiRoute(moveEpisodeToNews, {
     auth: curateAuth,
     schema: {
-        tags: ["Catalogue"],
+        tags: [OpenApiTags.NewsReports],
         summary: "Move one podcast episode into a news organisation as a news report (keeps the guid)",
         description: "Curator command (RPP #1388). " + newsMoveDescription,
         request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeNewsMoveRequestSchema) },
@@ -1217,7 +1218,7 @@ export const MoveEpisodeToNewsRoute = createOpenApiRoute(moveEpisodeToNews, {
 export const MovePodcastEpisodesToNewsRoute = createOpenApiRoute(movePodcastEpisodesToNews, {
     auth: curateAuth,
     schema: {
-        tags: ["Podcasts"],
+        tags: [OpenApiTags.NewsReports],
         summary: "Move the listed episodes of a podcast into a news organisation as news reports (keeps the guids)",
         description:
             "Curator command (RPP #1388). Batch form of POST /episode/:podcastId/:episodeId/news: episodeIds (1-500) plus the same organisation " +
@@ -1238,7 +1239,7 @@ const newsReportMoveDescription =
 export const MoveNewsReportToTvShowRoute = createOpenApiRoute(moveNewsReportToTvShow, {
     auth: curateAuth,
     schema: {
-        tags: ["Catalogue"],
+        tags: [OpenApiTags.TvShows],
         summary: "Move one news report into a TV show (keeps the guid)",
         description:
             "Curator command (RPP #1368). Same body, rules and outcome as POST /episode/:podcastId/:episodeId/tvshow: target is exactly one of " +
@@ -1262,7 +1263,7 @@ export const MoveNewsReportToTvShowRoute = createOpenApiRoute(moveNewsReportToTv
 export const MoveNewsReportToFilmRoute = createOpenApiRoute(moveNewsReportToFilm, {
     auth: curateAuth,
     schema: {
-        tags: ["Catalogue"],
+        tags: [OpenApiTags.Films],
         summary: "Move one news report into a new film (keeps the guid)",
         description:
             "Curator command (RPP #1368). Same body, rules and outcome as POST /episode/:podcastId/:episodeId/film: the film is named from title " +
@@ -1287,7 +1288,7 @@ export const MoveNewsReportToFilmRoute = createOpenApiRoute(moveNewsReportToFilm
 export const UpdatePodcastRoute = createOpenApiRoute(updatePodcast, {
     auth: curateAuth,
     schema: {
-        tags: ["Podcasts"],
+        tags: [OpenApiTags.Podcasts],
         summary: "Patch podcast by id",
         request: { params: idParam, body: jsonBody(podcastChangeRequestSchema) },
         responses: {
@@ -1302,7 +1303,7 @@ export const UpdatePodcastRoute = createOpenApiRoute(updatePodcast, {
 export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
     auth: curateAuth,
     schema: {
-        tags: ["Podcasts"],
+        tags: [OpenApiTags.Podcasts],
         summary: "Reindex podcast by name",
         description:
             "Curate only. Proxies to Azure `POST /api/podcast/index/{name}` with the short hub Index lookback. " +
@@ -1332,7 +1333,7 @@ export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
 export const IndexPodcastBacklogByNameRoute = createOpenApiRoute(indexPodcastBacklogByName, {
     auth: curateAuth,
     schema: {
-        tags: ["Podcasts"],
+        tags: [OpenApiTags.Podcasts],
         summary: "Reindex podcast by name (backlog / cold-start)",
         description:
             "Curate only. Proxies to Azure `POST /api/podcast/index/{name}/backlog` so Azure clears the two-day hub Index lookback " +
@@ -1363,7 +1364,7 @@ export const IndexPodcastBacklogByNameRoute = createOpenApiRoute(indexPodcastBac
 export const GetSubjectByNameRoute = createOpenApiRoute(getSubjectByName, {
     auth: curateAuth,
     schema: {
-        tags: ["Subjects"],
+        tags: [OpenApiTags.Subjects],
         summary: "Get subject by name",
         request: { params: nameParam },
         responses: {
@@ -1378,7 +1379,7 @@ export const GetSubjectByNameRoute = createOpenApiRoute(getSubjectByName, {
 export const UpdateSubjectRoute = createOpenApiRoute(updateSubject, {
     auth: curateAuth,
     schema: {
-        tags: ["Subjects"],
+        tags: [OpenApiTags.Subjects],
         summary: "Patch subject by id",
         request: { params: idParam, body: jsonBody(subjectChangeRequestSchema) },
         responses: {
@@ -1393,7 +1394,7 @@ export const UpdateSubjectRoute = createOpenApiRoute(updateSubject, {
 export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
     auth: curateAuth,
     schema: {
-        tags: ["Subjects"],
+        tags: [OpenApiTags.Subjects],
         summary: "Create subject",
         request: { body: jsonBody(subjectChangeRequestSchema) },
         responses: {
@@ -1409,7 +1410,7 @@ export const CreateSubjectRoute = createOpenApiRoute(createSubject, {
 export const CatalogueIdentityLookupRoute = createOpenApiRoute(catalogueIdentityLookup, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Catalogue"],
+		tags: [OpenApiTags.Metadata],
 		summary: "Look up catalogue identity ids (edit-time)",
 		description:
 			"Best-effort IMDb / TMDB / TheTVDB probe for Film, TvShow, or TvShowEpisode. Does not write Cosmos — " +
@@ -1428,7 +1429,7 @@ export const CatalogueIdentityLookupRoute = createOpenApiRoute(catalogueIdentity
 export const GetDiscoveryReportsRoute = createOpenApiRoute(getDiscoveryReports, {
     auth: curateAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Get discovery curation reports",
         responses: {
             200: { description: "Discovery reports", ...contentJson(discoveryCurationResponseSchema) },
@@ -1445,7 +1446,7 @@ const discoveryResultIdParam = z.object({ resultId: z.string().uuid() });
 export const BanDiscoveryChannelRoute = createOpenApiRoute(banDiscoveryChannel, {
     auth: curateAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Remove the podcast behind a discovery result",
         description: "Requires `curate`. An existing podcast is set removed. Otherwise a minimal podcast is created from the result's YouTube channel, Spotify show, Apple podcast id, and show name, with removed set. The response is 202 with an empty body. The client then GETs /discovery-curation and GET /podcast/{id}.",
         request: { params: discoveryResultIdParam },
@@ -1463,7 +1464,7 @@ export const BanDiscoveryChannelRoute = createOpenApiRoute(banDiscoveryChannel, 
 export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
     auth: curateAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Submit discovery curation",
         description: "Requires `curate`. A caller whose token also has `curate:supervised` has the submit held for a supervisor: Azure returns 202 with `{submissionId, status: \"Pending\"}` and applies nothing. Supervised curators keep `curate` (the Worker gates on it). Held submissions are reviewed and applied via `/discovery-submissions`.",
         request: { body: jsonBody(discoverySubmitRequestSchema) },
@@ -1483,7 +1484,7 @@ export const SubmitDiscoveryRoute = createOpenApiRoute(submitDiscovery, {
 export const SubmitDiscoveryOutcomeRoute = createOpenApiRoute(submitDiscoveryOutcome, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Discovery"],
+		tags: [OpenApiTags.Discovery],
 		summary: "Reconcile discovery submit outcomes",
 		description:
 			"Requires `curate`. Returns durable per-item stamps for a prior Save (`DiscoverySubmitOutcomeState`: Accepted / AcceptError / Rejected / Pending / Unknown). Use after a lost 200 / Worker 500 so the UI can show what landed.",
@@ -1500,7 +1501,7 @@ export const SubmitDiscoveryOutcomeRoute = createOpenApiRoute(submitDiscoveryOut
 export const GetDiscoveryCurationSessionRoute = createOpenApiRoute(getDiscoveryCurationSession, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Discovery"],
+		tags: [OpenApiTags.Discovery],
 		summary: "Get global discovery curation session",
 		responses: {
 			200: { description: "Session snapshot", ...contentJson(discoverySessionSnapshotSchema) },
@@ -1513,7 +1514,7 @@ export const GetDiscoveryCurationSessionRoute = createOpenApiRoute(getDiscoveryC
 export const PostDiscoverySessionVoteRoute = createOpenApiRoute(postDiscoverySessionVote, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Discovery"],
+		tags: [OpenApiTags.Discovery],
 		summary: "Add or remove a discovery session vote",
 		request: {
 			body: jsonBody(z.object({ resultId: z.string().uuid(), selected: z.boolean() }))
@@ -1532,7 +1533,7 @@ export const PostDiscoverySessionSyncDocumentsRoute = createOpenApiRoute(
 	{
 		auth: curateAuth,
 		schema: {
-			tags: ["Discovery"],
+			tags: [OpenApiTags.Discovery],
 			summary: "Sync open discovery document ids into the session room",
 			request: { body: jsonBody(z.object({ documentIds: z.array(z.string().uuid()) })) },
 			responses: {
@@ -1548,7 +1549,7 @@ export const PostDiscoverySessionSyncDocumentsRoute = createOpenApiRoute(
 export const PostDiscoverySessionIncludeRoute = createOpenApiRoute(postDiscoverySessionInclude, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Discovery"],
+		tags: [OpenApiTags.Discovery],
 		summary: "Include pending discovery documents into the sticky room set",
 		request: {
 			body: jsonBody(
@@ -1568,7 +1569,7 @@ export const PostDiscoverySessionIncludeRoute = createOpenApiRoute(postDiscovery
 export const PostDiscoverySessionClearVotesRoute = createOpenApiRoute(postDiscoverySessionClearVotes, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Discovery"],
+		tags: [OpenApiTags.Discovery],
 		summary: "Clear session votes after a successful Save",
 		request: { body: jsonBody(z.object({ resultIds: z.array(z.string().uuid()) })) },
 		responses: {
@@ -1583,7 +1584,7 @@ export const PostDiscoverySessionClearVotesRoute = createOpenApiRoute(postDiscov
 export const DiscoveryCurationSessionWsRoute = createOpenApiRoute(upgradeDiscoveryCurationSessionWs, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Discovery"],
+		tags: [OpenApiTags.Discovery],
 		summary: "WebSocket upgrade for discovery curation session",
 		description:
 			"Requires `curate`. Browsers cannot set `Authorization` on WebSocket; pass the access token only as `?access_token=` on this path together with `Upgrade: websocket` (not on other routes; spoofing Upgrade elsewhere does not enable the query token). Role for votes is taken from the JWT, never from client WS JSON.",
@@ -1608,7 +1609,7 @@ const discoverySubmissionErrors = {
 export const GetDiscoverySubmissionsRoute = createOpenApiRoute(getDiscoverySubmissions, {
     auth: discoverySubmissionViewAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "List supervised discovery submissions",
         description: "`supervise`/`admin`: reviewable queue. `curate:supervised`: the caller's own submissions. Azure returns 403 for a permitted caller not allowed this view.",
         responses: {
@@ -1623,7 +1624,7 @@ export const GetDiscoverySubmissionsRoute = createOpenApiRoute(getDiscoverySubmi
 export const GetDiscoverySubmissionRoute = createOpenApiRoute(getDiscoverySubmission, {
     auth: discoverySubmissionViewAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Get a supervised discovery submission",
         description: "Submitter or an allowed supervisor/admin; otherwise 403. Returns the `etag` to send on review/apply.",
         request: { params: submissionIdParam },
@@ -1639,7 +1640,7 @@ export const GetDiscoverySubmissionRoute = createOpenApiRoute(getDiscoverySubmis
 export const PutDiscoverySubmissionReviewRoute = createOpenApiRoute(putDiscoverySubmissionReview, {
     auth: discoverySuperviseAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Save a supervisor review (draft)",
         description: "Command. Saves comments and the supervisor's accepted set; nothing is ingested. Only mapped supervisors (or admin) may review; nobody but an admin may review their own submission (403).",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReviewRequestSchema) },
@@ -1655,7 +1656,7 @@ export const PutDiscoverySubmissionReviewRoute = createOpenApiRoute(putDiscovery
 export const PostDiscoverySubmissionApplyRoute = createOpenApiRoute(postDiscoverySubmissionApply, {
     auth: discoverySuperviseAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Apply a supervised discovery submission",
         description: "Command. Claims the submission (`Applying`) and runs the language / kind / identity preflight on the request. A decision prompt (or a no-op) is answered 200 as before. Otherwise the ingest is queued and the answer is **202** `status: \"Applying\"` with the claimed `etag`: a background worker moves held reports PendingSupervisor → Processed (all-or-nothing), ingests the final accepted set and records Applied / PartiallyApplied / ApplyFailed with `itemOutcomes` on the submission. Poll GET /discovery-submissions/{id} until `status` leaves Applying (RPP #1415). Re-applying an Applied submission is a no-op 200 (`message: \"Already applied.\"`). Apply on PartiallyApplied, or ApplyFailed with outcomes, is 409 (use retry); so is apply while Applying.",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionApplyRequestSchema) },
@@ -1672,7 +1673,7 @@ export const PostDiscoverySubmissionApplyRoute = createOpenApiRoute(postDiscover
 export const PostDiscoverySubmissionRetryRoute = createOpenApiRoute(postDiscoverySubmissionRetry, {
     auth: discoverySuperviseAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Retry failed items of a supervised discovery submission",
         description: "Command. For PartiallyApplied, or ApplyFailed with `itemOutcomes`. Re-ingests Failed items; `abandonResultIds` drops them instead. Abandoning all failed items closes the submission as Applied without ingesting (200). Like apply, a retry that passes its preflight is queued: **202** `status: \"Applying\"`, then poll GET /discovery-submissions/{id} (RPP #1415). 400 when abandoning an id that is not Failed (`ids`); 409 stale etag or nothing to retry.",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionRetryRequestSchema) },
@@ -1689,7 +1690,7 @@ export const PostDiscoverySubmissionRetryRoute = createOpenApiRoute(postDiscover
 export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscoverySubmissionRelease, {
     auth: discoverySuperviseAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Release a supervised discovery submission",
         description: "Command (never `curate:supervised`). For a submission that has ingested nothing: moves each held report PendingSupervisor → Unprocessed, sets status Released with `releasedAt`/`releaseReason`. Ingests nothing. `ids` lists reports that were not held (left unchanged). 409 stale etag or submission already ingested/terminal.",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionReleaseRequestSchema) },
@@ -1705,7 +1706,7 @@ export const PostDiscoverySubmissionReleaseRoute = createOpenApiRoute(postDiscov
 export const PostDiscoverySubmissionStateRoute = createOpenApiRoute(postDiscoverySubmissionState, {
     auth: discoveryReportReleaseAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Set a submission's status (admin override)",
         description: "Command. Sets `status`, clears `inProgressOperation`/`inProgressSince`, and appends a `StateChanged` history entry with `fromStatus`, `toStatus`, `actorSubject` and `reason`. Report states and item outcomes are not changed; fix those separately (e.g. POST /discovery-reports/{id}/release).",
         request: { params: submissionIdParam, body: jsonBody(discoverySubmissionSetStateRequestSchema) },
@@ -1723,7 +1724,7 @@ export const PostDiscoverySubmissionStateRoute = createOpenApiRoute(postDiscover
 export const PostDiscoveryReportReleaseRoute = createOpenApiRoute(postDiscoveryReportRelease, {
     auth: discoveryReportReleaseAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Release a stuck discovery report (admin)",
         description: "Command. Releases a report stuck in PendingSupervisor with no live submission back to Unprocessed.",
         request: { params: submissionIdParam, body: jsonBody(discoveryReportReleaseRequestSchema) },
@@ -1741,7 +1742,7 @@ export const PostDiscoveryReportReleaseRoute = createOpenApiRoute(postDiscoveryR
 export const GetDiscoveryInfoRoute = createOpenApiRoute(getDiscoveryInfo, {
     auth: curatePermissionsClaimAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Get discovery info",
         responses: {
             200: { description: "Discovery info", ...contentJson(discoveryInfoResponseSchema) },
@@ -1754,7 +1755,7 @@ export const GetDiscoveryInfoRoute = createOpenApiRoute(getDiscoveryInfo, {
 export const RunSearchIndexerRoute = createOpenApiRoute(runSearchIndexer, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Search],
         summary: "Run search indexer",
         responses: {
             200: { description: "Indexer run response", ...contentJson(indexerStateDtoSchema) },
@@ -1768,7 +1769,7 @@ export const RunSearchIndexerRoute = createOpenApiRoute(runSearchIndexer, {
 export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
     auth: adminAuth,
     schema: {
-        tags: ["Publishing"],
+        tags: [OpenApiTags.Public],
         summary: "Publish homepage",
         // No request body — worker posts "{}" to Azure; PublishController has no [FromBody].
         responses: {
@@ -1782,7 +1783,7 @@ export const PublishHomepageRoute = createOpenApiRoute(publishHomepage, {
 export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule, {
     auth: adminAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Get Discovery UK schedule",
         responses: {
             200: { description: "Schedule", ...contentJson(discoveryScheduleResponseSchema) },
@@ -1795,7 +1796,7 @@ export const GetDiscoveryScheduleRoute = createOpenApiRoute(getDiscoverySchedule
 export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule, {
     auth: adminAuth,
     schema: {
-        tags: ["Discovery"],
+        tags: [OpenApiTags.Discovery],
         summary: "Update Discovery UK schedule",
         request: { body: jsonBody(discoveryScheduleUpdateRequestSchema) },
         responses: {
@@ -1810,7 +1811,7 @@ export const PutDiscoveryScheduleRoute = createOpenApiRoute(putDiscoverySchedule
 export const GetSupportedLanguagesRoute = createOpenApiRoute(getSupportedLanguages, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Get supported languages config",
         responses: {
             200: { description: "Supported languages", ...contentJson(supportedLanguagesResponseSchema) },
@@ -1823,7 +1824,7 @@ export const GetSupportedLanguagesRoute = createOpenApiRoute(getSupportedLanguag
 export const GetNeutralCulturesRoute = createOpenApiRoute(getNeutralCultures, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "List .NET neutral culture names/codes for supported-language Add validation",
         responses: {
             200: { description: "Neutral cultures", ...contentJson(neutralCulturesResponseSchema) },
@@ -1836,7 +1837,7 @@ export const GetNeutralCulturesRoute = createOpenApiRoute(getNeutralCultures, {
 export const PostSupportedLanguagesRoute = createOpenApiRoute(postSupportedLanguages, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Add one supported language by culture name",
         request: { body: jsonBody(supportedLanguageAddRequestSchema) },
         responses: {
@@ -1851,7 +1852,7 @@ export const PostSupportedLanguagesRoute = createOpenApiRoute(postSupportedLangu
 export const DeleteSupportedLanguagesRoute = createOpenApiRoute(deleteSupportedLanguages, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Remove one supported language by code",
         request: { params: z.object({ code: z.string().min(1) }) },
         responses: {
@@ -1866,7 +1867,7 @@ export const DeleteSupportedLanguagesRoute = createOpenApiRoute(deleteSupportedL
 export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute(getTitleCasingRulesByLanguage, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Get title casing rules for a language",
         request: { params: z.object({ language: z.string().min(1) }) },
         responses: {
@@ -1881,7 +1882,7 @@ export const GetTitleCasingRulesByLanguageRoute = createOpenApiRoute(getTitleCas
 export const PostTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(postTitleCasingRulesLowerCaseTerm, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Add one lower-case term for a language",
         request: {
             params: z.object({ language: z.string().min(1) }),
@@ -1899,7 +1900,7 @@ export const PostTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(postTit
 export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(deleteTitleCasingRulesLowerCaseTerm, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Remove one lower-case term for a language",
         request: {
             params: z.object({ language: z.string().min(1), term: z.string().min(1) })
@@ -1916,7 +1917,7 @@ export const DeleteTitleCasingRulesLowerCaseTermRoute = createOpenApiRoute(delet
 export const PutTitleCasingRulesKnownTermRoute = createOpenApiRoute(putTitleCasingRulesKnownTerm, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Add or replace one known term for a language (literal in the path)",
         request: {
             params: z.object({ language: z.string().min(1), literal: z.string().min(1) }),
@@ -1934,7 +1935,7 @@ export const PutTitleCasingRulesKnownTermRoute = createOpenApiRoute(putTitleCasi
 export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute(deleteTitleCasingRulesKnownTerm, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Remove one known term for a language by literal",
         request: {
             params: z.object({ language: z.string().min(1), literal: z.string().min(1) })
@@ -1951,7 +1952,7 @@ export const DeleteTitleCasingRulesKnownTermRoute = createOpenApiRoute(deleteTit
 export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(postTitleCasingRulesIgnoredSubject, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Add one ignored subject for a non-English language",
         request: {
             params: z.object({ language: z.string().min(1) }),
@@ -1969,7 +1970,7 @@ export const PostTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(postTi
 export const DeleteTitleCasingRulesIgnoredSubjectRoute = createOpenApiRoute(deleteTitleCasingRulesIgnoredSubject, {
     auth: adminAuth,
     schema: {
-        tags: ["Admin"],
+        tags: [OpenApiTags.Metadata],
         summary: "Remove one ignored subject for a non-English language",
         request: {
             params: z.object({ language: z.string().min(1), term: z.string().min(1) })
@@ -2005,7 +2006,7 @@ export const DeleteHeroCurationEpisodesRoute = createOpenApiRoute(deleteHeroCura
 export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
     auth: adminAuth,
     schema: {
-        tags: ["Podcasts"],
+        tags: [OpenApiTags.Podcasts],
         summary: "Rename podcast",
         request: { params: nameParam, body: jsonBody(podcastRenameRequestSchema) },
         responses: {
@@ -2019,7 +2020,7 @@ export const RenamePodcastRoute = createOpenApiRoute(renamePodcast, {
     }
 });
 
-function catalogueRenameSchema(tag: string, kind: string, root: string, children: string) {
+function catalogueRenameSchema(tag: OpenApiTag, kind: string, root: string, children: string) {
     return {
         tags: [tag],
         summary: `Rename ${kind}`,
@@ -2043,9 +2044,9 @@ function catalogueRenameSchema(tag: string, kind: string, root: string, children
     };
 }
 
-function catalogueIndexSchema(kind: string) {
+function catalogueIndexSchema(tag: OpenApiTag, kind: string) {
     return {
-        tags: ["Catalogue"],
+        tags: [tag],
         summary: `Index ${kind} now`,
         description:
             `Curate only, like \`POST /podcast/index/:name\`. \`identifier\` is the ${kind} guid or its route-form name ` +
@@ -2084,35 +2085,35 @@ function catalogueIndexSchema(kind: string) {
 
 export const IndexTvShowRoute = createOpenApiRoute(indexTvShow, {
     auth: curateAuth,
-    schema: catalogueIndexSchema("TV show")
+    schema: catalogueIndexSchema(OpenApiTags.TvShows, "TV show")
 });
 
 export const IndexNewsOrganisationRoute = createOpenApiRoute(indexNewsOrganisation, {
     auth: curateAuth,
-    schema: catalogueIndexSchema("news organisation")
+    schema: catalogueIndexSchema(OpenApiTags.NewsOrganisations, "news organisation")
 });
 
 export const RenameNewsOrganisationRoute = createOpenApiRoute(renameNewsOrganisation, {
     auth: adminAuth,
-    schema: catalogueRenameSchema("Catalogue", "news organisation", "news",
+    schema: catalogueRenameSchema(OpenApiTags.NewsOrganisations, "news organisation", "news",
         "copies the new name onto every report's `newsOrganisationName`, patches `seriesName` in search ")
 });
 
 export const RenameTvShowRoute = createOpenApiRoute(renameTvShow, {
     auth: adminAuth,
-    schema: catalogueRenameSchema("Catalogue", "TV show", "tv",
+    schema: catalogueRenameSchema(OpenApiTags.TvShows, "TV show", "tv",
         "copies the new name onto every episode's `tvShowName`, patches `seriesName` in search ")
 });
 
 export const RenameFilmRoute = createOpenApiRoute(renameFilm, {
     auth: adminAuth,
-    schema: catalogueRenameSchema("Catalogue", "film", "film", "patches the film's search `title` ")
+    schema: catalogueRenameSchema(OpenApiTags.Films, "film", "film", "patches the film's search `title` ")
 });
 
 export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {
     auth: adminAuth,
     schema: {
-        tags: ["Notifications"],
+        tags: [OpenApiTags.Notifications],
         summary: "Create push subscription",
         request: { body: jsonBody(pushSubscriptionRequestSchema) },
         responses: {
@@ -2125,7 +2126,7 @@ export const PushSubscriptionRoute = createOpenApiRoute(pushSubscription, {
 
 export const GetPageDetailsRoute = createOpenApiRoute(getPageDetails, {
     schema: {
-        tags: ["Public"],
+        tags: [OpenApiTags.Public],
         summary: "Get page details by podcast and episode, or for a news outlet / TV show hub",
         description:
             "`/pagedetails/{podcastName}/{episodeId}` for an episode. `/pagedetails/news/{name}` and `/pagedetails/tv/{name}` (second segment not a UUID or short id) return the hub: title = name, description = item count, image from the newest item. Caller: website server render of `/news/{name}` and `/tv/{name}` (website #530, `connectCatalogueHubSeo`).",
@@ -2148,7 +2149,7 @@ export const GetOgShareImageRoute = createOpenApiRoute(getOgShareImage, {
 export const AddBookmarkRoute = createOpenApiRoute(addBookmark, {
     auth: bookmarkAuth,
     schema: {
-        tags: ["Bookmarks"],
+        tags: [OpenApiTags.Bookmarks],
         summary: "Save bookmark by episode id",
         request: { params: episodeIdParam },
         responses: {
@@ -2162,7 +2163,7 @@ export const AddBookmarkRoute = createOpenApiRoute(addBookmark, {
 export const DeleteBookmarkRoute = createOpenApiRoute(deleteBookmark, {
     auth: bookmarkAuth,
     schema: {
-        tags: ["Bookmarks"],
+        tags: [OpenApiTags.Bookmarks],
         summary: "Delete bookmark by episode id",
         request: { params: episodeIdParam },
         responses: {
@@ -2176,7 +2177,7 @@ export const DeleteBookmarkRoute = createOpenApiRoute(deleteBookmark, {
 export const GetBookmarksRoute = createOpenApiRoute(getBookmarks, {
     auth: bookmarkAuth,
     schema: {
-        tags: ["Bookmarks"],
+        tags: [OpenApiTags.Bookmarks],
         summary: "List current user bookmarks",
         responses: {
             200: { description: "Bookmarks", ...contentJson(bookmarksListResponseSchema) },
@@ -2189,7 +2190,7 @@ export const GetBookmarksRoute = createOpenApiRoute(getBookmarks, {
 export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
     auth: signedInAuth,
     schema: {
-        tags: ["Episodes"],
+        tags: [OpenApiTags.Episodes],
         summary: "Get episode read model by id (any kind)",
         description: "Resolves a podcast episode, news report, TV episode or film by id; 404 when it or its parent is removed. The body is PublicEpisodeDto, including contentKind, parentId, parentName, slug and path, and imageRemoved when a curator removed the image.",
         request: { params: idParam },
@@ -2205,7 +2206,7 @@ export const PublicGetEpisodeRoute = createOpenApiRoute(publicGetEpisode, {
 export const GetLanguagesRoute = createOpenApiRoute(getLanguages, {
     auth: curateOrAdminAuth,
     schema: {
-        tags: ["Metadata"],
+        tags: [OpenApiTags.Metadata],
         summary: "List languages",
         responses: {
             200: { description: "Languages", ...contentJson(languagesResponseSchema) },
@@ -2217,7 +2218,7 @@ export const GetLanguagesRoute = createOpenApiRoute(getLanguages, {
 export const StreamingScrapeSurveyRoute = createOpenApiRoute(streamingScrapeSurvey, {
 	auth: submitOrCurateAuth,
 	schema: {
-		tags: ["Ops"],
+		tags: [OpenApiTags.Ops],
 		summary: "Streaming scrape survey (PoP-gated)",
 		description:
 			"Requires JWT submit or curate. Runs PoP preflight (cdn-cgi/trace) for each enabled CF leg; " +
