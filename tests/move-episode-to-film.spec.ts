@@ -1,7 +1,16 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("workers-og", () => ({
+	ImageResponse: class ImageResponse {}
+}));
+
 import { moveEpisodeToFilm } from "../src/moveEpisodeToFilm";
+import { MoveEpisodeToFilmRoute } from "../src/openapiRoutes";
+import {
+	episodeFilmMoveResponseSchema,
+	podcastEpisodeFilmMoveRequestSchema
+} from "../src/openapiSchemas";
+import { registerOpenApiRoutes } from "../src/registerOpenApiRoutes";
 import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
 const podcastId = "7d1b9c40-2f6e-4a8b-9c3d-1e2f3a4b5c6d";
@@ -198,10 +207,32 @@ describe("move episode to film", () => {
 
 describe("move episode to film route registration", () => {
 	it("registers openapi.post /episode/:podcastId/:episodeId/film with documented schemas", () => {
-		const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-		const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-		expect(index).toContain("openapi.post('/episode/:podcastId/:episodeId/film', MoveEpisodeToFilmRoute)");
-		expect(routes).toContain("jsonBody(episodeFilmMoveRequestSchema)");
-		expect(routes).toContain("contentJson(episodeFilmMoveResponseSchema)");
+		const registered = registerOpenApiRoutes({
+			get: () => undefined,
+			post: () => undefined,
+			put: () => undefined,
+			patch: () => undefined,
+			delete: () => undefined
+		});
+		expect(
+			registered.some(
+				(r) =>
+					r.method === "post" &&
+					r.path === "/episode/:podcastId/:episodeId/film" &&
+					r.route === MoveEpisodeToFilmRoute
+			)
+		).toBe(true);
+
+		type JsonContent = { content?: { "application/json"?: { schema?: unknown } } };
+		const request = MoveEpisodeToFilmRoute.openApiSchema.request as
+			| { body?: JsonContent }
+			| undefined;
+		const response202 = MoveEpisodeToFilmRoute.openApiSchema.responses?.[202] as
+			| JsonContent
+			| undefined;
+		expect(request?.body?.content?.["application/json"]?.schema).toBe(
+			podcastEpisodeFilmMoveRequestSchema
+		);
+		expect(response202?.content?.["application/json"]?.schema).toBe(episodeFilmMoveResponseSchema);
 	});
 });

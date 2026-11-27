@@ -63,6 +63,11 @@ function buildFullOpenApi() {
 /**
  * Runtime access for each published operation (Api #255 audit).
  * OpenAPI security / descriptions / 401·403 must match this map — not ID-token roles.
+ *
+ * Scope: locks OpenAPI document annotations and `route.authAnnotation` to this map.
+ * Handler-gate drift (e.g. a route switching from signed-in to hasPermission without
+ * updating createOpenApiRoute({ auth })) is out of scope here — cover that in
+ * auth-matrix / handler behavioural specs.
  */
 const runtimeAuthByOpenApiPath: Record<string, OpenApiAuthAnnotation> = {
 	"get /homepage": { kind: "public" },
