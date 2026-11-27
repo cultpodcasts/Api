@@ -1,7 +1,16 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("workers-og", () => ({
+	ImageResponse: class ImageResponse {}
+}));
+
 import { attachEpisodeYouTubeAlternate } from "../src/attachEpisodeYouTubeAlternate";
+import { AttachEpisodeYouTubeAlternateRoute } from "../src/openapiRoutes";
+import {
+	episodeYouTubeAlternateAttachRequestSchema,
+	episodeYouTubeAlternateAttachResponseSchema
+} from "../src/openapiSchemas";
+import { registerOpenApiRoutes } from "../src/registerOpenApiRoutes";
 import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
 const podcastId = "3c2b1a09-8f7e-4d6c-9b5a-4f3e2d1c0b9a";
@@ -112,10 +121,34 @@ describe("attach episode as an additional YouTube upload", () => {
 
 describe("attach episode as an additional YouTube upload route registration", () => {
 	it("registers openapi.post /episode/:podcastId/:episodeId/youtube-alternate with documented schemas", () => {
-		const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-		const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-		expect(index).toContain("openapi.post('/episode/:podcastId/:episodeId/youtube-alternate', AttachEpisodeYouTubeAlternateRoute)");
-		expect(routes).toContain("jsonBody(episodeYouTubeAlternateAttachRequestSchema)");
-		expect(routes).toContain("contentJson(episodeYouTubeAlternateAttachResponseSchema)");
+		const registered = registerOpenApiRoutes({
+			get: () => undefined,
+			post: () => undefined,
+			put: () => undefined,
+			patch: () => undefined,
+			delete: () => undefined
+		});
+		expect(
+			registered.some(
+				(r) =>
+					r.method === "post" &&
+					r.path === "/episode/:podcastId/:episodeId/youtube-alternate" &&
+					r.route === AttachEpisodeYouTubeAlternateRoute
+			)
+		).toBe(true);
+
+		type JsonContent = { content?: { "application/json"?: { schema?: unknown } } };
+		const request = AttachEpisodeYouTubeAlternateRoute.openApiSchema.request as
+			| { body?: JsonContent }
+			| undefined;
+		const response202 = AttachEpisodeYouTubeAlternateRoute.openApiSchema.responses?.[202] as
+			| JsonContent
+			| undefined;
+		expect(request?.body?.content?.["application/json"]?.schema).toBe(
+			episodeYouTubeAlternateAttachRequestSchema
+		);
+		expect(response202?.content?.["application/json"]?.schema).toBe(
+			episodeYouTubeAlternateAttachResponseSchema
+		);
 	});
 });

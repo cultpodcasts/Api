@@ -1,7 +1,16 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("workers-og", () => ({
+	ImageResponse: class ImageResponse {}
+}));
+
 import { moveEpisodeToTvShow } from "../src/moveEpisodeToTvShow";
+import { MoveEpisodeToTvShowRoute } from "../src/openapiRoutes";
+import {
+	episodeTvShowMoveRequestSchema,
+	episodeTvShowMoveResponseSchema
+} from "../src/openapiSchemas";
+import { registerOpenApiRoutes } from "../src/registerOpenApiRoutes";
 import { appWithPermissions, authJsonHeaders, testEnv } from "./honoTestApp";
 
 const podcastId = "7d1b9c40-2f6e-4a8b-9c3d-1e2f3a4b5c6d";
@@ -120,10 +129,30 @@ describe("move episode to TV show", () => {
 
 describe("move episode to TV show route registration", () => {
 	it("registers openapi.post /episode/:podcastId/:episodeId/tvshow with documented schemas", () => {
-		const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-		const routes = readFileSync(resolve(process.cwd(), "src/openapiRoutes.ts"), "utf8");
-		expect(index).toContain("openapi.post('/episode/:podcastId/:episodeId/tvshow', MoveEpisodeToTvShowRoute)");
-		expect(routes).toContain("jsonBody(episodeTvShowMoveRequestSchema)");
-		expect(routes).toContain("contentJson(episodeTvShowMoveResponseSchema)");
+		const registered = registerOpenApiRoutes({
+			get: () => undefined,
+			post: () => undefined,
+			put: () => undefined,
+			patch: () => undefined,
+			delete: () => undefined
+		});
+		expect(
+			registered.some(
+				(r) =>
+					r.method === "post" &&
+					r.path === "/episode/:podcastId/:episodeId/tvshow" &&
+					r.route === MoveEpisodeToTvShowRoute
+			)
+		).toBe(true);
+
+		type JsonContent = { content?: { "application/json"?: { schema?: unknown } } };
+		const request = MoveEpisodeToTvShowRoute.openApiSchema.request as
+			| { body?: JsonContent }
+			| undefined;
+		const response202 = MoveEpisodeToTvShowRoute.openApiSchema.responses?.[202] as
+			| JsonContent
+			| undefined;
+		expect(request?.body?.content?.["application/json"]?.schema).toBe(episodeTvShowMoveRequestSchema);
+		expect(response202?.content?.["application/json"]?.schema).toBe(episodeTvShowMoveResponseSchema);
 	});
 });
