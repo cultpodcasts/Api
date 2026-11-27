@@ -1,6 +1,7 @@
 import { OpenAPIRoute, OpenAPIRouteSchema, contentJson } from "chanfana";
 import { z } from "zod";
 import { Auth0Middleware } from "./Auth0Middleware";
+import { annotateOpenApiAuth, type OpenApiAuthAnnotation } from "./openapiAuth";
 import { ambiguousIdsSchema, errorSchema } from "./openapiSchemas";
 import { SEARCH_INDEX_WRITE_PERMISSION } from "./searchIndexWritePermission";
 
@@ -23,6 +24,8 @@ export type OpenApiAuth = {
 	 */
 	optional?: boolean;
 };
+
+export type { OpenApiAuthAnnotation };
 
 export const curateAuth: OpenApiAuth = { anyOf: ["curate"] };
 export const adminAuth: OpenApiAuth = { anyOf: ["admin"] };
@@ -72,6 +75,17 @@ function applyOpenApiAuth(schema: OpenAPIRouteSchema, auth: OpenApiAuth | boolea
 		if (!schema.description?.includes("Authentication is optional")) {
 			schema.description = schema.description ? `${note} ${schema.description}` : note;
 		}
+		const responses: NonNullable<OpenAPIRouteSchema["responses"]> = { ...(schema.responses ?? {}) };
+		responses[401] = {
+			description:
+				"Unauthorized — missing or invalid access token when the body names an attach target (podcastId/podcastName or parentKind/parentId/parentName)",
+			...contentJson(errorSchema)
+		};
+		responses[403] = {
+			description: "Forbidden — authenticated without `submit` or `curate` on an attach-target body",
+			...contentJson(errorSchema)
+		};
+		schema.responses = responses;
 		return;
 	}
 
@@ -142,10 +156,16 @@ export function createOpenApiRoute(handler: RouteHandler, options: RouteFactoryO
 	const schema = copyOpenApiSchema(options.schema ?? {});
 	applyOpenApiAuth(schema, options.auth);
 	const requiresAuth = Boolean(options.auth);
+	const openApiAuth = options.auth;
+	const authAnnotation = annotateOpenApiAuth(options.auth);
 
 	return class extends OpenAPIRoute {
 		static readonly openApiSchema: OpenAPIRouteSchema = schema;
 		static readonly requiresAuth = requiresAuth;
+		/** Raw `createOpenApiRoute` auth option (false/undefined = public). */
+		static readonly openApiAuth: OpenApiAuth | boolean | undefined = openApiAuth;
+		/** Compact public / signed-in / authorised classification for contract tests. */
+		static readonly authAnnotation: OpenApiAuthAnnotation = authAnnotation;
 		schema: OpenAPIRouteSchema = schema;
 
 		async handle(c: any): Promise<Response> {
