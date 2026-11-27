@@ -25,8 +25,21 @@ import {
 	submitUrlLookupResponseSchema,
 	submitUrlRequestSchema
 } from "../src/openapiSchemas";
-import { SearchRoute } from "../src/openapiRoutes";
+import {
+	CatalogueIdentityLookupRoute,
+	GetFilmRoute,
+	GetNewsOrganisationRoute,
+	GetNewsReportRoute,
+	GetTvShowRoute,
+	MoveEpisodeToFilmRoute,
+	MovePodcastEpisodesToNewsRoute,
+	PublishFilmRoute,
+	PublishHomepageRoute,
+	RunSearchIndexerRoute,
+	SearchRoute
+} from "../src/openapiRoutes";
 import { searchForwardedErrorSchema, searchUpstreamErrorSchema } from "../src/openapiSchemas";
+import { OPENAPI_TAG_ORDER, OpenApiTags, openApiTagDefinitions } from "../src/openapiTags";
 import { streamingMembershipShapeCases } from "./fixtures/streaming-submit-contract";
 
 describe("OpenAPI route contracts", () => {
@@ -188,7 +201,7 @@ describe("OpenAPI route contracts", () => {
 			appendHeroCurationEpisodesOpenApiSchema,
 			deleteHeroCurationEpisodesOpenApiSchema
 		]) {
-			expect(schema.tags).toEqual(["Hero curation"]);
+			expect(schema.tags).toEqual([OpenApiTags.Hero]);
 		}
 
 		expect(getHeroCurationOpenApiSchema.description).toMatch(/Query/);
@@ -231,5 +244,45 @@ describe("OpenAPI route contracts", () => {
 		expect(heroCurationAppendRequestSchema.shape.episodeIds.description).toMatch(/front/);
 		expect(heroCurationDeleteEpisodesRequestSchema.shape.episodeIds.description).toMatch(/ignored/);
 		expect(heroCurationResponseSchema.shape.updatedAt.description).toMatch(/compare-and-swap/);
+	});
+
+	it("places catalogue kinds, publishes and moves under the Api #254 tag set", () => {
+		expect(OPENAPI_TAG_ORDER).toEqual([
+			"Public",
+			"Search",
+			"Submission",
+			"Podcasts",
+			"Episodes",
+			"Films",
+			"TV shows",
+			"News organisations",
+			"News reports",
+			"People",
+			"Subjects",
+			"Discovery",
+			"Hero",
+			"Bookmarks",
+			"Notifications",
+			"Metadata",
+			"Ops"
+		]);
+		expect(openApiTagDefinitions.map((t) => t.name)).toEqual([...OPENAPI_TAG_ORDER]);
+		expect(new Set(OPENAPI_TAG_ORDER).has("Catalogue")).toBe(false);
+		expect(new Set(OPENAPI_TAG_ORDER).has("Admin")).toBe(false);
+		expect(new Set(OPENAPI_TAG_ORDER).has("Publishing")).toBe(false);
+		expect(new Set(OPENAPI_TAG_ORDER).has("Hero curation")).toBe(false);
+
+		expect(GetFilmRoute.openApiSchema.tags).toEqual([OpenApiTags.Films]);
+		expect(GetTvShowRoute.openApiSchema.tags).toEqual([OpenApiTags.TvShows]);
+		expect(GetNewsOrganisationRoute.openApiSchema.tags).toEqual([OpenApiTags.NewsOrganisations]);
+		expect(GetNewsReportRoute.openApiSchema.tags).toEqual([OpenApiTags.NewsReports]);
+		expect(PublishFilmRoute.openApiSchema.tags).toEqual([OpenApiTags.Films]);
+		expect(PublishHomepageRoute.openApiSchema.tags).toEqual([OpenApiTags.Public]);
+		expect(MoveEpisodeToFilmRoute.openApiSchema.tags).toEqual([OpenApiTags.Films]);
+		expect(MovePodcastEpisodesToNewsRoute.openApiSchema.tags).toEqual([OpenApiTags.NewsReports]);
+		expect(RunSearchIndexerRoute.openApiSchema.tags).toEqual([OpenApiTags.Search]);
+		expect(CatalogueIdentityLookupRoute.openApiSchema.tags).toEqual([OpenApiTags.Metadata]);
+		expect(SubmitRoute.openApiSchema.tags).toEqual([OpenApiTags.Submission]);
+		expect(GetPodcastByNameRoute.openApiSchema.tags).toEqual([OpenApiTags.Podcasts]);
 	});
 });
