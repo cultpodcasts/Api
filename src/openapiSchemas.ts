@@ -1307,6 +1307,14 @@ export const indexPodcastResponseSchema = z.object({
 	searchIndexerState: searchIndexerStateSchema.optional()
 });
 
+/** Api.Dtos.IndexPodcastBacklogPreviewResponse: the read model of the admin dry run of a backlog index (RPP #1433). */
+export const indexPodcastBacklogPreviewResponseSchema = z.object({
+	newEpisodeCount: z.number().int().nonnegative().describe(
+		"Episodes not yet in the catalogue that a backlog index would ingest (short-episode, catalogue-owned URL and elimination rules applied)."),
+	ignoredEpisodeCount: z.number().int().nonnegative().describe(
+		"How many of newEpisodeCount would be ingested as ignored (the podcast ignores all episodes).")
+});
+
 /** Api.Dtos.CatalogueIndexRejection with `reason: "indexingInProgress"`: 409 when a curator index is already running. */
 export const podcastIndexBusySchema = z.object({
 	reason: z.literal("indexingInProgress"),
