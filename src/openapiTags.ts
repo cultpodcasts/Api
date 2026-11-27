@@ -25,28 +25,10 @@ export const OpenApiTags = {
 
 export type OpenApiTag = (typeof OpenApiTags)[keyof typeof OpenApiTags];
 
-/** Document / Swagger display order. */
-export const OPENAPI_TAG_ORDER: readonly OpenApiTag[] = [
-	OpenApiTags.Public,
-	OpenApiTags.Search,
-	OpenApiTags.Submission,
-	OpenApiTags.Podcasts,
-	OpenApiTags.Episodes,
-	OpenApiTags.Films,
-	OpenApiTags.TvShows,
-	OpenApiTags.NewsOrganisations,
-	OpenApiTags.NewsReports,
-	OpenApiTags.People,
-	OpenApiTags.Subjects,
-	OpenApiTags.Discovery,
-	OpenApiTags.Hero,
-	OpenApiTags.Bookmarks,
-	OpenApiTags.Notifications,
-	OpenApiTags.Metadata,
-	OpenApiTags.Ops
-];
-
-/** Root OpenAPI `tags` array so clients see descriptions and stable order. */
+/**
+ * Root OpenAPI `tags` array — single ordered source for Swagger display order
+ * and document `tags`. `OPENAPI_TAG_ORDER` is derived from this list.
+ */
 export const openApiTagDefinitions: { name: OpenApiTag; description: string }[] = [
 	{ name: OpenApiTags.Public, description: "Homepage, page details, OG image, and other public reads" },
 	{ name: OpenApiTags.Search, description: "Episode search and D1 search-index administration" },
@@ -75,3 +57,6 @@ export const openApiTagDefinitions: { name: OpenApiTag; description: string }[] 
 	},
 	{ name: OpenApiTags.Ops, description: "Operational / gated tooling" }
 ];
+
+/** Document / Swagger display order — derived from `openApiTagDefinitions`. */
+export const OPENAPI_TAG_ORDER: readonly OpenApiTag[] = openApiTagDefinitions.map((t) => t.name);
