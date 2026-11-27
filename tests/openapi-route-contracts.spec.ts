@@ -21,13 +21,56 @@ import {
 	heroCurationDeleteEpisodesRequestSchema,
 	heroCurationResponseSchema,
 	heroCurationUpdateRequestSchema,
+	searchForwardedErrorSchema,
+	searchUpstreamErrorSchema,
 	submitUrlLookupQuerySchema,
 	submitUrlLookupResponseSchema,
 	submitUrlRequestSchema
 } from "../src/openapiSchemas";
+import { getOgShareImageOpenApiSchema } from "../src/ogShareImageOpenApi";
+import * as openapiRoutes from "../src/openapiRoutes";
 import { SearchRoute } from "../src/openapiRoutes";
-import { searchForwardedErrorSchema, searchUpstreamErrorSchema } from "../src/openapiSchemas";
+import * as openapiSubmitPodcastRoutes from "../src/openapiSubmitPodcastRoutes";
+import { OPENAPI_TAG_ORDER, OpenApiTags, openApiTagDefinitions } from "../src/openapiTags";
 import { streamingMembershipShapeCases } from "./fixtures/streaming-submit-contract";
+
+type OpenApiRouteExport = {
+	openApiSchema?: { tags?: readonly string[]; summary?: string };
+};
+
+function collectRouteTags(mod: Record<string, unknown>): { name: string; tags: readonly string[] }[] {
+	const collected: { name: string; tags: readonly string[] }[] = [];
+	for (const [name, value] of Object.entries(mod)) {
+		if (!name.endsWith("Route") || value == null || typeof value !== "function") {
+			continue;
+		}
+		const tags = (value as OpenApiRouteExport).openApiSchema?.tags;
+		if (tags == null) {
+			continue;
+		}
+		collected.push({ name, tags });
+	}
+	return collected;
+}
+
+/** Api #254: publish/move (and film-target attach) tags follow destination kind. */
+const PUBLISH_MOVE_DESTINATION_TAGS: Record<string, string> = {
+	PublishPodcastEpisodeRoute: OpenApiTags.Episodes,
+	PublishEpisodeRoute: OpenApiTags.Episodes,
+	PublishFilmRoute: OpenApiTags.Films,
+	PublishNewsReportRoute: OpenApiTags.NewsReports,
+	PublishTvShowEpisodeRoute: OpenApiTags.TvShows,
+	PublishHomepageRoute: OpenApiTags.Public,
+	MoveEpisodeToFilmRoute: OpenApiTags.Films,
+	MoveEpisodeToTvShowRoute: OpenApiTags.TvShows,
+	MoveEpisodeToNewsRoute: OpenApiTags.NewsReports,
+	MovePodcastEpisodesToNewsRoute: OpenApiTags.NewsReports,
+	MoveNewsReportToTvShowRoute: OpenApiTags.TvShows,
+	MoveNewsReportToFilmRoute: OpenApiTags.Films,
+	MoveNewsOrganisationReportsRoute: OpenApiTags.NewsOrganisations,
+	AttachEpisodeAsTrailerRoute: OpenApiTags.Films,
+	AttachEpisodeYouTubeAlternateRoute: OpenApiTags.Episodes
+};
 
 describe("OpenAPI route contracts", () => {
 	it("documents POST /search error statuses, the 502 envelope and Retry-After", () => {
@@ -188,7 +231,7 @@ describe("OpenAPI route contracts", () => {
 			appendHeroCurationEpisodesOpenApiSchema,
 			deleteHeroCurationEpisodesOpenApiSchema
 		]) {
-			expect(schema.tags).toEqual(["Hero curation"]);
+			expect(schema.tags).toEqual([OpenApiTags.Hero]);
 		}
 
 		expect(getHeroCurationOpenApiSchema.description).toMatch(/Query/);
@@ -231,5 +274,70 @@ describe("OpenAPI route contracts", () => {
 		expect(heroCurationAppendRequestSchema.shape.episodeIds.description).toMatch(/front/);
 		expect(heroCurationDeleteEpisodesRequestSchema.shape.episodeIds.description).toMatch(/ignored/);
 		expect(heroCurationResponseSchema.shape.updatedAt.description).toMatch(/compare-and-swap/);
+	});
+
+	it("places every route under the Api #254 tag set and locks publish/move destinations", () => {
+		expect(OPENAPI_TAG_ORDER).toEqual([
+			"Public",
+			"Search",
+			"Submission",
+			"Podcasts",
+			"Episodes",
+			"Films",
+			"TV shows",
+			"News organisations",
+			"News reports",
+			"People",
+			"Subjects",
+			"Discovery",
+			"Hero",
+			"Bookmarks",
+			"Notifications",
+			"Metadata",
+			"Ops"
+		]);
+		expect(OPENAPI_TAG_ORDER).toEqual(openApiTagDefinitions.map((t) => t.name));
+		expect([...Object.values(OpenApiTags)].sort()).toEqual([...OPENAPI_TAG_ORDER].sort());
+		const allowed = new Set(OPENAPI_TAG_ORDER);
+		for (const forbidden of ["Catalogue", "Admin", "Publishing", "Hero curation"]) {
+			expect(allowed.has(forbidden)).toBe(false);
+		}
+
+		const routeTagRows = [
+			...collectRouteTags(openapiRoutes as Record<string, unknown>),
+			...collectRouteTags(openapiSubmitPodcastRoutes as Record<string, unknown>)
+		];
+		expect(routeTagRows.length).toBeGreaterThan(50);
+
+		for (const { name, tags } of routeTagRows) {
+			expect(tags.length, name).toBeGreaterThan(0);
+			for (const tag of tags) {
+				expect(allowed.has(tag), `${name} tag "${tag}"`).toBe(true);
+			}
+		}
+
+		for (const schema of [
+			getHeroCurationOpenApiSchema,
+			putHeroCurationOpenApiSchema,
+			appendHeroCurationEpisodesOpenApiSchema,
+			deleteHeroCurationEpisodesOpenApiSchema,
+			getOgShareImageOpenApiSchema
+		]) {
+			expect(schema.tags?.length).toBeGreaterThan(0);
+			for (const tag of schema.tags ?? []) {
+				expect(allowed.has(tag), `schema tag "${tag}"`).toBe(true);
+			}
+		}
+
+		const byName = new Map(routeTagRows.map((row) => [row.name, row.tags]));
+		for (const [routeName, expectedTag] of Object.entries(PUBLISH_MOVE_DESTINATION_TAGS)) {
+			expect(byName.has(routeName), `missing ${routeName}`).toBe(true);
+			expect(byName.get(routeName), routeName).toEqual([expectedTag]);
+		}
+
+		const publishOrMoveExports = routeTagRows
+			.map((row) => row.name)
+			.filter((name) => /^(Publish|Move)/.test(name) || name.startsWith("AttachEpisode"));
+		expect(publishOrMoveExports.sort()).toEqual(Object.keys(PUBLISH_MOVE_DESTINATION_TAGS).sort());
 	});
 });

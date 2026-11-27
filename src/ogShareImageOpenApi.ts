@@ -1,9 +1,10 @@
 import type { OpenAPIRouteSchema } from "chanfana";
 import { ogImageQuerySchema } from "./openapiSchemas";
+import { OpenApiTags } from "./openapiTags";
 
 /** OpenAPI document for GET /og-image (used by the route factory at runtime). */
 export const getOgShareImageOpenApiSchema: OpenAPIRouteSchema = {
-	tags: ["Public"],
+	tags: [OpenApiTags.Public],
 	summary: "Composed OG / Twitter share card",
 	description:
 		"Public PNG used as `og:image` / `twitter:image` (same URL as page-details `image`). " +

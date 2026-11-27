@@ -25,6 +25,7 @@ import {
 	submitUrlPrepareRequestSchema,
 	submitUrlPrepareResponseSchema
 } from "./openapiSchemas";
+import { OpenApiTags } from "./openapiTags";
 import { submit } from "./submit";
 import { submitLookup } from "./submitLookup";
 import { submitPrepare } from "./submitPrepare";
@@ -32,7 +33,7 @@ import { submitPrepare } from "./submitPrepare";
 export const SubmitRoute = createOpenApiRoute(submit, {
 	auth: optionalSubmitAuth,
 	schema: {
-		tags: ["Submission"],
+		tags: [OpenApiTags.Submission],
 		summary: "Submit episode URL",
 		request: { body: jsonBody(submitUrlRequestSchema) },
 		responses: {
@@ -59,7 +60,7 @@ export const SubmitRoute = createOpenApiRoute(submit, {
 export const SubmitPrepareRoute = createOpenApiRoute(submitPrepare, {
 	auth: submitOrCurateAuth,
 	schema: {
-		tags: ["Submission"],
+		tags: [OpenApiTags.Submission],
 		summary: "Prepare streaming URL meta (HTML fetch + extract)",
 		description:
 			"Requires JWT `submit` or `curate`. Classifies via lookup. For BitChute the Worker POSTs " +
@@ -91,7 +92,7 @@ export const SubmitPrepareRoute = createOpenApiRoute(submitPrepare, {
 export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 	auth: submitOrCurateAuth,
 	schema: {
-		tags: ["Submission"],
+		tags: [OpenApiTags.Submission],
 		summary: "Look up series membership for an episode URL",
 		description:
 			"Cosmos URL membership plus streaming service classification. Requires JWT `submit` or `curate` permission (unsigned is 401). " +
@@ -132,7 +133,7 @@ export const SubmitLookupRoute = createOpenApiRoute(submitLookup, {
 export const GetPodcastByNameRoute = createOpenApiRoute(getPodcastByName, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Podcasts"],
+		tags: [OpenApiTags.Podcasts],
 		summary: "Get podcast by name",
 		request: { params: nameParam },
 		responses: {
@@ -148,7 +149,7 @@ export const GetPodcastByNameRoute = createOpenApiRoute(getPodcastByName, {
 export const GetPodcastByNameAndEpisodeIdRoute = createOpenApiRoute(getPodcastByNameAndEpisodeId, {
 	auth: curateAuth,
 	schema: {
-		tags: ["Podcasts"],
+		tags: [OpenApiTags.Podcasts],
 		summary: "Get podcast by name and episode id",
 		request: { params: podcastNameAndIdParam },
 		responses: {
