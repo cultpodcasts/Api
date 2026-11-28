@@ -29,6 +29,7 @@ import {
 	GetDiscoverySubmissionRoute,
 	GetDiscoverySubmissionsRoute,
 	GetEpisodeRoute,
+	CreateFilmRoute,
 	GetFilmRoute,
 	GetFlairsRoute,
 	GetHeroCurationRoute,
@@ -213,6 +214,7 @@ export function registerOpenApiRoutes(openapi: OpenApiRegistrar): RegisteredOpen
 	add("get", "/tvshowepisode/:id", GetTvShowEpisodeRoute);
 	add("patch", "/tvshowepisode/:id", UpdateTvShowEpisodeRoute);
 	add("delete", "/tvshowepisode/:id", DeleteTvShowEpisodeRoute);
+	add("post", "/film", CreateFilmRoute);
 	add("get", "/film/:identifier{.+}", GetFilmRoute);
 	add("patch", "/film/:id", UpdateFilmRoute);
 	add("delete", "/film/:id", DeleteFilmRoute);

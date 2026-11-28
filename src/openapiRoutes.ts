@@ -141,6 +141,8 @@ import {
 	episodeFilmMoveRequestSchema,
 	podcastEpisodeFilmMoveRequestSchema,
 	episodeFilmMoveResponseSchema,
+	filmCreateRequestSchema,
+	filmCreateResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
 	episodeYouTubeAlternateAttachRequestSchema,
@@ -236,6 +238,7 @@ import { updatePerson } from "./updatePerson";
 import { updatePodcast } from "./updatePodcast";
 import { getPodcastKindTransferStatus } from "./getPodcastKindTransferStatus";
 import { transferPodcastKind } from "./transferPodcastKind";
+import { createFilm } from "./createFilm";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
 import { attachEpisodeYouTubeAlternate } from "./attachEpisodeYouTubeAlternate";
@@ -1069,6 +1072,33 @@ export const GetPodcastKindTransferStatusRoute = createOpenApiRoute(getPodcastKi
             200: { description: "Job status", ...contentJson(podcastKindTransferJobStatusResponseSchema) },
             ...notFoundResponse,
             ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const CreateFilmRoute = createOpenApiRoute(createFilm, {
+    auth: curateAuth,
+    schema: {
+        tags: [OpenApiTags.Films],
+        summary: "Create an empty film from a TMDB / IMDb identity or a title",
+        description:
+            "Curator command (RPP #1413). Creates a film with no services, trailers or episode, so a trailer-only upload can then attach to it " +
+            "(`POST /episode/{podcastId}/{episodeId}/trailer` with `filmId`). Give `tmdbId` and/or `imdbId`, or a `title` to look up. " +
+            "Release, description, runtime, image, publisher and alternative titles are filled from the identity; a field sent is kept. " +
+            "Responds 202 `{ filmId, name }` (a command outcome: GET /film/:id for the film). " +
+            "A title with no ids that matches ambiguously returns 200 with `identityDecision` and nothing written; re-POST with `identityDecision` = select / continue / cancel (and `selectedIdentityKey`). " +
+            "`continue` is the opt-in to a film with no identity; without it a title that finds no identity is a 404. " +
+            "A film that already has the TMDB or IMDb id, or the name (case-insensitive), is a 409 carrying that film's `filmId`, so a re-send is safe and writes nothing. " +
+            "If the search push fails after the film is saved, the film is kept and the response is a 500 with `failureIndexing: true` and the `filmId`.",
+        request: { body: jsonBody(filmCreateRequestSchema) },
+        responses: {
+            202: { description: "Created (command outcome; GET /film/:id for the film)", ...contentJson(filmCreateResponseSchema) },
+            200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(filmCreateResponseSchema) },
+            400: { description: "No ids or title, a bad id, tmdbId and imdbId for different films, or a name containing '/'", ...contentJson(errorSchema) },
+            404: { description: "No TMDB movie for the id, or no identity found for a title without identityDecision continue", ...contentJson(errorSchema) },
+            409: { description: "A film already has the TMDB or IMDb id or the name (filmId names it; no filmId when the winner of a create race was deleted: send again)", ...contentJson(filmCreateResponseSchema) },
+            500: { description: "Server error; with failureIndexing true the film was created but the search push failed (filmId names the kept film)", ...contentJson(z.union([filmCreateResponseSchema, errorSchema])) },
             ...authResponses
         }
     }
