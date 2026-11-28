@@ -3,6 +3,7 @@ import {
 	AddBookmarkRoute,
 	AppendHeroCurationEpisodesRoute,
 	AttachEpisodeAsTrailerRoute,
+	AttachEpisodeAsTvShowTrailerRoute,
 	AttachEpisodeYouTubeAlternateRoute,
 	BanDiscoveryChannelRoute,
 	CatalogueIdentityLookupRoute,
@@ -198,6 +199,7 @@ export function registerOpenApiRoutes(openapi: OpenApiRegistrar): RegisteredOpen
 	add("delete", "/episode/:podcastId/:episodeId", DeletePodcastEpisodeRoute);
 	add("post", "/episode/:podcastId/:episodeId/film", MoveEpisodeToFilmRoute);
 	add("post", "/episode/:podcastId/:episodeId/trailer", AttachEpisodeAsTrailerRoute);
+	add("post", "/episode/:podcastId/:episodeId/tvshow-trailer", AttachEpisodeAsTvShowTrailerRoute);
 	add("post", "/episode/:podcastId/:episodeId/youtube-alternate", AttachEpisodeYouTubeAlternateRoute);
 	add("post", "/episode/:podcastId/:episodeId/tvshow", MoveEpisodeToTvShowRoute);
 	add("post", "/episode/:podcastId/:episodeId/news", MoveEpisodeToNewsRoute);
