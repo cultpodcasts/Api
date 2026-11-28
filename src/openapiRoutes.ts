@@ -145,6 +145,8 @@ import {
 	filmCreateResponseSchema,
 	episodeTrailerAttachRequestSchema,
 	episodeTrailerAttachResponseSchema,
+	episodeTvShowTrailerAttachRequestSchema,
+	episodeTvShowTrailerAttachResponseSchema,
 	episodeYouTubeAlternateAttachRequestSchema,
 	episodeYouTubeAlternateAttachResponseSchema,
 	episodeTvShowMoveRequestSchema,
@@ -178,6 +180,7 @@ import {
 	subjectsNameListResponseSchema,
 	tvShowChangeRequestSchema,
 	tvShowDtoSchema,
+	tvShowStaleTrailersConflictSchema,
 	tvShowEpisodeChangeRequestSchema,
 	tvShowEpisodeDtoSchema,
 	filmChangeRequestSchema,
@@ -241,6 +244,7 @@ import { transferPodcastKind } from "./transferPodcastKind";
 import { createFilm } from "./createFilm";
 import { moveEpisodeToFilm } from "./moveEpisodeToFilm";
 import { attachEpisodeAsTrailer } from "./attachEpisodeAsTrailer";
+import { attachEpisodeAsTvShowTrailer } from "./attachEpisodeAsTvShowTrailer";
 import { attachEpisodeYouTubeAlternate } from "./attachEpisodeYouTubeAlternate";
 import { moveEpisodeToTvShow } from "./moveEpisodeToTvShow";
 import { moveEpisodeToNews, movePodcastEpisodesToNews } from "./moveToNews";
@@ -356,14 +360,18 @@ export const UpdateTvShowRoute = createOpenApiRoute(updateTvShow, {
 			"plus `imdbId` / `tvdbId` / `tmdbId`. When the show has an IMDb or TMDB id, an empty publisher is filled from TMDB (first named network, else first named production company); a publisher sent or cleared in this PATCH is left alone (RedditPodcastPoster#1436). A change to `imdbId`, `tvdbId` or `tmdbId` is also copied onto every episode of the show as series identity ids (RedditPodcastPoster#1437). `searchTerms`, `language` and `removed` are also copied to every episode of the show (RPP #1053). " +
 			"Discovery flags (podcast wire names and rules, RPP #1135): `ignoreAllEpisodes`, `bypassShortEpisodeChecking`, `alwaysPromoteAsHero`, `skipEnrichingFromYouTube`, `minimumDuration` (`\"\"` clears), `releaseAuthority` / `unsetReleaseAuthority`, `youTubePublicationDelay` (`\"\"` clears) and the regexes (`titleRegex`, `descriptionRegex`, `episodeMatchRegex`, `episodeIncludeTitleRegex`). An explicit `false` is stored (it is not the same as omitting the field). TV shows have no flag defaults. " +
 			"`removed` cascades like a podcast removal: each episode's `parentRemoved` is set / cleared (its own `removed` is untouched) " +
-			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run.",
+			"and on removal every episode's search document is deleted; restored episodes are re-added by the next indexer run. " +
+			"`trailers` (RPP #1412) is the keep-list of the show's trailers in display order, each `{ id, title? }` with an optional rename; omitted trailers are removed and `[]` removes all. " +
+			"Send `expectedTrailerIds` (the trailer ids the client saw) with it: when the show holds a trailer the client did not list, the PATCH is a 409 with `unexpectedTrailerIds` and nothing is saved.",
 		request: { params: idParam, body: jsonBody(tvShowChangeRequestSchema) },
 		responses: {
 			202: { description: "TV show updated (empty body)" },
-			400: { description: "Invalid URL", ...contentJson(errorSchema) },
+			400: { description: "Invalid URL, or a `trailers` id the show does not have or that is repeated", ...contentJson(errorSchema) },
 			409: {
-				description: "A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast; `ids` names the owner(s). Nothing applied",
-				...contentJson(serviceIdConflictSchema)
+				description:
+					"A `youTubeChannelId`, `spotifyId` or `appleId` is already owned by another news organisation / TV show or by a podcast (`ids` names the owner(s)), " +
+					"or the show holds a trailer that was not in `expectedTrailerIds` (`unexpectedTrailerIds`). Nothing applied",
+				...contentJson(z.union([serviceIdConflictSchema, tvShowStaleTrailersConflictSchema]))
 			},
 			...notFoundResponse,
 			500: {
@@ -1122,6 +1130,35 @@ export const MoveEpisodeToFilmRoute = createOpenApiRoute(moveEpisodeToFilm, {
             200: { description: "Identity decision required or cancelled (nothing written)", ...contentJson(episodeFilmMoveResponseSchema) },
             400: { description: "Title contains '/', or the episode is removed; with filmId also a removed film, the episode's own id, or an episode with no links", ...contentJson(errorSchema) },
             409: { description: "Another film already has the name; with filmId, the film already has a different Spotify, Apple or other non-YouTube link for one of the episode's services (filmId names it)", ...contentJson(episodeFilmMoveResponseSchema) },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const AttachEpisodeAsTvShowTrailerRoute = createOpenApiRoute(attachEpisodeAsTvShowTrailer, {
+    auth: curateAuth,
+    schema: {
+        tags: [OpenApiTags.TvShows],
+        summary: "Attach one podcast episode to a TV show as a trailer (optionally creating the show)",
+        description:
+            "Curator command (RPP #1412). Adds a trailer (id = episode guid) to the TV show, deletes the episode's search document, then deletes the episode row. " +
+            "TV shows have no search document, so nothing else is pushed. The source podcast is kept. The episode's short link is pointed at /tv/{name}. " +
+            "Body is `tvShowId`, or `createShow` with `tvShowName` (and optional `publisher`); giving both is a 400. " +
+            "A failed search step keeps the episode row (`failureIndexing`); re-sending resumes without adding the trailer twice. " +
+            "With `createShow`, the trailer goes to the show with that name (case-insensitive); when no show has it, one is created first holding the trailer. " +
+            "Every episode check runs before the show is created. The 202 body is a command outcome: GET /tvshow/{id} for the show.",
+        request: { params: podcastIdAndEpisodeParam, body: jsonBody(episodeTvShowTrailerAttachRequestSchema) },
+        responses: {
+            202: { description: "Attached (command outcome; GET /tvshow/:id for the show). showCreated is true when createShow created it.", ...contentJson(episodeTvShowTrailerAttachResponseSchema) },
+            400: { description: "Missing tvShowId (or tvShowName with createShow), both tvShowId and createShow, an invalid show name, removed episode or show, or the episode has no link", ...contentJson(errorSchema) },
+            409: {
+                description:
+                    "The episode is already a trailer of another show, or another attach of it is in progress (body tvShowId is that show; re-send to it to resume an interrupted attach), " +
+                    "several shows have the name, or the episode id is already a TV episode or a film.",
+                ...contentJson(episodeTvShowTrailerAttachResponseSchema)
+            },
             ...notFoundResponse,
             ...serverErrorResponse,
             ...authResponses

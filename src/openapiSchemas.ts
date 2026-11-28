@@ -1479,6 +1479,32 @@ export const episodeTrailerAttachResponseSchema = z.object({
 		.describe("createFilm only: true on 200 when the curator cancelled the identity prompt; nothing was written.")
 });
 
+/** EpisodeTvShowTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTvShowTrailerAttachRequest (#1412). */
+export const episodeTvShowTrailerAttachRequestSchema = z.object({
+	tvShowId: z.string().uuid().optional().nullable()
+		.describe("The existing TV show that takes the episode as a trailer. Omit when createShow is true."),
+	title: z.string().optional().nullable().describe("Trailer title. Blank or missing keeps the episode title."),
+	createShow: z.boolean().optional().nullable()
+		.describe("With tvShowName instead of tvShowId: attach to the show with that name (case-insensitive), creating it when no show has it."),
+	tvShowName: z.string().optional().nullable().describe("Show name used with createShow. Must not contain '/'."),
+	publisher: z.string().optional().nullable().describe("Publisher of a show this attach creates. Only valid with createShow.")
+}).refine(
+	(body) => body.createShow === true
+		? body.tvShowId == null && (body.tvShowName ?? "").trim().length > 0
+		: body.tvShowId != null,
+	"Give tvShowId, or createShow with tvShowName (not both)."
+);
+
+/** EpisodeTvShowTrailerAttachResponse — command outcome (not the TV show read model). GET /tvshow/:id for the show. */
+export const episodeTvShowTrailerAttachResponseSchema = z.object({
+	tvShowId: z.string().uuid().optional().nullable()
+		.describe("The show that now holds the trailer. On 409, the show that already holds (or has claimed) the trailer."),
+	tvShowName: z.string().optional().nullable().describe("Show name; the /tv/{name} slug."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional(),
+	showCreated: z.boolean().optional().describe("True when createShow created the show on this call.")
+});
+
 /** Api.Dtos.CatalogueIdentityIdsBody */
 export const catalogueIdentityIdsBodySchema = z.object({
 	imdbId: z.string().nullable().optional(),
@@ -2151,6 +2177,28 @@ const serviceIdsDtoShape = {
 	...catalogueParentFlagsDtoShape
 };
 
+/** Api.Dtos.TvShowTrailerDto: same shape as FilmTrailerDto; `id` is the episode the trailer was attached from; `duration` is `h:mm:ss`. */
+export const tvShowTrailerDtoSchema = z.object({
+	id: z.string().uuid(),
+	title: z.string(),
+	url: z.string().url(),
+	image: z.string().url().optional().nullable(),
+	release: z.string().optional().nullable().describe("When the trailer was published (UTC, ISO 8601)."),
+	duration: z.string()
+});
+
+/** Api.Dtos.TvShowTrailerChangeRequest: a trailer to keep, with an optional new title (blank keeps it). */
+export const tvShowTrailerChangeSchema = z.object({
+	id: z.string().uuid(),
+	title: z.string().optional().nullable()
+});
+
+/** PATCH /tvshow 409: the keep-list did not list a trailer that is stored. Nothing was saved. */
+export const tvShowStaleTrailersConflictSchema = z.object({
+	message: z.string().optional(),
+	unexpectedTrailerIds: z.array(z.string().uuid()).optional()
+});
+
 /** Api.Dtos.TvShowDto: publisher fields (RPP #1053) + canonical ids + service ids. */
 export const tvShowDtoSchema = z.object({
 	id: z.string().uuid(),
@@ -2160,6 +2208,8 @@ export const tvShowDtoSchema = z.object({
 	tvdb: z.string().url().optional().nullable(),
 	tvdbId: z.number().int().optional().nullable(),
 	tmdbId: z.number().int().optional().nullable(),
+	trailers: z.array(tvShowTrailerDtoSchema).optional().nullable()
+		.describe("Trailers attached from podcast episodes, in display order (RPP #1412). Omitted when the show has none."),
 	...optionalShape(publisherFieldsDtoExtras),
 	...serviceIdsDtoShape
 });
@@ -2189,6 +2239,10 @@ export const tvShowChangeRequestSchema = z.object({
 	imdbId: z.string().optional().nullable().describe("IMDb title id: `tt` + 7–10 digits. `\"\"` clears."),
 	tvdbId: z.number().int().optional().nullable().describe("TheTVDB series id. `0` clears; negative is a 400."),
 	tmdbId: z.number().int().optional().nullable().describe("TMDB series id. `0` clears; negative is a 400."),
+	trailers: z.array(tvShowTrailerChangeSchema).optional().nullable()
+		.describe("The trailers to keep, in display order, with optional rename. Omitted trailers are removed; [] removes all. Unknown or repeated id is a 400. Trailers are added by POST /episode/{podcastId}/{episodeId}/tvshow-trailer. Send expectedTrailerIds with this field."),
+	expectedTrailerIds: z.array(z.string().uuid()).optional().nullable()
+		.describe("Trailer ids the client last saw. When trailers is sent, a stored trailer whose id is not in this list is a 409 and nothing is saved. Omitted or empty means the client listed no trailer ids."),
 	...publisherFieldsChangeShape,
 	...serviceIdsChangeShape
 });
