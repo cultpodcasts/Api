@@ -69,6 +69,7 @@ const PUBLISH_MOVE_DESTINATION_TAGS: Record<string, string> = {
 	MoveNewsReportToFilmRoute: OpenApiTags.Films,
 	MoveNewsOrganisationReportsRoute: OpenApiTags.NewsOrganisations,
 	AttachEpisodeAsTrailerRoute: OpenApiTags.Films,
+	AttachEpisodeAsTvShowTrailerRoute: OpenApiTags.TvShows,
 	AttachEpisodeYouTubeAlternateRoute: OpenApiTags.Episodes
 };
 

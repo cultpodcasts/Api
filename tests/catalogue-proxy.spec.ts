@@ -307,6 +307,31 @@ describe("catalogue Azure proxies", () => {
 		}
 	});
 
+	it("PATCH /tvshow/:id forwards trailers + expectedTrailerIds and the stale-trailer 409 body (RPP #1412)", async () => {
+		const trailerId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const attachedId = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
+		const payload = {
+			trailers: [{ id: trailerId, title: "Synthetic Teaser" }],
+			expectedTrailerIds: [trailerId]
+		};
+		const conflict = {
+			message: "The show's trailers changed after this edit was loaded.",
+			unexpectedTrailerIds: [attachedId]
+		};
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify(conflict), { status: 409 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const app = appFor("/tvshow/:id", "patch", updateTvShow, ["curate"]);
+		const resp = await app.request(
+			`/tvshow/${id}`,
+			{ method: "PATCH", headers: authJsonHeaders, body: JSON.stringify(payload) },
+			catalogueEnv()
+		);
+		expect(resp.status).toBe(409);
+		expect(await resp.json()).toEqual(conflict);
+		const [, init] = fetchMock.mock.calls[0] as unknown as [URL | string, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual(payload);
+	});
+
 	it("PATCH /film/:id forwards expectedTrailerIds and the stale-trailer 409 body", async () => {
 		const trailerId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 		const attachedId = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
@@ -408,8 +433,16 @@ describe("catalogue OpenAPI contracts", () => {
 	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, the film stale-trailer 409, and the TV-episode additional-YouTube 409", () => {
 		const responses = UpdateTvShowRoute.openApiSchema.responses;
 		const conflict = responses?.[409] as { description?: string; content?: { "application/json"?: { schema?: unknown } } } | undefined;
-		expect(conflict?.content?.["application/json"]?.schema).toBe(serviceIdConflictSchema);
+		const conflictSchema = conflict?.content?.["application/json"]?.schema as
+			| { safeParse(value: unknown): { success: boolean } }
+			| undefined;
+		const serviceIdConflict = { message: "spotifyId is already used", ids: [ambiguousIds[1]] };
+		const staleTrailers = { message: "stale", unexpectedTrailerIds: ["6ba7b811-9dad-11d1-80b4-00c04fd430c8"] };
+		expect(serviceIdConflictSchema.safeParse(serviceIdConflict).success).toBe(true);
+		expect(conflictSchema?.safeParse(serviceIdConflict).success).toBe(true);
+		expect(conflictSchema?.safeParse(staleTrailers).success).toBe(true);
 		expect(conflict?.description).toMatch(/spotifyId/);
+		expect(conflict?.description).toMatch(/expectedTrailerIds/);
 		expect(responses?.[500]?.description).toMatch(/retry/i);
 		const filmConflict = UpdateFilmRoute.openApiSchema.responses?.[409] as { description?: string } | undefined;
 		expect(filmConflict?.description).toMatch(/expectedTrailerIds/);

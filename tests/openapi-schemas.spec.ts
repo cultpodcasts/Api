@@ -1335,6 +1335,33 @@ describe("openapi Zod schemas", () => {
 		expect(episode.tvShowId).toBe("550e8400-e29b-41d4-a716-446655440000");
 	});
 
+	it("parses TV show trailers on the TV show DTO and the PATCH keep-list with expectedTrailerIds (synthetic, RPP #1412)", () => {
+		const trailerId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+		const show = tvShowDtoSchema.parse({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			name: "Synthetic Show Title",
+			trailers: [{
+				id: trailerId,
+				title: "Synthetic Teaser",
+				url: "https://www.youtube.com/watch?v=synthetic01",
+				release: "2026-01-02T03:04:05Z",
+				duration: "0:02:11"
+			}]
+		});
+		expect(show.trailers?.[0]?.id).toBe(trailerId);
+		expect(tvShowDtoSchema.parse({ id: "550e8400-e29b-41d4-a716-446655440000", name: "Synthetic Show Title" }).trailers).toBeUndefined();
+
+		const change = tvShowChangeRequestSchema.parse({
+			trailers: [{ id: trailerId, title: "Synthetic Renamed Teaser" }],
+			expectedTrailerIds: [trailerId]
+		});
+		expect(change.trailers).toEqual([{ id: trailerId, title: "Synthetic Renamed Teaser" }]);
+		expect(change.expectedTrailerIds).toEqual([trailerId]);
+		expect(tvShowChangeRequestSchema.parse({ trailers: [] }).trailers).toEqual([]);
+		expect(() => tvShowChangeRequestSchema.parse({ trailers: [{ id: "not-a-guid" }] })).toThrow();
+		expect(() => tvShowChangeRequestSchema.parse({ expectedTrailerIds: ["not-a-guid"] })).toThrow();
+	});
+
 	it("parses film trailers, ids and links on the film DTO, PATCH body and search hit (synthetic)", () => {
 		const trailerId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 		const film = filmDtoSchema.parse({

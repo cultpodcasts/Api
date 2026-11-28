@@ -15,6 +15,7 @@ import { putHeroCurationOpenApiSchema } from "../src/heroCurationOpenApi";
 import {
 	AddBookmarkRoute,
 	AttachEpisodeAsTrailerRoute,
+	AttachEpisodeAsTvShowTrailerRoute,
 	CreatePersonRoute,
 	DeletePodcastEpisodeRoute,
 	GetDiscoveryScheduleRoute,
@@ -225,6 +226,7 @@ const curatePaths = [
 	"post /tvshowepisode/{id}/publish",
 	"post /episode/{podcastId}/{episodeId}/film",
 	"post /episode/{podcastId}/{episodeId}/trailer",
+	"post /episode/{podcastId}/{episodeId}/tvshow-trailer",
 	"post /episode/{podcastId}/{episodeId}/youtube-alternate",
 	"post /episode/{podcastId}/{episodeId}/tvshow",
 	"post /episode/{podcastId}/{episodeId}/news",
@@ -593,6 +595,12 @@ describe("OpenAPI auth and response contracts", () => {
 		expect(GetDiscoveryScheduleRoute.authAnnotation).toEqual({
 			kind: "authorised",
 			anyOf: ["admin"],
+			claims: ["permissions", "scope"],
+			unauthenticatedStatus: 401
+		});
+		expect(AttachEpisodeAsTvShowTrailerRoute.authAnnotation).toEqual({
+			kind: "authorised",
+			anyOf: ["curate"],
 			claims: ["permissions", "scope"],
 			unauthenticatedStatus: 401
 		});
