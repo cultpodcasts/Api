@@ -81,7 +81,7 @@ import { getSubjects } from "./getSubjects";
 import { homepage } from "./homepage";
 import { homepageSsr } from "./homepageSsr";
 import { searchSuggestions } from "./searchSuggestions";
-import { indexPodcastBacklogByName, indexPodcastByName } from "./indexPodcastByName";
+import { indexPodcastBacklogByName, indexPodcastByName, previewPodcastBacklogByName } from "./indexPodcastByName";
 import { indexNewsOrganisation, indexTvShow } from "./indexCatalogueParent";
 import {
 	bookmarksListResponseSchema,
@@ -123,6 +123,7 @@ import {
 	homepageResponseSchema,
 	preProcessedHomepageResponseSchema,
 	searchSuggestionsResponseSchema,
+	indexPodcastBacklogPreviewResponseSchema,
 	indexPodcastResponseSchema,
 	podcastIndexBusySchema,
 	indexerStateDtoSchema,
@@ -1368,12 +1369,12 @@ export const IndexPodcastByNameRoute = createOpenApiRoute(indexPodcastByName, {
 });
 
 export const IndexPodcastBacklogByNameRoute = createOpenApiRoute(indexPodcastBacklogByName, {
-    auth: curateAuth,
+    auth: adminAuth,
     schema: {
         tags: [OpenApiTags.Podcasts],
         summary: "Reindex podcast by name (backlog / cold-start)",
         description:
-            "Curate only. Proxies to Azure `POST /api/podcast/index/{name}/backlog` so Azure clears the two-day hub Index lookback " +
+            "Admin only (a full walk spends provider quota; RPP #1433). Proxies to Azure `POST /api/podcast/index/{name}/backlog` so Azure clears the two-day hub Index lookback " +
             "and walks the full catalogue (RPP #1328 / #1310; Api #245). " +
             "Default short lookback remains `POST /podcast/index/{name}`. " +
             "409 means indexing is already running; 504 means the on-demand time budget cut the walk off (TimedOut).",
@@ -1389,6 +1390,33 @@ export const IndexPodcastBacklogByNameRoute = createOpenApiRoute(indexPodcastBac
             },
             504: {
                 description: "The on-demand time budget cut the index off (`TimedOut`). Not a fault: try again later",
+                ...contentJson(catalogueIndexTimedOutSchema)
+            },
+            ...notFoundResponse,
+            ...serverErrorResponse,
+            ...authResponses
+        }
+    }
+});
+
+export const PreviewPodcastBacklogByNameRoute = createOpenApiRoute(previewPodcastBacklogByName, {
+    auth: adminAuth,
+    schema: {
+        tags: [OpenApiTags.Podcasts],
+        summary: "Preview a podcast backlog index (episode count)",
+        description:
+            "Admin only. A query: proxies to Azure `GET /api/podcast/index/{name}/backlog/preview`, which counts the episodes " +
+            "`POST /podcast/index/{name}/backlog` would ingest (short-episode, catalogue-owned URL and elimination rules applied) " +
+            "without saving anything or taking an index lease. Enrichment is not run, so the count is an estimate. " +
+            "504 means the on-demand time budget cut the dry run off (TimedOut). Never cached (RPP #1433).",
+        request: {
+            params: nameParam
+        },
+        responses: {
+            200: { description: "Dry-run counts", ...contentJson(indexPodcastBacklogPreviewResponseSchema) },
+            400: { description: "The podcast would not be indexed (removed or not auto-indexed)", ...contentJson(indexPodcastResponseSchema) },
+            504: {
+                description: "The on-demand time budget cut the dry run off (`TimedOut`). Not a fault: try again later",
                 ...contentJson(catalogueIndexTimedOutSchema)
             },
             ...notFoundResponse,

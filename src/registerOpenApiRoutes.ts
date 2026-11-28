@@ -57,6 +57,7 @@ import {
 	IndexNewsOrganisationRoute,
 	IndexPodcastBacklogByNameRoute,
 	IndexPodcastByNameRoute,
+	PreviewPodcastBacklogByNameRoute,
 	IndexTvShowRoute,
 	MoveEpisodeToFilmRoute,
 	MoveEpisodeToNewsRoute,
@@ -233,6 +234,7 @@ export function registerOpenApiRoutes(openapi: OpenApiRegistrar): RegisteredOpen
 	add("delete", "/newsreport/:id", DeleteNewsReportRoute);
 	add("post", "/newsreport/:id/tvshow", MoveNewsReportToTvShowRoute);
 	add("post", "/newsreport/:id/film", MoveNewsReportToFilmRoute);
+	add("get", "/podcast/index/:name/backlog/preview", PreviewPodcastBacklogByNameRoute);
 	add("post", "/podcast/index/:name/backlog", IndexPodcastBacklogByNameRoute);
 	add("post", "/podcast/index/:name", IndexPodcastByNameRoute);
 	add("get", "/subject/:name", GetSubjectByNameRoute);

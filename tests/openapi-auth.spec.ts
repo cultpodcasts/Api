@@ -253,7 +253,6 @@ const curatePaths = [
 	"patch /newsreport/{id}",
 	"post /newsreport/{id}/tvshow",
 	"post /newsreport/{id}/film",
-	"post /podcast/index/{name}/backlog",
 	"post /podcast/index/{name}",
 	"get /subject/{name}",
 	"patch /subject/{id}",
@@ -299,7 +298,9 @@ const adminPaths = [
 	"post /newsorganisation/name/{identifier}{.+}",
 	"post /tvshow/name/{identifier}{.+}",
 	"post /film/name/{identifier}{.+}",
-	"post /pushsubscription"
+	"post /pushsubscription",
+	"get /podcast/index/{name}/backlog/preview",
+	"post /podcast/index/{name}/backlog"
 ] as const;
 
 for (const key of curatePaths) {
