@@ -53,11 +53,12 @@ function collectRouteTags(mod: Record<string, unknown>): { name: string; tags: r
 	return collected;
 }
 
-/** Api #254: publish/move (and film-target attach) tags follow destination kind. */
+/** Api #254: publish/move (and film-target attach / create-film) tags follow destination kind. */
 const PUBLISH_MOVE_DESTINATION_TAGS: Record<string, string> = {
 	PublishPodcastEpisodeRoute: OpenApiTags.Episodes,
 	PublishEpisodeRoute: OpenApiTags.Episodes,
 	PublishFilmRoute: OpenApiTags.Films,
+	CreateFilmRoute: OpenApiTags.Films,
 	PublishNewsReportRoute: OpenApiTags.NewsReports,
 	PublishTvShowEpisodeRoute: OpenApiTags.TvShows,
 	PublishHomepageRoute: OpenApiTags.Public,
@@ -337,7 +338,7 @@ describe("OpenAPI route contracts", () => {
 
 		const publishOrMoveExports = routeTagRows
 			.map((row) => row.name)
-			.filter((name) => /^(Publish|Move)/.test(name) || name.startsWith("AttachEpisode"));
+			.filter((name) => /^(Publish|Move|CreateFilm)/.test(name) || name.startsWith("AttachEpisode"));
 		expect(publishOrMoveExports.sort()).toEqual(Object.keys(PUBLISH_MOVE_DESTINATION_TAGS).sort());
 	});
 });

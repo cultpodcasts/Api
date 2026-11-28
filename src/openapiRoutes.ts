@@ -1098,7 +1098,7 @@ export const CreateFilmRoute = createOpenApiRoute(createFilm, {
             400: { description: "No ids or title, a bad id, tmdbId and imdbId for different films, or a name containing '/'", ...contentJson(errorSchema) },
             404: { description: "No TMDB movie for the id, or no identity found for a title without identityDecision continue", ...contentJson(errorSchema) },
             409: { description: "A film already has the TMDB or IMDb id or the name (filmId names it; no filmId when the winner of a create race was deleted: send again)", ...contentJson(filmCreateResponseSchema) },
-            500: { description: "Server error; with failureIndexing true the film was created but the search push failed (filmId names the kept film)", ...contentJson(z.union([filmCreateResponseSchema, errorSchema])) },
+            500: { description: "Server error: `error` carries the message; with `failureIndexing: true` the film was created but the search push failed (`filmId` names the kept film)", ...contentJson(filmCreateResponseSchema) },
             ...authResponses
         }
     }

@@ -218,10 +218,10 @@ describe("create film schemas and route registration", () => {
 		const schemaOf = (status: number) => (responses[status] as JsonContent | undefined)?.content?.["application/json"]?.schema;
 
 		expect(request?.body?.content?.["application/json"]?.schema).toBe(filmCreateRequestSchema);
-		for (const status of [200, 202, 409]) {
+		for (const status of [200, 202, 409, 500]) {
 			expect(schemaOf(status), `status ${status}`).toBe(filmCreateResponseSchema);
 		}
-		for (const status of [400, 404, 500]) {
+		for (const status of [400, 404]) {
 			expect(responses[status], `status ${status}`).toBeDefined();
 		}
 	});
