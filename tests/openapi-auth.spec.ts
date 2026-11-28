@@ -224,6 +224,7 @@ const curatePaths = [
 	"post /film/{id}/publish",
 	"post /newsreport/{id}/publish",
 	"post /tvshowepisode/{id}/publish",
+	"post /film",
 	"post /episode/{podcastId}/{episodeId}/film",
 	"post /episode/{podcastId}/{episodeId}/trailer",
 	"post /episode/{podcastId}/{episodeId}/tvshow-trailer",

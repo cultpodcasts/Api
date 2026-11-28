@@ -1411,6 +1411,42 @@ export const episodeFilmMoveResponseSchema = z.object({
 		.describe("Move of a news report only (POST /newsreport/:id/tvshow or /film): the source news organisation when the move took its last report, so the client can offer to retire it (PATCH /newsorganisation/:id with removed: true). Omitted when reports remain, the organisation is already removed or missing, the count failed, or on a re-send of a completed move.")
 });
 
+/**
+ * FilmCreateRequest — RedditPodcastPoster Api.Dtos.FilmCreateRequest (POST /film, RPP #1413). Every field is optional
+ * here; Azure refuses a body with no ids and no title (400) and validates the id formats.
+ */
+export const filmCreateRequestSchema = z.object({
+	tmdbId: z.number().int().nullable().optional()
+		.describe("TMDB movie id. A film that already has it is a 409 carrying that film's id, before any TMDB call."),
+	imdbId: z.string().nullable().optional()
+		.describe("IMDb title id: `tt` then digits. With tmdbId, both must identify the same TMDB movie (otherwise 400)."),
+	title: z.string().nullable().optional()
+		.describe("The film name. With ids it overrides the identity title; with no ids it is the title to look up. Must not contain '/'."),
+	publisher: z.string().nullable().optional().describe("Overrides the identity's publisher."),
+	identityDecision: z.enum(["select", "continue", "cancel"]).nullable().optional()
+		.describe("Answer after an ambiguous IMDb/TMDB prompt for a title-only request (same as Move to film). `continue` creates a film with no identity."),
+	selectedIdentityKey: z.string().nullable().optional()
+		.describe("Candidate key when identityDecision is select (e.g. tmdb:123).")
+});
+
+/**
+ * FilmCreateResponse — RedditPodcastPoster Api.Dtos.FilmCreateResponse. Command outcome (not the film read model);
+ * GET /film/:id for the film. 202 carries filmId + name; 200 carries identityDecision or cancelled; 409 carries the existing
+ * film's filmId (absent when the winner of a create race was deleted: send again); 500 carries failureIndexing + filmId.
+ */
+export const filmCreateResponseSchema = z.object({
+	filmId: z.string().uuid().optional().nullable()
+		.describe("The new film id. On 409, the film that already has the identity or name. On 500 with failureIndexing, the film that was kept."),
+	name: z.string().optional().nullable().describe("Film name; the /film/{name}/{shortId} slug."),
+	error: z.string().optional(),
+	failureIndexing: z.boolean().optional()
+		.describe("True on 500 when the film was created but the search push failed. The film is kept; a film save or the scheduled film push indexes it."),
+	identityDecision: catalogueIdentityDecisionSchema.nullable().optional()
+		.describe("Present on 200 when authority search is ambiguous; nothing was created. Re-POST with identityDecision + selectedIdentityKey."),
+	cancelled: z.boolean().optional()
+		.describe("True on 200 when the curator cancelled the identity prompt; nothing was created.")
+});
+
 /** EpisodeTrailerAttachRequest — RedditPodcastPoster Api.Dtos.EpisodeTrailerAttachRequest. */
 export const episodeTrailerAttachRequestSchema = z.object({
 	filmId: z.string().uuid().optional().nullable()
