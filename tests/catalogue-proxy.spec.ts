@@ -432,15 +432,10 @@ describe("catalogue OpenAPI contracts", () => {
 
 	it("documents the RPP #1053 service-id 409 and a retryable 500 on PATCH /tvshow, the film stale-trailer 409, and the TV-episode additional-YouTube 409", () => {
 		const responses = UpdateTvShowRoute.openApiSchema.responses;
-		const conflict = responses?.[409] as { description?: string; content?: { "application/json"?: { schema?: unknown } } } | undefined;
-		const conflictSchema = conflict?.content?.["application/json"]?.schema as
-			| { safeParse(value: unknown): { success: boolean } }
-			| undefined;
+		const conflict = responses?.[409] as { description?: string } | undefined;
 		const serviceIdConflict = { message: "spotifyId is already used", ids: [ambiguousIds[1]] };
-		const staleTrailers = { message: "stale", unexpectedTrailerIds: ["6ba7b811-9dad-11d1-80b4-00c04fd430c8"] };
 		expect(serviceIdConflictSchema.safeParse(serviceIdConflict).success).toBe(true);
-		expect(conflictSchema?.safeParse(serviceIdConflict).success).toBe(true);
-		expect(conflictSchema?.safeParse(staleTrailers).success).toBe(true);
+		// The 409 body union (both conflict shapes) is asserted on the generated document in openapi-auth.spec.ts.
 		expect(conflict?.description).toMatch(/spotifyId/);
 		expect(conflict?.description).toMatch(/expectedTrailerIds/);
 		expect(responses?.[500]?.description).toMatch(/retry/i);

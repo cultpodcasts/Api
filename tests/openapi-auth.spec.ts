@@ -399,6 +399,37 @@ describe("OpenAPI auth and response contracts", () => {
 		expect(JSON.stringify(attach.responses?.["202"]?.content?.["application/json"])).toMatch(/"filmCreated"/);
 	});
 
+	it("documents attach-as-TV-show-trailer createShow, tvShowName and publisher in the request, showCreated in the 202 and the existing show id in the 409 (#1412)", () => {
+		const attach = operation(doc, "/episode/{podcastId}/{episodeId}/tvshow-trailer", "post") as ReturnType<
+			typeof operation
+		> & {
+			requestBody?: { content?: Record<string, unknown> };
+		};
+		const body = JSON.stringify(attach.requestBody?.content?.["application/json"]);
+		for (const key of ["tvShowId", "createShow", "tvShowName", "publisher", "title"]) {
+			expect(body).toContain(`"${key}"`);
+		}
+		expect(JSON.stringify(attach.responses?.["202"]?.content?.["application/json"])).toContain('"showCreated"');
+		expect(JSON.stringify(attach.responses?.["409"]?.content?.["application/json"])).toContain('"tvShowId"');
+	});
+
+	it("documents PATCH /tvshow trailers and expectedTrailerIds in the request and both 409 conflict shapes (#1412)", () => {
+		const patch = operation(doc, "/tvshow/{id}", "patch") as ReturnType<typeof operation> & {
+			requestBody?: { content?: Record<string, unknown> };
+		};
+		const body = JSON.stringify(patch.requestBody?.content?.["application/json"]);
+		expect(body).toContain('"trailers"');
+		expect(body).toContain('"expectedTrailerIds"');
+		const conflict = JSON.stringify(patch.responses?.["409"]?.content?.["application/json"]);
+		expect(conflict).toContain('"ids"');
+		expect(conflict).toContain('"unexpectedTrailerIds"');
+	});
+
+	it("documents GET /tvshow trailers in the 200 body (#1412)", () => {
+		const get = operation(doc, "/tvshow/{identifier}{.+}", "get");
+		expect(JSON.stringify(get.responses?.["200"]?.content?.["application/json"])).toContain('"trailers"');
+	});
+
 	it("documents POST /search/admin/docs as an M2M write:search-index command with the search Worker's envelopes (SP-1.4)", () => {
 		const admin = operation(doc, "/search/admin/docs", "post");
 		expect(admin.security).toEqual([{ bearerAuth: [] }]);
